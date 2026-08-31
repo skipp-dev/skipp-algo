@@ -6,7 +6,7 @@ Computes a composite zone priority ranking from three dimensions:
     3. News catalyst (news heat, sentiment, event risk)
 
 The output flows into the generated library as ``export const`` fields,
-consumed by SMC_Long_Dip_Dashboard.pine and SMC_Long_Dip_Suite.pine to surface
+consumed by SMC_Decision_Board.pine and SMC_Long_Dip_Suite.pine to surface
 "which zone has the highest probability today" to the user.
 
 Usage::

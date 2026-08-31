@@ -164,7 +164,7 @@ Die Evidence-Auswertung liefert analog ein `not_ready_reasons`-Array, wenn `gree
 2. Publish-Contract-Invarianten erfolgreich (im Release-Gate enthalten; basiert auf `scripts/verify_smc_micro_publish_contract.py`).
 3. Referenz-Smoke-Checks erfolgreich (im Release-Gate enthalten).
 4. Danach TradingView-Publish-Prozess gemaess Runbook starten.
-5. Der manuelle TradingView-Validierungspfad bleibt `SMC_Long_Dip_Suite.pine` -> `SMC_Long_Dip_Dashboard.pine` -> `SMC_Long_Dip_Strategy.pine`; `SMC++.pine` ist kein aktiver Publish- oder Consumer-Pfad mehr.
+5. Der manuelle TradingView-Validierungspfad bleibt `SMC_Long_Dip_Suite.pine` -> `SMC_Decision_Board.pine` -> `SMC_Long_Dip_Strategy.pine`; `SMC++.pine` ist kein aktiver Publish- oder Consumer-Pfad mehr.
 
 Bei Warnungen/Degradations:
 

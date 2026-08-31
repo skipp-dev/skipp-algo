@@ -55,7 +55,7 @@ Bis die Phasen im neuen Architektur- und Rollout-Plan abgeschlossen sind,
 bleibt der bestehende Acht-Skript-Rollout die operative Basis:
 
 - SMC Long-Dip Suite
-- SMC Long-Dip Dashboard
+- SMC Decision Board
 - SMC Long-Dip Mobile
 - SMC Long-Dip Strategy
 - SMC Long-Dip Alerts

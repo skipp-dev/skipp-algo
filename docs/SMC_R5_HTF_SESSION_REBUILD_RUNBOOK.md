@@ -147,7 +147,7 @@ assumed:
 
 - **The recommendation's premise holds.** `SMC_Context_Overlay.pine` already
   plots session high/low, opening-range high/low, a killzone background and a
-  session row showing code and direction; `SMC_Long_Dip_Dashboard.pine` carries
+  session row showing code and direction; `SMC_Decision_Board.pine` carries
   `BUS SessionVwap`. The session surface is present in Pro Context without this
   script.
 - **The condition for keeping it is not met.** No mobile or layout test showing

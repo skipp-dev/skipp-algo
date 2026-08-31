@@ -17,7 +17,7 @@ Nothing else is needed for the standard mainline experience.
 - A TradingView account with Pine Script v6 support.
 - Access to the published or local copies of:
   - [../SMC_Long_Dip_Suite.pine](../SMC_Long_Dip_Suite.pine) (SMC Core)
-  - [../SMC_Long_Dip_Dashboard.pine](../SMC_Long_Dip_Dashboard.pine) (SMC Decision Board)
+  - [../SMC_Decision_Board.pine](../SMC_Decision_Board.pine) (SMC Decision Board)
   - [../SMC_Long_Dip_Strategy.pine](../SMC_Long_Dip_Strategy.pine) (SMC Execution)
 - A chart open on the intended symbol and timeframe.
 

@@ -74,7 +74,7 @@ def _raw_snapshot() -> dict:
                 "dataAsOf": "2026-07-20",
                 "dataAsOfUnix": 1_784_505_600,
                 "dataAsOfKnown": True,
-                "consumers": [{"file": "SMC_Long_Dip_Dashboard.pine", "pinnedVersion": 1, "drift": True}],
+                "consumers": [{"file": "SMC_Decision_Board.pine", "pinnedVersion": 1, "drift": True}],
                 "anyConsumerDrift": True,
             },
             {
@@ -215,7 +215,7 @@ def test_metrics_render_gates_unknown_tv_version(monkeypatch):
     assert 'live_overlay_pine_library_tv_version{library="smc_bus_private"}' not in body
     assert (
         'live_overlay_pine_consumer_drift{library="smc_micro_profiles_generated",'
-        'consumer="SMC_Long_Dip_Dashboard.pine"} 1.0' in body
+        'consumer="SMC_Decision_Board.pine"} 1.0' in body
     )
     assert "live_overlay_pine_library_any_drift 1.0" in body
     assert 'live_overlay_pine_library_data_age_known{library="smc_micro_profiles_generated"} 1.0' in body

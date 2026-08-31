@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "producer": {"scriptName": "SMC Long-Dip Suite"},
   "consumers": [
-    {"id": "decision-board", "displayName": "SMC Decision Board", "chartNames": ["SMC Decision Board", "SMC Long-Dip Dashboard"], "savedScriptName": "SMC Long-Dip Dashboard", "source": "SMC_Long_Dip_Dashboard.pine"},
+    {"id": "decision-board", "displayName": "SMC Decision Board", "chartNames": ["SMC Decision Board", "SMC Decision Board"], "savedScriptName": "SMC Decision Board", "source": "SMC_Decision_Board.pine"},
     {"id": "strategy", "displayName": "SMC Long-Dip Strategy", "chartNames": ["SMC Long-Dip Strategy"], "savedScriptName": "SMC Long-Dip Strategy", "source": "SMC_Long_Dip_Strategy.pine"},
     {"id": "alerts", "displayName": "SMC Long-Dip Alerts", "chartNames": ["SMC Long-Dip Alerts"], "savedScriptName": "SMC Long-Dip Alerts", "source": "SMC_Long_Dip_Alerts.pine"},
     {"id": "setup-check", "displayName": "SMC Setup Check", "chartNames": ["SMC Setup Check"], "savedScriptName": "SMC Setup Check", "source": "SMC_Setup_Check.pine"},

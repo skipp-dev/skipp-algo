@@ -10,7 +10,7 @@ This ticketset translates the SMC product rescue review into the smallest
 practical R1.2 delivery wave for the active TradingView mainline:
 
 - `SMC_Long_Dip_Suite.pine`
-- `SMC_Long_Dip_Dashboard.pine`
+- `SMC_Decision_Board.pine`
 - `SMC_Long_Dip_Strategy.pine`
 
 The objective is not a new engine. The objective is to make the existing
@@ -70,7 +70,7 @@ few seconds:
 ### R12-04 - Public vs Expert Surface Framing
 
 - `SMC_Long_Dip_Suite.pine` is the only public first-run surface.
-- `SMC_Long_Dip_Dashboard.pine` is a linked companion surface.
+- `SMC_Decision_Board.pine` is a linked companion surface.
 - `SMC_Long_Dip_Strategy.pine` is a linked execution surface.
 - TradingView publish names align to `SMC Core`, `SMC Decision Board`, and `SMC Execution`.
 

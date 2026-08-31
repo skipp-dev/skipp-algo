@@ -29,7 +29,7 @@ DEFAULT_VIEW_MODE: str = "Decision Brief"
 
 # ── Visual budget per view mode ──────────────────────────────────────
 # Maximum number of visible product rows each view mode may render.
-# Keep these in sync with the tooltip in ``SMC_Long_Dip_Dashboard.pine``.
+# Keep these in sync with the tooltip in ``SMC_Decision_Board.pine``.
 _VISUAL_BUDGET: Mapping[str, int] = MappingProxyType({
     "Focus": 3,
     "Hero": 7,

@@ -2607,3 +2607,97 @@ claim  = "Der Ablauf-Empfaenger meldet NICHT durch die ausgefallene Schicht (AST
 state  = "AUSGENOMMEN"
 due_by = "2026-08-30"
 owner  = "operator"
+
+# ---------------------------------------------------------------------------
+# #5231 — Geburtsfehler vom April: Quelle deklarierte seit dem 15.4.
+# "SMC Long-Dip Dashboard", die Rollout-Config suchte "SMC Decision Board".
+# Jeder tv-save-Lauf seit mind. 2026-08-29 warf "Existing chart instance not
+# found" gegen ein gesundes Chart; outOfBandDrift blieb "unknown" und
+# repairE2ETarget war unerreichbar (plausibel der fehlende Zeuge fuer 5025).
+# Die Suite kann die Wirkung nicht sehen — sie liegt im Playwright-Lauf gegen
+# das echte Chart. Zeuge ist der naechste Lauf nach dem Merge, der den
+# Konsumenten wirklich LIEST, statt ihn nicht zu finden.
+# ---------------------------------------------------------------------------
+[[proof]]
+id              = "5231"
+kind            = "fix"
+merged_at       = "<wird beim Merge nachgetragen>"
+merge_sha       = "<dito>"
+claim           = "Nach dem Rename (Titel == Datei == Config == 'SMC Decision Board') findet die Verify-/Save-Kette das Decision Board wieder: der Konsument wird gelesen (ok=true) statt 'Existing chart instance not found', und outOfBandDrift kann wieder urteilen"
+witness         = "tv-save-consumer-source"
+witness_job     = "save"
+evidence_source = "artifact"
+artifact        = "tradingview-consumer-bindings"
+# Erst der Rename-Baum traegt SMC_Decision_Board.pine in repositoryExpected —
+# ein Lauf ohne sie ist Vor-Fix-Code; seine Abwesenheit beweist nichts.
+version_probe   = "SMC_Decision_Board.pine"
+judge           = "tv_decision_board_resolvable"
+state           = "OFFEN"
+due_by          = "2026-09-06"
+owner           = "operator"
+
+[[unreachable_branch]]
+judge  = "tv_decision_board_resolvable"
+branch = "no_artifact"
+reason = """
+2026-08-31: Die Versionsprobe (repositoryExpected traegt SMC_Decision_Board.pine)
+steht VOR allen anderen Zweigen, und jeder bis heute aufgezeichnete Lauf traegt
+den Vor-Rename-Baum — ein echtes Artefakt kann diesen Zweig erst NACH dem Merge
+von #5231 erreichen. no_artifact zusaetzlich: der Monitor liefert bei fehlendem
+Download gar kein dict; aufgezeichnet wird so etwas nicht. Nachtrag mit dem
+ersten Post-Merge-Lauf; der Ledger-Eintrag 5231 (due_by 2026-09-06) ist der
+Stolperdraht, der diesen Nachtrag erzwingt.
+"""
+
+[[unreachable_branch]]
+judge  = "tv_decision_board_resolvable"
+branch = "empty_observation"
+reason = """
+2026-08-31: erreichbar erst nach dem Merge (Versionsprobe steht davor; alle
+aufgezeichneten Laeufe = Vor-Rename-Baum, sie enden in pre_fix_tree). Die
+Zweig-Logik selbst ist die bekannte Klasse checkedConsumers=0 (Laeufe 762/765/
+768/770 vom 22.8. zeigten sie live, damals natuerlich am alten Baum). Nachtrag
+mit dem ersten Post-Merge-Lauf, Stolperdraht = Eintrag 5231 due_by 2026-09-06.
+"""
+
+[[unreachable_branch]]
+judge  = "tv_decision_board_resolvable"
+branch = "still_not_found"
+reason = """
+2026-08-31: erreichbar erst nach dem Merge — dieser Zweig IST der Vorfall
+(Lauf 33360522727 zeigt ihn), aber jeder aufgezeichnete Lauf traegt den
+Vor-Rename-Baum und faellt deshalb VORHER in pre_fix_tree. Feuert er nach dem
+Merge, ist das der FAIL-Beweis, dass der Rename nicht gereicht hat. Nachtrag
+mit dem ersten Post-Merge-Lauf, Stolperdraht = Eintrag 5231 due_by 2026-09-06.
+"""
+
+[[unreachable_branch]]
+judge  = "tv_decision_board_resolvable"
+branch = "board_read_ok"
+reason = """
+2026-08-31: der PASS-Zweig — per Konstruktion erst nach dem Merge erreichbar
+(Versionsprobe verlangt den Rename-Baum). Sobald ein Post-Merge-Lauf ihn
+erreicht, wird er als echter Korpus nachgetragen und diese Deklaration
+geloescht. Stolperdraht = Eintrag 5231 due_by 2026-09-06.
+"""
+
+[[unreachable_branch]]
+judge  = "tv_decision_board_resolvable"
+branch = "found_but_not_ok"
+reason = """
+2026-08-31: erreichbar erst nach dem Merge (Versionsprobe steht davor). Der
+Zweig deckt Klasse-H-Reste ab: Konsument gefunden, aber Settings-Lesen
+scheitert (ok=false) — vor dem Rename nicht aufzeichenbar, weil pre_fix_tree
+zuerst greift. Nachtrag mit dem ersten Post-Merge-Lauf, Stolperdraht =
+Eintrag 5231 due_by 2026-09-06.
+"""
+
+[[unreachable_branch]]
+judge  = "tv_decision_board_resolvable"
+branch = "board_not_in_run"
+reason = """
+2026-08-31: erreichbar erst nach dem Merge (Versionsprobe steht davor). Der
+Zweig faengt Laeufe, die das Board weder pruefen noch als gescheitert fuehren
+(z. B. Teil-Rollouts mit anderem Zielsatz). Nachtrag mit dem ersten
+Post-Merge-Lauf, Stolperdraht = Eintrag 5231 due_by 2026-09-06.
+"""

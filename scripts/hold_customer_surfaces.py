@@ -91,7 +91,7 @@ _OWNER_IMPORT_RE: Final = re.compile(
 #: because a derived list without a floor cannot catch its own drift.
 _INCIDENT_SURFACES: Final = frozenset({
     "SMC_Long_Dip_Suite.pine",
-    "SMC_Long_Dip_Dashboard.pine",
+    "SMC_Decision_Board.pine",
     "SMC_Long_Dip_Mobile.pine",
     "SMC_Long_Dip_Alerts.pine",
 })

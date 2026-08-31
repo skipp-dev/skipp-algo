@@ -288,7 +288,7 @@ npm run tv:smoke-readonly
 1. neuer Preflight-Report in `automation/tradingview/reports/`
 2. Mainline-Ziele bleiben gruen fuer:
    - `SMC_Long_Dip_Suite.pine`
-   - `SMC_Long_Dip_Dashboard.pine`
+   - `SMC_Decision_Board.pine`
    - `SMC_Long_Dip_Strategy.pine`
 
 ## Work Package 5: Evidenz sichern

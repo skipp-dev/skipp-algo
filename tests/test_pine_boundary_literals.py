@@ -5,7 +5,7 @@ are consumed by Pine scripts via literal string comparison. The
 rationale is captured in ADR 2026-04-23: a rename of the constant
 (e.g. ``FRESH`` → ``OK``) is invisible to Python-only tests that use
 ``== TRUST_FRESH`` but silently breaks every ``== "FRESH"`` gate in
-``SMC_Long_Dip_Dashboard.pine``. We therefore maintain **two** assertions for
+``SMC_Decision_Board.pine``. We therefore maintain **two** assertions for
 every cross-boundary string constant:
 
 1. Deref-Test (in the regular unit-test file) — protects Python callers.
@@ -34,23 +34,23 @@ from scripts.smc_zone_priority_consumer import (
     TRUST_UNAVAILABLE,
 )
 
-# ── ZONE_CAL_TRUST glyph gate — SMC_Long_Dip_Dashboard.pine:1429-1434 ────────
+# ── ZONE_CAL_TRUST glyph gate — SMC_Decision_Board.pine:1429-1434 ────────
 
 
 def test_trust_fresh_pine_literal_is_ok() -> None:
     """Pin the literal value consumed by ``zone_cal_trust_glyph``.
 
-    Source:  SMC_Long_Dip_Dashboard.pine:1434  (``trust_state == "OK" ? "🔒"``)
+    Source:  SMC_Decision_Board.pine:1434  (``trust_state == "OK" ? "🔒"``)
     ADR:     2026-04-23 (FRESH → OK rename)
 
-    If this test fails, update SMC_Long_Dip_Dashboard.pine:1429-1434 in the
+    If this test fails, update SMC_Decision_Board.pine:1429-1434 in the
     same PR and bump the library_field_version.
     """
     assert TRUST_FRESH == "OK"
 
 
 def test_trust_degraded_pine_literal_is_degraded() -> None:
-    """Source: SMC_Long_Dip_Dashboard.pine:1434 (``"DEGRADED" ? "⚠"``)."""
+    """Source: SMC_Decision_Board.pine:1434 (``"DEGRADED" ? "⚠"``)."""
     assert TRUST_DEGRADED == "DEGRADED"
 
 
@@ -63,11 +63,11 @@ def test_trust_stale_pine_literal_is_stale() -> None:
 
 
 def test_trust_unavailable_pine_literal_is_unavailable() -> None:
-    """Source: SMC_Long_Dip_Dashboard.pine:1434 (``"UNAVAILABLE" ? "❓"``)."""
+    """Source: SMC_Decision_Board.pine:1434 (``"UNAVAILABLE" ? "❓"``)."""
     assert TRUST_UNAVAILABLE == "UNAVAILABLE"
 
 
-# ── HR sentinel — SMC_Long_Dip_Dashboard.pine:1640-1642 (``<= 0.0`` guard) ───
+# ── HR sentinel — SMC_Decision_Board.pine:1640-1642 (``<= 0.0`` guard) ───
 
 
 def test_hr_sentinel_degraded_is_negative_one() -> None:
@@ -76,7 +76,7 @@ def test_hr_sentinel_degraded_is_negative_one() -> None:
     caught by the guard, but a drift to ``+0.5`` would leak a fake
     high hit-rate into the Pine dashboard.
 
-    Source: SMC_Long_Dip_Dashboard.pine:1640 (``mp.ZONE_HR_FVG <= 0.0`` etc.)
+    Source: SMC_Decision_Board.pine:1640 (``mp.ZONE_HR_FVG <= 0.0`` etc.)
     """
     assert HR_SENTINEL_DEGRADED == -1.0
     assert HR_SENTINEL_DEGRADED < 0.0
@@ -94,7 +94,7 @@ _PINE_CASE_LITERAL_RE = re.compile(r'trust_state\s*==\s*"([A-Z_]+)"')
 
 
 def _read_pine_dashboard() -> str:
-    path = Path(__file__).resolve().parents[1] / "SMC_Long_Dip_Dashboard.pine"
+    path = Path(__file__).resolve().parents[1] / "SMC_Decision_Board.pine"
     return path.read_text(encoding="utf-8")
 
 
@@ -125,7 +125,7 @@ def test_zone_cal_trust_glyph_case_set_is_subset_of_python_vocab() -> None:
     # We expect at least the three currently-wired branches.
     assert pine_literals, (
         "Pine glyph regex matched no trust_state literals — regex "
-        "likely out-of-date vs SMC_Long_Dip_Dashboard.pine."
+        "likely out-of-date vs SMC_Decision_Board.pine."
     )
     orphans = pine_literals - python_vocab
     assert not orphans, (

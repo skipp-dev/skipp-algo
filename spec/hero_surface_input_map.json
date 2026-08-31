@@ -1,8 +1,8 @@
 {
-  "_comment": "Hero Surface input grouping map (PR 3 of the 2026-04-20 Hero Surface deep-review). Documents the canonical surface-vs-internal partition for SMC_Long_Dip_Dashboard.pine and SMC_Long_Dip_Mobile.pine. Consumed by pine_input_surface.py regroup as a re-entrant safety net: re-running it must be a no-op against the current files. Surface inputs stay visible in the first product group; every chart-link binding and internal override stays in its own group with display = display.none. Group VARIABLES are the partition; the group LABELS are customer-facing text and may be reworded freely (2026-08-12).",
+  "_comment": "Hero Surface input grouping map (PR 3 of the 2026-04-20 Hero Surface deep-review). Documents the canonical surface-vs-internal partition for SMC_Decision_Board.pine and SMC_Long_Dip_Mobile.pine. Consumed by pine_input_surface.py regroup as a re-entrant safety net: re-running it must be a no-op against the current files. Surface inputs stay visible in the first product group; every chart-link binding and internal override stays in its own group with display = display.none. Group VARIABLES are the partition; the group LABELS are customer-facing text and may be reworded freely (2026-08-12).",
   "version": "1.1.0",
   "files": {
-    "SMC_Long_Dip_Dashboard.pine": {
+    "SMC_Decision_Board.pine": {
       "groups_order": [
         "g_surface",
         "g_bus_lifecycle",

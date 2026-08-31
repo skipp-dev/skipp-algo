@@ -42,7 +42,7 @@ test("isExactScriptNameMatch refuses third-party substring (the 2026-04-22 colli
 
 test("isExactScriptNameMatch accepts the canonical post-rename title verbatim", () => {
   assert.equal(isExactScriptNameMatch("SMC Long-Dip Strategy v7", "SMC Long-Dip Strategy v7"), true);
-  assert.equal(isExactScriptNameMatch("SMC Long-Dip Dashboard v7", "SMC Long-Dip Dashboard v7"), true);
+  assert.equal(isExactScriptNameMatch("SMC Decision Board v7", "SMC Decision Board v7"), true);
 });
 
 test("isExactScriptNameMatch tolerates trailing version suffix", () => {

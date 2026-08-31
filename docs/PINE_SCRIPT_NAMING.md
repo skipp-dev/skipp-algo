@@ -56,7 +56,7 @@ version string, no duplicate title, and it is listed here.
 
 | Repo file (matches the name) | Name (code title == saved name == display) |
 |------------------------------|--------------------------------------------|
-| `SMC_Long_Dip_Dashboard.pine` | **SMC Long-Dip Dashboard** |
+| `SMC_Decision_Board.pine` | **SMC Decision Board** |
 
 **Why the exemption exists.** `docs/SMC_PRODUCT_IDENTITY.md` sells the Pro chart
 companion under its own name, while the prefix rule — written so the indicator

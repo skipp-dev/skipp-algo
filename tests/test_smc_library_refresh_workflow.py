@@ -117,7 +117,7 @@ def test_refresh_commit_step_restores_runtime_artifacts_before_commit() -> None:
     assert 'git add pine/generated/ \\' in commit_block
     for path in (
         'SMC_Long_Dip_Suite.pine',
-        'SMC_Long_Dip_Dashboard.pine',
+        'SMC_Decision_Board.pine',
         'SMC_Long_Dip_Mobile.pine',
         'SMC_Long_Dip_Strategy.pine',
         'SMC_Confluence_Hub.pine',

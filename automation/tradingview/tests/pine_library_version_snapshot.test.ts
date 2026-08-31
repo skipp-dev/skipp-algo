@@ -62,7 +62,7 @@ test("parseLibraryDataAsOf accepts only a valid exported ISO date", () => {
 
 test("buildSnapshot flags drift only when the TV version is KNOWN and differs", () => {
   const pins = new Map<string, ConsumerPin[]>([
-    ["smc_micro_profiles_generated", [{ file: "SMC_Long_Dip_Dashboard.pine", library: "smc_micro_profiles_generated", pinnedVersion: 1 }]],
+    ["smc_micro_profiles_generated", [{ file: "SMC_Decision_Board.pine", library: "smc_micro_profiles_generated", pinnedVersion: 1 }]],
     ["smc_utils", [{ file: "SMC_Long_Dip_Suite.pine", library: "smc_utils", pinnedVersion: 5 }]],
     ["smc_bus_private", [{ file: "SMC_Long_Dip_Suite.pine", library: "smc_bus_private", pinnedVersion: 1 }]],
   ]);

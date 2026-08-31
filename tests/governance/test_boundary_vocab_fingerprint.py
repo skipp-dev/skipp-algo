@@ -163,7 +163,7 @@ VOCAB_REGISTRY: tuple[VocabEntry, ...] = (
         ),
         consumer_surfaces=(
             "scripts/generate_smc_micro_profiles.py:1046-1052 (Pine const export)",
-            "SMC_Long_Dip_Dashboard.pine (Hero block, ~line 1728)",
+            "SMC_Decision_Board.pine (Hero block, ~line 1728)",
             "SMC_Long_Dip_Mobile.pine",
             "streamlit_terminal.py (Hero widgets)",
             "docs/BOUNDARY_CONTRACT.md",
@@ -179,7 +179,7 @@ VOCAB_REGISTRY: tuple[VocabEntry, ...] = (
             "Hero-local trust vocabulary — superset of canonical TrustState."
         ),
         consumer_surfaces=(
-            "SMC_Long_Dip_Dashboard.pine:1753,1768,1774",
+            "SMC_Decision_Board.pine:1753,1768,1774",
             "SMC_Long_Dip_Mobile.pine:50,55",
             "scripts/smc_hero_state.project_trust_state_to_hero",
             "docs/BOUNDARY_CONTRACT.md (F-2)",
@@ -196,7 +196,7 @@ VOCAB_REGISTRY: tuple[VocabEntry, ...] = (
             "SIGNAL_QUALITY_TIER). Producer-B lives in HERO_QUALITY_A_TO_B."
         ),
         consumer_surfaces=(
-            "SMC_Long_Dip_Dashboard.pine (SetupQuality tinting)",
+            "SMC_Decision_Board.pine (SetupQuality tinting)",
             "scripts/smc_hero_setup_quality.py (Producer-B bridge)",
             "docs/BOUNDARY_CONTRACT.md (F-4)",
         ),
@@ -212,7 +212,7 @@ VOCAB_REGISTRY: tuple[VocabEntry, ...] = (
             "projected from Producer-B's lowercase HeroAction verb."
         ),
         consumer_surfaces=(
-            "SMC_Long_Dip_Dashboard.pine (~line 1728, read-passthrough)",
+            "SMC_Decision_Board.pine (~line 1728, read-passthrough)",
             "scripts/smc_hero_state._derive_hero_action",
             "scripts/smc_hero_action._ACTION_TABLE",
             "docs/BOUNDARY_CONTRACT.md (F-6)",
@@ -245,7 +245,7 @@ VOCAB_REGISTRY: tuple[VocabEntry, ...] = (
         ),
         consumer_surfaces=(
             "SMC_Long_Dip_Suite.pine (plot() block)",
-            "SMC_Long_Dip_Dashboard.pine (input bindings)",
+            "SMC_Decision_Board.pine (input bindings)",
             "SMC_Long_Dip_Strategy.pine",
             "scripts/smc_surface_matrix.py",
         ),
@@ -287,7 +287,7 @@ VOCAB_REGISTRY: tuple[VocabEntry, ...] = (
         ordered=True,
         description="Pro-tier-only channels (ENGINE \\ LITE).",
         consumer_surfaces=(
-            "SMC_Long_Dip_Dashboard.pine (Pro tier sections)",
+            "SMC_Decision_Board.pine (Pro tier sections)",
         ),
     ),
     VocabEntry(
@@ -312,7 +312,7 @@ VOCAB_REGISTRY: tuple[VocabEntry, ...] = (
         kind="sequence",
         ordered=True,
         description="C9 detail channels (zone geometry + value-rail).",
-        consumer_surfaces=("SMC_Long_Dip_Dashboard.pine (Detail Surface group)",),
+        consumer_surfaces=("SMC_Decision_Board.pine (Detail Surface group)",),
     ),
     VocabEntry(
         key="C9_LEGACY_COMPAT_BUS_CHANNELS",
@@ -328,7 +328,7 @@ VOCAB_REGISTRY: tuple[VocabEntry, ...] = (
         kind="sequence",
         ordered=True,
         description="Stable Pro subset after C9 partitioning.",
-        consumer_surfaces=("SMC_Long_Dip_Dashboard.pine (Pro tier)",),
+        consumer_surfaces=("SMC_Decision_Board.pine (Pro tier)",),
     ),
     # ── Dashboard / Strategy group titles ─────────────────────────────
     VocabEntry(
@@ -337,7 +337,7 @@ VOCAB_REGISTRY: tuple[VocabEntry, ...] = (
         kind="sequence",
         ordered=True,
         description="Ordered group titles the dashboard renders.",
-        consumer_surfaces=("SMC_Long_Dip_Dashboard.pine (group() calls)",),
+        consumer_surfaces=("SMC_Decision_Board.pine (group() calls)",),
     ),
     VocabEntry(
         key="STRATEGY_GROUP_TITLES",
@@ -353,7 +353,7 @@ VOCAB_REGISTRY: tuple[VocabEntry, ...] = (
         kind="mapping",
         ordered=False,
         description="Mapping group-key → display title for dashboard.",
-        consumer_surfaces=("SMC_Long_Dip_Dashboard.pine",),
+        consumer_surfaces=("SMC_Decision_Board.pine",),
     ),
     VocabEntry(
         key="STRATEGY_GROUP_TITLES_BY_KEY",

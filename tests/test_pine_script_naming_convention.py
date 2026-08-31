@@ -40,7 +40,7 @@ CANONICAL_MAIN_PRODUCTS: dict[str, str] = {
 #: different promise, and forcing the prefix on it is what pushed its product
 #: name out of the code in the first place.
 CANONICAL_COMPANION_PRODUCTS: dict[str, str] = {
-    "SMC_Long_Dip_Dashboard.pine": "SMC Long-Dip Dashboard",
+    "SMC_Decision_Board.pine": "SMC Decision Board",
 }
 
 #: Every canonical product, whichever class it belongs to.

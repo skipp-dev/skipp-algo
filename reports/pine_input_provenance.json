@@ -227,7 +227,7 @@
         {
           "varname": "show_arrows",
           "kind": "bool",
-          "label": "Show ▲/▼ markers",
+          "label": "Show \u25b2/\u25bc markers",
           "group": "g_vis",
           "has_display_none": false,
           "visibility": null
@@ -267,7 +267,7 @@
         {
           "varname": "atrMult",
           "kind": "float",
-          "label": "ATR × mult → SL",
+          "label": "ATR \u00d7 mult \u2192 SL",
           "group": "g_sim",
           "has_display_none": false,
           "visibility": null
@@ -1088,6 +1088,661 @@
       ]
     },
     {
+      "file": "SMC_Decision_Board.pine",
+      "input_count": 81,
+      "hidden_count": 70,
+      "inputs": [
+        {
+          "varname": "tm_enable",
+          "kind": "bool",
+          "label": "Enable Trade-Mgmt rows",
+          "group": "g_trade_mgmt",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "varname": "tm_tp1_r",
+          "kind": "float",
+          "label": "TP1 (R-multiple)",
+          "group": "g_trade_mgmt",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "varname": "tm_tp2_r",
+          "kind": "float",
+          "label": "TP2 (R-multiple)",
+          "group": "g_trade_mgmt",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "varname": "tm_be_after_t1",
+          "kind": "bool",
+          "label": "Move stop to break-even after TP1",
+          "group": "g_trade_mgmt",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "varname": "surface_mode",
+          "kind": "string",
+          "label": "Decision Brief",
+          "group": "g_surface",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "varname": "show_table",
+          "kind": "bool",
+          "label": "Show Brief Panel",
+          "group": "g_surface",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "varname": "show_risk_lines",
+          "kind": "bool",
+          "label": "Show Trade Plan",
+          "group": "g_surface",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "varname": "show_state_bg",
+          "kind": "bool",
+          "label": "Highlight Live Setup",
+          "group": "g_surface",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "varname": "compact_dashboard",
+          "kind": "bool",
+          "label": "Compact Dashboard",
+          "group": "g_surface",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "varname": "color_theme",
+          "kind": "string",
+          "label": "Standard",
+          "group": "g_surface",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "varname": "hero_token_order",
+          "kind": "string",
+          "label": "BIAS,TRUST,FAM,ZONE,BLOCKER",
+          "group": "g_surface",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "varname": "calibration_sha",
+          "kind": "string",
+          "label": ", ",
+          "group": "g_operator_ops",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "calibration_breach_banner",
+          "kind": "bool",
+          "label": "Calibration Breach Banner",
+          "group": "g_operator_ops",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "fvg_context_health_text",
+          "kind": "string",
+          "label": ", ",
+          "group": "g_operator_ops",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_bus_schema_version",
+          "kind": "source",
+          "label": "BUS SchemaVersion",
+          "group": "g_bus_lifecycle",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_zone_active",
+          "kind": "source",
+          "label": "BUS ZoneActive",
+          "group": "g_bus_lifecycle",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_armed",
+          "kind": "source",
+          "label": "BUS Armed",
+          "group": "g_bus_lifecycle",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_confirmed",
+          "kind": "source",
+          "label": "BUS Confirmed",
+          "group": "g_bus_lifecycle",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_ready",
+          "kind": "source",
+          "label": "BUS Ready",
+          "group": "g_bus_lifecycle",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_entry_best",
+          "kind": "source",
+          "label": "BUS EntryBest",
+          "group": "g_bus_lifecycle",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_entry_strict",
+          "kind": "source",
+          "label": "BUS EntryStrict",
+          "group": "g_bus_lifecycle",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_trigger",
+          "kind": "source",
+          "label": "BUS Trigger",
+          "group": "g_bus_lifecycle",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_invalidation",
+          "kind": "source",
+          "label": "BUS Invalidation",
+          "group": "g_bus_lifecycle",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_quality_score",
+          "kind": "source",
+          "label": "BUS QualityScore",
+          "group": "g_bus_lifecycle",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_source_kind",
+          "kind": "source",
+          "label": "BUS SourceKind",
+          "group": "g_bus_lifecycle",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_state_code",
+          "kind": "source",
+          "label": "BUS StateCode",
+          "group": "g_bus_lifecycle",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_trend_pack",
+          "kind": "source",
+          "label": "BUS TrendPack",
+          "group": "g_bus_lifecycle",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_meta_pack",
+          "kind": "source",
+          "label": "BUS MetaPack",
+          "group": "g_bus_lifecycle",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_ltf_delta_state",
+          "kind": "source",
+          "label": "BUS LtfDeltaState",
+          "group": "g_bus_diag",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_safe_trend_state",
+          "kind": "source",
+          "label": "BUS SafeTrendState",
+          "group": "g_bus_diag",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_micro_profile_code",
+          "kind": "source",
+          "label": "BUS MicroProfileCode",
+          "group": "g_bus_diag",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_stop_level",
+          "kind": "source",
+          "label": "BUS StopLevel",
+          "group": "g_bus_plan",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_target_1",
+          "kind": "source",
+          "label": "BUS Target1",
+          "group": "g_bus_plan",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_target_2",
+          "kind": "source",
+          "label": "BUS Target2",
+          "group": "g_bus_plan",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_session_gate_row",
+          "kind": "source",
+          "label": "BUS SessionGateRow",
+          "group": "g_bus_diag_rows",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_market_gate_row",
+          "kind": "source",
+          "label": "BUS MarketGateRow",
+          "group": "g_bus_diag_rows",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_vola_gate_row",
+          "kind": "source",
+          "label": "BUS VolaGateRow",
+          "group": "g_bus_diag_rows",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_micro_session_gate_row",
+          "kind": "source",
+          "label": "BUS MicroSessionGateRow",
+          "group": "g_bus_diag_rows",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_micro_fresh_row",
+          "kind": "source",
+          "label": "BUS MicroFreshRow",
+          "group": "g_bus_diag_rows",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_volume_data_row",
+          "kind": "source",
+          "label": "BUS VolumeDataRow",
+          "group": "g_bus_diag_rows",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_quality_env_row",
+          "kind": "source",
+          "label": "BUS QualityEnvRow",
+          "group": "g_bus_diag_rows",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_quality_strict_row",
+          "kind": "source",
+          "label": "BUS QualityStrictRow",
+          "group": "g_bus_diag_rows",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_close_strength_row",
+          "kind": "source",
+          "label": "BUS CloseStrengthRow",
+          "group": "g_bus_diag_rows",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_ema_support_row",
+          "kind": "source",
+          "label": "BUS EmaSupportRow",
+          "group": "g_bus_diag_rows",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_adx_row",
+          "kind": "source",
+          "label": "BUS AdxRow",
+          "group": "g_bus_diag_rows",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_relvol_row",
+          "kind": "source",
+          "label": "BUS RelVolRow",
+          "group": "g_bus_diag_rows",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_vwap_row",
+          "kind": "source",
+          "label": "BUS VwapRow",
+          "group": "g_bus_diag_rows",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_context_quality_row",
+          "kind": "source",
+          "label": "BUS ContextQualityRow",
+          "group": "g_bus_diag_rows",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_quality_clean_row",
+          "kind": "source",
+          "label": "BUS QualityCleanRow",
+          "group": "g_bus_diag_rows",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_quality_score_row",
+          "kind": "source",
+          "label": "BUS QualityScoreRow",
+          "group": "g_bus_diag_rows",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_sd_confluence_row",
+          "kind": "source",
+          "label": "BUS SdConfluenceRow",
+          "group": "g_bus_diag_rows",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_sd_osc_row",
+          "kind": "source",
+          "label": "BUS SdOscRow",
+          "group": "g_bus_diag_rows",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_vol_regime_row",
+          "kind": "source",
+          "label": "BUS VolRegimeRow",
+          "group": "g_bus_diag_rows",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_vol_squeeze_row",
+          "kind": "source",
+          "label": "BUS VolSqueezeRow",
+          "group": "g_bus_diag_rows",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_ready_blocker_code",
+          "kind": "source",
+          "label": "BUS ReadyBlockerCode",
+          "group": "g_bus_blockers",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_strict_blocker_code",
+          "kind": "source",
+          "label": "BUS StrictBlockerCode",
+          "group": "g_bus_blockers",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_vol_expansion_state",
+          "kind": "source",
+          "label": "BUS VolExpansionState",
+          "group": "g_bus_blockers",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_ddvi_context_state",
+          "kind": "source",
+          "label": "BUS DdviContextState",
+          "group": "g_bus_blockers",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_zone_ob_top",
+          "kind": "source",
+          "label": "BUS ZoneObTop",
+          "group": "g_bus_detail",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_zone_ob_bottom",
+          "kind": "source",
+          "label": "BUS ZoneObBottom",
+          "group": "g_bus_detail",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_zone_fvg_top",
+          "kind": "source",
+          "label": "BUS ZoneFvgTop",
+          "group": "g_bus_detail",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_zone_fvg_bottom",
+          "kind": "source",
+          "label": "BUS ZoneFvgBottom",
+          "group": "g_bus_detail",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_session_vwap",
+          "kind": "source",
+          "label": "BUS SessionVwap",
+          "group": "g_bus_detail",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_adx_value",
+          "kind": "source",
+          "label": "BUS AdxValue",
+          "group": "g_bus_detail",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_relvol_value",
+          "kind": "source",
+          "label": "BUS RelVolValue",
+          "group": "g_bus_detail",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_stretch_z",
+          "kind": "source",
+          "label": "BUS StretchZ",
+          "group": "g_bus_detail",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_stretch_support_mask",
+          "kind": "source",
+          "label": "BUS StretchSupportMask",
+          "group": "g_bus_detail",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_ltf_bull_share",
+          "kind": "source",
+          "label": "BUS LtfBullShare",
+          "group": "g_bus_detail",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_ltf_bias_hint",
+          "kind": "source",
+          "label": "BUS LtfBiasHint",
+          "group": "g_bus_detail",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_ltf_volume_delta",
+          "kind": "source",
+          "label": "BUS LtfVolumeDelta",
+          "group": "g_bus_detail",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_objects_count_pack",
+          "kind": "source",
+          "label": "BUS ObjectsCountPack",
+          "group": "g_bus_detail",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_lean_pack_a",
+          "kind": "source",
+          "label": "BUS LeanPackA",
+          "group": "g_bus_lean",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_lean_pack_b",
+          "kind": "source",
+          "label": "BUS LeanPackB",
+          "group": "g_bus_lean",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_preset_class_code",
+          "kind": "source",
+          "label": "BUS PresetClassCode",
+          "group": "g_bus_preset",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_preset_rvol_min",
+          "kind": "source",
+          "label": "BUS PresetRvolMin",
+          "group": "g_bus_preset",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_preset_htf_bias_min",
+          "kind": "source",
+          "label": "BUS PresetHtfBiasMin",
+          "group": "g_bus_preset",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_preset_fvg_qual_gate",
+          "kind": "source",
+          "label": "BUS PresetFvgQualGate",
+          "group": "g_bus_preset",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_preset_vol_regime_def",
+          "kind": "source",
+          "label": "BUS PresetVolRegimeDef",
+          "group": "g_bus_preset",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "local_ob_debug_enabled",
+          "kind": "bool",
+          "label": "OB Debug Enabled",
+          "group": "g_local_debug",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "local_fvg_debug_enabled",
+          "kind": "bool",
+          "label": "FVG Debug Enabled",
+          "group": "g_local_debug",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "local_engine_debug_enabled",
+          "kind": "bool",
+          "label": "Long Engine Debug Enabled",
+          "group": "g_local_debug",
+          "has_display_none": true,
+          "visibility": null
+        }
+      ]
+    },
+    {
       "file": "SMC_Event_Overlay.pine",
       "input_count": 10,
       "hidden_count": 0,
@@ -1816,661 +2471,6 @@
       ]
     },
     {
-      "file": "SMC_Long_Dip_Dashboard.pine",
-      "input_count": 81,
-      "hidden_count": 70,
-      "inputs": [
-        {
-          "varname": "tm_enable",
-          "kind": "bool",
-          "label": "Enable Trade-Mgmt rows",
-          "group": "g_trade_mgmt",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "tm_tp1_r",
-          "kind": "float",
-          "label": "TP1 (R-multiple)",
-          "group": "g_trade_mgmt",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "tm_tp2_r",
-          "kind": "float",
-          "label": "TP2 (R-multiple)",
-          "group": "g_trade_mgmt",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "tm_be_after_t1",
-          "kind": "bool",
-          "label": "Move stop to break-even after TP1",
-          "group": "g_trade_mgmt",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "surface_mode",
-          "kind": "string",
-          "label": "Decision Brief",
-          "group": "g_surface",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "show_table",
-          "kind": "bool",
-          "label": "Show Brief Panel",
-          "group": "g_surface",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "show_risk_lines",
-          "kind": "bool",
-          "label": "Show Trade Plan",
-          "group": "g_surface",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "show_state_bg",
-          "kind": "bool",
-          "label": "Highlight Live Setup",
-          "group": "g_surface",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "compact_dashboard",
-          "kind": "bool",
-          "label": "Compact Dashboard",
-          "group": "g_surface",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "color_theme",
-          "kind": "string",
-          "label": "Standard",
-          "group": "g_surface",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "hero_token_order",
-          "kind": "string",
-          "label": "BIAS,TRUST,FAM,ZONE,BLOCKER",
-          "group": "g_surface",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "calibration_sha",
-          "kind": "string",
-          "label": ", ",
-          "group": "g_operator_ops",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "calibration_breach_banner",
-          "kind": "bool",
-          "label": "Calibration Breach Banner",
-          "group": "g_operator_ops",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "fvg_context_health_text",
-          "kind": "string",
-          "label": ", ",
-          "group": "g_operator_ops",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_bus_schema_version",
-          "kind": "source",
-          "label": "BUS SchemaVersion",
-          "group": "g_bus_lifecycle",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_zone_active",
-          "kind": "source",
-          "label": "BUS ZoneActive",
-          "group": "g_bus_lifecycle",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_armed",
-          "kind": "source",
-          "label": "BUS Armed",
-          "group": "g_bus_lifecycle",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_confirmed",
-          "kind": "source",
-          "label": "BUS Confirmed",
-          "group": "g_bus_lifecycle",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_ready",
-          "kind": "source",
-          "label": "BUS Ready",
-          "group": "g_bus_lifecycle",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_entry_best",
-          "kind": "source",
-          "label": "BUS EntryBest",
-          "group": "g_bus_lifecycle",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_entry_strict",
-          "kind": "source",
-          "label": "BUS EntryStrict",
-          "group": "g_bus_lifecycle",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_trigger",
-          "kind": "source",
-          "label": "BUS Trigger",
-          "group": "g_bus_lifecycle",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_invalidation",
-          "kind": "source",
-          "label": "BUS Invalidation",
-          "group": "g_bus_lifecycle",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_quality_score",
-          "kind": "source",
-          "label": "BUS QualityScore",
-          "group": "g_bus_lifecycle",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_source_kind",
-          "kind": "source",
-          "label": "BUS SourceKind",
-          "group": "g_bus_lifecycle",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_state_code",
-          "kind": "source",
-          "label": "BUS StateCode",
-          "group": "g_bus_lifecycle",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_trend_pack",
-          "kind": "source",
-          "label": "BUS TrendPack",
-          "group": "g_bus_lifecycle",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_meta_pack",
-          "kind": "source",
-          "label": "BUS MetaPack",
-          "group": "g_bus_lifecycle",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_ltf_delta_state",
-          "kind": "source",
-          "label": "BUS LtfDeltaState",
-          "group": "g_bus_diag",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_safe_trend_state",
-          "kind": "source",
-          "label": "BUS SafeTrendState",
-          "group": "g_bus_diag",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_micro_profile_code",
-          "kind": "source",
-          "label": "BUS MicroProfileCode",
-          "group": "g_bus_diag",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_stop_level",
-          "kind": "source",
-          "label": "BUS StopLevel",
-          "group": "g_bus_plan",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_target_1",
-          "kind": "source",
-          "label": "BUS Target1",
-          "group": "g_bus_plan",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_target_2",
-          "kind": "source",
-          "label": "BUS Target2",
-          "group": "g_bus_plan",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_session_gate_row",
-          "kind": "source",
-          "label": "BUS SessionGateRow",
-          "group": "g_bus_diag_rows",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_market_gate_row",
-          "kind": "source",
-          "label": "BUS MarketGateRow",
-          "group": "g_bus_diag_rows",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_vola_gate_row",
-          "kind": "source",
-          "label": "BUS VolaGateRow",
-          "group": "g_bus_diag_rows",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_micro_session_gate_row",
-          "kind": "source",
-          "label": "BUS MicroSessionGateRow",
-          "group": "g_bus_diag_rows",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_micro_fresh_row",
-          "kind": "source",
-          "label": "BUS MicroFreshRow",
-          "group": "g_bus_diag_rows",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_volume_data_row",
-          "kind": "source",
-          "label": "BUS VolumeDataRow",
-          "group": "g_bus_diag_rows",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_quality_env_row",
-          "kind": "source",
-          "label": "BUS QualityEnvRow",
-          "group": "g_bus_diag_rows",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_quality_strict_row",
-          "kind": "source",
-          "label": "BUS QualityStrictRow",
-          "group": "g_bus_diag_rows",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_close_strength_row",
-          "kind": "source",
-          "label": "BUS CloseStrengthRow",
-          "group": "g_bus_diag_rows",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_ema_support_row",
-          "kind": "source",
-          "label": "BUS EmaSupportRow",
-          "group": "g_bus_diag_rows",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_adx_row",
-          "kind": "source",
-          "label": "BUS AdxRow",
-          "group": "g_bus_diag_rows",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_relvol_row",
-          "kind": "source",
-          "label": "BUS RelVolRow",
-          "group": "g_bus_diag_rows",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_vwap_row",
-          "kind": "source",
-          "label": "BUS VwapRow",
-          "group": "g_bus_diag_rows",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_context_quality_row",
-          "kind": "source",
-          "label": "BUS ContextQualityRow",
-          "group": "g_bus_diag_rows",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_quality_clean_row",
-          "kind": "source",
-          "label": "BUS QualityCleanRow",
-          "group": "g_bus_diag_rows",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_quality_score_row",
-          "kind": "source",
-          "label": "BUS QualityScoreRow",
-          "group": "g_bus_diag_rows",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_sd_confluence_row",
-          "kind": "source",
-          "label": "BUS SdConfluenceRow",
-          "group": "g_bus_diag_rows",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_sd_osc_row",
-          "kind": "source",
-          "label": "BUS SdOscRow",
-          "group": "g_bus_diag_rows",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_vol_regime_row",
-          "kind": "source",
-          "label": "BUS VolRegimeRow",
-          "group": "g_bus_diag_rows",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_vol_squeeze_row",
-          "kind": "source",
-          "label": "BUS VolSqueezeRow",
-          "group": "g_bus_diag_rows",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_ready_blocker_code",
-          "kind": "source",
-          "label": "BUS ReadyBlockerCode",
-          "group": "g_bus_blockers",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_strict_blocker_code",
-          "kind": "source",
-          "label": "BUS StrictBlockerCode",
-          "group": "g_bus_blockers",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_vol_expansion_state",
-          "kind": "source",
-          "label": "BUS VolExpansionState",
-          "group": "g_bus_blockers",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_ddvi_context_state",
-          "kind": "source",
-          "label": "BUS DdviContextState",
-          "group": "g_bus_blockers",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_zone_ob_top",
-          "kind": "source",
-          "label": "BUS ZoneObTop",
-          "group": "g_bus_detail",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_zone_ob_bottom",
-          "kind": "source",
-          "label": "BUS ZoneObBottom",
-          "group": "g_bus_detail",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_zone_fvg_top",
-          "kind": "source",
-          "label": "BUS ZoneFvgTop",
-          "group": "g_bus_detail",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_zone_fvg_bottom",
-          "kind": "source",
-          "label": "BUS ZoneFvgBottom",
-          "group": "g_bus_detail",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_session_vwap",
-          "kind": "source",
-          "label": "BUS SessionVwap",
-          "group": "g_bus_detail",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_adx_value",
-          "kind": "source",
-          "label": "BUS AdxValue",
-          "group": "g_bus_detail",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_relvol_value",
-          "kind": "source",
-          "label": "BUS RelVolValue",
-          "group": "g_bus_detail",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_stretch_z",
-          "kind": "source",
-          "label": "BUS StretchZ",
-          "group": "g_bus_detail",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_stretch_support_mask",
-          "kind": "source",
-          "label": "BUS StretchSupportMask",
-          "group": "g_bus_detail",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_ltf_bull_share",
-          "kind": "source",
-          "label": "BUS LtfBullShare",
-          "group": "g_bus_detail",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_ltf_bias_hint",
-          "kind": "source",
-          "label": "BUS LtfBiasHint",
-          "group": "g_bus_detail",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_ltf_volume_delta",
-          "kind": "source",
-          "label": "BUS LtfVolumeDelta",
-          "group": "g_bus_detail",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_objects_count_pack",
-          "kind": "source",
-          "label": "BUS ObjectsCountPack",
-          "group": "g_bus_detail",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_lean_pack_a",
-          "kind": "source",
-          "label": "BUS LeanPackA",
-          "group": "g_bus_lean",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_lean_pack_b",
-          "kind": "source",
-          "label": "BUS LeanPackB",
-          "group": "g_bus_lean",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_preset_class_code",
-          "kind": "source",
-          "label": "BUS PresetClassCode",
-          "group": "g_bus_preset",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_preset_rvol_min",
-          "kind": "source",
-          "label": "BUS PresetRvolMin",
-          "group": "g_bus_preset",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_preset_htf_bias_min",
-          "kind": "source",
-          "label": "BUS PresetHtfBiasMin",
-          "group": "g_bus_preset",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_preset_fvg_qual_gate",
-          "kind": "source",
-          "label": "BUS PresetFvgQualGate",
-          "group": "g_bus_preset",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_preset_vol_regime_def",
-          "kind": "source",
-          "label": "BUS PresetVolRegimeDef",
-          "group": "g_bus_preset",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "local_ob_debug_enabled",
-          "kind": "bool",
-          "label": "OB Debug Enabled",
-          "group": "g_local_debug",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "local_fvg_debug_enabled",
-          "kind": "bool",
-          "label": "FVG Debug Enabled",
-          "group": "g_local_debug",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "local_engine_debug_enabled",
-          "kind": "bool",
-          "label": "Long Engine Debug Enabled",
-          "group": "g_local_debug",
-          "has_display_none": true,
-          "visibility": null
-        }
-      ]
-    },
-    {
       "file": "SMC_Long_Dip_Mobile.pine",
       "input_count": 13,
       "hidden_count": 8,
@@ -2868,7 +2868,7 @@
         {
           "varname": "mtf_trend_tf0",
           "kind": "timeframe",
-          "label": "Trend TF 0 (optional 2H — scaffold, inactive)",
+          "label": "Trend TF 0 (optional 2H \u2014 scaffold, inactive)",
           "group": "g_mtf",
           "has_display_none": true,
           "visibility": null

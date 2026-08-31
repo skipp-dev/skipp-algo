@@ -22,7 +22,7 @@ from scripts.check_pine_consumer_repin import pin_only_violations
 # Ein Consumer im Kleinen: Pin-Zeile plus eine Zeile, die dem Kunden angezeigt
 # wird. Mehr braucht die Aussage nicht.
 BASE = """//@version=6
-indicator("SMC Long-Dip Dashboard", overlay = true)
+indicator("SMC Decision Board", overlay = true)
 
 import preuss_steffen/smc_micro_profiles_generated/220 as mp
 

@@ -10,7 +10,7 @@ Dieses Dokument uebersetzt das Decision-First-PRD in einen konkreten
 Lieferplan fuer die drei SMC-TradingView-Surfaces:
 
 - `SMC_Long_Dip_Suite.pine`
-- `SMC_Long_Dip_Dashboard.pine`
+- `SMC_Decision_Board.pine`
 - `SMC_Long_Dip_Strategy.pine`
 
 Es ist kein Architektur-Fork. Alle Tickets muessen die aktive Produktgrenze
@@ -42,9 +42,9 @@ respektieren:
 
 | ID | Epic | Hauptresultat | Hauptartefakte | Prioritaet |
 | --- | --- | --- | --- | --- |
-| E1 | Shared Product Language | Einheitliche Begriffswelt fuer Core, Dashboard und Strategy Wrapper | `SMC_Long_Dip_Suite.pine`, `SMC_Long_Dip_Dashboard.pine`, `SMC_Long_Dip_Strategy.pine`, Docs | P1 |
+| E1 | Shared Product Language | Einheitliche Begriffswelt fuer Core, Dashboard und Strategy Wrapper | `SMC_Long_Dip_Suite.pine`, `SMC_Decision_Board.pine`, `SMC_Long_Dip_Strategy.pine`, Docs | P1 |
 | E2 | SMC Core Lite Surface | Decision-first Hero-Surface fuer aktive Nutzung | `SMC_Long_Dip_Suite.pine` | P1 |
-| E3 | SMC Decision Board Split | Compact Detail, Pro Diagnostics und operator-only Companion sauber trennen | `SMC_Long_Dip_Dashboard.pine` | P1 |
+| E3 | SMC Decision Board Split | Compact Detail, Pro Diagnostics und operator-only Companion sauber trennen | `SMC_Decision_Board.pine` | P1 |
 | E4 | SMC Execution Surface | Strategy-Setup, Binding und Chart-Ausgabe produktisieren | `SMC_Long_Dip_Strategy.pine` | P1 |
 | E5 | Docs And Validation | Guide, Validation und Release-Gates auf dieselben drei Surfaces ausrichten | Docs, Tests, Validation | P2 |
 
@@ -53,7 +53,7 @@ respektieren:
 ### T1.1 Core / Dashboard / Strategy Naming Parity
 
 - Scope: sichtbare Begriffe fuer Action, Risk, Quality und Setup angleichen.
-- Hauptartefakte: `SMC_Long_Dip_Suite.pine`, `SMC_Long_Dip_Dashboard.pine`,
+- Hauptartefakte: `SMC_Long_Dip_Suite.pine`, `SMC_Decision_Board.pine`,
   `SMC_Long_Dip_Strategy.pine`, Docs.
 - Acceptance Criteria:
   - Core und Dashboard sprechen dieselbe Lite-Sprache.
@@ -65,7 +65,7 @@ respektieren:
 
 - Scope: Trigger, Invalidation, Quality und Plan-Level in allen drei Surfaces
   konsistent beschreiben.
-- Hauptartefakte: `SMC_Long_Dip_Suite.pine`, `SMC_Long_Dip_Dashboard.pine`,
+- Hauptartefakte: `SMC_Long_Dip_Suite.pine`, `SMC_Decision_Board.pine`,
   `SMC_Long_Dip_Strategy.pine`.
 - Acceptance Criteria:
   - Risk-Plan-Begriffe widersprechen sich nicht.
@@ -75,7 +75,7 @@ respektieren:
 
 - Scope: Binding-Flaechen im Dashboard und in der Strategy explizit als
   operator-only markieren.
-- Hauptartefakte: `SMC_Long_Dip_Dashboard.pine`, `SMC_Long_Dip_Strategy.pine`, Guides.
+- Hauptartefakte: `SMC_Decision_Board.pine`, `SMC_Long_Dip_Strategy.pine`, Guides.
 - Acceptance Criteria:
   - Endnutzer halten Binding-Screens nicht fuer normale Public-UI.
   - Die Bindungsreihenfolge ist dokumentiert und deterministisch.
@@ -112,7 +112,7 @@ respektieren:
 ### T3.1 Compact Detail Default
 
 - Scope: Default-Dashboard auf kompakte Entscheidungserklaerung reduzieren.
-- Hauptartefakt: `SMC_Long_Dip_Dashboard.pine`.
+- Hauptartefakt: `SMC_Decision_Board.pine`.
 - Acceptance Criteria:
   - Default-Detail hat maximal 6 bis 8 Kernzeilen.
   - BUS-Terminologie ist in Compact Detail nicht sichtbar.
@@ -120,7 +120,7 @@ respektieren:
 ### T3.2 Pro Diagnostics Retention
 
 - Scope: die bestehende Tiefe erhalten, aber klar als Pro kennzeichnen.
-- Hauptartefakt: `SMC_Long_Dip_Dashboard.pine`.
+- Hauptartefakt: `SMC_Decision_Board.pine`.
 - Acceptance Criteria:
   - Pro Diagnostics bleibt funktional.
   - Compact und Pro sind als zwei verschiedene Lesestufen erkennbar.
@@ -128,7 +128,7 @@ respektieren:
 ### T3.3 Operator Binding Workflow
 
 - Scope: den Companion-Workflow fuer Dashboard-Bindings klar dokumentieren.
-- Hauptartefakte: `SMC_Long_Dip_Dashboard.pine`, Guides.
+- Hauptartefakte: `SMC_Decision_Board.pine`, Guides.
 - Acceptance Criteria:
   - Binding order ist explizit beschrieben.
   - Endnutzer muessen das Dashboard nicht manuell verdrahten, um den Core zu

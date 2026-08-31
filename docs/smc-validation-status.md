@@ -7,7 +7,7 @@ The current completed work now covers the TradingView validation/reporting layer
 It now anchors and propagates product metadata across:
 
 - [../SMC_Long_Dip_Suite.pine](../SMC_Long_Dip_Suite.pine)
-- [../SMC_Long_Dip_Dashboard.pine](../SMC_Long_Dip_Dashboard.pine)
+- [../SMC_Decision_Board.pine](../SMC_Decision_Board.pine)
 - [../SMC_Long_Dip_Strategy.pine](../SMC_Long_Dip_Strategy.pine)
 - [../scripts/smc_bus_manifest.py](../scripts/smc_bus_manifest.py)
 - [../artifacts/tradingview/smc_product_cut_manifest.json](../artifacts/tradingview/smc_product_cut_manifest.json)
@@ -30,7 +30,7 @@ It now anchors and propagates product metadata across:
 - runtime smoke validation is explicit and minimal
 - library release tracking now has a machine-readable manifest under [../artifacts/tradingview/library_release_manifest.json](../artifacts/tradingview/library_release_manifest.json)
 - the SMC product boundary now has a machine-readable artifact under [../artifacts/tradingview/smc_product_cut_manifest.json](../artifacts/tradingview/smc_product_cut_manifest.json)
-- preflight scopes now resolve from the canonical product-cut artifact, including the mainline path `SMC_Long_Dip_Suite.pine` + `SMC_Long_Dip_Dashboard.pine` + `SMC_Long_Dip_Strategy.pine`
+- preflight scopes now resolve from the canonical product-cut artifact, including the mainline path `SMC_Long_Dip_Suite.pine` + `SMC_Decision_Board.pine` + `SMC_Long_Dip_Strategy.pine`
 - dashboard, strategy, companion, bridge, and legacy surfaces are explicitly classified in code and artifact form
 - dashboard/pine payloads and the delivery bundle now carry `product_cut` metadata
 - the long-strategy wrapper now separates visible setup from operator-only BUS bindings and exposes entry-price, stop-loss, and profit-target outputs with public terminology

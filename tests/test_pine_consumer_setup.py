@@ -9,7 +9,7 @@ sys.path.insert(0, str(ROOT))
 
 from scripts.smc_bus_manifest import DASHBOARD_BUS_BINDINGS, STRATEGY_BUS_BINDINGS
 
-DASHBOARD_PATH = ROOT / "SMC_Long_Dip_Dashboard.pine"
+DASHBOARD_PATH = ROOT / "SMC_Decision_Board.pine"
 STRATEGY_PATH = ROOT / "SMC_Long_Dip_Strategy.pine"
 
 _SOURCE_RE = re.compile(

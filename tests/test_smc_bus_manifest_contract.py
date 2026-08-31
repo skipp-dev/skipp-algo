@@ -15,7 +15,7 @@ from tests.smc_manifest_test_utils import (
 
 MANIFEST = load_manifest()
 CORE_PATH = ROOT / 'SMC_Long_Dip_Suite.pine'
-DASHBOARD_PATH = ROOT / 'SMC_Long_Dip_Dashboard.pine'
+DASHBOARD_PATH = ROOT / 'SMC_Decision_Board.pine'
 STRATEGY_PATH = ROOT / 'SMC_Long_Dip_Strategy.pine'
 
 # The consumer contracts registered 2026-08-28 (#4639 completion): every one
@@ -340,10 +340,10 @@ def test_product_cut_payload_exports_governance_metadata() -> None:
     )
     # Canonical unique TV script identities (no third-party substring collision).
     # See PREFLIGHT_*_TARGETS rationale comment in scripts/smc_bus_manifest.py.
-    assert payload['preflightScopes']['smcCoreDashboard'][1]['scriptName'] == 'SMC Long-Dip Dashboard'
-    assert payload['preflightScopes']['smcCoreDashboard'][1]['savedScriptName'] == 'SMC Long-Dip Dashboard'
-    assert payload['preflightScopes']['smcMainline'][1]['scriptName'] == 'SMC Long-Dip Dashboard'
-    assert payload['preflightScopes']['smcMainline'][1]['savedScriptName'] == 'SMC Long-Dip Dashboard'
+    assert payload['preflightScopes']['smcCoreDashboard'][1]['scriptName'] == 'SMC Decision Board'
+    assert payload['preflightScopes']['smcCoreDashboard'][1]['savedScriptName'] == 'SMC Decision Board'
+    assert payload['preflightScopes']['smcMainline'][1]['scriptName'] == 'SMC Decision Board'
+    assert payload['preflightScopes']['smcMainline'][1]['savedScriptName'] == 'SMC Decision Board'
     assert payload['preflightScopes']['smcMainline'][2]['scriptName'] == 'SMC Long-Dip Strategy'
     assert payload['preflightScopes']['smcMainline'][2]['savedScriptName'] == 'SMC Long-Dip Strategy'
     assert dashboard_target['bindingContractKey'] == 'dashboardBindings'

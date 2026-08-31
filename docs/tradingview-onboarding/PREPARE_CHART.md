@@ -24,7 +24,7 @@ Supported consumers are:
 - SMC Confluence Hub
 - SMC Long-Dip Mobile
 
-The display title `SMC Long-Dip Dashboard` is also recognized as the Decision
+The display title `SMC Decision Board` is also recognized as the Decision
 Board consumer.
 
 ## Required producer

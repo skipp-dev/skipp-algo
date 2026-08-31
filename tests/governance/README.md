@@ -47,10 +47,10 @@ which forces a reviewer to see the diff.
 
 | Vocabulary | Surfaces |
 |---|---|
-| `HERO_FIELD_NAMES` | `scripts/generate_smc_micro_profiles.py:1046-1052`, `SMC_Long_Dip_Dashboard.pine`, `SMC_Long_Dip_Mobile.pine`, `streamlit_terminal.py`, `docs/BOUNDARY_CONTRACT.md` |
-| `HERO_TRUST_VOCAB` | `SMC_Long_Dip_Dashboard.pine:1753,1768,1774`, `SMC_Long_Dip_Mobile.pine:50,55`, `smc_integration.trust_state` |
-| `HERO_SETUP_QUALITY_VOCAB` | `SMC_Long_Dip_Dashboard.pine` (SetupQuality tinting), `scripts/smc_hero_setup_quality.py` |
-| `HERO_ACTION_VOCAB` | `SMC_Long_Dip_Dashboard.pine` (~line 1728), `scripts/smc_hero_state._derive_hero_action`, `scripts/smc_hero_action._ACTION_TABLE` |
+| `HERO_FIELD_NAMES` | `scripts/generate_smc_micro_profiles.py:1046-1052`, `SMC_Decision_Board.pine`, `SMC_Long_Dip_Mobile.pine`, `streamlit_terminal.py`, `docs/BOUNDARY_CONTRACT.md` |
+| `HERO_TRUST_VOCAB` | `SMC_Decision_Board.pine:1753,1768,1774`, `SMC_Long_Dip_Mobile.pine:50,55`, `smc_integration.trust_state` |
+| `HERO_SETUP_QUALITY_VOCAB` | `SMC_Decision_Board.pine` (SetupQuality tinting), `scripts/smc_hero_setup_quality.py` |
+| `HERO_ACTION_VOCAB` | `SMC_Decision_Board.pine` (~line 1728), `scripts/smc_hero_state._derive_hero_action`, `scripts/smc_hero_action._ACTION_TABLE` |
 | `HERO_QUALITY_A_TO_B` | Producer-A ↔ Producer-B bridge |
 | `ENGINE_BUS_CHANNELS` (ordered) | `SMC_Long_Dip_Suite.pine` plot block — plot order is load-bearing |
 | `EXECUTABLE_BUS_CHANNELS` | `SMC_Long_Dip_Strategy.pine`, `smc_strategy_router` |
