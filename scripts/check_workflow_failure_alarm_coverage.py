@@ -87,6 +87,12 @@ REQUIRED_WORKFLOWS: dict[str, str] = {
 
 PROM_DATASOURCE_UID = "grafanacloud-prom"
 METRIC = 'live_overlay_github_workflow_phase_code{job="live_overlay"}'
+#: 2026-08-31 (Wirkungs-Sweep J): die Praesenz-Metrik der Bruecke. Anders als
+#: METRIC ist sie NICHT aus der Lauf-Seite abgeleitet, sondern aus der
+#: deklarierten Erwartungsliste (``config.github_workflow_expected()``). Ihre
+#: Abwesenheit ist deshalb eindeutig -- sie kann nicht "der Workflow lief
+#: laenger nicht" bedeuten, sondern nur "die Liste ist leer".
+PRESENCE_METRIC = 'live_overlay_github_workflow_expected_present{job="live_overlay"}'
 DEFAULT_REPO = "skipp-dev/skipp-algo"
 # Muss zu GITHUB_WORKFLOW_MONITOR_PER_PAGE des Daemons passen; dessen Vorgabe
 # ist 100 (services/live_overlay_daemon/config.py). Sieht dieses Skript eine
@@ -182,6 +188,20 @@ def observed_workflows(key: str) -> set[str]:
             "hier eine Luege."
         )
     return names
+
+
+def presence_series_count(key: str) -> int:
+    """Zeitreihen der Praesenz-Metrik. 0 = Praesenz-Ueberwachung ist AUS.
+
+    Aufruf NUR nach ``observed_workflows`` -- das wirft bereits, wenn die
+    Bruecke ueberhaupt keine Daten liefert. Damit ist die Vorbedingung belegt
+    und eine leere Antwort hier hat genau EINE Ursache: die Erwartungsliste
+    ``GITHUB_WORKFLOW_MONITOR_EXPECTED`` ist auf dem Daemon nicht gesetzt.
+    """
+    ds_id = _prom_datasource_id(key)
+    query = urllib.parse.quote(PRESENCE_METRIC)
+    res = _request("GET", f"/api/datasources/proxy/{ds_id}/api/v1/query?query={query}", key)
+    return len(((res or {}).get("data") or {}).get("result") or [])
 
 
 def _gh(url: str, token: str) -> dict[str, Any]:
@@ -357,6 +377,21 @@ def main(argv: list[str] | None = None) -> int:
 
     blind, ok, stumm = evaluate(REQUIRED_WORKFLOWS, names_by_file, in_page, observed)
 
+    # Praesenz-Arm (2026-08-31), in EIGENEM try: eine zusaetzliche Abfrage darf
+    # die Hauptpruefung nicht entwerten. Faellt sie aus, ist das eine sichtbare
+    # UNGESICHERT-Zeile -- dasselbe Muster wie der Drift-Arm darunter, und aus
+    # demselben Grund: "nicht lesbar" ist weder Befund noch Bestehen.
+    # Erst NACH observed_workflows ausgewertet: das wirft bereits, wenn die
+    # Bruecke ueberhaupt keine Daten liefert. Damit ist die Vorbedingung belegt
+    # und eine leere Praesenz-Metrik hat genau EINE Ursache.
+    praesenz: int | None = None
+    praesenz_unsicher: str | None = None
+    try:
+        praesenz = _mit_transient_retry(presence_series_count, key)
+    except (OSError, ValueError, KeyError, RuntimeError, ProbeInvalidError) as exc:
+        praesenz_unsicher = f"SONDE-FEHLER {type(exc).__name__}: {exc}"
+    praesenz_aus = praesenz == 0
+
     # Drift-Arm (2026-08-28): Live-Ruleset gegen die Repo-Wahrheit. Nicht lesbar
     # ist kein Befund und kein Bestehen -- eine sichtbare UNGESICHERT-Zeile.
     drift: list[str] = []
@@ -372,6 +407,13 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f"GitHub-Token aus    : {token_source}")
     print(f"Zeitreihen im Alarm : {len(observed)}")
+    if praesenz_unsicher:
+        print(f"Praesenz-Zeitreihen : UNGESICHERT -- {praesenz_unsicher}")
+    else:
+        print(
+            f"Praesenz-Zeitreihen : {praesenz}"
+            + ("   <-- Praesenz-Ueberwachung AUS" if praesenz_aus else "")
+        )
     print(f"Workflows im Fenster: {len(in_page)}  (dieselbe Seite, die die Bruecke sieht)")
     for line in ok:
         print(f"  OK      {line}")
@@ -408,7 +450,24 @@ def main(argv: list[str] | None = None) -> int:
             "Bruecke je sieht.",
             file=sys.stderr,
         )
-    if blind or drift:
+    if praesenz_aus:
+        print(
+            "\nDie Praesenz-Ueberwachung ist AUS: "
+            f"{PRESENCE_METRIC.split('{')[0]} hat null Zeitreihen, waehrend die "
+            "Bruecke nachweislich Daten liefert (die Pruefung oben braucht sie).\n"
+            "Damit ist die EINZIGE Regel, die 'ein deklarierter Workflow laeuft gar "
+            "nicht mehr' erkennen koennte, ohne Datenbasis -- und sie ist fail-open "
+            "formuliert (`or on() vector(0)`), meldet also 0 statt NoData. Ihre "
+            "Stille sieht aus wie Gesundheit.\n"
+            "Alles andere an Workflow-Frische ist aus EINER Seite von /actions/runs "
+            "abgeleitet und verschwindet genau dann, wenn es alarmieren muesste.\n"
+            "  railway ssh --service live_overlay_daemon -- sh -lc "
+            "'printf \"%s\\n\" \"$GITHUB_WORKFLOW_MONITOR_EXPECTED\"'\n"
+            "Setzen (kommagetrennte Workflow-NAMEN, nicht IDs) oder bewusst leer "
+            "lassen -- dann ist diese Zeile die Stelle, an der das entschieden wird.",
+            file=sys.stderr,
+        )
+    if blind or drift or praesenz_aus:
         return 1
     if not ok:
         print(
