@@ -463,8 +463,17 @@ def main(argv: list[str] | None = None) -> int:
             "abgeleitet und verschwindet genau dann, wenn es alarmieren muesste.\n"
             "  railway ssh --service live_overlay_daemon -- sh -lc "
             "'printf \"%s\\n\" \"$GITHUB_WORKFLOW_MONITOR_EXPECTED\"'\n"
-            "Setzen (kommagetrennte Workflow-NAMEN, nicht IDs) oder bewusst leer "
-            "lassen -- dann ist diese Zeile die Stelle, an der das entschieden wird.",
+            "\nACHTUNG -- die Variable ALLEIN zu setzen behebt es NICHT und macht es "
+            "schlimmer. Gemessen 2026-08-31: `expected_present` prueft nur, ob der Name "
+            "auf DERSELBEN Lauf-Seite steht, und die deckte 9 Stunden ab (am 2026-08-20: "
+            "5). Ein taeglicher Workflow steht dort rund ein Drittel des Tages; bei "
+            "`for: 6h` feuerte die Regel dann JEDEN TAG fuer JEDEN Daily. Die Stille "
+            "waere gegen einen taeglichen Fehlalarm getauscht.\n"
+            "Damit die Liste tragen kann, muss die Praesenz je Workflow EINZELN "
+            "ermittelt werden (`/actions/workflows/<id>/runs?per_page=1&branch=main`) "
+            "statt aus der geteilten Seite -- github_workflow_bridge.py, dort wo "
+            "`seen_names` gebildet wird. Bis dahin ist die Zeile hier ein BERICHT ueber "
+            "einen bekannten Zustand, kein Auftrag, die Variable zu setzen.",
             file=sys.stderr,
         )
     if blind or drift or praesenz_aus:
