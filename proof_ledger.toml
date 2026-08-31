@@ -2069,6 +2069,86 @@ state           = "OFFEN"
 due_by          = "2026-09-07"
 owner           = "@preuss_steffen"
 
+[[proof]]
+id              = "5218"
+kind            = "fix"
+merged_at       = "<wird beim Merge nachgetragen>"
+merge_sha       = "<dito>"
+claim           = """
+Die Praesenz-Ueberwachung sagt jetzt, wenn sie AUS ist — und sie kann erstmals
+eingeschaltet werden, ohne taeglichen Fehlalarm zu erzeugen.
+
+Gemessen 2026-08-31 ueber die ganze Alarmpopulation: von 193 Metriknamen in 170
+Regeln hatte GENAU EINE in 7 Tagen keine Zeitreihe,
+`live_overlay_github_workflow_expected_present`. Die einzige Regel darauf ist
+die, die "ein deklarierter Workflow laeuft gar nicht mehr" erkennen soll, und
+sie ist fail-open formuliert (`or on() vector(0)`) — ihre Stille sah aus wie
+Gesundheit.
+
+Die naheliegende Abhilfe waere gewesen, GITHUB_WORKFLOW_MONITOR_EXPECTED zu
+setzen. Das haette es SCHLIMMER gemacht: `expected_present` urteilte gegen die
+geteilte Lauf-Seite, und die deckte an dem Tag neun Stunden ab (am 2026-08-20
+fuenf). Ein taeglicher Workflow fehlt darauf zwei Drittel des Tages; die Regel
+laeuft mit `for: 6h` — sie haette JEDEN TAG gefeuert.
+
+Deshalb zwei Teile: die Praesenz wird je Workflow EINZELN ermittelt (eigener
+Zyklus, ~180 statt ~3600 API-Calls/h), und der taegliche Coverage-Check nennt
+seinen gemessenen Umfang, statt zu schweigen.
+"""
+witness         = "meta-watchdog"
+witness_job     = "probe"
+evidence_source = "job_log"
+artifact        = ""
+version_probe   = "Praesenz-Zeitreihen :"
+judge           = "presence_probe_count"
+state           = "OFFEN"
+due_by          = "2026-09-07"
+owner           = "@preuss_steffen"
+
+# --- Zweige von `presence_probe_count` ---------------------------------------
+# Kein Korpus beim Landen: der Zeuge ist der taegliche meta-watchdog-Lauf auf
+# main, den es mit dieser Fassung noch nicht gab. Gleicher Stolperdraht wie bei
+# `routing_readback` — erreicht echte Evidenz einen dieser Zweige, wird der
+# Widerspruchs-Test rot und erzwingt das Entfernen der Deklaration.
+
+[[unreachable_branch]]
+judge  = "presence_probe_count"
+branch = "counted"
+reason = """
+Der Normalfall und der einzige Zweig, der beim ersten meta-watchdog-Lauf nach
+dem Merge sicher feuert -- mit dem Wert 0, solange
+GITHUB_WORKFLOW_MONITOR_EXPECTED leer ist. Beim Landen gibt es ihn noch nicht
+als Korpus, weil der Zeuge den Lauf auf main voraussetzt.
+"""
+
+[[unreachable_branch]]
+judge  = "presence_probe_count"
+branch = "probe_degraded"
+reason = """
+Der Praesenz-Arm meldet UNGESICHERT, wenn seine eigene Abfrage scheitert. Ein
+Korpus dafuer braucht einen echten API-Ausfall waehrend eines echten Laufs --
+nichts, was sich herbeifuehren laesst, ohne den Zustand zu faelschen. Bewusst
+KEIN Fehlschlag: den korrekten Degradations-Zustand anzuklagen waere ein
+Waechter gegen einen gesunden Lauf.
+"""
+
+[[unreachable_branch]]
+judge  = "presence_probe_count"
+branch = "marker_missing"
+reason = """
+Log ohne die Zeile 'Praesenz-Zeitreihen : N': dann laeuft eine Fassung vor
+#5218. Das ist die Versionsprobe in Zweigform und erreicht per Definition
+keinen Korpus, sobald die Aenderung auf main ist.
+"""
+
+[[unreachable_branch]]
+judge  = "presence_probe_count"
+branch = "no_log"
+reason = """
+Leere Evidenz -- der Zeugensammler lieferte kein Log. Erreicht kein Korpus,
+weil ein Korpus aus gelieferten Logs besteht. Fail-closed statt Urteil.
+"""
+
 # --- Zweige von `routing_readback` ------------------------------------------
 # Kein Korpus beim Landen: der Zeuge entsteht erst durch den Publish-Lauf auf
 # main. Gleicher Stolperdraht wie #5178/#5183 — erreicht echte Evidenz einen
