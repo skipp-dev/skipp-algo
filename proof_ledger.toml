@@ -1084,6 +1084,33 @@ due_by  = "2026-09-13"
 owner   = "operator"
 
 [[proof]]
+id     = "5217"
+kind   = "exempt"
+claim  = "Der widerlegte Rollback-Satz verlaesst den Reihenfolge-Kommentar"
+state  = "AUSGENOMMEN"
+due_by = "2026-08-31"
+owner  = "@preuss_steffen"
+# AUSGENOMMEN, und zwar zu Recht: dieser PR aendert an
+# scripts/tv_batch_consumer_rollout.ts ausschliesslich Kommentarzeilen. Gegen
+# den Diff gefahren, nicht gegen den Titel geglaubt: jede geaenderte Zeile
+# beginnt nach dem +/- mit `//`; keine Anweisung, keine Bedingung, kein
+# Ausdruck. Es gibt also keine Wirkung, die ein Lauf bezeugen koennte.
+#
+# Der Inhalt ist trotzdem kein Kosmetikfall, und das ist der Grund, warum er
+# ueberhaupt geschrieben wurde: der entfernte Satz behauptete, ein Abbruch
+# rolle auch die Instanz-Einfuegungen zurueck. Lauf 758 (2026-08-22) hat das
+# WIDERLEGT -- TradingView persistiert Instanz-Adds sofort, Bindungen erst beim
+# Layout-Save; der Abbruch verwarf 98 Rebinds und liess 12 wieder eingefuegte
+# Instanzen stehen. Ein Kommentar, der eine widerlegte Eigenschaft behauptet,
+# ist gefaehrlicher als gar keiner: er begruendet die Reihenfolge mit etwas,
+# das nicht gilt. Die Korrektur haelt die verbleibende, ECHTE Eigenschaft
+# (freier Rollback fuer BINDUNGEN) ausdruecklich fest -- sie ist der Grund,
+# warum der Reload oberhalb der Refreshes stehen muss.
+#
+# Kein Beweis-Eintrag mit Zeuge waere hier ehrlich: er wuerde einen Lauf
+# verlangen, der eine Aenderung bezeugt, die zur Laufzeit nicht existiert.
+
+[[proof]]
 id     = "5034"
 kind   = "exempt"
 claim  = "Der Determinismus-Kommentar an der Dauer-Aufzeichnung wird auf die Messung gezogen"
