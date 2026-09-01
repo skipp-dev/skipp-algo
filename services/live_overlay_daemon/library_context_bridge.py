@@ -15,9 +15,11 @@ That is false *by design*: the daemon deploys only via
 ``deploy-live-overlay-daemon.yml``, path-filtered to
 ``services/live_overlay_daemon/**``, and this library lives outside that path —
 so a library refresh could never redeploy it. Measured: between the 08-21 and
-08-30 deploys main moved the file 87 times while the daemon served
-``UNIVERSE_SIZE=6960`` and a universe from 08-20 against main's 6952, i.e. nine
-days of ``universe_member`` decided on a stale list, with nothing alerting.
+08-30 deploys main moved the file 87 times while the daemon kept serving the
+08-20 copy — nine days of stale ``library_asof_*`` and ``provider_trust_status``,
+with nothing alerting. (An earlier note here claimed nine days of stale
+``universe_member``; that was FALSE — see ``_STRING_EXPORT_RE``, the universe
+was never parsed at all until 2026-09-01.)
 Every sibling bridge (evidence_freshness, pine_library_versions, sweep_trap,
 tradingview_bindings, provider_usage) already had a runtime source; this was
 the only one that did not.

@@ -167,9 +167,17 @@ failure fails CI instead of silently leaving the old container running.
   baked copy only refreshes by accident, when some unrelated change to the
   service directory happens to ship. Measured: `library_context_bridge` parsed
   `pine/generated/smc_micro_profiles_generated.pine` from the image, and between
-  the 08-21 and 08-30 deploys main moved that file 87 times — the daemon decided
-  `universe_member` against a nine-day-old ticker list (6960 vs 6952 tickers).
+  the 08-21 and 08-30 deploys main moved that file 87 times — nine days of stale
+  `library_asof_*` and `provider_trust_status`.
   Fixed by giving that bridge a runtime source (`LIBRARY_CONTEXT_PINE_URL`).
+  **A second, worse defect surfaced while measuring that one:** the parser had
+  never matched the generator's ticker declarations (`const string
+  UNIVERSE_TICKERS_PART_n`, no `export`; the exported name is a concatenation,
+  not a literal), so `universe_member` and `universe_size` were `None` for every
+  symbol since the bridge was born — indistinguishable from an honest "static
+  library". It survived because the test fixture used a form the generator never
+  writes. **Lesson: pin a parser against its PRODUCER's real output, not against
+  a fixture you wrote yourself** (`test_parses_the_real_generated_library`).
   **Before adding another image-read of a repo file, check whether it lives
   inside the trigger path; if not, give it a runtime source instead.**
 

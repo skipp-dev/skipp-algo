@@ -611,9 +611,18 @@ def library_context_pine_url() -> str:
     a redeploy — the baked copy refreshes only by accident, when an unrelated
     change to the service directory happens to ship. Measured consequence:
     between the 08-21 and 08-30 deploys main moved the library **87 times**
-    while the daemon kept serving ``UNIVERSE_SIZE=6960`` and a universe from
-    08-20 against main's 6952 and a different ticker set — nine days of
-    ``universe_member`` decided on a stale list, with nothing alerting.
+    while the daemon kept serving the 08-20 copy — nine days of stale
+    ``library_asof_date``/``library_asof_time`` and ``provider_trust_status``,
+    with nothing alerting.
+
+    CORRECTION (same day, by measurement): an earlier version of this note
+    claimed nine days of ``universe_member`` decided against a stale list.
+    That was FALSE — ``universe_member`` was ``None`` for every symbol since
+    the bridge was born, because the parser never matched the generator's
+    ticker declarations at all (see ``_STRING_EXPORT_RE``). The staleness
+    above is real; the universe simply was not being served. Both are fixed
+    together, and the universe is why it matters: without the runtime source
+    a refreshed universe would still take an unrelated deploy to arrive.
 
     ``ref="main"`` because ``smc-library-refresh.yml`` lands the regenerated
     library on main via PR (repo is SSOT, see CLAUDE.md) — there is no
