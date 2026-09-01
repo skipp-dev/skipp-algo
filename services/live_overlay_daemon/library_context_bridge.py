@@ -4,29 +4,72 @@ Issue #3872 aftermath / sidecar SC-LIB-001: #3790 declared universe, VIX,
 event-risk and trust data "runtime-sidecar data" but nothing served them.
 VIX and the event-risk gate already ride the ``smc_live`` payload; this
 bridge supplies the remaining two — universe membership and provider
-trust — parsed from the generated Pine library committed in this repo
-(``pine/generated/smc_micro_profiles_generated.pine``). The daemon deploys
-from the repo image and redeploys on every main push, so the file tracks
-each library refresh without any new fetch surface.
+trust — parsed from the generated Pine library
+(``pine/generated/smc_micro_profiles_generated.pine``), fetched at runtime
+from :func:`config.library_context_pine_url` with the copy baked into the
+image as fallback.
+
+The runtime fetch replaced an image-only read on 2026-09-01. The old docstring
+justified the image read with "the daemon [...] redeploys on every main push".
+That is false *by design*: the daemon deploys only via
+``deploy-live-overlay-daemon.yml``, path-filtered to
+``services/live_overlay_daemon/**``, and this library lives outside that path —
+so a library refresh could never redeploy it. Measured: between the 08-21 and
+08-30 deploys main moved the file 87 times while the daemon kept serving the
+08-20 copy — nine days of stale ``library_asof_*`` and ``provider_trust_status``,
+with nothing alerting. (An earlier note here claimed nine days of stale
+``universe_member``; that was FALSE — see ``_STRING_EXPORT_RE``, the universe
+was never parsed at all until 2026-09-01.)
+Every sibling bridge (evidence_freshness, pine_library_versions, sweep_trap,
+tradingview_bindings, provider_usage) already had a runtime source; this was
+the only one that did not.
 
 Parsing scope is deliberately tiny: only generator-controlled
 ``export const`` lines (ASOF_DATE/ASOF_TIME/UNIVERSE_SIZE/PROVIDER_COUNT/
 STALE_PROVIDERS + the UNIVERSE_TICKERS part concatenation). Fail-soft:
-a missing/unreadable/static (empty-universe) file yields ``None`` fields —
+a missing/unreadable/static (empty-universe) source yields ``None`` fields —
 the sidecar renders "—" instead of invented values.
 """
 from __future__ import annotations
 
-import os
+import base64
+import json
 import re
 import threading
+import time
+import urllib.parse
+import urllib.request
 from pathlib import Path
 from typing import Any
 
+from . import config
+
 DEFAULT_PINE_PATH = "pine/generated/smc_micro_profiles_generated.pine"
 
+# ``export`` ist OPTIONAL, und das ist der ganze Punkt (GEMESSEN 2026-09-01).
+#
+# Der Generator schreibt die neun Universums-Teile als ``const string
+# UNIVERSE_TICKERS_PART_1..9`` — OHNE ``export`` — und exportiert daneben nur
+# eine KONKATENATION:
+#
+#   const string UNIVERSE_TICKERS_PART_1 = "A,AA,AAC,..."
+#   export const string UNIVERSE_TICKERS = UNIVERSE_TICKERS_PART_1 + "," + ...
+#
+# Der alte Ausdruck verlangte ``^export const string`` UND ein String-Literal
+# hinter dem ``=``. Er traf damit KEINE der zehn Zeilen: die Teile nicht (kein
+# ``export``), die Konkatenation nicht (kein Literal). Ergebnis: ``universe``
+# war IMMER leer, und weil ein leeres Universum als "statische Bibliothek"
+# gelesen wird, lieferte ``context_for_symbol`` seit Geburt fuer JEDES Symbol
+# ``universe_member=None`` und ``universe_size=None`` — gemessen gegen die
+# echte Datei fuer AAPL, NVDA und ein Phantasie-Ticker gleichermassen.
+#
+# Unentdeckt blieb es, weil die Testfixture ``export const string
+# UNIVERSE_TICKERS_PART_1 = "AAPL,MSFT"`` benutzte — eine Form, die der
+# Generator nie erzeugt. Der Parser war gegen sich selbst bewiesen, nicht
+# gegen seinen Produzenten; ``test_parses_the_real_generated_library`` faehrt
+# deshalb jetzt gegen die echte Datei im Repo.
 _STRING_EXPORT_RE = re.compile(
-    r'^export const string (?P<name>[A-Z0-9_]+) = "(?P<value>[^"]*)"', re.MULTILINE
+    r'^(?:export )?const string (?P<name>[A-Z0-9_]+) = "(?P<value>[^"]*)"', re.MULTILINE
 )
 _INT_EXPORT_RE = re.compile(
     r"^export const int (?P<name>[A-Z0-9_]+) = (?P<value>-?\d+)", re.MULTILINE
@@ -39,8 +82,85 @@ _cache: dict[str, Any] = {"data": None, "mtime_ns": None, "path": None}
 
 
 def _pine_path() -> Path:
-    raw = os.environ.get("LIBRARY_CONTEXT_PINE_PATH", "").strip() or DEFAULT_PINE_PATH
-    return Path(raw)
+    return config.library_context_pine_path()
+
+
+def _is_github_contents_api_url(url: str) -> bool:
+    try:
+        parsed = urllib.parse.urlsplit(url)
+    except ValueError:
+        return False
+    return parsed.netloc.lower() == "api.github.com" and "/contents/" in parsed.path
+
+
+def _fetch_url(url: str, token: str, timeout: float = 10.0) -> str | None:
+    """Fetch the library source over HTTPS; ``None`` on any failure."""
+    if not url.lower().startswith("https://"):
+        return None
+    headers = {"Accept": "text/plain", "User-Agent": "skipp-library-context/1.0"}
+    # The Contents API answers with a base64 metadata envelope unless asked for
+    # raw. Without this the body would parse as Pine source, match zero
+    # ``export const`` lines and yield an EMPTY context that looks exactly like
+    # a legitimate static library — the same trap the pine-library-version
+    # bridge documents. ``_looks_like_library`` below is the second net.
+    if _is_github_contents_api_url(url):
+        headers["Accept"] = "application/vnd.github.raw+json"
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    try:
+        request = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            return response.read().decode("utf-8")
+    except Exception:
+        return None
+
+
+def _decode_github_envelope(body: str) -> str | None:
+    """Decode a ``{content, encoding: "base64"}`` envelope to the inner text."""
+    try:
+        parsed = json.loads(body)
+    except ValueError:
+        return None
+    if not isinstance(parsed, dict):
+        return None
+    if str(parsed.get("encoding", "")).lower() != "base64" or "content" not in parsed:
+        return None
+    try:
+        return base64.b64decode(str(parsed["content"])).decode("utf-8")
+    except (ValueError, TypeError):
+        return None
+
+
+def _looks_like_library(text: str) -> bool:
+    """Is *text* actually the generated library, not an error page or envelope?
+
+    Guards the fetch against succeeding with a body that parses to nothing. A
+    truncated/wrong response must fall back to the baked file, NOT quietly
+    serve empty fields — an empty context is indistinguishable from a static
+    library and would read as "scanned, nothing to report".
+    """
+    return "ASOF_TIME" in text and "export const" in text
+
+
+def _read_source() -> tuple[str | None, str]:
+    """Return ``(library text, source)``; URL first, baked file as fallback.
+
+    The source travels with the text because the two age differently and
+    :func:`_load` invalidates them differently — collapsing them to a bare
+    string made the file fallback expire on the URL's clock instead of on its
+    own mtime.
+    """
+    url = config.library_context_pine_url()
+    if url:
+        body = _fetch_url(url, config.library_context_pine_url_token())
+        if body is not None:
+            text = body if _looks_like_library(body) else (_decode_github_envelope(body) or "")
+            if _looks_like_library(text):
+                return text, "url"
+    try:
+        return _pine_path().read_text(encoding="utf-8"), "file"
+    except (OSError, UnicodeDecodeError):
+        return None, ""
 
 
 def _empty() -> dict[str, Any]:
@@ -81,19 +201,29 @@ def _load() -> dict[str, Any]:
     try:
         mtime_ns = path.stat().st_mtime_ns
     except OSError:
-        return _empty()
+        # No baked file is fine now — the URL may still answer. Only a failing
+        # URL *and* a missing file yield the empty context, below.
+        mtime_ns = None
+    # Two invalidation rules, because the two sources age differently: a fetched
+    # library expires on a clock (it changes under us with every library
+    # refresh), a baked file only when it is rewritten. Using mtime alone —
+    # as this bridge did until 2026-09-01 — pins the answer to the image build.
+    now_mono = time.monotonic()
+    ttl = config.library_context_cache_ttl_secs()
     with _cache_lock:
-        if (
-            _cache["data"] is not None
-            and _cache["mtime_ns"] == mtime_ns
-            and _cache["path"] == str(path)
-        ):
-            return _cache["data"]
-    try:
-        parsed = _parse(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError):
+        if _cache["data"] is not None and _cache["path"] == str(path):
+            fetched_at = _cache.get("fetched_at")
+            if fetched_at is not None:
+                if (now_mono - fetched_at) < ttl:
+                    return _cache["data"]
+            elif _cache["mtime_ns"] == mtime_ns:
+                return _cache["data"]
+    text, source = _read_source()
+    if text is None:
         return _empty()
+    parsed = _parse(text)
     with _cache_lock:
+        _cache["fetched_at"] = now_mono if source == "url" else None
         _cache["data"] = parsed
         _cache["mtime_ns"] = mtime_ns
         _cache["path"] = str(path)

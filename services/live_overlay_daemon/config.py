@@ -582,6 +582,72 @@ def pine_library_versions_snapshot_url_token() -> str:
     )
 
 
+def library_context_pine_path() -> Path:
+    """Local path to the generated Pine library the library-context bridge parses.
+
+    Fallback only. The baked copy is whatever the image was built from, which is
+    NOT the same as "the current library" — see :func:`library_context_pine_url`.
+    """
+    raw = _optional_str(
+        "LIBRARY_CONTEXT_PINE_PATH",
+        str(_REPO_ROOT / "pine" / "generated" / "smc_micro_profiles_generated.pine"),
+    )
+    return Path(raw)
+
+
+def library_context_pine_url() -> str:
+    """HTTPS URL the daemon fetches the generated Pine library from.
+
+    MEASURED 2026-09-01, the reason this exists: ``library_context_bridge`` was
+    the only bridge without a runtime source — it parsed the copy baked into the
+    container image, justified with "the daemon [...] redeploys on every main
+    push". That premise is false *by design*, which is the sharp part: this
+    service has no Railway git trigger on purpose (``deploymentTriggers`` is
+    empty, enforced by ``live-overlay-deploy-trigger-guard.yml``) and deploys
+    only through ``deploy-live-overlay-daemon.yml``, which is **path-filtered to
+    ``services/live_overlay_daemon/**`` + ``scripts/deploy_live_overlay.sh``**.
+
+    This file lives outside that filter, so a library refresh can NEVER trigger
+    a redeploy — the baked copy refreshes only by accident, when an unrelated
+    change to the service directory happens to ship. Measured consequence:
+    between the 08-21 and 08-30 deploys main moved the library **87 times**
+    while the daemon kept serving the 08-20 copy — nine days of stale
+    ``library_asof_date``/``library_asof_time`` and ``provider_trust_status``,
+    with nothing alerting.
+
+    CORRECTION (same day, by measurement): an earlier version of this note
+    claimed nine days of ``universe_member`` decided against a stale list.
+    That was FALSE — ``universe_member`` was ``None`` for every symbol since
+    the bridge was born, because the parser never matched the generator's
+    ticker declarations at all (see ``_STRING_EXPORT_RE``). The staleness
+    above is real; the universe simply was not being served. Both are fixed
+    together, and the universe is why it matters: without the runtime source
+    a refreshed universe would still take an unrelated deploy to arrive.
+
+    ``ref="main"`` because ``smc-library-refresh.yml`` lands the regenerated
+    library on main via PR (repo is SSOT, see CLAUDE.md) — there is no
+    ``bot/live-*`` branch for this file.
+    """
+    return _snapshot_url(
+        "LIBRARY_CONTEXT_PINE_URL",
+        path="pine/generated/smc_micro_profiles_generated.pine",
+        ref="main",
+    )
+
+
+def library_context_pine_url_token() -> str:
+    """Optional bearer token for :func:`library_context_pine_url`."""
+    return _snapshot_url_token(
+        "LIBRARY_CONTEXT_PINE_URL_TOKEN",
+        library_context_pine_url(),
+    )
+
+
+def library_context_cache_ttl_secs() -> int:
+    """How long a fetched library stays cached before the next fetch."""
+    return _clamped_int("OVERLAY_LIBRARY_CONTEXT_CACHE_TTL_SECS", 900, 60, 7200)
+
+
 def tradingview_bindings_snapshot_path() -> Path:
     """Local path to the actual TradingView consumer-dropdown snapshot."""
     return Path(
