@@ -216,7 +216,7 @@
 # commits, one silence of 238 h in which universe_member was decided against a
 # nine-day-old ticker list. The five sibling bridges above already carry this
 # exact egress; this closes the odd one out rather than opening a new class.
-"services/live_overlay_daemon/library_context_bridge.py" = [88]  # 2026-09-01 (korrigierte Begruendung im Docstring, +2 Zeilen): 86->88
+"services/live_overlay_daemon/library_context_bridge.py" = [110]  # 2026-09-01: 86->88 (Docstring), 88->110 (Regex-Begruendung)
 # 2026-06-23: live-overlay runtime snapshot fetchers in compute.py remain
 # https-only with explicit timeout=. 2026-06-23 (audit follow-up F2/F3):
 # NEWS/SIGNALS/TRADINGVIEW JSON loaders delegate into one shared

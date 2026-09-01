@@ -2754,6 +2754,45 @@ state           = "OFFEN"
 due_by          = "2026-09-08"
 owner           = "operator"
 
+[[proof]]
+id     = "5243"
+kind   = "exempt"
+claim  = """
+services/live_overlay_daemon/config.py steht als GANZE DATEI in der
+Beweisklasse (von einem Workflow referenziert, und die 13 Tests, die sie
+importieren, benutzen die Form `from services.live_overlay_daemon import
+config`, die proof_class._PY_IMPORT nicht als Deckung zaehlt). Der Diff
+dieses PR ist dort dagegen vollstaendig beobachtet:
+
+* library_context_pine_url/_url_token/_cache_ttl_secs sind drei Zugriffs-
+  funktionen nach dem bestehenden _snapshot_url-Muster; ihr Verhalten wird
+  von 14 Tests in tests/test_library_context_bridge.py ausgefuehrt.
+* VIER Mutationsproben nach dem Commit belegen, dass diese Tests nicht
+  vakuum sind: URL-Quelle abgeschaltet (3 FAIL), _looks_like_library
+  immer True (4 FAIL), TTL nie abgelaufen (1 FAIL), fetched_at auch beim
+  Datei-Rueckfall (1 FAIL).
+* test_parses_the_real_generated_library faehrt gegen die ECHTE
+  pine/generated/smc_micro_profiles_generated.pine, nicht gegen eine
+  Fixture -- der Test, der den Geburtsfehler dieses PR ueberhaupt
+  aufgedeckt hat.
+* Der Produktionspfad wurde am 2026-09-01 von Hand gegen die echte
+  Contents-API gemessen: 95249 Zeichen, ASOF_TIME 2026-08-31T23:03:50Z,
+  deckungsgleich mit origin/main; 6956 geparste Ticker = deklariertes
+  UNIVERSE_SIZE.
+
+UNGESICHERT bleibt genau EINES, und zwar ausdruecklich: kein Workflow
+beobachtet den LAUFENDEN Daemon: /metrics ist tokengeschuetzt und kein
+Workflow fragt den Dienst ab (gemessen: 0 Treffer auf OVERLAY_SERVICE_URL /
+OVERLAY_SECRET_TOKEN in .github/workflows). Faellt die Contents-API in
+Produktion aus, faellt die Bridge still auf die gebackene Kopie zurueck --
+also auf exakt das Verhalten von vorher, nie auf Leere (drei Fehlkoerper
+sind dafuer parametrisiert gepinnt). Der Ausfall ist damit ungefaehrlich,
+aber unbeobachtet. Verlaesst sich auf menschliches Gedaechtnis.
+"""
+state  = "AUSGENOMMEN"
+due_by = "2026-09-01"
+owner  = "operator"
+
 [[unreachable_branch]]
 judge  = "house_rules_watch"
 branch = "no_log"

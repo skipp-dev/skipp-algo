@@ -44,8 +44,30 @@ from . import config
 
 DEFAULT_PINE_PATH = "pine/generated/smc_micro_profiles_generated.pine"
 
+# ``export`` ist OPTIONAL, und das ist der ganze Punkt (GEMESSEN 2026-09-01).
+#
+# Der Generator schreibt die neun Universums-Teile als ``const string
+# UNIVERSE_TICKERS_PART_1..9`` — OHNE ``export`` — und exportiert daneben nur
+# eine KONKATENATION:
+#
+#   const string UNIVERSE_TICKERS_PART_1 = "A,AA,AAC,..."
+#   export const string UNIVERSE_TICKERS = UNIVERSE_TICKERS_PART_1 + "," + ...
+#
+# Der alte Ausdruck verlangte ``^export const string`` UND ein String-Literal
+# hinter dem ``=``. Er traf damit KEINE der zehn Zeilen: die Teile nicht (kein
+# ``export``), die Konkatenation nicht (kein Literal). Ergebnis: ``universe``
+# war IMMER leer, und weil ein leeres Universum als "statische Bibliothek"
+# gelesen wird, lieferte ``context_for_symbol`` seit Geburt fuer JEDES Symbol
+# ``universe_member=None`` und ``universe_size=None`` — gemessen gegen die
+# echte Datei fuer AAPL, NVDA und ein Phantasie-Ticker gleichermassen.
+#
+# Unentdeckt blieb es, weil die Testfixture ``export const string
+# UNIVERSE_TICKERS_PART_1 = "AAPL,MSFT"`` benutzte — eine Form, die der
+# Generator nie erzeugt. Der Parser war gegen sich selbst bewiesen, nicht
+# gegen seinen Produzenten; ``test_parses_the_real_generated_library`` faehrt
+# deshalb jetzt gegen die echte Datei im Repo.
 _STRING_EXPORT_RE = re.compile(
-    r'^export const string (?P<name>[A-Z0-9_]+) = "(?P<value>[^"]*)"', re.MULTILINE
+    r'^(?:export )?const string (?P<name>[A-Z0-9_]+) = "(?P<value>[^"]*)"', re.MULTILINE
 )
 _INT_EXPORT_RE = re.compile(
     r"^export const int (?P<name>[A-Z0-9_]+) = (?P<value>-?\d+)", re.MULTILINE
