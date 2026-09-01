@@ -36,8 +36,13 @@ export const string UNIVERSE_TICKERS = ""
 
 
 @pytest.fixture(autouse=True)
-def _reset_cache():
-    bridge._cache.update({"data": None, "mtime_ns": None, "path": None})
+def _reset_cache(monkeypatch: pytest.MonkeyPatch):
+    bridge._cache.update({"data": None, "mtime_ns": None, "path": None, "fetched_at": None})
+    # An explicitly EMPTY url disables the remote source (config._snapshot_url).
+    # Without this every test in this file would reach out to api.github.com,
+    # because the default URL is derived, not absent — the same convention the
+    # evidence-freshness / sweep-trap / reaction-zone bridge tests follow.
+    monkeypatch.setenv("LIBRARY_CONTEXT_PINE_URL", "")
     yield
 
 
@@ -118,3 +123,109 @@ def test_cache_refreshes_on_mtime_change(
 
     os.utime(pine, ns=(pine.stat().st_atime_ns, pine.stat().st_mtime_ns + 1_000_000))
     assert bridge.context_for_symbol("ONDS")["universe_member"] is False
+
+
+# ---------------------------------------------------------------------------
+# Runtime source (2026-09-01). Until then this bridge read ONLY the copy baked
+# into the container image, justified by "the daemon redeploys on every main
+# push". Measured over 2026-07-22..08-31: 90 git-bound deployments against 511
+# main commits, one silence of 238 h during which the daemon decided
+# ``universe_member`` against a nine-day-old ticker list. These tests pin the
+# runtime source and — just as important — the fallbacks that must NOT quietly
+# serve an empty context.
+
+REFRESHED_PINE = ENRICHED_PINE.replace('"NVDA,ONDS"', '"NVDA,TSLA"')
+
+
+def _serve(monkeypatch: pytest.MonkeyPatch, body: str | None) -> list[str]:
+    """Point the bridge at a fake remote; returns the list of URLs fetched."""
+    seen: list[str] = []
+
+    def _fake(url: str, token: str, timeout: float = 10.0) -> str | None:
+        seen.append(url)
+        return body
+
+    monkeypatch.setenv("LIBRARY_CONTEXT_PINE_URL", "https://example.invalid/lib.pine")
+    monkeypatch.setattr(bridge, "_fetch_url", _fake)
+    return seen
+
+
+def test_runtime_source_wins_over_the_baked_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """THE regression: a library refresh must land without a redeploy."""
+    _point_at(monkeypatch, tmp_path, ENRICHED_PINE)  # the stale image copy
+    _serve(monkeypatch, REFRESHED_PINE)  # what main actually holds now
+    ctx = bridge.context_for_symbol("TSLA")
+    assert ctx["universe_member"] is True, "fetched library ignored — image copy served"
+    assert bridge.context_for_symbol("ONDS")["universe_member"] is False
+
+
+def test_fetch_failure_falls_back_to_the_baked_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _point_at(monkeypatch, tmp_path, ENRICHED_PINE)
+    _serve(monkeypatch, None)
+    assert bridge.context_for_symbol("ONDS")["universe_member"] is True
+
+
+def test_github_base64_envelope_is_decoded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import base64
+    import json
+
+    _point_at(monkeypatch, tmp_path, ENRICHED_PINE)
+    envelope = json.dumps(
+        {
+            "encoding": "base64",
+            "content": base64.b64encode(REFRESHED_PINE.encode("utf-8")).decode("ascii"),
+        }
+    )
+    _serve(monkeypatch, envelope)
+    assert bridge.context_for_symbol("TSLA")["universe_member"] is True
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        '{"message":"Not Found"}',  # GitHub error JSON
+        "<html><body>502 Bad Gateway</body></html>",  # proxy error page
+        "",  # truncated / empty response
+    ],
+)
+def test_unusable_body_falls_back_instead_of_serving_empty(
+    body: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A body that parses to nothing must NOT look like a static library.
+
+    An empty context renders as "—" and is indistinguishable from an honest
+    static generation — it would read as "scanned, nothing to report" while the
+    truth is "the fetch failed". Fail over to the baked copy instead.
+    """
+    _point_at(monkeypatch, tmp_path, ENRICHED_PINE)
+    _serve(monkeypatch, body)
+    assert bridge.context_for_symbol("ONDS")["universe_member"] is True
+
+
+def test_fetched_library_expires_on_the_ttl(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Without expiry the fetch would happen once per process — i.e. per deploy.
+
+    That is the very failure this change removes, so the clock is pinned here
+    rather than assumed.
+    """
+    _point_at(monkeypatch, tmp_path, ENRICHED_PINE)
+    seen = _serve(monkeypatch, ENRICHED_PINE)
+    clock = {"now": 1000.0}
+    monkeypatch.setattr(bridge.time, "monotonic", lambda: clock["now"])
+
+    bridge.context_for_symbol("AAPL")
+    bridge.context_for_symbol("AAPL")
+    assert len(seen) == 1, "cache did not hold within the TTL"
+
+    ttl = bridge.config.library_context_cache_ttl_secs()
+    clock["now"] += ttl + 1
+    bridge.context_for_symbol("AAPL")
+    assert len(seen) == 2, "cache never expired — a refresh would need a redeploy"

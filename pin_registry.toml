@@ -208,6 +208,15 @@
 # 2026-07-28 (feat/reaction-zone-shadow-bridge): reaction-zone shadow snapshot
 # fetcher, https-only with explicit timeout= (mirrors the sweep-trap shadow bridge).
 "services/live_overlay_daemon/reaction_zone_shadow_bridge.py" = [157]
+# 2026-09-01 (fix/library-context-snapshot-url): generated Pine library fetcher,
+# https-only with explicit timeout= (mirrors the pine-library-version bridge).
+# WHY the egress is new here at all: this bridge alone read the copy baked into
+# the container image, on the premise "the daemon redeploys on every main push".
+# Measured over 2026-07-22..08-31: 90 git-bound deployments against 511 main
+# commits, one silence of 238 h in which universe_member was decided against a
+# nine-day-old ticker list. The five sibling bridges above already carry this
+# exact egress; this closes the odd one out rather than opening a new class.
+"services/live_overlay_daemon/library_context_bridge.py" = [88]  # 2026-09-01 (korrigierte Begruendung im Docstring, +2 Zeilen): 86->88
 # 2026-06-23: live-overlay runtime snapshot fetchers in compute.py remain
 # https-only with explicit timeout=. 2026-06-23 (audit follow-up F2/F3):
 # NEWS/SIGNALS/TRADINGVIEW JSON loaders delegate into one shared

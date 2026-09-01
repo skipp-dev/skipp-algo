@@ -158,7 +158,20 @@ failure fails CI instead of silently leaving the old container running.
   2026-07-06.
 - **Verify a deploy** in Grafana via the **Deployed build (commit @ branch)**
   panel / `live_overlay_build_info{commit,branch}` — it must show the intended
-  commit (`unknown` = an image without a git stamp).
+  commit (`unknown` = an image without a git stamp). From a shell:
+  `railway ssh --project 0616a3b7-… --environment production --service
+  live_overlay_daemon 'sh -lc "cat /app/services/live_overlay_daemon/build_stamp.txt"'`
+- **The path filter has a consequence that bit us on 2026-09-01:** anything the
+  daemon reads out of the repo image but that lives *outside*
+  `services/live_overlay_daemon/**` can never trigger its own redeploy, so the
+  baked copy only refreshes by accident, when some unrelated change to the
+  service directory happens to ship. Measured: `library_context_bridge` parsed
+  `pine/generated/smc_micro_profiles_generated.pine` from the image, and between
+  the 08-21 and 08-30 deploys main moved that file 87 times — the daemon decided
+  `universe_member` against a nine-day-old ticker list (6960 vs 6952 tickers).
+  Fixed by giving that bridge a runtime source (`LIBRARY_CONTEXT_PINE_URL`).
+  **Before adding another image-read of a repo file, check whether it lives
+  inside the trigger path; if not, give it a runtime source instead.**
 
 #### The Railway service must have NO native GitHub deploy trigger
 
