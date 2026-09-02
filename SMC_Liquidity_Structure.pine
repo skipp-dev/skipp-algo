@@ -21,7 +21,7 @@
 
 indicator("SMC Liquidity Structure", overlay = false, max_labels_count = 50)
 
-import preuss_steffen/smc_micro_profiles_generated/401 as mp
+import preuss_steffen/smc_micro_profiles_generated/402 as mp
 
 // ── Inputs ──────────────────────────────────────────────────────
 
