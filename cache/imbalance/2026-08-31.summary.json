@@ -1,0 +1,16 @@
+{
+  "amex_listings": 7,
+  "completed_at": "2026-09-02T12:28:04.551778+00:00",
+  "coverage_pct": 0.0,
+  "errors": [],
+  "nasdaq_listings": 26,
+  "nyse_listings": 8,
+  "other_listings": 0,
+  "output_path": "/Users/spreuss/Documents/skipp-algo/cache/imbalance/2026-08-31.jsonl",
+  "schema_version": "1.0.0",
+  "started_at": "2026-09-02T12:28:03.879478+00:00",
+  "symbols_total": 41,
+  "symbols_with_imbalance": 0,
+  "symbols_with_snapshot": 0,
+  "trade_date": "2026-08-31"
+}
