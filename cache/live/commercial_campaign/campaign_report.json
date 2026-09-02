@@ -1,17 +1,17 @@
 {
   "attempt_status_counts": {
-    "COMPLETED": 31,
+    "COMPLETED": 32,
     "FAILED": 4,
     "NO_SETUPS": 30
   },
-  "attempts_total": 65,
+  "attempts_total": 66,
   "audit_integrity": {
-    "audit_rows": 46,
+    "audit_rows": 47,
     "duplicate_snapshot_intent_rows": 0,
     "invalid_audit_rows": 0,
-    "unique_audited_intents": 46,
-    "unique_audited_snapshots": 31,
-    "valid_audit_rows": 46
+    "unique_audited_intents": 47,
+    "unique_audited_snapshots": 32,
+    "valid_audit_rows": 47
   },
   "broker_io": false,
   "campaign_contract": {
@@ -34,26 +34,26 @@
   },
   "campaign_mode": "audit_only_shadow",
   "failure_rate": 0.0,
-  "failure_rate_lifetime": 0.06153846153846154,
+  "failure_rate_lifetime": 0.06060606060606061,
   "failure_window_size": 20,
   "failures_by_type": {
     "ValueError": 4
   },
   "family_coverage_pct": {
-    "BOS": 38.70967741935484,
-    "FVG": 12.903225806451612,
-    "OB": 38.70967741935484,
-    "SWEEP": 58.064516129032256
+    "BOS": 37.5,
+    "FVG": 12.5,
+    "OB": 37.5,
+    "SWEEP": 59.375
   },
   "family_snapshot_counts": {
     "BOS": 12,
     "FVG": 4,
     "OB": 12,
-    "SWEEP": 18
+    "SWEEP": 19
   },
   "first_observed_at": "2026-08-18T14:07:00.036063+00:00",
-  "generated_at": "2026-09-01T19:05:08.531273+00:00",
-  "last_observed_at": "2026-09-01T19:05:08.531273+00:00",
+  "generated_at": "2026-09-02T14:05:17.158669+00:00",
+  "last_observed_at": "2026-09-02T14:05:17.158669+00:00",
   "network_io": false,
   "observation_gate": {
     "current_threshold_warnings": [],
@@ -92,6 +92,6 @@
     "p50": 321.069659948349,
     "p95": 68329.07463407516
   },
-  "substantive_attempts_total": 65,
-  "unique_attempted_snapshots": 65
+  "substantive_attempts_total": 66,
+  "unique_attempted_snapshots": 66
 }
