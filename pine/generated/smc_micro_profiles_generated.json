@@ -2,22 +2,22 @@
   "schema_version": "3.0.0",
   "schema_version_previous": "3.0.0",
   "version_change_type": "unchanged",
-  "asof_date": "2026-09-01",
+  "asof_date": "2026-09-02",
   "library_name": "smc_micro_profiles_generated",
   "library_owner": "preuss_steffen",
   "library_version": 1,
   "recommended_import_path": "preuss_steffen/smc_micro_profiles_generated/1",
   "library_publish_required": true,
   "deployment_note": "Publish the generated Pine library in TradingView before importing it into SMC_Core_Engine.",
-  "input_path": "artifacts/smc_microstructure_exports/databento_volatility_production_merged__smc_microstructure_base_2026-09-01.csv",
+  "input_path": "artifacts/smc_microstructure_exports/databento_volatility_production_merged__smc_microstructure_base_2026-09-02.csv",
   "schema_path": "spec/smc_microstructure_profile.schema.json",
-  "features_csv": "data/output/microstructure_features_2026-09-01.csv",
-  "lists_csv": "data/output/microstructure_lists_2026-09-01.csv",
+  "features_csv": "data/output/microstructure_features_2026-09-02.csv",
+  "lists_csv": "data/output/microstructure_lists_2026-09-02.csv",
   "state_csv": "data/output/microstructure_profile_state.csv",
-  "diff_report_md": "data/output/microstructure_diff_2026-09-01.md",
+  "diff_report_md": "data/output/microstructure_diff_2026-09-02.md",
   "pine_library": "pine/generated/smc_micro_profiles_generated.pine",
   "core_import_snippet": "pine/generated/smc_micro_profiles_core_import_snippet.pine",
-  "universe_size": 6958,
+  "universe_size": 6959,
   "exported_lists": {
     "clean_reclaim": "CLEAN_RECLAIM_TICKERS",
     "stop_hunt_prone": "STOP_HUNT_PRONE_TICKERS",
@@ -28,13 +28,13 @@
     "fast_decay": "FAST_DECAY_TICKERS"
   },
   "list_counts": {
-    "clean_reclaim": 33,
-    "stop_hunt_prone": 84,
-    "midday_dead": 16,
-    "rth_only": 86,
-    "weak_premarket": 479,
+    "clean_reclaim": 37,
+    "stop_hunt_prone": 81,
+    "midday_dead": 23,
+    "rth_only": 84,
+    "weak_premarket": 473,
     "weak_afterhours": 0,
-    "fast_decay": 199
+    "fast_decay": 203
   },
   "enrichment_blocks": [
     "_diagnostics",
@@ -102,14 +102,14 @@
     "default_event_risk_detected": false,
     "placeholder_symbols": [],
     "payload_known": true,
-    "universe_tickers_count": 6958,
-    "list_total": 897
+    "universe_tickers_count": 6959,
+    "list_total": 901
   },
   "auto_commit_allowed": true,
-  "asof_time": "2026-09-03T02:19:54Z",
-  "refresh_count": 54,
-  "generated_at": "2026-09-03T02:19:57.525563+00:00",
-  "source_commit": "63fc41f94551c999966e9d73c697d82041c57226",
+  "asof_time": "2026-09-03T09:06:57Z",
+  "refresh_count": 55,
+  "generated_at": "2026-09-03T09:07:01.103823+00:00",
+  "source_commit": "422eb25793b2c484c880d750b6ed186f85537090",
   "generator_path": "scripts/generate_smc_micro_profiles.py",
-  "input_sha256": "ed6df024097a912d796485b316e02be7eef9cc6721ce8d5f045b2c50dce9599e"
+  "input_sha256": "ce677471fe97459636c6f8940ddd1573727c236c7d6faf317f6c184d810975ea"
 }
