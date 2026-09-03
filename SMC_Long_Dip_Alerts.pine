@@ -24,7 +24,7 @@
 indicator("SMC Long-Dip Alerts", overlay = true)
 
 import preuss_steffen/smc_engine_private/3 as eng
-import preuss_steffen/smc_micro_profiles_generated/422 as mp
+import preuss_steffen/smc_micro_profiles_generated/423 as mp
 import preuss_steffen/smc_utils/4 as u
 
 // ── Inputs ───────────────────────────────────────────────────────────────────
