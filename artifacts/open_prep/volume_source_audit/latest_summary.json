@@ -143,8 +143,14 @@
       "quote_to_minute_median": 1.282295,
       "session_date": "2026-09-04",
       "symbols_measured": 10
+    },
+    {
+      "eod_to_minute_median": null,
+      "quote_to_minute_median": null,
+      "session_date": "2026-09-07",
+      "symbols_measured": 10
     }
   ],
-  "sessions_observed": 23,
+  "sessions_observed": 24,
   "verdict": "inconclusive"
 }
