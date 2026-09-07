@@ -21,4 +21,4 @@ tradingview-ta==3.3.0
 # open_prep.realtime_signals._build_databento_quote_source imports `databento`.
 # Explicit/fallback FMP mode does not import it. Keep aligned with root
 # requirements.txt to avoid drift.
-databento==0.84.0
+databento==0.86.0

@@ -6,7 +6,7 @@ starlette==1.6.0  # 2026-08-04: pinned at the version this file already
                   # production path with the highest blast radius — see
                   # requirements.txt for the root-cause writeup.
 uvicorn==0.52.4
-databento==0.84.0
+databento==0.86.0
 psutil==7.2.2
 holidays==0.103
 # fmp_data_loader imports httpx at module level for the VIX poll; without it
