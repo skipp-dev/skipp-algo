@@ -1,13 +1,13 @@
 # G2/G3 A/B Watchdog — Status
 
-_Generated: `2026-09-07T05:35:03.640769+00:00`_
-_Source commit: `35f220c`_
+_Generated: `2026-09-08T05:35:01.315870+00:00`_
+_Source commit: `45666f9`_
 
 ## Plan-mandated signals
 
 | Signal | Value |
 |---|---|
-| §G2 rollback required (≥ 2 consecutive losses) | **no** (current streak: 1) |
+| §G2 rollback required (≥ 2 consecutive losses) | **YES** (current streak: 2) |
 | §G3 promotion ready (SPRT accept_h1) | **no** |
 | §G3 stop for futility (SPRT accept_h0) | **no** |
 
@@ -15,7 +15,7 @@ _Source commit: `35f220c`_
 
 | Metric | Value |
 |---|---|
-| Window entries | 1 |
+| Window entries | 2 |
 | Decision | `inconclusive` |
 | Treatment n | 5 |
 | Treatment k (hits) | 4 |
@@ -27,7 +27,7 @@ _Source commit: `35f220c`_
 
 | Field | Value |
 |---|---|
-| Timestamp | 2026-09-07T05:35:03.640769+00:00 |
+| Timestamp | 2026-09-08T05:35:01.315870+00:00 |
 | Experiment | g3-arm-b-candidate-weights |
 | Treatment hit rate | 0.8 |
 | Control hit rate | 0.8 |
