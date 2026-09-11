@@ -1,10 +1,10 @@
 {
   "attempt_status_counts": {
     "COMPLETED": 53,
-    "FAILED": 8,
-    "NO_SETUPS": 46
+    "FAILED": 9,
+    "NO_SETUPS": 47
   },
-  "attempts_total": 107,
+  "attempts_total": 109,
   "audit_integrity": {
     "audit_rows": 81,
     "duplicate_snapshot_intent_rows": 0,
@@ -33,11 +33,11 @@
     "schema_version": 1
   },
   "campaign_mode": "audit_only_shadow",
-  "failure_rate": 0.0,
-  "failure_rate_lifetime": 0.07476635514018691,
+  "failure_rate": 0.05,
+  "failure_rate_lifetime": 0.08256880733944955,
   "failure_window_size": 20,
   "failures_by_type": {
-    "ValueError": 8
+    "ValueError": 9
   },
   "family_coverage_pct": {
     "BOS": 45.283018867924525,
@@ -52,26 +52,28 @@
     "SWEEP": 30
   },
   "first_observed_at": "2026-08-18T14:07:00.036063+00:00",
-  "generated_at": "2026-09-11T16:10:25.496663+00:00",
-  "last_observed_at": "2026-09-11T16:10:25.496663+00:00",
+  "generated_at": "2026-09-11T18:12:42.970252+00:00",
+  "last_observed_at": "2026-09-11T18:12:42.970252+00:00",
   "network_io": false,
   "observation_gate": {
     "current_threshold_warnings": [],
     "missing_families": [],
-    "reasons": [],
+    "reasons": [
+      "future_source_timestamp_observed"
+    ],
     "thresholds": {
       "max_failure_rate": 0.05,
       "max_source_age_p95_seconds": 900.0,
       "min_unique_snapshots": 20
     },
-    "verdict": "PASS"
+    "verdict": "FAIL"
   },
   "paper_orders_placed": 0,
   "processing_seconds": {
     "count": 20,
     "max": 0.1960442919516936,
     "min": 0.004023417015559971,
-    "p50": 0.020195187535136938,
+    "p50": 0.03819377097534016,
     "p95": 0.09946379205211997
   },
   "promotion_gate": {
@@ -86,10 +88,10 @@
   "source_age_seconds": {
     "count": 20,
     "max": 625.4966630935669,
-    "min": 307.92619705200195,
+    "min": -210.6804370880127,
     "p50": 316.63235449790955,
     "p95": 569.2472939491272
   },
-  "substantive_attempts_total": 107,
-  "unique_attempted_snapshots": 107
+  "substantive_attempts_total": 109,
+  "unique_attempted_snapshots": 109
 }
