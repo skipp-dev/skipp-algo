@@ -1,0 +1,60 @@
+{
+  "day": "2026-09-11",
+  "labels": {
+    "ACVA": {
+      "pnl_30m_pct": -0.2391,
+      "profitable_30m": false,
+      "source": "outcomes"
+    },
+    "ATEC": {
+      "pnl_30m_pct": 5.538,
+      "profitable_30m": true,
+      "source": "outcomes"
+    },
+    "COLA": {
+      "pnl_30m_pct": null,
+      "profitable_30m": null,
+      "source": "pending"
+    },
+    "DELL": {
+      "pnl_30m_pct": 7.1426,
+      "profitable_30m": true,
+      "source": "outcomes"
+    },
+    "DLLL": {
+      "pnl_30m_pct": 14.4006,
+      "profitable_30m": true,
+      "source": "outcomes"
+    },
+    "FEIM": {
+      "pnl_30m_pct": 0.8738,
+      "profitable_30m": true,
+      "source": "outcomes"
+    },
+    "HPE": {
+      "pnl_30m_pct": 8.9941,
+      "profitable_30m": true,
+      "source": "outcomes"
+    },
+    "ODD": {
+      "pnl_30m_pct": -1.1728,
+      "profitable_30m": false,
+      "source": "outcomes"
+    },
+    "SVRN": {
+      "pnl_30m_pct": null,
+      "profitable_30m": null,
+      "source": "pending"
+    },
+    "TNON": {
+      "pnl_30m_pct": -9.2251,
+      "profitable_30m": false,
+      "source": "outcomes"
+    }
+  },
+  "pending": [
+    "COLA",
+    "SVRN"
+  ],
+  "schema_version": 1
+}
