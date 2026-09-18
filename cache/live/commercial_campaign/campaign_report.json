@@ -1,10 +1,10 @@
 {
   "attempt_status_counts": {
     "COMPLETED": 60,
-    "FAILED": 9,
-    "NO_SETUPS": 53
+    "FAILED": 10,
+    "NO_SETUPS": 54
   },
-  "attempts_total": 122,
+  "attempts_total": 124,
   "audit_integrity": {
     "audit_rows": 89,
     "duplicate_snapshot_intent_rows": 0,
@@ -33,11 +33,11 @@
     "schema_version": 1
   },
   "campaign_mode": "audit_only_shadow",
-  "failure_rate": 0.05,
-  "failure_rate_lifetime": 0.07377049180327869,
+  "failure_rate": 0.1,
+  "failure_rate_lifetime": 0.08064516129032258,
   "failure_window_size": 20,
   "failures_by_type": {
-    "ValueError": 9
+    "ValueError": 10
   },
   "family_coverage_pct": {
     "BOS": 41.666666666666664,
@@ -52,13 +52,15 @@
     "SWEEP": 34
   },
   "first_observed_at": "2026-08-18T14:07:00.036063+00:00",
-  "generated_at": "2026-09-16T19:05:20.532222+00:00",
-  "last_observed_at": "2026-09-16T19:05:20.532222+00:00",
+  "generated_at": "2026-09-18T15:05:11.896514+00:00",
+  "last_observed_at": "2026-09-18T15:05:11.896514+00:00",
   "network_io": false,
   "observation_gate": {
     "current_threshold_warnings": [],
     "missing_families": [],
     "reasons": [
+      "failure_rate_exceeded",
+      "source_age_p95_exceeded",
       "future_source_timestamp_observed"
     ],
     "thresholds": {
@@ -71,10 +73,10 @@
   "paper_orders_placed": 0,
   "processing_seconds": {
     "count": 20,
-    "max": 0.10699491703417152,
-    "min": 0.02973345799546223,
-    "p50": 0.06392408297324437,
-    "p95": 0.09946379205211997
+    "max": 0.13322312498348765,
+    "min": 0.022431207995396107,
+    "p50": 0.06346583299819031,
+    "p95": 0.10699491703417152
   },
   "promotion_gate": {
     "reasons": [
@@ -89,9 +91,9 @@
     "count": 20,
     "max": 5350.722421884537,
     "min": -210.6804370880127,
-    "p50": 320.7648335695267,
-    "p95": 666.3759379386902
+    "p50": 321.78403997421265,
+    "p95": 1593.725662946701
   },
-  "substantive_attempts_total": 122,
-  "unique_attempted_snapshots": 122
+  "substantive_attempts_total": 124,
+  "unique_attempted_snapshots": 124
 }
