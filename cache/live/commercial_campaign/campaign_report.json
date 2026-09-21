@@ -1,17 +1,17 @@
 {
   "attempt_status_counts": {
-    "COMPLETED": 65,
+    "COMPLETED": 66,
     "FAILED": 10,
     "NO_SETUPS": 54
   },
-  "attempts_total": 129,
+  "attempts_total": 130,
   "audit_integrity": {
-    "audit_rows": 95,
+    "audit_rows": 97,
     "duplicate_snapshot_intent_rows": 0,
     "invalid_audit_rows": 0,
-    "unique_audited_intents": 95,
-    "unique_audited_snapshots": 65,
-    "valid_audit_rows": 95
+    "unique_audited_intents": 97,
+    "unique_audited_snapshots": 66,
+    "valid_audit_rows": 97
   },
   "broker_io": false,
   "campaign_contract": {
@@ -34,26 +34,26 @@
   },
   "campaign_mode": "audit_only_shadow",
   "failure_rate": 0.05,
-  "failure_rate_lifetime": 0.07751937984496124,
+  "failure_rate_lifetime": 0.07692307692307693,
   "failure_window_size": 20,
   "failures_by_type": {
     "ValueError": 10
   },
   "family_coverage_pct": {
-    "BOS": 41.53846153846154,
-    "FVG": 23.076923076923077,
-    "OB": 24.615384615384617,
-    "SWEEP": 56.92307692307692
+    "BOS": 40.90909090909091,
+    "FVG": 24.242424242424242,
+    "OB": 24.242424242424242,
+    "SWEEP": 57.57575757575758
   },
   "family_snapshot_counts": {
     "BOS": 27,
-    "FVG": 15,
+    "FVG": 16,
     "OB": 16,
-    "SWEEP": 37
+    "SWEEP": 38
   },
   "first_observed_at": "2026-08-18T14:07:00.036063+00:00",
-  "generated_at": "2026-09-21T14:05:22.912994+00:00",
-  "last_observed_at": "2026-09-21T14:05:22.912994+00:00",
+  "generated_at": "2026-09-21T15:05:19.132180+00:00",
+  "last_observed_at": "2026-09-21T15:05:19.132180+00:00",
   "network_io": false,
   "observation_gate": {
     "current_threshold_warnings": [],
@@ -74,7 +74,7 @@
     "max": 0.13322312498348765,
     "min": 0.022431207995396107,
     "p50": 0.06602956250935677,
-    "p95": 0.10699491703417152
+    "p95": 0.10477100001298822
   },
   "promotion_gate": {
     "reasons": [
@@ -89,9 +89,9 @@
     "count": 20,
     "max": 5350.722421884537,
     "min": 196.1039810180664,
-    "p50": 321.0491770505905,
+    "p50": 320.1636584997177,
     "p95": 1593.725662946701
   },
-  "substantive_attempts_total": 129,
-  "unique_attempted_snapshots": 129
+  "substantive_attempts_total": 130,
+  "unique_attempted_snapshots": 130
 }
