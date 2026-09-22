@@ -18,7 +18,7 @@
 //   - No additional indicators required — trend/momentum computed internally
 // ────────────────────────────────────────────────────────────────
 
-import preuss_steffen/smc_micro_profiles_generated/488 as mp
+import preuss_steffen/smc_micro_profiles_generated/497 as mp
 
 indicator("SMC Confluence Hub", overlay = true)
 
