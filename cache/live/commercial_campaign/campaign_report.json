@@ -1,17 +1,17 @@
 {
   "attempt_status_counts": {
-    "COMPLETED": 70,
+    "COMPLETED": 71,
     "FAILED": 10,
     "NO_SETUPS": 61
   },
-  "attempts_total": 141,
+  "attempts_total": 142,
   "audit_integrity": {
-    "audit_rows": 101,
+    "audit_rows": 102,
     "duplicate_snapshot_intent_rows": 0,
     "invalid_audit_rows": 0,
-    "unique_audited_intents": 101,
-    "unique_audited_snapshots": 70,
-    "valid_audit_rows": 101
+    "unique_audited_intents": 102,
+    "unique_audited_snapshots": 71,
+    "valid_audit_rows": 102
   },
   "broker_io": false,
   "campaign_contract": {
@@ -34,26 +34,26 @@
   },
   "campaign_mode": "audit_only_shadow",
   "failure_rate": 0.05,
-  "failure_rate_lifetime": 0.07092198581560284,
+  "failure_rate_lifetime": 0.07042253521126761,
   "failure_window_size": 20,
   "failures_by_type": {
     "ValueError": 10
   },
   "family_coverage_pct": {
-    "BOS": 38.57142857142857,
-    "FVG": 24.285714285714285,
-    "OB": 24.285714285714285,
-    "SWEEP": 57.142857142857146
+    "BOS": 38.028169014084504,
+    "FVG": 25.35211267605634,
+    "OB": 23.943661971830984,
+    "SWEEP": 56.33802816901409
   },
   "family_snapshot_counts": {
     "BOS": 27,
-    "FVG": 17,
+    "FVG": 18,
     "OB": 17,
     "SWEEP": 40
   },
   "first_observed_at": "2026-08-18T14:07:00.036063+00:00",
-  "generated_at": "2026-09-23T14:05:16.436901+00:00",
-  "last_observed_at": "2026-09-23T14:05:16.436901+00:00",
+  "generated_at": "2026-09-23T15:32:49.682453+00:00",
+  "last_observed_at": "2026-09-23T15:32:49.682453+00:00",
   "network_io": false,
   "observation_gate": {
     "current_threshold_warnings": [],
@@ -73,7 +73,7 @@
     "count": 20,
     "max": 0.19866699998965487,
     "min": 0.022431207995396107,
-    "p50": 0.07105441647581756,
+    "p50": 0.07062195797334425,
     "p95": 0.13322312498348765
   },
   "promotion_gate": {
@@ -89,9 +89,9 @@
     "count": 20,
     "max": 1593.725662946701,
     "min": -78.09714198112488,
-    "p50": 319.54323291778564,
+    "p50": 319.3394604921341,
     "p95": 641.4731678962708
   },
-  "substantive_attempts_total": 141,
-  "unique_attempted_snapshots": 141
+  "substantive_attempts_total": 142,
+  "unique_attempted_snapshots": 142
 }
