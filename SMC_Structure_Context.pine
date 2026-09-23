@@ -19,7 +19,7 @@
 
 indicator("SMC Structure Context", overlay = true, max_labels_count = 100, max_lines_count = 50)
 
-import preuss_steffen/smc_micro_profiles_generated/497 as mp
+import preuss_steffen/smc_micro_profiles_generated/516 as mp
 
 // ── Inputs ──────────────────────────────────────────────────────
 
