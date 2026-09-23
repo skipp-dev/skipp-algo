@@ -20,7 +20,7 @@
 
 indicator("SMC Orderflow Overlay", overlay = false, max_labels_count = 50)
 
-import preuss_steffen/smc_micro_profiles_generated/497 as mp
+import preuss_steffen/smc_micro_profiles_generated/521 as mp
 
 // ── Inputs ──────────────────────────────────────────────────────
 
