@@ -1,13 +1,13 @@
 {
-  "generatedAt": "2026-09-22T03:22:12.504Z",
+  "generatedAt": "2026-09-24T10:47:42.613Z",
   "publishMode": "automated",
   "manifestVersion": 2,
   "library": {
     "scriptName": "smc_micro_profiles_generated",
     "owner": "preuss_steffen",
-    "importPath": "preuss_steffen/smc_micro_profiles_generated/497",
-    "expectedVersion": 497,
-    "publishedVersion": 497,
+    "importPath": "preuss_steffen/smc_micro_profiles_generated/528",
+    "expectedVersion": 528,
+    "publishedVersion": 528,
     "publishStatus": "published",
     "sourceManifest": "pine/generated/smc_micro_profiles_generated.json",
     "sourceSnippet": "pine/generated/smc_micro_profiles_core_import_snippet.pine",
@@ -16,11 +16,9 @@
       "blockingReasons": [],
       "fixtureInputDetected": false,
       "defaultEventRiskDetected": false,
-      "placeholderSymbols": [
-        "CCC"
-      ],
-      "inputPath": "artifacts/smc_microstructure_exports/databento_volatility_production_merged__smc_microstructure_base_2026-09-21.csv",
-      "universeSize": 6974,
+      "placeholderSymbols": [],
+      "inputPath": "artifacts/smc_microstructure_exports/databento_volatility_production_merged__smc_microstructure_base_2026-09-23.csv",
+      "universeSize": 6970,
       "eventRiskSource": "smc_event_risk_builder"
     }
   },
