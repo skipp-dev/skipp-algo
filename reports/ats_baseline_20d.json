@@ -1,108 +1,108 @@
 {
-  "asof": "2026-09-09T23:01:32Z",
+  "asof": "2026-09-28T23:34:42Z",
   "dataset": "XNAS.ITCH",
-  "end_date": "2026-09-09",
+  "end_date": "2026-09-28",
   "lookback_days": 20,
   "symbols": {
     "AAPL": {
-      "avg_trade_size_20d_mean": 98.79955,
-      "avg_trade_size_20d_std": 15.508939,
-      "n_days": 13
+      "avg_trade_size_20d_mean": 114.670814,
+      "avg_trade_size_20d_std": 66.717909,
+      "n_days": 14
     },
     "AMZN": {
-      "avg_trade_size_20d_mean": 119.184827,
-      "avg_trade_size_20d_std": 17.9647,
-      "n_days": 13
+      "avg_trade_size_20d_mean": 135.244007,
+      "avg_trade_size_20d_std": 49.99844,
+      "n_days": 14
     },
     "BAC": {
-      "avg_trade_size_20d_mean": 87.192674,
-      "avg_trade_size_20d_std": 5.915613,
-      "n_days": 13
+      "avg_trade_size_20d_mean": 92.525625,
+      "avg_trade_size_20d_std": 6.808667,
+      "n_days": 14
     },
     "CAT": {
-      "avg_trade_size_20d_mean": 18.50524,
-      "avg_trade_size_20d_std": 1.451593,
-      "n_days": 13
+      "avg_trade_size_20d_mean": 18.408693,
+      "avg_trade_size_20d_std": 1.318592,
+      "n_days": 14
     },
     "COP": {
-      "avg_trade_size_20d_mean": 33.4922,
-      "avg_trade_size_20d_std": 3.303177,
-      "n_days": 13
+      "avg_trade_size_20d_mean": 36.101623,
+      "avg_trade_size_20d_std": 3.993382,
+      "n_days": 14
     },
     "CVX": {
-      "avg_trade_size_20d_mean": 32.136738,
-      "avg_trade_size_20d_std": 2.093817,
-      "n_days": 13
+      "avg_trade_size_20d_mean": 35.680269,
+      "avg_trade_size_20d_std": 3.120853,
+      "n_days": 14
     },
     "GOOGL": {
-      "avg_trade_size_20d_mean": 81.076455,
-      "avg_trade_size_20d_std": 13.190781,
-      "n_days": 13
+      "avg_trade_size_20d_mean": 80.731847,
+      "avg_trade_size_20d_std": 20.601056,
+      "n_days": 14
     },
     "GS": {
-      "avg_trade_size_20d_mean": 17.577336,
-      "avg_trade_size_20d_std": 1.95202,
-      "n_days": 13
+      "avg_trade_size_20d_mean": 17.546109,
+      "avg_trade_size_20d_std": 1.55419,
+      "n_days": 14
     },
     "HD": {
-      "avg_trade_size_20d_mean": 23.719918,
-      "avg_trade_size_20d_std": 1.986778,
-      "n_days": 13
+      "avg_trade_size_20d_mean": 25.905393,
+      "avg_trade_size_20d_std": 1.914397,
+      "n_days": 14
     },
     "JNJ": {
-      "avg_trade_size_20d_mean": 38.847145,
-      "avg_trade_size_20d_std": 2.975475,
-      "n_days": 13
+      "avg_trade_size_20d_mean": 35.488904,
+      "avg_trade_size_20d_std": 4.589589,
+      "n_days": 14
     },
     "JPM": {
-      "avg_trade_size_20d_mean": 25.441074,
-      "avg_trade_size_20d_std": 1.215744,
-      "n_days": 13
+      "avg_trade_size_20d_mean": 28.544555,
+      "avg_trade_size_20d_std": 2.46485,
+      "n_days": 14
     },
     "META": {
-      "avg_trade_size_20d_mean": 66.586986,
-      "avg_trade_size_20d_std": 9.624116,
-      "n_days": 13
+      "avg_trade_size_20d_mean": 70.266575,
+      "avg_trade_size_20d_std": 19.42888,
+      "n_days": 14
     },
     "MS": {
-      "avg_trade_size_20d_mean": 29.045841,
-      "avg_trade_size_20d_std": 2.625117,
-      "n_days": 13
+      "avg_trade_size_20d_mean": 35.256018,
+      "avg_trade_size_20d_std": 5.863749,
+      "n_days": 14
     },
     "MSFT": {
-      "avg_trade_size_20d_mean": 99.48012,
-      "avg_trade_size_20d_std": 21.20701,
-      "n_days": 13
+      "avg_trade_size_20d_mean": 110.49096,
+      "avg_trade_size_20d_std": 63.291251,
+      "n_days": 14
     },
     "NVDA": {
-      "avg_trade_size_20d_mean": 108.362403,
-      "avg_trade_size_20d_std": 16.60204,
-      "n_days": 13
+      "avg_trade_size_20d_mean": 147.19571,
+      "avg_trade_size_20d_std": 81.148367,
+      "n_days": 14
     },
     "OXY": {
-      "avg_trade_size_20d_mean": 50.217881,
-      "avg_trade_size_20d_std": 6.079164,
-      "n_days": 13
+      "avg_trade_size_20d_mean": 54.75292,
+      "avg_trade_size_20d_std": 3.234416,
+      "n_days": 14
     },
     "TSLA": {
-      "avg_trade_size_20d_mean": 68.881923,
-      "avg_trade_size_20d_std": 6.728038,
-      "n_days": 13
+      "avg_trade_size_20d_mean": 67.782558,
+      "avg_trade_size_20d_std": 13.176351,
+      "n_days": 14
     },
     "UNH": {
-      "avg_trade_size_20d_mean": 24.564639,
-      "avg_trade_size_20d_std": 2.064527,
-      "n_days": 13
+      "avg_trade_size_20d_mean": 25.220931,
+      "avg_trade_size_20d_std": 2.607281,
+      "n_days": 14
     },
     "V": {
-      "avg_trade_size_20d_mean": 27.279947,
-      "avg_trade_size_20d_std": 2.600183,
-      "n_days": 13
+      "avg_trade_size_20d_mean": 26.768386,
+      "avg_trade_size_20d_std": 2.437202,
+      "n_days": 14
     },
     "XOM": {
-      "avg_trade_size_20d_mean": 41.070928,
-      "avg_trade_size_20d_std": 4.469016,
-      "n_days": 13
+      "avg_trade_size_20d_mean": 42.258675,
+      "avg_trade_size_20d_std": 3.026927,
+      "n_days": 14
     }
   }
 }
