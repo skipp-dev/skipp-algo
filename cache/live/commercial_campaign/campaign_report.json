@@ -2,9 +2,9 @@
   "attempt_status_counts": {
     "COMPLETED": 80,
     "FAILED": 10,
-    "NO_SETUPS": 68
+    "NO_SETUPS": 69
   },
-  "attempts_total": 158,
+  "attempts_total": 159,
   "audit_integrity": {
     "audit_rows": 115,
     "duplicate_snapshot_intent_rows": 0,
@@ -34,7 +34,7 @@
   },
   "campaign_mode": "audit_only_shadow",
   "failure_rate": 0.0,
-  "failure_rate_lifetime": 0.06329113924050633,
+  "failure_rate_lifetime": 0.06289308176100629,
   "failure_window_size": 20,
   "failures_by_type": {
     "ValueError": 10
@@ -52,26 +52,28 @@
     "SWEEP": 45
   },
   "first_observed_at": "2026-08-18T14:07:00.036063+00:00",
-  "generated_at": "2026-09-25T19:10:08.127928+00:00",
-  "last_observed_at": "2026-09-25T19:10:08.127928+00:00",
+  "generated_at": "2026-09-28T14:14:38.407957+00:00",
+  "last_observed_at": "2026-09-28T14:14:38.407957+00:00",
   "network_io": false,
   "observation_gate": {
     "current_threshold_warnings": [],
     "missing_families": [],
-    "reasons": [],
+    "reasons": [
+      "future_source_timestamp_observed"
+    ],
     "thresholds": {
       "max_failure_rate": 0.05,
       "max_source_age_p95_seconds": 900.0,
       "min_unique_snapshots": 20
     },
-    "verdict": "PASS"
+    "verdict": "FAIL"
   },
   "paper_orders_placed": 0,
   "processing_seconds": {
     "count": 20,
     "max": 0.21545012504793704,
-    "min": 0.03649041592143476,
-    "p50": 0.051541020977310836,
+    "min": 0.03366962499967485,
+    "p50": 0.050701770989689976,
     "p95": 0.10185783298220485
   },
   "promotion_gate": {
@@ -86,10 +88,10 @@
   "source_age_seconds": {
     "count": 20,
     "max": 608.12792801857,
-    "min": 38.13664698600769,
+    "min": -21.592042922973633,
     "p50": 320.99930942058563,
     "p95": 382.33482694625854
   },
-  "substantive_attempts_total": 158,
-  "unique_attempted_snapshots": 158
+  "substantive_attempts_total": 159,
+  "unique_attempted_snapshots": 159
 }
