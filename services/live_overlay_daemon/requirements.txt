@@ -1,19 +1,19 @@
 fastapi==0.141.1
-starlette==1.6.0  # 2026-08-04: pinned at the version this file already
+starlette==1.7.0  # 2026-08-04: pinned at the version this file already
                   # resolves to (verified via a fresh throwaway-venv
                   # install; a no-op today). Unpinned ASGI-layer majors
                   # are the real risk on the deployed daemon, the
                   # production path with the highest blast radius — see
                   # requirements.txt for the root-cause writeup.
-uvicorn==0.52.4
-databento==0.84.0
+uvicorn==0.54.0
+databento==0.87.0
 psutil==7.2.2
-holidays==0.103
+holidays==0.105
 # fmp_data_loader imports httpx at module level for the VIX poll; without it
 # `_ensure_vix_loader` swallows the ImportError and vix_level stays null in the
 # /smc_live payload. Absent here until 2026-08-05.
 httpx==0.28.1
-tzdata==2026.3
+tzdata==2026.4
 
 # NOTE (2026-08-05): production does NOT install this file. Railway builds the
 # whole repo tree, so the ROOT requirements.txt is what the container gets
