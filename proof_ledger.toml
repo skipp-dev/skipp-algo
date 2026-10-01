@@ -481,6 +481,13 @@ artifact        = "tradingview-consumer-bindings"
 version_probe   = "KEINE"
 version_probe_reason = "Feld-Praesenz-Probe kann eine neue WERT-Variante eines bestehenden Feldes nicht ausdruecken (Feld seit #4085, Wert seit #5025); der Urteiler faengt den Fall selbst per not_a_repair_run ab"
 judge           = "tv_repair_only_contract"
+# 2026-10-01: der Urteiler liest jetzt auch die GEBOTS-Haelfte dieser
+# Behauptung ("...und speichert"). Bis dahin war jeder repair-only-Lauf mit
+# bindingsRepaired > 0 und layoutSaved=false ein PASS/contract_held -- 32 in
+# Folge, waehrend TradingViews umgebauter Speicherknopf jede Reparatur verwarf
+# (Korpus 35590264660 -> FAIL/repaired_not_saved; 36820265832 ->
+# STEHT_AUS/nothing_repaired). Der Zeuge 32620808573 unten bleibt PASS: er
+# trug layoutSaved=true.
 # 2026-08-23: derselbe Lauf 32620808573 traegt executionMode=repair-only und
 # haelt den Vertrag: sourceSavesCompleted 0, producerInstancesRemoved 0,
 # consumerInstancesRemoved 0 — nichts deployt, nichts zerlegt.
