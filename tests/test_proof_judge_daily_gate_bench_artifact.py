@@ -5,7 +5,9 @@ Beide Korpus-Logs sind echte Job-Logs von ``promotion-gate-daily``:
 * ``106472364384`` — Lauf 35641718088 (2026-09-21), der einzige von 18 Laeufen
   seit dem 31.8., der sein Tagesartefakt fand;
 * ``109923374032`` — Lauf 36726137478 (2026-09-30), einer der 17, die es nicht
-  fanden und gruen uebersprangen.
+  fanden und gruen uebersprangen;
+* ``110528686974`` — Lauf 36909606203 (2026-10-01, nach dem Merge von #5584):
+  der Zeuge, auf dem der PASS des Eintrags steht.
 """
 from __future__ import annotations
 
@@ -17,6 +19,7 @@ from scripts.proof_ledger import load_entries
 _JUDGE = "daily_gate_bench_artifact"
 _FOUND_RUN = "106472364384"
 _MISSING_RUN = "109923374032"
+_WITNESS_RUN = "110528686974"
 
 
 def _entry():
@@ -25,8 +28,17 @@ def _entry():
 
 def _corpus() -> dict[str, dict]:
     corpus = dict(corpus_for(_JUDGE))
-    assert set(corpus) == {_FOUND_RUN, _MISSING_RUN}, sorted(corpus)
+    assert set(corpus) == {_FOUND_RUN, _MISSING_RUN, _WITNESS_RUN}, sorted(corpus)
     return corpus
+
+
+def test_the_post_merge_witness_found_the_artifact_of_the_run_before_it() -> None:
+    """Die Kette vom 2026-10-01: Benchmark 36906821841, dann dieses Gate."""
+    verdict = load_judge(_JUDGE).judge(_corpus()[_WITNESS_RUN], _entry())
+    assert (verdict.state, verdict.branch) == ("PASS", "tagesartefakt_gefunden")
+    assert verdict.detail == (
+        "artifact smc-measurement-benchmark-rolling-2026-10-01 fetched from run 36906821841"
+    )
 
 
 def test_the_run_that_found_its_artifact_is_a_pass() -> None:
@@ -46,7 +58,9 @@ def test_both_logs_contain_the_fetched_text_as_script_echo() -> None:
     Der Runner druckt den run-Block in jedes Log. Wer nach dem TEXT sucht,
     findet ihn auch im Lauf vom 30.9., der nichts fand.
     """
-    for run_id, evidence in _corpus().items():
+    corpus = _corpus()
+    assert len(corpus) == 3, "die Schleife darunter liefe sonst leer"
+    for run_id, evidence in corpus.items():
         assert "fetched from run" in evidence["log"], run_id
         assert "${ART_NAME} fetched from run" in evidence["log"], run_id
 
