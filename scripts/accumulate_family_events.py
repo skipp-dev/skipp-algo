@@ -11,7 +11,10 @@ event pool grows large enough for the walk-forward to assemble sufficient
 out-of-sample folds.
 
 Deduplication rule (Score-Persistenz):
-    Events are keyed by ``(family, anchor_ts)``.  When the same event appears
+    Events are keyed by their ``event_id`` (``<family>:<symbol>:<tf>:<anchor>:
+    <direction>:<levels>``, stable across daily runs).  Only an event WITHOUT an
+    id falls back to the legacy ``(family, anchor_ts)`` key.  When the same
+    event appears
     in multiple daily snapshots (re-detected as *open* structure), the version
     with the *longest* ``forward_closes`` list wins: each successive day
     the benchmark appends one more day of realized bars, so the newest version
@@ -33,6 +36,20 @@ Deduplication rule (Score-Persistenz):
     never grew past its 2026-06-11 seed).  Backfilling anchor-time fields
     from the older copy is not lookahead either: they were measured when
     the event formed, strictly from bars at or before the anchor.
+
+Event identity (2026-10-01):
+    Until this date the key was ``(family, anchor_ts)`` alone — written when
+    the pool held one instrument on one timeframe.  The pool has been
+    multi-symbol and multi-timeframe since #2667, and bars of different
+    symbols share their timestamps, so the key declared DIFFERENT events to be
+    the same one and kept a single survivor per family and bar.  Measured on
+    the daily file of 2026-09-24 (run 36055941993): 11 586 events, 11 586
+    distinct ``event_id``s, 1 570 distinct ``(family, anchor_ts)`` — 86 % of a
+    day's events were discarded before any gate saw them; on the governed 1D
+    plane 293 events became 62 (at most one per family and trading day).  The
+    ids are stable across runs (2026-09-23 vs 2026-09-24: 7 414 shared ids,
+    none with changed levels), which is what makes them the identity the
+    "same event, re-detected" rule above was always meant to use.
 
 Age filter:
     Events whose ``anchor_ts`` is older than a rolling N × 86 400-second
@@ -92,7 +109,7 @@ def _forward_len(event: dict[str, Any]) -> int:
 
 
 # Fields computed strictly from bars at or before the anchor. They are
-# immutable per (family, anchor_ts) but disappear from later re-detections
+# immutable per event but disappear from later re-detections
 # once the anchor drifts below the trailing-window requirement (ATR period,
 # regime/relative-volume lookbacks) in the sliding benchmark bar window.
 _ANCHOR_TIME_FIELDS: tuple[str, ...] = (
@@ -125,6 +142,21 @@ def _merge_event(
     return merged
 
 
+def _event_key(event: dict[str, Any], family: str, anchor_ts: float) -> tuple[Any, ...]:
+    """Identity of one event across daily snapshots.
+
+    The ``event_id`` names symbol, timeframe, anchor, direction and levels and
+    is therefore the event itself; ``(family, anchor_ts)`` is shared by every
+    symbol that printed the same family on the same bar and stays only as the
+    fallback for id-less (legacy / hand-built) events.  The two key spaces are
+    tagged so an id-less event can never collide with an id-bearing one.
+    """
+    event_id = event.get("event_id")
+    if isinstance(event_id, str) and event_id.strip():
+        return ("id", event_id.strip())
+    return ("legacy", family, anchor_ts)
+
+
 def _cutoff_ts(max_age_days: int) -> float:
     """Epoch-seconds cutoff: events older than this are dropped."""
     now = datetime.now(UTC)
@@ -139,13 +171,14 @@ def accumulate(
 ) -> list[dict[str, Any]]:
     """Merge *input_files* into a single deduplicated event list.
 
-    Deduplication key: ``(family, anchor_ts)``.
+    Deduplication key: the ``event_id`` (see :func:`_event_key`; id-less
+    events fall back to ``(family, anchor_ts)``).
     Tie-break: the event with the longest ``forward_closes`` list wins;
     anchor-time fields the winner lacks are backfilled from the loser
     (Score-Persistenz — see module docstring).
     Age filter: drop events older than ``max_age_days`` calendar days.
     """
-    by_key: dict[tuple[str, float], dict[str, Any]] = {}
+    by_key: dict[tuple[Any, ...], dict[str, Any]] = {}
     cutoff = _cutoff_ts(max_age_days)
 
     for path in input_files:
@@ -163,7 +196,7 @@ def accumulate(
             if anchor_ts < cutoff:
                 continue  # too old — skip
 
-            key = (family, anchor_ts)
+            key = _event_key(event, family, anchor_ts)
             existing = by_key.get(key)
             if existing is None:
                 by_key[key] = event
@@ -172,8 +205,13 @@ def accumulate(
             else:
                 by_key[key] = _merge_event(existing, event)
 
-    # Sort by anchor_ts ascending so consumers get a deterministic order.
-    return sorted(by_key.values(), key=lambda e: float(e.get("anchor_ts", 0)))
+    # Sort by anchor_ts ascending so consumers get a deterministic order; the
+    # event_id breaks ties, which are the rule now that same-bar events of
+    # different symbols all survive.
+    return sorted(
+        by_key.values(),
+        key=lambda e: (float(e.get("anchor_ts", 0)), str(e.get("event_id") or "")),
+    )
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -660,3 +660,122 @@ def test_rolling_workflow_arms_the_continuity_guard():
         / ".github" / "workflows" / "smc-measurement-benchmark-rolling.yml"
     ).read_text(encoding="utf-8")
     assert '"--max-shrink-fraction" "0.5"' in workflow
+
+
+# ---------------------------------------------------------------------------
+# Event identity (2026-10-01): the key is the event, not the bar.
+#
+# The pool is multi-symbol and multi-timeframe; bars of different symbols
+# share their timestamps. Keyed on ``(family, anchor_ts)`` the accumulator
+# kept ONE survivor per family and bar — measured on the daily file of
+# 2026-09-24: 11 586 events, 11 586 distinct event_ids, 1 570 distinct
+# (family, anchor_ts). These tests build that situation synthetically.
+# ---------------------------------------------------------------------------
+
+
+def _event_with_id(
+    family: str, symbol: str, timeframe: str, anchor_ts: float, *,
+    n_closes: int = 5, score: float | None = 1.0, level: float = 100.0,
+) -> dict:
+    evt = _event(family, anchor_ts, n_closes=n_closes, score=score)
+    evt["event_id"] = f"{family.lower()}:{symbol}:{timeframe}:{int(anchor_ts)}:UP:{level:.2f}"
+    return evt
+
+
+def test_same_bar_events_of_different_symbols_all_survive(tmp_path: Path) -> None:
+    """The measured example: BOS on AAPL, GOOGL and NVDA in the same 5m bar."""
+    ts = _ts_days_ago(1)
+    f = tmp_path / "day.json"
+    f.write_text(json.dumps([
+        _event_with_id("BOS", "AAPL", "5m", ts, level=335.79),
+        _event_with_id("BOS", "GOOGL", "5m", ts, level=350.52),
+        _event_with_id("BOS", "NVDA", "5m", ts, level=223.45),
+    ]))
+    result = accumulate([f], max_age_days=30)
+    assert sorted(e["event_id"].split(":")[1] for e in result) == ["AAPL", "GOOGL", "NVDA"]
+
+
+def test_same_bar_events_of_different_timeframes_all_survive(tmp_path: Path) -> None:
+    """A 5m and a 15m bar can start on the same timestamp."""
+    ts = _ts_days_ago(1)
+    f = tmp_path / "day.json"
+    f.write_text(json.dumps([
+        _event_with_id("FVG", "AAPL", "5m", ts),
+        _event_with_id("FVG", "AAPL", "15m", ts),
+    ]))
+    assert len(accumulate([f], max_age_days=30)) == 2
+
+
+def test_a_daily_plane_keeps_every_symbol_not_one_per_day(tmp_path: Path) -> None:
+    """On 1D every symbol shares the daily bar timestamp.
+
+    The old key therefore capped the governed 1D plane at one event per family
+    and trading day (measured 2026-09-24: 293 -> 62) — the reason its track
+    record never left ~20-30 trades.
+    """
+    symbols = [f"SYM{i:02d}" for i in range(20)]
+    days = [_ts_days_ago(d) for d in (1, 2, 3)]
+    f = tmp_path / "day.json"
+    f.write_text(json.dumps([
+        _event_with_id("OB", symbol, "1D", ts) for ts in days for symbol in symbols
+    ]))
+    assert len(accumulate([f], max_age_days=30)) == len(symbols) * len(days)
+
+
+def test_the_same_event_redetected_is_still_one_entry(tmp_path: Path) -> None:
+    """Score-Persistenz is unchanged — it now works per EVENT.
+
+    Day 2 re-detects AAPL's event with a longer window but no score; the
+    GOOGL event of the same bar must neither absorb it nor lend it a score.
+    """
+    ts = _ts_days_ago(2)
+    day1 = tmp_path / "day1.json"
+    day2 = tmp_path / "day2.json"
+    day1.write_text(json.dumps([
+        _event_with_id("BOS", "AAPL", "5m", ts, n_closes=3, score=0.9, level=335.79),
+        _event_with_id("BOS", "GOOGL", "5m", ts, n_closes=3, score=0.2, level=350.52),
+    ]))
+    day2.write_text(json.dumps([
+        _event_with_id("BOS", "AAPL", "5m", ts, n_closes=7, score=None, level=335.79),
+    ]))
+    result = {e["event_id"].split(":")[1]: e for e in accumulate([day1, day2], max_age_days=30)}
+    assert sorted(result) == ["AAPL", "GOOGL"]
+    assert len(result["AAPL"]["forward_closes"]) == 7
+    assert result["AAPL"]["score"] == 0.9, "the score must come from AAPL's own earlier copy"
+    assert result["GOOGL"]["score"] == 0.2
+    assert len(result["GOOGL"]["forward_closes"]) == 3
+
+
+def test_an_event_without_id_keeps_the_legacy_key(tmp_path: Path) -> None:
+    """Id-less events (legacy, hand-built) still dedupe on (family, anchor_ts)."""
+    ts = _ts_days_ago(1)
+    f1 = tmp_path / "day1.json"
+    f2 = tmp_path / "day2.json"
+    f1.write_text(json.dumps([_event("BOS", ts, n_closes=3)]))
+    f2.write_text(json.dumps([_event("BOS", ts, n_closes=6)]))
+    result = accumulate([f1, f2], max_age_days=30)
+    assert len(result) == 1
+    assert len(result[0]["forward_closes"]) == 6
+
+
+def test_id_and_legacy_key_spaces_do_not_collide(tmp_path: Path) -> None:
+    ts = _ts_days_ago(1)
+    f = tmp_path / "day.json"
+    blank = _event("BOS", ts)
+    blank["event_id"] = "   "  # blank id == no id
+    f.write_text(json.dumps([_event("BOS", ts), blank, _event_with_id("BOS", "AAPL", "5m", ts)]))
+    result = accumulate([f], max_age_days=30)
+    # the two id-less copies are one legacy event; the id-bearing one is its own
+    assert len(result) == 2
+
+
+def test_output_order_is_deterministic_for_same_bar_events(tmp_path: Path) -> None:
+    ts = _ts_days_ago(1)
+    events = [_event_with_id("BOS", s, "5m", ts) for s in ("NVDA", "AAPL", "MSFT")]
+    f1 = tmp_path / "a.json"
+    f2 = tmp_path / "b.json"
+    f1.write_text(json.dumps(events))
+    f2.write_text(json.dumps(list(reversed(events))))
+    first = [e["event_id"] for e in accumulate([f1], max_age_days=30)]
+    second = [e["event_id"] for e in accumulate([f2], max_age_days=30)]
+    assert first == second

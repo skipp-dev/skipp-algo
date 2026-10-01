@@ -826,7 +826,8 @@ jobs:
       # re-uploading, the pool grows across successive days until the walk-
       # forward calibration has enough out-of-sample folds.
       #
-      # Deduplication key: (family, anchor_ts).  Tie-break: longest
+      # Deduplication key: the event_id (id-less events: (family, anchor_ts)).
+      # Tie-break: longest
       # forward_closes (newest daily run extends the outcome window the most).
       # Events older than 30 days are pruned from the pool each run.
       #
