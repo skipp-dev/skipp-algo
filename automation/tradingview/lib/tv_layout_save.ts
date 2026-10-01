@@ -148,6 +148,31 @@ async function pressSaveShortcut(page: Page): Promise<void> {
   await page.keyboard.press(CHART_LAYOUT_SAVE_SHORTCUT);
 }
 
+// Passed as a STRING for the same reason as MOVE_FOCUS_OFF_EDITABLES.
+const VISIBLE_DIALOG_HEADLINES = `(() => {
+  var out = [];
+  var nodes = document.querySelectorAll('[role="dialog"], #overlap-manager-root [data-id]');
+  for (var i = 0; i < nodes.length && out.length < 4; i++) {
+    var box = nodes[i].getBoundingClientRect();
+    if (box.width === 0 || box.height === 0) continue;
+    var text = (nodes[i].innerText || "").replace(/\\s+/g, " ").trim().slice(0, 60);
+    if (text && out.indexOf(text) === -1) out.push(text);
+  }
+  return out;
+})()`;
+
+/**
+ * What stood on the page when the save went unanswered. Run 36859274386
+ * (2026-10-01) pressed the shortcut under a promotion overlay and with the
+ * Pine editor docked; the message then named neither, and the question "who
+ * took the key press?" needed a screenshot from a different step to answer.
+ */
+async function describeOpenDialogs(page: Page): Promise<string> {
+  const found = await page.evaluate(VISIBLE_DIALOG_HEADLINES).catch(() => null);
+  const headlines = Array.isArray(found) ? found.map((entry) => String(entry)) : [];
+  return headlines.length > 0 ? `open dialogs: ${JSON.stringify(headlines)}` : "open dialogs: none seen";
+}
+
 export async function saveChartLayout(
   page: Page,
   options: { timeoutMs?: number } = {},
@@ -183,7 +208,7 @@ export async function saveChartLayout(
     throw new ChartLayoutSaveError(
       "unconfirmed",
       `TradingView sent no POST ${CHART_LAYOUT_SAVE_REQUEST_PATH} within ${timeoutMs}ms after the ${trigger}; `
-        + `save control: ${describeControl(control)}`,
+        + `save control: ${describeControl(control)}; ${await describeOpenDialogs(page)}`,
     );
   }
   const response = await request.response().catch(() => null);
