@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "subject": "SMC_Hold_Manager.pine — commercial family membership",
   "status": "pending",
-  "dueBy": "2026-09-13",
+  "dueBy": "2026-12-01",
   "dueByHistory": [
     {
       "from": "2026-08-25",
@@ -24,6 +24,13 @@
       "on": "2026-09-01",
       "authorizedBy": "Operator direction 2026-09-01: move the calendar to 2026-09-13.",
       "reason": "Measured 2026-08-31 evening: session 1 of the 31.8.-4.9. window is a HOLE, not an exclusion row. The nine remaining per-session fields are TradingView observations made DURING the session; the operator did not observe 2026-08-31 and they cannot be reconstructed afterwards. An excluded row does not help either -- the evaluator requires the full TradingView-side attestations in every recorded row, including excluded ones (the 2026-08-17 lesson). Arithmetic without that day: four XNYS candidates remain before dueBy 2026-09-06 (1.-4.9.; 5./6.9. are weekend) against five required complete sessions -- the data trigger was unreachable by one day. dueBy 2026-09-13 restores the five weekdays 1.-4.9. plus 7.-11.9. as candidates (nine) for five required, i.e. four spare days, and keeps the two-sided tripwire armed. Two machine-backed fields of that day were captured and stand on branch hm/session-2026-08-31 (bindingStatus=passed, runtimeErrorCount=0, from bindings run 33401135942)."
+    },
+    {
+      "from": "2026-09-13",
+      "to": "2026-12-01",
+      "on": "2026-10-01",
+      "authorizedBy": "Operator direction 2026-10-01: Stichtag 1. Dezember.",
+      "reason": "Measured 2026-10-01: sessions[] on origin/main holds 0 of 5 required rows and dueBy 2026-09-13 passed with the record still pending, so the calendar arm of the tripwire has been red since 2026-09-14. The operator moves the calendar instead of recording the decision; no reason beyond the direction was given and none is invented here. What made the stall visible: the red tripwire fails `validate (1)` on every pull_request run, and that is what has kept the library-refresh PR #5525 (release manifest 497 -> 544) from auto-merging since 2026-09-25 (run 36155372145: the only FAILED test is test_the_repository_state_holds). With the manifest behind TradingView, every mutating tv-save-consumer-source run refuses on `Library publish drift`. The observation window itself is unchanged: five complete sessions still fire the data trigger regardless of the date, and the two-sided tripwire stays armed against dueBy 2026-12-01."
     }
   ],
   "basis": "The five-complete-session shadow observation window (R2-SHADOW-CUTOVER contract, observationWindow) that starts with the first XNYS session after 2026-08-16. The window's evidence IS the decision input, so the decision is deliberately not taken earlier — and deliberately cannot drift past the window: tests/test_hold_manager_commercial_decision_tripwire.py goes red when the window completes or the due date passes while this record still says pending.",

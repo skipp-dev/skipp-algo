@@ -49,7 +49,16 @@ _SERIES = "live_overlay_github_workflow_expected_age_seconds"
 #: deployt sein, die Reihe live gesehen, die Regel gesetzt. Verlaengern heisst
 #: Datum UND Begruendung hier erneuern -- ein stilles Hochsetzen ist genau der
 #: Dauer-Mute, gegen den dieses Repo seine Ausnahmen datiert.
-_FRIST = dt.date(2026, 9, 7)
+#:
+#: 2026-10-01 VERSCHOBEN 2026-09-07 -> 2026-12-01 (Operator-Direktive 1.10.).
+#: Gemessen am selben Tag: Reihe und Regel fehlen beide weiterhin, die Frist
+#: lief am 8.9. ab, der letzte menschliche Commit auf main ist vom 1.9. -- der
+#: Stolperdraht feuerte also drei Wochen in ein ruhendes Repo. Fertigstellen
+#: heisst metrics.py + alert-rules.yaml + Daemon-Deploy + die Reihe live sehen;
+#: das ist eine eigene Aenderung und gehoert nicht in den PR, der die drei
+#: abgelaufenen Fristen entscheidet. Der 1.12. ist derselbe Tag wie der
+#: Hold-Manager-Stichtag (dueByHistory, gleiche Direktive).
+_FRIST = dt.date(2026, 12, 1)
 
 
 def _emitted() -> bool:
