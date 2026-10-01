@@ -12,6 +12,7 @@ import {
 } from "playwright";
 
 import { tvSelectors, type PineDraftKind } from "../selectors.js";
+import { saveChartLayout } from "./tv_layout_save.js";
 import {
   chartIntervalDisplayLabel,
   clipboardReadbackProvesWrite,
@@ -7745,39 +7746,18 @@ export async function closePineEditorIfVisible(page: Page): Promise<boolean> {
  * reloaded chart) reverts to the last SAVED layout, so a force-rebind that
  * reads back "bound" in its own session silently does not stick (2026-07-25:
  * consumers stayed on "Close" on the live chart while every rebind run
- * reported mismatches:0). Mirrors scripts/tv_onboard_consumers.ts. Idempotent:
- * a no-op when the header toolbar already reads "all changes saved".
+ * reported mismatches:0).
+ *
+ * The mechanics live in tv_layout_save.ts, shared with the onboarding package:
+ * the save counts when TradingView answered `POST /api/v1/charts/save/`, not
+ * when a header control changed its label. NOT a no-op on a clean layout any
+ * more — a "nothing to save" button is not trusted (see that file), so every
+ * call issues one save request.
  */
 export async function saveChangedChartLayout(page: Page): Promise<void> {
   await runTrackedStep(page, "saveChangedChartLayout", async () => {
-    const buttons = page.locator('button[data-qa-id="header-toolbar-save-load"]');
-    let saveButton: Locator | null = null;
-    for (let index = 0; index < (await buttons.count()); index += 1) {
-      const candidate = buttons.nth(index);
-      if (await candidate.isVisible().catch(() => false)) {
-        saveButton = candidate;
-        break;
-      }
-    }
-    if (!saveButton) {
-      throw new Error("chart layout save control (header-toolbar-save-load) not found");
-    }
-    const alreadySaved = await saveButton.getAttribute("aria-label").catch(() => null);
-    if (/all changes saved/i.test(alreadySaved ?? "")) {
-      tracePageEvent(page, "chart-layout-already-saved");
-      return;
-    }
-    await saveButton.click();
-    const deadline = Date.now() + 20_000;
-    while (Date.now() < deadline) {
-      const ariaLabel = await saveButton.getAttribute("aria-label").catch(() => null);
-      if (/all changes saved/i.test(ariaLabel ?? "")) {
-        tracePageEvent(page, "chart-layout-saved");
-        return;
-      }
-      await page.waitForTimeout(250);
-    }
-    throw new Error("TradingView did not confirm the chart layout was saved within 20s");
+    const outcome = await saveChartLayout(page);
+    tracePageEvent(page, "chart-layout-saved", `${outcome.trigger} control=${outcome.control} http=${outcome.status}`);
   });
 }
 
