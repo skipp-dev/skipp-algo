@@ -3975,6 +3975,62 @@ export async function dismissOverlapManagerOverlay(page: Page): Promise<void> {
   tracePageEvent(page, "dismiss-overlap-manager-overlay-done", `js-bypass:remaining=${remaining}`);
 }
 
+// What marks a TradingView promotion, as opposed to a tool dialog. Kept to
+// phrases a settings / indicator / alert dialog does not carry.
+const PROMOTION_OVERLAY_TEXT = /offer ends in|explore offers?|\b\d{1,3}\s?% off\b/i;
+
+/**
+ * Close a TradingView promotion overlay through its own close button.
+ *
+ * Measured 2026-10-01 (repair-only run 36859274386, layout vWgAWyfC): a
+ * full-size "Autumn sale — Up to 80% off — Offer ends in …" modal sat on the
+ * chart and intercepted every click on five of seven settings dialogs
+ * ("<div class=modalContent-…> from <div data-id=…> subtree intercepts pointer
+ * events"); the run repaired 0 of 108 bindings. dismissOverlapManagerOverlay
+ * does not help there: it runs once after navigation, the promotion appears
+ * later, and its last resort would also neutralise an open settings dialog.
+ *
+ * Deliberately narrow: only an overlay that reads like an offer is touched,
+ * only its close control is clicked (never the offer button), and the result
+ * says whether the overlay is actually gone. Returns false both when there was
+ * no promotion and when one would not close — the caller's next click then
+ * fails with the screenshot, which is the honest outcome.
+ */
+export async function dismissPromotionOverlay(page: Page): Promise<boolean> {
+  if (page.isClosed()) return false;
+  const promotion = page
+    .locator('#overlap-manager-root [data-id], [role="dialog"]')
+    .filter({ hasText: PROMOTION_OVERLAY_TEXT });
+  if ((await promotion.count().catch(() => 0)) === 0) return false;
+
+  const overlay = promotion.first();
+  const headline = ((await overlay.innerText().catch(() => "")) ?? "").replace(/\s+/g, " ").trim().slice(0, 120);
+  tracePageEvent(page, "promotion-overlay-found", headline);
+
+  const closeCandidates = [
+    overlay.getByRole("button", { name: /^close$/i }),
+    overlay.locator('button[aria-label*="close" i], [role="button"][aria-label*="close" i]'),
+    overlay.locator('[data-name="close"], button[class*="close" i]'),
+  ];
+  for (const candidate of closeCandidates) {
+    const control = candidate.first();
+    if (!(await control.isVisible().catch(() => false))) continue;
+    await control.click({ timeout: 3_000 }).catch(() => undefined);
+    break;
+  }
+
+  const deadline = Date.now() + 3_000;
+  while (Date.now() < deadline) {
+    if ((await promotion.count().catch(() => 0)) === 0) {
+      tracePageEvent(page, "promotion-overlay-dismissed", headline);
+      return true;
+    }
+    await page.waitForTimeout(150).catch(() => undefined);
+  }
+  tracePageEvent(page, "promotion-overlay-stuck", headline);
+  return false;
+}
+
 async function collectVisibleIndicatorMyScriptNames(page: Page, limit = 8): Promise<string[]> {
   return page
     .locator('[data-name="indicators-dialog"] [data-id^="USER;"]')
@@ -7756,6 +7812,7 @@ export async function closePineEditorIfVisible(page: Page): Promise<boolean> {
  */
 export async function saveChangedChartLayout(page: Page): Promise<void> {
   await runTrackedStep(page, "saveChangedChartLayout", async () => {
+    await dismissPromotionOverlay(page);
     const outcome = await saveChartLayout(page);
     tracePageEvent(page, "chart-layout-saved", `${outcome.trigger} control=${outcome.control} http=${outcome.status}`);
   });
@@ -9702,6 +9759,11 @@ export async function openSettingsForScript(
   options: { allowChartRefresh?: boolean } = {},
 ): Promise<boolean> {
   const allowChartRefresh = options.allowChartRefresh === true;
+  // A promotion overlay can appear at any point in the session and then sits
+  // above or below the dialog this function opens (both seen in run
+  // 36859274386). Closing it here covers every caller that is about to work
+  // inside a settings dialog.
+  await dismissPromotionOverlay(page);
   // Both modes retry the settings-menu open once. The open is inherently flaky:
   // the TradingView chart legend races with pointer-intercepting overlays (e.g.
   // the "publish" menu item), so a single attempt fails transiently. The

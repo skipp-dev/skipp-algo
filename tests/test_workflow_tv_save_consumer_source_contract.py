@@ -274,7 +274,15 @@ def test_binding_repair_is_explicit_and_reverified_before_success() -> None:
     assert "repairSelectedSource" in verifier
     assert 'getByRole("option", { name: expected, exact: true })' in verifier
     assert 'button[name="submit"]' in verifier
-    assert "binding.actual = await readSelectedSource" in verifier
+    # 2026-10-01: the re-read after the repair is still what this pins — it now
+    # goes through canonicalSourceSelection, because TradingView can show the
+    # producer's status-line argument inside the combobox text
+    # ("SMC Long-Dip Suite · 411.0: BUS Armed", run 36859274386). Reading it raw
+    # would turn every successful repair on such a layout into a mismatch.
+    assert (
+        "binding.actual = canonicalSourceSelection(await readSelectedSource(session.page, binding.label), producerName)"
+        in verifier
+    )
 
 
 def test_default_mapping_covers_every_binding_order_consumer() -> None:

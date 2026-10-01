@@ -84,6 +84,45 @@ async function readSelectedSource(page: Parameters<typeof openInputsTab>[0], lab
   return null;
 }
 
+// TradingView may put the producer's status-line arguments between the script
+// name and the plot name: "SMC Long-Dip Suite · 411.0: BUS Armed" (measured
+// 2026-10-01 on vWgAWyfC, run 36859274386; the same dropdown read
+// "SMC Long-Dip Suite: BUS Armed" on 2026-09-21 and still does on the other
+// layouts). The separator must follow the name directly, so a longer script
+// name that merely starts with the producer's ("… Suite Pro") stays foreign.
+const SOURCE_ARGUMENT_START = /^\s*[·•|(\[]/;
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Reduce a combobox text to the identity the binding contract is written in:
+ * "<producer>: <plot>". Anything that is not this producer's plot — "Close",
+ * another script, an unreadable row — is returned untouched.
+ */
+export function canonicalSourceSelection(raw: string | null, producerName: string): string | null {
+  if (raw === null || !raw.startsWith(producerName)) return raw;
+  const rest = raw.slice(producerName.length);
+  if (!SOURCE_ARGUMENT_START.test(rest)) return raw;
+  const plotStart = rest.lastIndexOf(": ");
+  if (plotStart < 0) return raw;
+  return `${producerName}${rest.slice(plotStart)}`;
+}
+
+/** Options that are `expected` with status-line arguments in between, or null if `expected` names no producer. */
+function sourceOptionsWithArguments(
+  page: Parameters<typeof openInputsTab>[0],
+  label: string,
+  expected: string,
+) {
+  const suffix = `: ${label}`;
+  if (!expected.endsWith(suffix) || expected.length === suffix.length) return null;
+  const producer = expected.slice(0, -suffix.length);
+  const pattern = new RegExp(`^\\s*${escapeRegExp(producer)}\\s*[·•|(\\[].*:\\s${escapeRegExp(label)}\\s*$`);
+  return page.getByRole("option").filter({ hasText: pattern });
+}
+
 export type MissingSourceRowEvidence = {
   label: string;
   renderedBefore: readonly string[];
@@ -232,21 +271,49 @@ export async function repairSelectedSource(
     const visibleCombo = sourceComboboxForLabel(page, label).nth(index).first();
     if (!(await visibleCombo.isVisible().catch(() => false))) continue;
     await visibleCombo.click();
+    await page.getByRole("option").first().waitFor({ state: "visible", timeout: 2_500 }).catch(() => undefined);
     const exactOption = page.getByRole("option", { name: expected, exact: true });
-    const fallbackOption = page.getByText(expected, { exact: true });
-    const exactVisible = await exactOption.first().waitFor({ state: "visible", timeout: 2_500 })
-      .then(() => true)
-      .catch(() => false);
-    if (exactVisible) {
+    let withArguments: ReturnType<typeof sourceOptionsWithArguments> = null;
+    // The list can still be filling in when its first option is visible, so
+    // look for both spellings together for a moment instead of waiting out
+    // the exact one first — on a layout that shows arguments that would cost
+    // seconds per binding, 108 times.
+    const deadline = Date.now() + 2_500;
+    let exactCount = 0;
+    let argumentCount = 0;
+    for (;;) {
+      exactCount = await exactOption.count().catch(() => 0);
+      if (exactCount === 0) {
+        withArguments ??= sourceOptionsWithArguments(page, label, expected);
+        argumentCount = withArguments ? await withArguments.count().catch(() => 0) : 0;
+      }
+      if (exactCount > 0 || argumentCount > 0 || Date.now() >= deadline) break;
+      await page.waitForTimeout(100);
+    }
+    if (exactCount > 0) {
       await exactOption.first().click();
-    } else if (await fallbackOption.last().waitFor({ state: "visible", timeout: 1_000 })
+      return;
+    }
+    if (argumentCount === 1 && withArguments) {
+      await withArguments.first().click();
+      return;
+    }
+    if (argumentCount > 1) {
+      await page.keyboard.press("Escape").catch(() => undefined);
+      throw new Error(
+        `Ambiguous source option for ${label}: ${argumentCount} options read as ${expected} with different `
+        + "status-line arguments — more than one producer instance is offered",
+      );
+    }
+    const fallbackOption = page.getByText(expected, { exact: true });
+    if (await fallbackOption.last().waitFor({ state: "visible", timeout: 1_000 })
       .then(() => true)
       .catch(() => false)) {
       await fallbackOption.last().click();
-    } else {
-      throw new Error(`Source option not found for ${label}: ${expected}`);
+      return;
     }
-    return;
+    await page.keyboard.press("Escape").catch(() => undefined);
+    throw new Error(`Source option not found for ${label}: ${expected}`);
   }
   // Still fail-closed — the probe only decides WHAT the failure says, never
   // whether it fails. A probe that throws must not swallow the real error.
@@ -272,9 +339,13 @@ export async function isConsumerSourceOptionAvailable(
     const combo = sourceComboboxForLabel(session.page, label).first();
     if (!(await combo.isVisible().catch(() => false))) return false;
     await combo.click();
+    await session.page.getByRole("option").first().waitFor({ state: "visible", timeout: 2_500 }).catch(() => undefined);
     const exactOption = session.page.getByRole("option", { name: expected, exact: true });
     const fallbackOption = session.page.getByText(expected, { exact: true });
-    return (await exactOption.count()) > 0 || (await fallbackOption.count()) > 0;
+    const withArguments = sourceOptionsWithArguments(session.page, label, expected);
+    return (await exactOption.count()) > 0
+      || (await fallbackOption.count()) > 0
+      || (withArguments !== null && (await withArguments.count()) === 1);
   } finally {
     await session.page.keyboard.press("Escape").catch(() => undefined);
     await closeModal(session.page).catch(() => undefined);
@@ -328,7 +399,7 @@ export async function verifyConsumerBindings(
 
   const bindings: Binding[] = [];
   for (const label of labels) {
-    const actual = await readSelectedSource(session.page, label);
+    const actual = canonicalSourceSelection(await readSelectedSource(session.page, label), producerName);
     const expected = `${producerName}: ${label}`;
     bindings.push({ label, actual, expected, ok: actual === expected });
   }
@@ -372,7 +443,7 @@ export async function verifyConsumerBindings(
     if (!reopened) throw new Error(`Could not reopen chart settings after repair: ${target.scriptName}`);
     await openInputsTab(session.page);
     for (const binding of bindings) {
-      binding.actual = await readSelectedSource(session.page, binding.label);
+      binding.actual = canonicalSourceSelection(await readSelectedSource(session.page, binding.label), producerName);
       binding.ok = binding.actual === binding.expected;
     }
     mismatches = bindings.filter((binding) => !binding.ok);

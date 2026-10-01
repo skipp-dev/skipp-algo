@@ -348,7 +348,8 @@ test("a save TradingView never answered is a failure, and the message says what 
       && error.failure === "unconfirmed"
       && /api\/v1\/charts\/save/.test(error.message)
       && /save-load-button/.test(error.message)
-      && /aria-disabled=true/.test(error.message),
+      && /aria-disabled=true/.test(error.message)
+      && /open dialogs: /.test(error.message),
   );
 });
 
