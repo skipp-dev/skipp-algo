@@ -26,9 +26,10 @@ sweeps dug out a row of dead ones; every stale "verified YYYY-MM-DD"). Before wr
 forward promise, resolve it into exactly one of:
 
 1. **Mechanism in the same change** — a tripwire on the required path that goes red at X
-   (template: `tests/test_smc_strategy_mirror_deadline_tripwire.py`, one test file — the
-   previous template, `test_pine_const_getter_migration_tripwire.py`, retired itself with
-   #5105 exactly as designed), a
+   (template: `tests/test_presence_age_series_deadline_tripwire.py`, one test file — the
+   previous templates retired as designed: `test_pine_const_getter_migration_tripwire.py`
+   with #5105, `test_smc_strategy_mirror_deadline_tripwire.py` with the operator's
+   2026-10-01 delete decision), a
    scheduled check, or a gate. The prose then *summarises* the mechanism.
 2. **Live ownership** — Y is happening now: a PR in flight, a cron that does Y itself.
 3. **Explicitly unsecured** — write "UNGESICHERT — verlässt sich auf menschliches
