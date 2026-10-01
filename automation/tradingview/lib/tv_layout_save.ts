@@ -24,9 +24,20 @@ import type { Locator, Page } from "playwright";
  * de.tradingview.com, device emulation OFF, 2026-10-01):
  *   - the button selector and its `aria-disabled="true"` idle state;
  *   - Cmd/Ctrl+S on the chart -> `POST /api/v1/charts/save/` -> 200.
- * What is NOT measured: the button's state with unsaved changes, and whether
- * an account with autosave keeps it disabled for good. That is why
- * "disabled" is never read as "already saved, nothing to do" — see below.
+ *
+ * What the button's state means, measured in CI the same day:
+ *   - repair-only run 36866855475: after 108 rebinds the button was ENABLED;
+ *     the click sent the save request, answered 200.
+ *   - write run 36871652895: after 108 rebinds the button was DISABLED with
+ *     aria-label "All changes saved"; Ctrl+S sent no request — and the next
+ *     fresh read-only session (36872036826) read all 108 as bound. Autosave
+ *     had persisted them before this function was called.
+ * So a button that reports nothing to save is believed. The first version of
+ * this module did not believe it (the meaning was unmeasured then), forced the
+ * shortcut, got no request and reported a save failure for a saved layout.
+ * Not measured: an account where the button is disabled while changes are
+ * unsaved. The check for that is not here but after the run — the fresh
+ * read-only verify (tv-post-mutation-verify) and proof-ledger judge 5025.
  */
 
 /** Newest first. The second entry is the header that carried until 2026-08-23. */
@@ -53,11 +64,11 @@ export class ChartLayoutSaveError extends Error {
 }
 
 export interface ChartLayoutSaveOutcome {
-  /** How the save was triggered. */
-  trigger: "click" | "shortcut";
+  /** How the save was triggered; "already-saved" = the button reported nothing to save. */
+  trigger: "click" | "shortcut" | "already-saved";
   /** Selector of the button that was found, or "none". */
   control: string;
-  /** HTTP status TradingView answered the save request with. */
+  /** HTTP status TradingView answered the save request with; 0 when no request was needed. */
   status: number;
 }
 
@@ -179,6 +190,9 @@ export async function saveChartLayout(
 ): Promise<ChartLayoutSaveOutcome> {
   const timeoutMs = options.timeoutMs ?? 20_000;
   const control = await findSaveControl(page);
+  if (control && controlReportsNothingToSave(control)) {
+    return { trigger: "already-saved", control: control.selector, status: 0 };
+  }
 
   // Armed BEFORE the trigger and matched on the REQUEST, so only a save that
   // was issued after this point counts — an autosave already in flight was
@@ -190,15 +204,14 @@ export async function saveChartLayout(
       () => null,
     );
 
-  let trigger: ChartLayoutSaveOutcome["trigger"];
-  if (control && !controlReportsNothingToSave(control)) {
+  let trigger: "click" | "shortcut";
+  if (control) {
     await control.button.click();
     trigger = "click";
   } else {
-    // No button, or a button that says there is nothing to save. Neither is
-    // taken as "saved": the caller mutated the layout and asked for a save,
-    // and a disabled button was exactly what the idle header showed while the
-    // chart's bindings were unpersisted. Force the save and require the answer.
+    // No save button at all — the header was rebuilt again. That is not
+    // "saved": force the save through the shortcut and require the answer,
+    // so the next rebuild fails loudly here instead of silently for a month.
     await pressSaveShortcut(page);
     trigger = "shortcut";
   }
