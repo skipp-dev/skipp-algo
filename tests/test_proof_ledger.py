@@ -1016,6 +1016,86 @@ def test_the_repair_that_was_saved_still_passes():
     assert verdict.branch == "contract_held", verdict
 
 
+# --- 2026-10-01: #5598, der Ketten-Save und der PR, den er nie fand ------------
+
+
+def _awaits_corpus() -> dict[str, dict]:
+    from scripts.proof_judges import corpus_for
+
+    return dict(corpus_for("tv_save_awaits_refresh_pr"))
+
+
+def test_the_incident_run_is_judged_a_failure():
+    """Job 110585304746 (Lauf 36919569655): kein PR gefunden, dann Drift-Verweigerung."""
+    from scripts.proof_judges import load_judge
+
+    verdict = load_judge("tv_save_awaits_refresh_pr").judge(_awaits_corpus()["110585304746"], None)
+    assert verdict.state == "FAIL", verdict
+    assert verdict.branch == "vor_dem_refresh_pr_gestartet", verdict
+    assert "36908068669" in verdict.detail, verdict
+
+
+def test_no_refresh_pr_without_a_refusal_is_not_a_failure():
+    """Job 101826138608 (7.9.): dieselbe Fehlsuche, aber die Queue hatte den Save
+    so lange aufgehalten, dass main schon stimmte. Der Lauf schrieb korrekt —
+    er kann nur nicht bezeugen, dass gewartet worden waere."""
+    from scripts.proof_judges import load_judge
+
+    verdict = load_judge("tv_save_awaits_refresh_pr").judge(_awaits_corpus()["101826138608"], None)
+    assert verdict.state == "STEHT_AUS", verdict
+    assert verdict.branch == "kein_refresh_pr", verdict
+
+
+def test_a_scheduled_or_dispatched_save_says_nothing_about_the_chain():
+    """Job 110420046513: verify-only per Dispatch, der Await-Schritt lief nicht."""
+    from scripts.proof_judges import load_judge
+
+    verdict = load_judge("tv_save_awaits_refresh_pr").judge(_awaits_corpus()["110420046513"], None)
+    assert verdict.state == "STEHT_AUS", verdict
+    assert verdict.branch == "kein_ketten_save", verdict
+
+
+def test_the_script_echo_alone_never_passes():
+    """Der Runner druckt den run-Block in JEDES Ketten-Save-Log — mit
+    ``Refresh commit ${sha} (PR #${number}) is on main`` als unaufgeloestem
+    Text. Das echte Vorfalls-Log traegt diese Zeile; ein Urteiler, der nach dem
+    Text sucht, saehe darin einen bestandenen Beweis."""
+    from scripts.proof_judges import load_judge
+
+    log = _awaits_corpus()["110585304746"]["log"]
+    assert "Refresh commit ${sha} (PR #${number}) is on main" in log  # Praemisse
+    verdict = load_judge("tv_save_awaits_refresh_pr").judge({"log": log}, None)
+    assert verdict.state != "PASS", verdict
+
+
+def test_the_rendered_lines_reach_pass_and_pruefen():
+    """Die zwei Zweige ohne echten Korpus, am echten Log mit der ausgegebenen
+    Zeile im Runner-Format — so wie sie nach dem Fix erscheinen wird."""
+    from scripts.proof_judges import load_judge
+
+    judge = load_judge("tv_save_awaits_refresh_pr")
+    log = _awaits_corpus()["110585304746"]["log"]
+    no_pr = next(line for line in log.splitlines() if "##[notice]No bot/library-refresh-" in line)
+    stamp = no_pr.split("##[notice]")[0]
+
+    awaited = log.replace(
+        no_pr, stamp + "##[notice]Refresh commit 85b66551d (PR #5597) is on main; checking that out."
+    )
+    verdict = judge.judge({"log": awaited}, None)
+    assert (verdict.state, verdict.branch) == ("PASS", "refresh_commit_abgewartet"), verdict
+
+    stuck = log.replace(
+        no_pr,
+        stamp
+        + "##[error]PR #5597 for refresh run 36908068669 did not merge within 600s (state OPEN). "
+        + "Merge it and re-dispatch this workflow.",
+    )
+    verdict = judge.judge({"log": stuck}, None)
+    assert (verdict.state, verdict.branch) == ("PRUEFEN", "refresh_pr_nicht_gemergt"), verdict
+
+    assert judge.judge({"log": ""}, None).branch == "kein_log"
+
+
 # --- Anti-Vakuitaet (Task 5) ------------------------------------------------
 
 

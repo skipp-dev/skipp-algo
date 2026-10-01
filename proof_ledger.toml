@@ -3100,3 +3100,79 @@ Kante faende eine Textsuche dort einen "Fund". Synthetisch geprueft in
 tests/test_proof_judge_daily_gate_bench_artifact.py (echtes Log, ausgegebene
 Zeile entfernt).
 """
+
+# ---------------------------------------------------------------------------
+# #5598 — der Ketten-Save wartete seit dem 2026-08-13 auf einen PR, den es
+# unter diesem Namen nie gab. tv-save-consumer-source sucht
+# bot/library-refresh-<Id des REFRESH-Laufs>-*; smc-library-publish benannte den
+# Branch nach seiner EIGENEN Lauf-Id. Die Suche traf nichts, "kein PR" galt als
+# "nichts geaendert", der Save startete auf dem Baum vor dem Refresh.
+# Gemessen 2026-10-01: 14 von 14 gescheiterten Ketten-Saves (24.9.–1.10.) tragen
+# die Notiz "No bot/library-refresh-<refresh id>-* PR exists"; der juengste
+# (36919569655) begann 26 s nach dem Oeffnen von #5597 und 5 min vor dessen
+# Merge und verweigerte mit "Library publish drift" (Manifest 544, TV 545).
+#
+# Die Suite sieht die Wirkung nicht: beide Schritte sind zwar gegeneinander
+# ausgefuehrt getestet (tests/test_refresh_closes_superseded_bot_prs.py), aber
+# dass GitHub beiden dieselbe Lauf-Id reicht und der PR innerhalb der 600 s
+# merged, zeigt nur ein echter Zyklus. Zeuge ist der naechste Ketten-Save nach
+# einem Publish, der diesen Fix traegt.
+# ---------------------------------------------------------------------------
+[[proof]]
+id              = "5598"
+kind            = "fix"
+merged_at       = "<wird beim Merge nachgetragen>"
+merge_sha       = "<dito>"
+claim           = "Der vom Library-Refresh ausgeloeste Save findet den Refresh-PR des zugehoerigen Publish-Laufs, wartet auf dessen Merge und checkt genau diesen Commit aus — statt auf dem Baum vor dem Refresh zu starten und an Library publish drift zu verweigern."
+witness         = "tv-save-consumer-source"
+witness_job     = "save"
+evidence_source = "job_log"
+artifact        = ""
+version_probe   = "KEINE"
+version_probe_reason = "Der Fix liegt im Branch-Namen, den smc-library-publish vergibt; am Save aendern sich nur YAML-Kommentare, die der Runner nicht druckt. Im Log des Zeugen gibt es deshalb keinen Text, der erst seit dieser Aenderung erscheint — ausser der Ergebniszeile selbst, und die liest der Urteiler. Laeufe mit altem Code erkennt er an ihrer eigenen Signatur (kein PR gefunden + Verweigerung im selben Lauf = FAIL)."
+judge           = "tv_save_awaits_refresh_pr"
+# Achtung beim Nachmessen: `newest_witness` waehlt den JUENGSTEN save-Job nach
+# dem Merge, und das ist meist ein Zeitplan-Verify oder ein Dispatch. Die
+# urteilen STEHT_AUS/kein_ketten_save — das ist kein Befund ueber den Fix.
+# Zeuge ist ein Lauf mit event=workflow_run, dessen Publish NACH dem Merge lief
+# (nur dann traegt der Branch die Refresh-Id).
+state           = "OFFEN"
+due_by          = "2026-10-08"
+owner           = "operator"
+
+[[unreachable_branch]]
+judge  = "tv_save_awaits_refresh_pr"
+branch = "refresh_commit_abgewartet"
+reason = """
+2026-10-01: vor dem Merge von #5598 KONSTRUKTIONSBEDINGT unerreichbar — die
+ausgegebene Zeile "Refresh commit <sha> (PR #N) is on main" entsteht nur, wenn
+der Await-Schritt den PR findet, und das konnte er seit dem 2026-08-13 nicht
+(14 von 14 gescheiterten Ketten-Saves, 24.9.–1.10., melden "No ... PR exists").
+"Noch nicht geboren", nicht "tot": sobald der erste Ketten-Save nach dem Fix als
+Korpus aufgezeichnet ist, faellt diese Deklaration im Widerspruchs-Test auf und
+muss weg — das Aufzeichnen gehoert zum Abschluss von 5598.
+"""
+
+[[unreachable_branch]]
+judge  = "tv_save_awaits_refresh_pr"
+branch = "refresh_pr_nicht_gemergt"
+reason = """
+Feuert, wenn der Await-Schritt den PR FINDET und dann laut scheitert ("did not
+merge within" / "was closed without merging"). Kein aufgezeichneter Lauf tat
+das — bis zum Fix fand der Schritt den PR gar nicht. Der Zweig trennt "die
+Zuordnung stimmt, aber der PR haengt" (PRUEFEN) vom Defekt, den 5598 behebt.
+Ausgefuehrt geprueft ist die Kante im Schritt selbst:
+tests/test_refresh_closes_superseded_bot_prs.py laesst ihn gegen einen offenen PR
+in den Timeout laufen.
+"""
+
+[[unreachable_branch]]
+judge  = "tv_save_awaits_refresh_pr"
+branch = "kein_log"
+reason = """
+Feuert, wenn der Monitor den Zeugen-Job nicht auffindet und ein leeres Log
+durchreicht. Im aufgezeichneten Korpus kommt das nicht vor: alle drei
+Aufzeichnungen entstanden aus einem erfolgreich geholten Log. Der Zweig ist die
+fail-closed-Kante — KANN_NICHT_BEZEUGEN statt PASS, damit ein Abrufproblem nie
+wie ein bestandener Beweis aussieht.
+"""
