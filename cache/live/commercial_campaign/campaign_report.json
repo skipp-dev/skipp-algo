@@ -1,17 +1,17 @@
 {
   "attempt_status_counts": {
-    "COMPLETED": 87,
+    "COMPLETED": 88,
     "FAILED": 12,
     "NO_SETUPS": 76
   },
-  "attempts_total": 175,
+  "attempts_total": 176,
   "audit_integrity": {
-    "audit_rows": 124,
+    "audit_rows": 126,
     "duplicate_snapshot_intent_rows": 0,
     "invalid_audit_rows": 0,
-    "unique_audited_intents": 124,
-    "unique_audited_snapshots": 87,
-    "valid_audit_rows": 124
+    "unique_audited_intents": 126,
+    "unique_audited_snapshots": 88,
+    "valid_audit_rows": 126
   },
   "broker_io": false,
   "campaign_contract": {
@@ -34,26 +34,26 @@
   },
   "campaign_mode": "audit_only_shadow",
   "failure_rate": 0.1,
-  "failure_rate_lifetime": 0.06857142857142857,
+  "failure_rate_lifetime": 0.06818181818181818,
   "failure_window_size": 20,
   "failures_by_type": {
     "ValueError": 12
   },
   "family_coverage_pct": {
-    "BOS": 32.18390804597701,
-    "FVG": 28.735632183908045,
-    "OB": 26.436781609195403,
-    "SWEEP": 55.172413793103445
+    "BOS": 31.818181818181817,
+    "FVG": 28.40909090909091,
+    "OB": 27.272727272727273,
+    "SWEEP": 55.68181818181818
   },
   "family_snapshot_counts": {
     "BOS": 28,
     "FVG": 25,
-    "OB": 23,
-    "SWEEP": 48
+    "OB": 24,
+    "SWEEP": 49
   },
   "first_observed_at": "2026-08-18T14:07:00.036063+00:00",
-  "generated_at": "2026-09-30T19:06:19.753391+00:00",
-  "last_observed_at": "2026-09-30T19:06:19.753391+00:00",
+  "generated_at": "2026-10-01T14:05:15.982963+00:00",
+  "last_observed_at": "2026-10-01T14:05:15.982963+00:00",
   "network_io": false,
   "observation_gate": {
     "current_threshold_warnings": [],
@@ -76,7 +76,7 @@
     "max": 0.2221546250002575,
     "min": 0.03366962499967485,
     "p50": 0.052278999995905906,
-    "p95": 0.09614358299950254
+    "p95": 0.1424787500000093
   },
   "promotion_gate": {
     "reasons": [
@@ -94,6 +94,6 @@
     "p50": 324.0467975139618,
     "p95": 1890.1829569339752
   },
-  "substantive_attempts_total": 175,
-  "unique_attempted_snapshots": 175
+  "substantive_attempts_total": 176,
+  "unique_attempted_snapshots": 176
 }
