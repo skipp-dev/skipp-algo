@@ -17,6 +17,9 @@ nach getaner Arbeit druckt::
 Sie steht nur im Log, wenn das Skript durchlief. Der run-Block, den der Runner
 in jedes Log druckt, enthaelt sie nicht (dort steht der Modulname
 ``scripts.accumulate_returns_ledger`` und der Dateiname mit Unterstrich).
+
+Dasselbe gilt fuer die beiden lauten Verweigerungen — nur in ihrer
+ausgegebenen Form, siehe ``_REFUSALS``.
 """
 
 from __future__ import annotations
@@ -27,8 +30,20 @@ from scripts.proof_judges import Verdict
 
 _PLANES = ("1D", "15m")
 _LINE = re.compile(r"returns ledger (?P<plane>1D|15m): .*?ledger now (?P<rows>\d+)")
-#: Die beiden Arten, wie der Schritt laut scheitert (siehe Workflow und Skript).
-_REFUSALS = ("A ledger carries ONE trade definition", "the events pool is gone")
+#: Die beiden Arten, wie der Schritt laut scheitert — in ihrer AUSGEGEBENEN Form.
+#:
+#: 2026-10-01, am ersten echten Lauf gemessen (36909606203, Job 110528686974):
+#: die erste Fassung suchte den blossen Text ``the events pool is gone`` und
+#: fand ihn im Skript-Echo — der Runner druckt den run-Block samt
+#: ``echo "::error …::… the events pool is gone"`` in JEDES Log. Ein
+#: fehlerfreier Lauf mit beiden Ledger-Zeilen wurde so als FAIL geurteilt.
+#: Ausgegeben sieht die Zeile anders aus (``##[error]…``); die Regel-Verweigerung
+#: druckt das Skript selbst nach stderr (``error: … holds rows under …``), sie
+#: steht in keinem run-Block.
+_REFUSALS = (
+    re.compile(r"##\[error\]gates step reported produced=true but the events pool is gone"),
+    re.compile(r"^.*error: \S+ holds rows under .* A ledger carries ONE trade definition", re.MULTILINE),
+)
 
 
 def judge(evidence: dict, entry) -> Verdict:
@@ -42,7 +57,7 @@ def judge(evidence: dict, entry) -> Verdict:
         )
 
     rows = {m.group("plane"): int(m.group("rows")) for m in _LINE.finditer(log)}
-    refused = [text for text in _REFUSALS if text in log]
+    refused = [m.group(0)[-120:] for m in (pattern.search(log) for pattern in _REFUSALS) if m]
 
     if not rows and not refused:
         return Verdict(

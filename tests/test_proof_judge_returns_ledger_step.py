@@ -1,8 +1,11 @@
 """Der Urteiler fuer den Ledger-Schritt liest die Zeile, die das Skript druckt.
 
-Korpus: das echte Job-Log von ``promotion-gate-daily`` vom 2026-09-21 (Lauf
-35641718088, Job 106472364384) — der eine produzierende Lauf seit dem 31.8.,
-und ein Lauf VOR dem Merge, also ohne Ledger-Schritt.
+Korpus, beides echte Job-Logs von ``promotion-gate-daily``:
+
+* ``106472364384`` — Lauf 35641718088 (2026-09-21), der eine produzierende
+  Lauf seit dem 31.8., VOR dem Merge und also ohne Ledger-Schritt;
+* ``110528686974`` — Lauf 36909606203 (2026-10-01), der erste Lauf MIT
+  Ledger-Schritt: der Zeuge, auf dem der PASS des Eintrags steht.
 
 Die beiden Zeilen fuer den PASS-Fall sind nicht erfunden: so druckte sie das
 Skript, als der Schritt am 2026-10-01 lokal gegen den echten Pool vom 30.9.
@@ -15,6 +18,7 @@ from scripts.proof_ledger import load_entries
 
 _JUDGE = "returns_ledger_step"
 _PRE_MERGE_RUN = "106472364384"
+_WITNESS_RUN = "110528686974"
 _LINE_1D = (
     "returns ledger 1D: pool 19/6245 events on plane, 19 closed trades observed, "
     "19 new, 0 contradicted, ledger now 19 (BOS:7, OB:4, SWEEP:8)"
@@ -33,10 +37,43 @@ def _judge(log: str):
     return load_judge(_JUDGE).judge({"log": log}, _entry())
 
 
-def _real_log() -> str:
+def _corpus() -> dict[str, dict]:
     corpus = dict(corpus_for(_JUDGE))
-    assert set(corpus) == {_PRE_MERGE_RUN}, sorted(corpus)
-    return corpus[_PRE_MERGE_RUN]["log"]
+    assert set(corpus) == {_PRE_MERGE_RUN, _WITNESS_RUN}, sorted(corpus)
+    return corpus
+
+
+def _real_log() -> str:
+    return _corpus()[_PRE_MERGE_RUN]["log"]
+
+
+def test_the_first_real_ledger_run_is_the_pass() -> None:
+    verdict = _judge(_corpus()[_WITNESS_RUN]["log"])
+    assert (verdict.state, verdict.branch) == ("PASS", "ledger_geschrieben")
+    assert verdict.detail == "1D: 30 Zeilen; 15m: 634 Zeilen"
+
+
+def test_the_echoed_refusal_in_a_clean_run_is_not_a_refusal() -> None:
+    """Regression 2026-10-01: der Urteiler las Text statt der ausgegebenen Zeile.
+
+    Der run-Block des Schritts steht in JEDEM Log, samt
+    ``echo "::error …::… the events pool is gone"``. Die erste Fassung fand
+    darin eine Verweigerung und urteilte den fehlerfreien ersten Lauf als FAIL.
+    """
+    log = _corpus()[_WITNESS_RUN]["log"]
+    assert "the events pool is gone" in log  # das Echo ist da …
+    assert "##[error]gates step reported produced=true" not in log  # … die Ausgabe nicht
+    verdict = _judge(log)
+    assert verdict.state == "PASS"
+
+
+def test_an_emitted_pool_refusal_is_a_fail() -> None:
+    emitted = (
+        "2026-10-02T14:03:01Z ##[error]gates step reported produced=true "
+        "but the events pool is gone\n"
+    )
+    verdict = _judge(_real_log() + emitted)
+    assert (verdict.state, verdict.branch) == ("FAIL", "ledger_unvollstaendig")
 
 
 def test_the_recorded_pre_merge_run_is_pending_not_passed() -> None:

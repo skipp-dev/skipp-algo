@@ -2836,7 +2836,26 @@ evidence_source = "job_log"
 artifact        = ""
 version_probe   = "returns ledger 15m:"
 judge           = "returns_ledger_step"
-state           = "OFFEN"
+# 2026-10-01, GEMESSEN: promotion-gate-daily, Lauf 36909606203
+# (workflow_dispatch nach dem Merge von #5584, Job `promotion-gate`
+# 110528686974, gestartet 18:48:42Z). Der Schritt `ledger` lief und druckte
+#   returns ledger 1D: pool 30/7232 events on plane, 30 closed trades
+#   observed, 30 new, 0 contradicted, ledger now 30 (BOS:11, OB:7, SWEEP:12)
+#   returns ledger 15m: pool 846/7232 events on plane, 634 closed trades
+#   observed, 634 new, 0 contradicted, ledger now 634 (BOS:209, FVG:150,
+#   OB:107, SWEEP:168)
+# Die 15m-Fenster-Urteile entstanden; das kumulative 15m-Urteil noch nicht
+# (kein Trade mit Anker ab dem Evidenz-Start 2026-10-01 — wie entworfen).
+#
+# Der erste Urteilsversuch ergab FAIL — zu Unrecht, und der Fehler lag im
+# Urteiler: er suchte die Verweigerung "the events pool is gone" als Text und
+# fand sie im Skript-Echo des run-Blocks. In derselben Aenderung behoben (er
+# liest jetzt die ausgegebene `##[error]`-Zeile); danach PASS/ledger_geschrieben
+# ueber die Zeugensuche des Ledgers. Korpus:
+# tests/proof_corpus/returns_ledger_step/110528686974.json.
+state           = "PASS"
+pass_kind       = "live"
+witness_run     = "36909606203"
 due_by          = "2026-10-15"
 owner           = "operator"
 
@@ -2848,18 +2867,6 @@ Feuert, wenn der Monitor den Zeugen-Job nicht auffindet und ein leeres Log
 durchreicht. Die Aufzeichnung im Korpus entstand aus einem erfolgreich
 geholten Log, der Zweig ist dort strukturell unerreichbar. Er ist die
 fail-closed-Kante: KANN_NICHT_BEZEUGEN statt PASS.
-"""
-
-[[unreachable_branch]]
-judge  = "returns_ledger_step"
-branch = "ledger_geschrieben"
-reason = """
-Verlangt ein echtes Gate-Log mit beiden 'returns ledger'-Zeilen. Vor dem Merge
-druckt sie niemand — der aufgezeichnete Lauf 35641718088 vom 21.9. (der eine
-produzierende seit dem 31.8.) erreicht deshalb schritt_lief_nicht. Der Zweig
-wird beim ersten produzierenden Lauf nach dem Merge erreicht; wer den Eintrag
-auf PASS setzt, muss dieses Log als Korpus aufzeichnen, und der
-Widerspruchs-Test erzwingt dann die Entfernung dieser Deklaration.
 """
 
 [[unreachable_branch]]
@@ -3005,8 +3012,11 @@ Kette wach, bis der erste echte Lauf da ist).
 [[proof]]
 id              = "5584"
 kind            = "fix"
-merged_at       = "<wird beim Merge nachgetragen>"
-merge_sha       = "<dito>"
+# 2026-10-01 nachgetragen: `gh pr view 5584 --json mergedAt,mergeCommit` und
+# `git log -1 origin/main` stimmen ueberein (SHA identisch, Zeitstempel
+# 18:24:52Z Merge-Event vs. 18:24:51Z Commit).
+merged_at       = "2026-10-01T18:24:52Z"
+merge_sha       = "17959c32e6d3995de27494b97dc68a5e3d0da69c"
 claim           = "promotion-gate-daily (14:00 UTC) findet das datierte Bench-Artefakt des Tages wieder, weil der Rolling-Benchmark sein Fenster vor 13:30 UTC wirklich faehrt (ein uebersprungener Fire bedient kein Fenster mehr) und sein Restore-Schritt nicht mehr am HTTP 500 des repo-weiten Artefakt-Index stirbt."
 witness         = "promotion-gate-daily"
 witness_job     = "promotion-gate"
@@ -3015,7 +3025,31 @@ artifact        = ""
 version_probe   = "KEINE"
 version_probe_reason = "Der Zeuge ist der Konsument. Dieser PR aendert weder promotion-gate-daily.yml noch irgendetwas, das dessen Log druckt — es gibt dort kein Feld, das erst seit der Aenderung existiert. Zurechenbar ist das Urteil ueber started_at des Zeugen-Jobs nach merged_at."
 judge           = "daily_gate_bench_artifact"
-state           = "OFFEN"
+# 2026-10-01, GEMESSEN — die Kette nach dem Merge (18:24:52Z), von Hand
+# angestossen:
+#   1. smc-measurement-benchmark-rolling, Lauf 36906821841 (workflow_dispatch,
+#      18:26Z): der Restore-Schritt kam durch ("Restored Databento export
+#      artifact smc-databento-production-export-2026-10-01-36836565487 …
+#      mode=today, trade_days=22") — der erste gelungene Restore seit dem
+#      24.9.; Lauf gruen, datiertes Tagesartefakt hochgeladen.
+#   2. promotion-gate-daily, Lauf 36909606203 (workflow_dispatch, Job
+#      `promotion-gate` 110528686974, gestartet 18:48:42Z): das Log traegt
+#        ##[notice]artifact smc-measurement-benchmark-rolling-2026-10-01
+#        fetched from run 36906821841
+#      Das Gate rechnete und legte Bot-PR #5595 an.
+# Die Zeugensuche des Ledgers (`newest_witness`) waehlt Lauf 36909606203, der
+# Urteiler sagt PASS/tagesartefakt_gefunden. Korpus:
+# tests/proof_corpus/daily_gate_bench_artifact/110528686974.json.
+#
+# Was dieser Zeuge NICHT belegt: die Kadenz-Haelfte im Normalbetrieb. Der
+# Benchmark lief hier per Hand ("manueller Dispatch laeuft immer"), nicht weil
+# das Gate ein Fenster als unbedient erkannte. Die Regel ist ausgefuehrt
+# getestet (inkl. Shell-Schritt mit gh-Stub); ob der erste geplante Werktag
+# das datierte Artefakt vor 14:00 UTC liefert, zeigt die Produkt-Zeile des
+# Frische-Monitors — sie faellt ab dem 9.10. rot, wenn kein Bericht landet.
+state           = "PASS"
+pass_kind       = "live"
+witness_run     = "36909606203"
 due_by          = "2026-10-09"
 owner           = "operator"
 
