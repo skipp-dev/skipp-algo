@@ -2422,6 +2422,29 @@ claim  = "Der Rolling-Bench schreibt hoechstens eine History-Zeile pro Tag, und 
 state  = "AUSGENOMMEN"
 due_by = "2026-08-29"
 owner  = "operator"
+# ---------------------------------------------------------------------------
+# 5585 (1.10.): accumulate_family_events.py deduplizierte auf (family,
+# anchor_ts) und verlor damit 86 % der Events eines Tages (11 586 Events,
+# 1 570 Schluessel, gemessen an der Tagesdatei vom 24.9.); der Schluessel ist
+# jetzt die event_id.
+#
+# AUSGENOMMEN, weil die beweispflichtige Datei dieses PRs — der Workflow
+# smc-measurement-benchmark-rolling.yml — nur einen KOMMENTAR aendert (die
+# Zeile, die den Dedup-Schluessel beschreibt). Die Verhaltensaenderung liegt
+# in scripts/accumulate_family_events.py, das die Suite importiert und
+# ausfuehrt: 45 Tests, davon 7 neu fuer die Event-Identitaet; Mutationsprobe
+# (Schluessel zurueck auf (family, anchor_ts)) faerbt 6 davon rot. Der Aufruf
+# im Workflow ist unveraendert.
+# ---------------------------------------------------------------------------
+[[proof]]
+id     = "5585"
+kind   = "exempt"
+claim  = "Die Workflow-Datei aendert nur den Kommentar zum Dedup-Schluessel. Die Verhaltensaenderung (Pool-Schluessel = event_id statt (family, anchor_ts)) liegt in scripts/accumulate_family_events.py und ist suite-ausfuehrbar bewiesen: 7 neue Tests bauen gleiche Bar / verschiedene Symbole und Timeframes nach, die Mutationsprobe faerbt 6 rot."
+state  = "AUSGENOMMEN"
+due_by = "2026-10-01"
+owner  = "operator"
+
+# ---------------------------------------------------------------------------
 # rolling-bench-two-windows (29.8.): Der Rolling-Benchmark feuerte per
 # `workflow_run` bei jedem der NEUN Producer-Ticks; sein Kopfkommentar ging
 # von zwei Laeufen aus (Praemisse aus der Zeit, als der Producer 2x lief).
