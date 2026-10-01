@@ -106,7 +106,9 @@ def test_the_ledger_records_exactly_the_series_returns(tmp_path: Path) -> None:
         series["returns_by_variant"]["SWEEP"]
     )
     assert cumulative["n_trades"] == series["n_trades"] == 3
-    for row in _ledger_rows(tmp_path):
+    rows = _ledger_rows(tmp_path)
+    assert len(rows) == 3, "the loop below would pass vacuously on an empty ledger"
+    for row in rows:
         assert row["return_rule"] == RETURN_RULE
         assert row["cost_bps"] == DEFAULT_COST_BPS
         assert row["plane"] == "15m"

@@ -502,7 +502,13 @@ def test_the_ledger_step_commits_verdicts_and_ledgers_not_the_window_series(tmp_
     result = _ledger_step(tmp_path, _pool_events(forward_15m=6))
     assert result.returncode == 0, result.stderr
     gates = tmp_path / "docs/calibration/gates"
-    committed = sorted(str(p.relative_to(gates)) for p in gates.rglob("*") if p.is_file())
+    # The three directories this step may write to, listed — not walked.
+    committed = sorted(
+        str(path.relative_to(gates))
+        for folder in (gates, gates / "15m", gates / "ledger")
+        for path in folder.iterdir()
+        if path.is_file()
+    )
     assert committed == [
         "15m/regime_stratified_2026-10-01.json",
         "15m/track_record_gate_2026-10-01.json",
