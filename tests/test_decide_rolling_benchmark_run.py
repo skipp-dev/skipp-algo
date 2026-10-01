@@ -384,6 +384,7 @@ def test_the_step_asks_for_the_jobs_of_every_green_run_and_only_those(tmp_path) 
     result = _run_decide_step(tmp_path)
     assert result.returncode == 0, result.stderr
     job_calls = [c for c in result.calls if c.startswith("api ")]
+    assert job_calls, "kein einziger Job-Aufruf — die Pruefungen darunter liefen leer"
     asked = sorted(c.split()[1] for c in job_calls)
     assert asked == [
         "repos/o/r/actions/runs/111/jobs",
