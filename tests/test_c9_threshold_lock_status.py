@@ -22,7 +22,7 @@ from pathlib import Path
 
 import pytest
 
-# Extended twice, honestly both times (the alternative — faking a
+# Extended three times, honestly each time (the alternative — faking a
 # ``Status: locked`` doc — is exactly what this anchor guards against):
 #   2026-07-25 → 2026-08-16 (2026-07-25, #4025): C8 backfill short of ≥90d.
 #   2026-08-16 → 2026-09-30 (2026-08-25): still short — and the first
@@ -30,7 +30,15 @@ import pytest
 #     quarter boundary. Discovered during the 2026-08-25 failed-runs triage:
 #     the 08-16 deadline had ALREADY passed unnoticed, because the old
 #     substring match below was vacuously green (see _status_line_locked).
-LOCK_BY = _dt.date(2026, 9, 30)
+#   2026-09-30 → 2026-12-31 (2026-10-01, operator direction "31.12."): not
+#     short but EMPTY — measured that day with scripts.check_c12_trigger:
+#     status BLOCKED, 0 of 4 families live-qualified, every family at
+#     live_days 0 / n_trades 0 (calibration report generated 2026-08-28). With
+#     MIN_LIVE_DAYS = 90 the gate cannot open before 2026-12-30 even if live
+#     incubation starts on the day of this extension, so any earlier date
+#     would only schedule a fourth extension. The deadline had passed for a
+#     day in a repo whose last human commit was 2026-09-01.
+LOCK_BY = _dt.date(2026, 12, 31)
 DOC = Path(__file__).resolve().parent.parent / "docs" / "c9_threshold_tuning.md"
 
 # Fenced code blocks are quotations, never the document's own status.
