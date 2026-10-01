@@ -573,8 +573,6 @@ jobs:
             artifacts/ledger/returns_series_window_15m_${{ steps.date.outputs.value }}.json
             docs/calibration/gates/15m/track_record_gate_${{ steps.date.outputs.value }}.json
             docs/calibration/gates/15m/regime_stratified_${{ steps.date.outputs.value }}.json
-            docs/calibration/gates/ledger/track_record_gate_1D.json
-            docs/calibration/gates/ledger/track_record_gate_15m.json
             artifacts/ledger/returns_series_cumulative_1D.json
             artifacts/ledger/returns_series_cumulative_15m.json
           retention-days: 45
