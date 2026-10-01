@@ -411,8 +411,120 @@ jobs:
           done
           echo "produced=true" >> "$GITHUB_OUTPUT"
 
-      - name: Commit gate + regime artifacts via auto-merge PR
+      # ADR-0031, Nachtrag 2026-10-01 — zwei Ergaenzungen NEBEN der governten
+      # 1D-Serie des Schritts darueber; an ihr aendert sich nichts.
+      #
+      # (1) 15m-BEOBACHTUNGSSERIE. Dieselbe Variante-A-Regel, derselbe Pool,
+      #     nur der Ebenen-Filter ist ein anderer. Sie ist KEIN Gate: kein
+      #     §5-Urteil auf 15m (das bindende E[PnL]-Gate bleibt 1D), keine
+      #     Wirkung auf Arming, Stage oder Claim-Tier, kein Einbetten in den
+      #     Public-Report. Committet werden nur die beiden URTEILE des
+      #     30-Tage-Fensters unter docs/calibration/gates/15m/; das
+      #     Unterverzeichnis haelt sie aus jedem Glob der 1D-Konsumenten
+      #     heraus (c13 Step 5a `returns_series_*.json`, der Emitter
+      #     `<prefix>_*.json`, die Retention darueber) — alle nicht rekursiv.
+      #     Die Fenster-SERIE selbst bleibt Lauf-Artefakt: gemessen 94 KB bei
+      #     551 Trades, sie wuerde jeden Tag dieselben ~30 Tage wiederholen,
+      #     die das Ledger unten je Trade genau einmal haelt.
+      #
+      # (2) WACHSENDES LEDGER unter docs/calibration/gates/ledger/, je Ebene
+      #     eine JSONL. Der Pool ist ein rollendes 30-Tage-Fenster, die
+      #     Tagesserie damit auch; ein Trade, der aus dem Pool altert, war
+      #     bisher weg. Das Ledger haengt jeden abgeschlossenen Trade genau
+      #     einmal an (Schluessel = event_id) und schreibt nie um. Darauf laeuft
+      #     dasselbe Track-Record-Gate noch einmal — kumulativ, als
+      #     track_record_gate_<Ebene>.json (ueberschrieben; die Historie ist
+      #     das Ledger selbst).
+      #     15m traegt `--evidence-start 2026-10-01`: die Ebene wurde an dem Tag
+      #     festgelegt, NACHDEM ein Schnappschuss ueber alle Ebenen gesehen
+      #     war. Aeltere 15m-Trades bleiben im Ledger, zaehlen aber nicht ins
+      #     kumulative Urteil.
+      #
+      # Haengt an `produced == 'true'`: dann existiert der Pool, und die
+      # 1D-Artefakte des Tages liegen schon vor. `find` statt `ls` in der
+      # Retention: `ls` auf einen Glob ohne Treffer endet unter pipefail rot
+      # (die latente Falle des Schritts darueber), `find` nicht.
+      - name: Build 15m observation series + cumulative returns ledger (ADR-0031 Nachtrag)
         if: steps.download.outputs.status == 'ready' && steps.gates.outputs.produced == 'true'
+        id: ledger
+        env:
+          DATE: ${{ steps.date.outputs.value }}
+        run: |
+          set -euo pipefail
+          GATES_DIR="docs/calibration/gates"
+          # Guard the find on the dir (same idiom as the bundle step): on a
+          # missing dir an unguarded `find | head` dies under pipefail before
+          # the error below could say why.
+          EVENTS_POOL=""
+          if [ -d artifacts/ci/scored_family_events_accumulated ]; then
+            EVENTS_POOL="$(find artifacts/ci/scored_family_events_accumulated -name 'accumulated_family_events.json' -type f 2>/dev/null | head -1)"
+          fi
+          if [ -z "${EVENTS_POOL}" ]; then
+            echo "::error title=promotion-gate-daily::gates step reported produced=true but the events pool is gone"
+            exit 1
+          fi
+
+          OBS_DIR="${GATES_DIR}/15m"
+          mkdir -p "${OBS_DIR}" artifacts/ledger
+          OBS_SERIES="artifacts/ledger/returns_series_window_15m_${DATE}.json"
+          python -m scripts.build_returns_series \
+            --events "${EVENTS_POOL}" \
+            --plane 15m \
+            --date "${DATE}" \
+            --output "${OBS_SERIES}"
+          OBS_TRADES="$(python -c "import json, sys; print(json.load(open(sys.argv[1]))['n_trades'])" "${OBS_SERIES}")"
+          if [ "${OBS_TRADES}" -gt 0 ]; then
+            python -m scripts.build_track_record_gate \
+              --returns "${OBS_SERIES}" \
+              --output "${OBS_DIR}/track_record_gate_${DATE}.json"
+          else
+            echo "::warning title=promotion-gate-daily::15m observation series empty (n_trades=0) — no 15m/track_record_gate_${DATE}.json emitted"
+          fi
+          python -m scripts.build_regime_stratified_report \
+            --series "${OBS_SERIES}" \
+            --date "${DATE}" \
+            --output "${OBS_DIR}/regime_stratified_${DATE}.json"
+
+          LEDGER_DIR="${GATES_DIR}/ledger"
+          mkdir -p "${LEDGER_DIR}" artifacts/ledger
+          for PLANE in 1D 15m; do
+            START_ARGS=()
+            if [ "${PLANE}" = "15m" ]; then
+              START_ARGS=(--evidence-start 2026-10-01)
+            fi
+            CUMULATIVE="artifacts/ledger/returns_series_cumulative_${PLANE}.json"
+            python -m scripts.accumulate_returns_ledger \
+              --events "${EVENTS_POOL}" \
+              --plane "${PLANE}" \
+              --date "${DATE}" \
+              --ledger "${LEDGER_DIR}/returns_ledger_${PLANE}.jsonl" \
+              --series-output "${CUMULATIVE}" \
+              ${START_ARGS[@]+"${START_ARGS[@]}"}
+            CUM_TRADES="$(python -c "import json, sys; print(json.load(open(sys.argv[1]))['n_trades'])" "${CUMULATIVE}")"
+            if [ "${CUM_TRADES}" -gt 0 ]; then
+              python -m scripts.build_track_record_gate \
+                --returns "${CUMULATIVE}" \
+                --output "${LEDGER_DIR}/track_record_gate_${PLANE}.json"
+            else
+              echo "::notice title=promotion-gate-daily::cumulative ${PLANE} series still empty — no ledger/track_record_gate_${PLANE}.json yet"
+            fi
+            echo "ledger_trades_${PLANE}=${CUM_TRADES}" >> "$GITHUB_OUTPUT"
+          done
+
+          for prefix in track_record_gate regime_stratified; do
+            find "${OBS_DIR}" -maxdepth 1 -name "${prefix}_*.json" | sort | head -n -90 | while read -r old; do
+              rm -f "${old}"
+              echo "pruned ${old} (retention 90)"
+            done
+          done
+
+      # `!cancelled()`: die Beobachtungs-/Ledger-Stufe darueber darf die
+      # governten 1D-Artefakte des Tages nicht mitreissen. Scheitert sie, bleibt
+      # der Lauf ROT (ein gescheiterter Schritt), aber was `gates` produziert
+      # hat, landet trotzdem. Scheitert dagegen ein Schritt VOR `gates`, ist
+      # `produced` leer und dieser Schritt laeuft wie bisher nicht.
+      - name: Commit gate + regime artifacts via auto-merge PR
+        if: ${{ !cancelled() && steps.download.outputs.status == 'ready' && steps.gates.outputs.produced == 'true' }}
         env:
           GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || secrets.GITHUB_TOKEN }}
         run: |
@@ -458,5 +570,10 @@ jobs:
             docs/calibration/gates/epnl_after_cost_${{ steps.date.outputs.value }}.json
             docs/calibration/gates/track_record_gate_${{ steps.date.outputs.value }}.json
             docs/calibration/gates/regime_stratified_${{ steps.date.outputs.value }}.json
+            artifacts/ledger/returns_series_window_15m_${{ steps.date.outputs.value }}.json
+            docs/calibration/gates/15m/track_record_gate_${{ steps.date.outputs.value }}.json
+            docs/calibration/gates/15m/regime_stratified_${{ steps.date.outputs.value }}.json
+            artifacts/ledger/returns_series_cumulative_1D.json
+            artifacts/ledger/returns_series_cumulative_15m.json
           retention-days: 45
           if-no-files-found: warn
