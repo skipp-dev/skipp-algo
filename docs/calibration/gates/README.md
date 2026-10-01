@@ -17,3 +17,21 @@ net returns *given a triggered setup* — `touch_then_horizon_close`, fixed
 Retention: the workflow prunes each family to the newest 90 files. An empty
 directory (or a missing gate file on empty-pool days) is a normal state — the
 public report simply omits the keys.
+
+## Subdirectories (ADR-0031, Nachtrag 2026-10-01)
+
+Both are written by the `ledger` step of `promotion-gate-daily`. No 1D
+consumer sees them: every reader of this directory globs it non-recursively.
+
+| Path | Producer | What it is |
+|---|---|---|
+| `15m/track_record_gate_<date>.json` | `scripts/build_track_record_gate.py` | 30-day WINDOW verdict on the 15m observation plane (retention 90) |
+| `15m/regime_stratified_<date>.json` | `scripts/build_regime_stratified_report.py` | regime report of the same window (retention 90) |
+| `ledger/returns_ledger_<plane>.jsonl` | `scripts/accumulate_returns_ledger.py` | append-only record of every closed trade, one line each (`1D`, `15m`) |
+| `ledger/track_record_gate_<plane>.json` | `scripts/build_track_record_gate.py` | CUMULATIVE verdict over the ledger (overwritten daily) |
+
+The 15m plane is an observation, not a gate: no §5 verdict, no effect on
+arming or claim tier, not embedded in the public report. The 15m cumulative
+verdict counts only trades anchored on or after 2026-10-01 (the day the plane
+was fixed); earlier 15m trades stay in the ledger.
+

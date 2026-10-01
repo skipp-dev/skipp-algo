@@ -429,3 +429,171 @@ def test_epnl_gate_uses_the_same_1d_plane_as_the_returns_series() -> None:
     invocation = body.split("python -m scripts.run_epnl_after_cost_gate", 1)[1]
     invocation = invocation.split("case ", 1)[0]
     assert "--plane 1D" in invocation
+
+
+# --- ADR-0031 Nachtrag 2026-10-01: 15m observation + cumulative ledger --------
+#
+# Executed with the REAL producers (python is passed through, not stubbed):
+# the step's whole point is what lands in the committed drop-zone, and a stub
+# that writes `{}` cannot tell a ledger from an empty file.
+
+import json
+
+_LEDGER_STEP = "Build 15m observation series + cumulative returns ledger (ADR-0031 Nachtrag)"
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+_M15 = 900.0
+_DAY = 86_400.0
+_OCT_1 = 1_790_865_000.0  # 2026-10-01T14:30:00Z, on/after the 15m evidence start
+_SEP_24 = _OCT_1 - 7 * _DAY  # before it
+
+_REAL_PY = Stub(script='exec "$REAL_PYTHON" -B "$@"')
+
+
+def _sweep(symbol: str, anchor_ts: float, *, step: float, timeframe: str, exit_close: float) -> dict:
+    closes = [100.5, 101.0, exit_close]
+    return {
+        "family": "SWEEP",
+        "event_id": f"sweep:{symbol}:{timeframe}:{int(anchor_ts)}:SELL_SIDE:100.00",
+        "direction": "LONG",
+        "entry_mode": "immediate",
+        "entry_price": 100.0,
+        "anchor_ts": anchor_ts,
+        "regime": "RANGING",
+        "forward_closes": closes,
+        "forward_highs": [c + 0.5 for c in closes],
+        "forward_lows": [c - 0.5 for c in closes],
+        "forward_timestamps": [anchor_ts + step * (i + 1) for i in range(3)],
+    }
+
+
+def _pool_events(*, forward_15m: int) -> list[dict]:
+    events = [
+        _sweep(f"D{i}", _SEP_24 + i * _DAY, step=_DAY, timeframe="1D", exit_close=101.0 + i)
+        for i in range(4)
+    ]
+    events += [
+        _sweep(f"OLD{i}", _SEP_24 + i * _M15, step=_M15, timeframe="15m", exit_close=99.0 + i)
+        for i in range(5)
+    ]
+    events += [
+        _sweep(f"NEW{i}", _OCT_1 + i * _M15, step=_M15, timeframe="15m", exit_close=100.0 + i)
+        for i in range(forward_15m)
+    ]
+    return events
+
+
+def _ledger_step(tmp_path: Path, events: list[dict] | None, *, date: str = "2026-10-01"):
+    if events is not None:
+        pool = tmp_path / "artifacts/ci/scored_family_events_accumulated"
+        pool.mkdir(parents=True, exist_ok=True)
+        (pool / "accumulated_family_events.json").write_text(json.dumps(events), encoding="utf-8")
+    return run_step(
+        _WF, _LEDGER_STEP, tmp_path,
+        env={"DATE": date, "REAL_PYTHON": sys.executable, "PYTHONPATH": str(_REPO_ROOT)},
+        stubs={"python": _REAL_PY, "head": _GNU_HEAD},
+    )
+
+
+def _read(path: Path) -> dict:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def test_the_ledger_step_commits_verdicts_and_ledgers_not_the_window_series(tmp_path: Path) -> None:
+    result = _ledger_step(tmp_path, _pool_events(forward_15m=6))
+    assert result.returncode == 0, result.stderr
+    gates = tmp_path / "docs/calibration/gates"
+    committed = sorted(str(p.relative_to(gates)) for p in gates.rglob("*") if p.is_file())
+    assert committed == [
+        "15m/regime_stratified_2026-10-01.json",
+        "15m/track_record_gate_2026-10-01.json",
+        "ledger/returns_ledger_15m.jsonl",
+        "ledger/returns_ledger_1D.jsonl",
+        "ledger/track_record_gate_15m.json",
+        "ledger/track_record_gate_1D.json",
+    ]
+    # The 30-day window series is a run artifact, not a committed file.
+    assert (tmp_path / "artifacts/ledger/returns_series_window_15m_2026-10-01.json").exists()
+
+
+def test_nothing_of_the_15m_observation_is_visible_to_the_1d_consumers(tmp_path: Path) -> None:
+    """The governed plane's consumers glob the gates dir NON-recursively.
+
+    c13 Step 5a (`returns_series_*.json`), the public-report emitter
+    (`<prefix>_*.json`) and the 1D retention loop must keep seeing 1D only.
+    """
+    _ledger_step(tmp_path, _pool_events(forward_15m=6))
+    gates = tmp_path / "docs/calibration/gates"
+    for prefix in ("returns_series", "track_record_gate", "regime_stratified", "epnl_after_cost"):
+        assert list(gates.glob(f"{prefix}_*.json")) == [], prefix
+
+
+def test_the_15m_window_verdict_counts_every_15m_trade_the_cumulative_one_only_forward(
+    tmp_path: Path,
+) -> None:
+    result = _ledger_step(tmp_path, _pool_events(forward_15m=6))
+    gates = tmp_path / "docs/calibration/gates"
+    window = _read(gates / "15m/track_record_gate_2026-10-01.json")
+    cumulative = _read(gates / "ledger/track_record_gate_15m.json")
+    assert window["n_trades"] == 11  # 5 before + 6 after the evidence start
+    assert cumulative["n_trades"] == 6  # only what arrived after 2026-10-01
+    ledger_rows = (gates / "ledger/returns_ledger_15m.jsonl").read_text(encoding="utf-8").splitlines()
+    assert len(ledger_rows) == 11  # …but the ledger keeps all of them
+    assert result.outputs == {"ledger_trades_1D": "4", "ledger_trades_15m": "6"}
+
+
+def test_the_1d_ledger_has_no_evidence_start(tmp_path: Path) -> None:
+    """1D is the long-governed plane: every recorded trade counts."""
+    _ledger_step(tmp_path, _pool_events(forward_15m=6))
+    verdict = _read(tmp_path / "docs/calibration/gates/ledger/track_record_gate_1D.json")
+    assert verdict["n_trades"] == 4
+
+
+def test_an_empty_forward_series_emits_no_cumulative_15m_verdict(tmp_path: Path) -> None:
+    """Day one, as measured 2026-10-01 on the real pool: no 15m trade yet
+    anchored after the evidence start. No verdict over zero trades."""
+    result = _ledger_step(tmp_path, _pool_events(forward_15m=0))
+    assert result.returncode == 0, result.stderr
+    gates = tmp_path / "docs/calibration/gates"
+    assert not (gates / "ledger/track_record_gate_15m.json").exists()
+    assert (gates / "ledger/returns_ledger_15m.jsonl").exists()
+    assert result.outputs["ledger_trades_15m"] == "0"
+    assert "cumulative 15m series still empty" in result.stdout
+
+
+def test_the_ledger_grows_across_days_while_the_pool_window_moves(tmp_path: Path) -> None:
+    _ledger_step(tmp_path, _pool_events(forward_15m=3), date="2026-10-01")
+    day2 = [
+        _sweep(f"LATER{i}", _OCT_1 + _DAY + i * _M15, step=_M15, timeframe="15m", exit_close=100.0 + i)
+        for i in range(4)
+    ]
+    result = _ledger_step(tmp_path, day2, date="2026-10-02")  # yesterday's events aged out
+    assert result.returncode == 0, result.stderr
+    assert result.outputs["ledger_trades_15m"] == "7"
+    gates = tmp_path / "docs/calibration/gates"
+    assert _read(gates / "15m/track_record_gate_2026-10-02.json")["n_trades"] == 4  # window
+    assert _read(gates / "ledger/track_record_gate_15m.json")["n_trades"] == 7  # memory
+
+
+def test_a_missing_pool_fails_the_ledger_step_loudly(tmp_path: Path) -> None:
+    """The step only runs when `gates` produced — a missing pool is a defect."""
+    result = _ledger_step(tmp_path, None)
+    assert result.returncode == 1
+    assert "events pool is gone" in result.stdout
+
+
+def test_a_failing_ledger_step_cannot_take_the_1d_artifacts_down_with_it() -> None:
+    """The commit step must still run after a failed ledger step — and only then.
+
+    `!cancelled()` lets it run past a failed predecessor; `produced == 'true'`
+    keeps it off when a step BEFORE `gates` failed (then `produced` is empty).
+    """
+    steps = _load()["jobs"]["promotion-gate"]["steps"]
+    names = [step.get("id") or step["name"] for step in steps]
+    commit = next(s for s in steps if s["name"].startswith("Commit gate + regime artifacts"))
+    assert names.index("gates") < names.index("ledger") < steps.index(commit)
+    condition = str(commit["if"])
+    assert "!cancelled()" in condition
+    assert "steps.gates.outputs.produced == 'true'" in condition
+    ledger = next(s for s in steps if s.get("id") == "ledger")
+    assert "steps.gates.outputs.produced == 'true'" in str(ledger["if"])
+    assert "continue-on-error" not in ledger, "a soft-failed ledger step would hide the defect"
