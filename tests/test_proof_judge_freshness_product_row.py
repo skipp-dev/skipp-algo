@@ -1,7 +1,11 @@
 """Der Urteiler fuer #5586 liest die ausgegebene Produkt-Annotation.
 
-Korpus: das echte Job-Log der Sonde vom 2026-10-01 (Lauf 36827349579, Job
-110255904403) — ein Lauf VOR dem Merge, also ohne Produkt-Zeile.
+Korpus, beides echte Job-Logs der Sonde vom 2026-10-01:
+
+* ``110255904403`` — Lauf 36827349579 (06:55 UTC), VOR dem Merge, ohne
+  Produkt-Zeile;
+* ``110446234362`` — Lauf 36885087891 (15:32 UTC), NACH dem Merge: die Zeile
+  ist ausgewertet und meldet den deklariert alten Gate-Bericht.
 """
 from __future__ import annotations
 
@@ -10,6 +14,7 @@ from scripts.proof_ledger import load_entries
 
 _JUDGE = "freshness_product_row"
 _PRE_MERGE_RUN = "110255904403"
+_POST_MERGE_RUN = "110446234362"
 _ROW = "product:docs/calibration/gates/track_record_gate_*.json"
 
 
@@ -21,10 +26,28 @@ def _judge(log: str):
     return load_judge(_JUDGE).judge({"log": log}, _entry())
 
 
-def _real_log() -> str:
+def _corpus() -> dict[str, dict]:
     corpus = dict(corpus_for(_JUDGE))
-    assert set(corpus) == {_PRE_MERGE_RUN}, sorted(corpus)
-    return corpus[_PRE_MERGE_RUN]["log"]
+    assert set(corpus) == {_PRE_MERGE_RUN, _POST_MERGE_RUN}, sorted(corpus)
+    return corpus
+
+
+def _real_log() -> str:
+    return _corpus()[_PRE_MERGE_RUN]["log"]
+
+
+def test_the_recorded_post_merge_run_is_the_pass() -> None:
+    """Der Zeuge, auf dem der PASS des Eintrags steht.
+
+    Der Lauf endete ``failure`` (andere Zeilen sind ueberfaellig) — der
+    Urteiler liest den Inhalt, nicht die Conclusion.
+    """
+    log = _corpus()[_POST_MERGE_RUN]["log"]
+    assert "##[error]probe rc=2 overall=stale" in log
+    verdict = _judge(log)
+    assert (verdict.state, verdict.branch) == ("PASS", "zeile_ausgewertet")
+    assert "stale as DECLARED" in verdict.detail
+    assert "expectation expires 2026-10-08" in verdict.detail
 
 
 def test_the_recorded_pre_merge_run_is_pending_not_passed() -> None:

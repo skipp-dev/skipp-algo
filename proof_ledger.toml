@@ -1834,7 +1834,20 @@ evidence_source = "job_log"
 artifact        = ""
 version_probe   = "product:docs/calibration/gates/track_record_gate_"
 judge           = "freshness_product_row"
-state           = "OFFEN"
+# 2026-10-01, GEMESSEN: Lauf 36885087891 (workflow_dispatch auf main, Job
+# `probe` 110446234362, gestartet 15:32:45Z, also nach merged_at). Das Log
+# traegt die ausgegebene Zeile
+#   ##[warning]product:docs/calibration/gates/track_record_gate_*.json:
+#   stale as DECLARED -- … expectation expires 2026-10-08
+# — die Sonde traegt die Zeile, das Muster findet im Monitor-Checkout Dateien
+# (juengster Bericht 2026-09-21), und die Deklaration greift. Die Zeugensuche
+# des Ledgers (`newest_witness`) waehlt genau diesen Lauf, der Urteiler sagt
+# PASS/zeile_ausgewertet. Der Lauf selbst endete `failure` — richtig so: drei
+# andere Zeilen sind ueberfaellig; geurteilt wird ueber den Inhalt, nicht ueber
+# die Conclusion. Korpus: tests/proof_corpus/freshness_product_row/110446234362.json.
+state           = "PASS"
+pass_kind       = "live"
+witness_run     = "36885087891"
 due_by          = "2026-10-09"
 owner           = "operator"
 
@@ -1846,18 +1859,6 @@ Feuert, wenn der Monitor den Zeugen-Job nicht auffindet und ein leeres Log
 durchreicht. Die Aufzeichnung im Korpus entstand aus einem erfolgreich
 geholten Log, der Zweig ist dort strukturell unerreichbar. Er ist die
 fail-closed-Kante: KANN_NICHT_BEZEUGEN statt PASS.
-"""
-
-[[unreachable_branch]]
-judge  = "freshness_product_row"
-branch = "zeile_ausgewertet"
-reason = """
-Verlangt ein echtes Sonden-Log mit der ausgegebenen product:-Annotation. Vor
-dem Merge gibt es die Zeile nicht — der aufgezeichnete Lauf 36827349579 vom
-1.10. erreicht deshalb zeile_fehlt. Der Zweig wird beim ersten Lauf nach dem
-Merge erreicht (die Sonde laeuft taeglich 06:30 UTC); wer den Eintrag auf PASS
-setzt, muss dieses Log als Korpus aufzeichnen, und der Widerspruchs-Test
-erzwingt dann die Entfernung dieser Deklaration.
 """
 
 [[unreachable_branch]]
