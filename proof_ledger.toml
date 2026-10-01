@@ -1823,8 +1823,10 @@ Grund fuer diesen Waechter. Kein Korpus traegt ihn, weil die Baseline seit
 [[proof]]
 id              = "5586"
 kind            = "fix"
-merged_at       = "<wird beim Merge nachgetragen>"
-merge_sha       = "<dito>"
+# 2026-10-01 nachgetragen: `gh pr view 5586 --json mergedAt,mergeCommit` und
+# `git log -1 origin/main` stimmen ueberein (SHA identisch, 13:03:45Z).
+merged_at       = "2026-10-01T13:03:45Z"
+merge_sha       = "1481efdd6b14c970435ef25dcd4dd83e48bd9bef"
 claim           = "Der workflow-freshness-monitor wertet bei jedem Lauf das Alter des juengsten datierten Gate-Berichts im Checkout aus (docs/calibration/gates/track_record_gate_*.json, 72 Werktagsstunden) und gibt das Ergebnis als eigene Zeile aus — unabhaengig davon, ob die erzeugenden Workflows gruen endeten."
 witness         = "workflow-freshness-monitor"
 witness_job     = "probe"
