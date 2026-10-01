@@ -1823,8 +1823,10 @@ Grund fuer diesen Waechter. Kein Korpus traegt ihn, weil die Baseline seit
 [[proof]]
 id              = "5586"
 kind            = "fix"
-merged_at       = "<wird beim Merge nachgetragen>"
-merge_sha       = "<dito>"
+# 2026-10-01 nachgetragen: `gh pr view 5586 --json mergedAt,mergeCommit` und
+# `git log -1 origin/main` stimmen ueberein (SHA identisch, 13:03:45Z).
+merged_at       = "2026-10-01T13:03:45Z"
+merge_sha       = "1481efdd6b14c970435ef25dcd4dd83e48bd9bef"
 claim           = "Der workflow-freshness-monitor wertet bei jedem Lauf das Alter des juengsten datierten Gate-Berichts im Checkout aus (docs/calibration/gates/track_record_gate_*.json, 72 Werktagsstunden) und gibt das Ergebnis als eigene Zeile aus — unabhaengig davon, ob die erzeugenden Workflows gruen endeten."
 witness         = "workflow-freshness-monitor"
 witness_job     = "probe"
@@ -2799,6 +2801,73 @@ reason = """
 Zweig faengt Laeufe, die das Board weder pruefen noch als gescheitert fuehren
 (z. B. Teil-Rollouts mit anderem Zielsatz). Nachtrag mit dem ersten
 Post-Merge-Lauf, Stolperdraht = Eintrag 5231 due_by 2026-09-06.
+"""
+
+# ---------------------------------------------------------------------------
+# returns-ledger-step (1.10., ADR-0031 Nachtrag): promotion-gate-daily bekommt
+# den Schritt `ledger` — 15m-Beobachtungsserie (Fenster-Urteile nach
+# docs/calibration/gates/15m/) und je Ebene ein wachsendes Trade-Ledger
+# (docs/calibration/gates/ledger/). Anlass: die 1D-Serie ist ein rollendes
+# 30-Tage-Fenster und trug 29-34 Trades gegen vorregistrierte 120-200.
+#
+# OFFEN mit Urteiler: Skript und Schritt sind suite-ausfuehrbar (der Schritt
+# laeuft im Test mit den echten Producern, Paritaet zur Tagesserie am echten
+# Pool gemessen: 1D 19 = 19, 15m 551 = 551). Nicht suite-sichtbar ist, ob der
+# Schritt im echten Lauf erreicht wird: er haengt an
+# `steps.gates.outputs.produced == 'true'`, und das Gate hat seit dem 31.8. in
+# 17 von 18 Laeufen nichts produziert (Ursachen: #5584).
+#
+# Symbolische id statt PR-Nummer: der Eintrag entsteht im selben Push wie der
+# PR, eine geratene Nummer waere genau der Ausfall vom 29.8. (#5179).
+# ---------------------------------------------------------------------------
+[[proof]]
+id              = "returns-ledger-step"
+kind            = "fix"
+merged_at       = "<wird beim Merge nachgetragen>"
+merge_sha       = "<dito>"
+claim           = "promotion-gate-daily haengt bei jedem produzierenden Lauf die neu abgeschlossenen Variante-A-Trades je Ebene (1D, 15m) an docs/calibration/gates/ledger/returns_ledger_<Ebene>.jsonl an und schreibt die 15m-Fenster-Urteile nach docs/calibration/gates/15m/."
+witness         = "promotion-gate-daily"
+witness_job     = "promotion-gate"
+evidence_source = "job_log"
+artifact        = ""
+version_probe   = "returns ledger 15m:"
+judge           = "returns_ledger_step"
+state           = "OFFEN"
+due_by          = "2026-10-15"
+owner           = "operator"
+
+[[unreachable_branch]]
+judge  = "returns_ledger_step"
+branch = "kein_log"
+reason = """
+Feuert, wenn der Monitor den Zeugen-Job nicht auffindet und ein leeres Log
+durchreicht. Die Aufzeichnung im Korpus entstand aus einem erfolgreich
+geholten Log, der Zweig ist dort strukturell unerreichbar. Er ist die
+fail-closed-Kante: KANN_NICHT_BEZEUGEN statt PASS.
+"""
+
+[[unreachable_branch]]
+judge  = "returns_ledger_step"
+branch = "ledger_geschrieben"
+reason = """
+Verlangt ein echtes Gate-Log mit beiden 'returns ledger'-Zeilen. Vor dem Merge
+druckt sie niemand — der aufgezeichnete Lauf 35641718088 vom 21.9. (der eine
+produzierende seit dem 31.8.) erreicht deshalb schritt_lief_nicht. Der Zweig
+wird beim ersten produzierenden Lauf nach dem Merge erreicht; wer den Eintrag
+auf PASS setzt, muss dieses Log als Korpus aufzeichnen, und der
+Widerspruchs-Test erzwingt dann die Entfernung dieser Deklaration.
+"""
+
+[[unreachable_branch]]
+judge  = "returns_ledger_step"
+branch = "ledger_unvollstaendig"
+reason = """
+Feuert, wenn nur eine der beiden Ebenen ihre Zeile druckt oder der Schritt
+laut verweigert (Regel-Mix im Ledger, Pool verschwunden). Vor dem Merge nicht
+beobachtbar. Beide Verweigerungen sind ausgefuehrt geprueft
+(test_a_ledger_never_pools_two_trade_definitions,
+test_a_missing_pool_fails_the_ledger_step_loudly); dieser Zweig faengt sie im
+echten Lauf.
 """
 
 # ---------------------------------------------------------------------------

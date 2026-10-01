@@ -115,3 +115,117 @@ Kanal (committed + GH Pages).
   sind auf diesen Stand aktualisiert.
 - Schema-Pin `v1.3.0_public_schema_pin.json` re-pinned (Docstring-Update in
   `build_public_report`; additive Felder, kein Version-Bump).
+
+## Nachtrag 2026-10-01: 15m-Beobachtungsebene und wachsendes Trade-Ledger
+
+- **Status:** accepted (Owner-Entscheidung 2026-10-01)
+- **Ändert nicht:** Entscheidung 1–3. Die governte 1D-Serie, ihr Gate, ihr
+  Regime-Report und ihr Weg in den Public-Report bleiben, wie sie sind.
+
+### Anlass (gemessen 2026-10-01)
+
+Die Frage „welche Familie trägt einen Edge" ließ sich aus den Artefakten dieses
+ADR nicht beantworten, und zwar aus zwei Gründen, die nichts mit den Familien
+zu tun haben:
+
+1. **Die Serie ist ein Fenster.** Der Pool ist ein rollendes 30-Tage-Fenster
+   (`accumulate_family_events.py --max-age-days 30`), die Tagesserie damit
+   auch. Über die zwölf committeten Berichte vom 14.–28.8. trug sie 29–34
+   Trades, am 21.9. 27, im Pool vom 30.9. 19. Vorregistriert sind 120–200 je
+   Familie (`governance/edge_hypotheses.json`), der Floor des Track-Record-Gates
+   liegt bei 100, der von §5 bei 40. Ein Fenster dieser Größe erreicht keine
+   davon, gleich wie lange es läuft.
+2. **Der 1D-Filter lässt fast nichts durch.** Am 21.9. lagen 28 von 8 065
+   Pool-Events auf 1D. Der Pool trägt seit #2667 täglich alle Ebenen; die
+   Messung sah davon ein Drittelprozent.
+
+Eine dritte Ursache liegt im Pool selbst (Deduplizierung auf
+`(family, anchor_ts)`, #5585) und ist nicht Gegenstand dieses ADR.
+
+### Entscheidung 4: 15m ist eine zweite, getrennt ausgewiesene Beobachtungsebene
+
+`promotion-gate-daily` rechnet dieselbe Variante-A-Regel zusätzlich auf den
+15m-Events desselben Pools und committet die beiden Fenster-Urteile nach
+`docs/calibration/gates/15m/` (`track_record_gate_<date>.json`,
+`regime_stratified_<date>.json`, Retention 90). Die Fenster-Serie selbst bleibt
+Lauf-Artefakt: gemessen 94 KB bei 551 Trades, und sie wiederholt täglich
+dieselben rund 30 Tage, die das Ledger (Entscheidung 5) je Trade einmal hält.
+
+**Was die 15m-Ebene nicht ist.** Die Rollen aus
+`docs/governance/adr0023_plane_and_gate_clarification.md` gelten unverändert:
+
+- Sie ist **kein Gate.** §5 (E[PnL] nach Kosten) bleibt das bindende Gate und
+  bleibt auf 1D; auf 15m wird kein §5-Urteil gerechnet.
+- Sie hat **keine Wirkung** auf Arming, Stage oder `armed_plane`, und sie
+  belebt den eingefrorenen 15m-Magnitude-Proof nicht wieder (dessen AUC-Messung
+  bleibt eingefroren).
+- Sie geht **nicht** in den Claim-Tier (`docs/commercial/family_claim_status.json`)
+  und **nicht** in den Public-Report ein.
+
+Das Unterverzeichnis ist Teil der Entscheidung: alle 1D-Konsumenten lesen
+`docs/calibration/gates/` nicht-rekursiv (c13 Step 5a
+`returns_series_*.json`, der Emitter `<prefix>_*.json`, die 1D-Retention) und
+sehen die 15m-Dateien nicht.
+
+**Warum 15m.** Es ist die Ebene des einzigen echten Edge-Laufs (EV-20,
+2026-07-06) und des Magnitude-Proofs — also die Ebene, auf der die bisherigen
+positiven Aussagen überhaupt entstanden sind. Die Kosten sind ein Filter: der
+Pool trägt die 15m-Events ohnehin, eine Pipeline wird nicht wiederbelebt.
+
+**Offenlegung zur Wahl.** Vor der Festlegung wurde am 2026-10-01 ein
+Schnappschuss über **alle** Ebenen gesehen (Pool vom 30.9., Anker 31.8.–23.9.,
+dieselbe Regel). Auf 15m schloss dabei für keine Familie das 95-%-Intervall die
+Null aus (n = 551); auf 5m und 10m für mehrere. 15m wurde nicht wegen dieses
+Bildes gewählt, sondern trotz ihm — aber gewählt wurde danach. Deshalb trägt
+das 15m-Ledger einen Evidenz-Start (Entscheidung 5).
+
+### Entscheidung 5: ein wachsendes Ledger je Ebene
+
+`scripts/accumulate_returns_ledger.py` hängt jeden abgeschlossenen Trade genau
+einmal an eine committete JSONL an:
+`docs/calibration/gates/ledger/returns_ledger_<Ebene>.jsonl` für `1D` und `15m`.
+
+- **Schlüssel ist die `event_id`.** Trades ohne ID werden gezählt und nicht
+  aufgenommen.
+- **Nur anhängen.** Der Ertrag eines Trades ist endgültig, sobald er existiert
+  (Entry beim ersten Touch, Exit einen festen Horizont später). Sieht ein
+  späterer Lauf für dieselbe ID einen anderen Ertrag, bleibt der aufgezeichnete
+  stehen, und der Lauf meldet den Widerspruch.
+- **Eine Regel je Ledger.** Jede Zeile trägt `return_rule` und `cost_bps`. Ein
+  Lauf mit anderer Regel oder anderen Kosten verweigert das Anhängen (rc 2,
+  roter Schritt). Ein Regelwechsel bleibt ein expliziter, reviewter
+  Code-Change — und beginnt eine neue Ledger-Datei.
+- **Kumulatives Urteil.** Auf dem Ledger läuft dasselbe Track-Record-Gate
+  noch einmal und schreibt `ledger/track_record_gate_<Ebene>.json`
+  (überschrieben; die Historie ist das Ledger). Parität zur Fensterserie ist
+  gemessen: für denselben Pool liefern beide je Familie dieselben Erträge
+  (1D 19 = 19, 15m 551 = 551).
+- **Evidenz-Start 15m = 2026-10-01.** 15m-Trades mit Anker davor bleiben im
+  Ledger (es sind Tatsachen), zählen aber nicht ins kumulative Urteil. Als
+  unberührte Vorwärts-Evidenz gilt auf 15m nur, was nach der Festlegung
+  anfiel. 1D trägt keinen Evidenz-Start: die Ebene ist seit 2026-07-06
+  festgelegt.
+
+Eine fehlgeschlagene Beobachtungs- oder Ledger-Stufe reißt die 1D-Artefakte
+des Tages nicht mit: der Commit-Schritt läuft mit `!cancelled()` weiter, der
+Lauf bleibt rot.
+
+### Was dieser Nachtrag nicht entscheidet
+
+- Ob ein kumulatives Urteil je in den Public-Report oder den Claim-Tier
+  eingeht. Das ist eine Entscheidung über Aussagen nach außen, keine über
+  Verdrahtung.
+- Ob §5 auf einer kumulativen Basis rechnen soll. §5 liest Events (Score und
+  Ertrag), das Ledger hält Trades.
+- Wie gleichzeitige Trades mehrerer Symbole zu gewichten sind. Sie sind
+  querschnittlich korreliert; `n` im Ledger überschätzt die effektive
+  Stichprobe.
+
+### Größe
+
+Gemessen: 290 Bytes je Ledger-Zeile (551 Zeilen = 157 KB). Der heutige Pool
+liefert auf 15m rund 37 neue Trades je Handelstag, also etwa 11 KB täglich.
+Mit dem korrigierten Pool-Schlüssel (#5585) ist auf 15m mit dem Zwölffachen zu
+rechnen (2 133 statt 177 Trades aus denselben zwei Tagesdateien), also grob
+130 KB täglich und rund 30 MB im Jahr.
+

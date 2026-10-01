@@ -116,6 +116,11 @@ score-persistence work addresses), NOT a paper-trading problem.
 
 - Whether to ever revive a 15m measurement pipeline (only worth it if a 15m
   operational system is planned).
+  *2026-10-01:* still open for the MAGNITUDE measurement (§2 AUC on 15m stays
+  frozen). Separately, ADR-0031 (Nachtrag 2026-10-01) adds a 15m RETURNS
+  observation — track-record and regime verdicts on the 15m events the pool
+  already carries. It revives no pipeline, is not a gate, and changes none of
+  the roles assigned in §2 above.
 - Whether §5's `MIN_TRADES=40`/family is the right floor for a rare family, or
   whether rare families should be judged on a pooled/relaxed basis (a science
   decision, deliberately not taken here).
