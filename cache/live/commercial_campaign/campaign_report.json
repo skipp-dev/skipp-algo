@@ -1,17 +1,17 @@
 {
   "attempt_status_counts": {
-    "COMPLETED": 68,
-    "FAILED": 10,
-    "NO_SETUPS": 55
+    "COMPLETED": 90,
+    "FAILED": 12,
+    "NO_SETUPS": 78
   },
-  "attempts_total": 133,
+  "attempts_total": 180,
   "audit_integrity": {
-    "audit_rows": 99,
+    "audit_rows": 130,
     "duplicate_snapshot_intent_rows": 0,
     "invalid_audit_rows": 0,
-    "unique_audited_intents": 99,
-    "unique_audited_snapshots": 68,
-    "valid_audit_rows": 99
+    "unique_audited_intents": 130,
+    "unique_audited_snapshots": 90,
+    "valid_audit_rows": 130
   },
   "broker_io": false,
   "campaign_contract": {
@@ -34,26 +34,26 @@
   },
   "campaign_mode": "audit_only_shadow",
   "failure_rate": 0.05,
-  "failure_rate_lifetime": 0.07518796992481203,
+  "failure_rate_lifetime": 0.06666666666666667,
   "failure_window_size": 20,
   "failures_by_type": {
-    "ValueError": 10
+    "ValueError": 12
   },
   "family_coverage_pct": {
-    "BOS": 39.705882352941174,
-    "FVG": 23.529411764705884,
-    "OB": 25.0,
-    "SWEEP": 57.35294117647059
+    "BOS": 32.22222222222222,
+    "FVG": 30.0,
+    "OB": 26.666666666666668,
+    "SWEEP": 55.55555555555556
   },
   "family_snapshot_counts": {
-    "BOS": 27,
-    "FVG": 16,
-    "OB": 17,
-    "SWEEP": 39
+    "BOS": 29,
+    "FVG": 27,
+    "OB": 24,
+    "SWEEP": 50
   },
   "first_observed_at": "2026-08-18T14:07:00.036063+00:00",
-  "generated_at": "2026-09-21T18:05:21.151655+00:00",
-  "last_observed_at": "2026-09-21T18:05:21.151655+00:00",
+  "generated_at": "2026-10-01T18:05:42.690725+00:00",
+  "last_observed_at": "2026-10-01T18:05:42.690725+00:00",
   "network_io": false,
   "observation_gate": {
     "current_threshold_warnings": [],
@@ -71,10 +71,10 @@
   "paper_orders_placed": 0,
   "processing_seconds": {
     "count": 20,
-    "max": 0.19866699998965487,
-    "min": 0.022431207995396107,
-    "p50": 0.07064506198366871,
-    "p95": 0.13322312498348765
+    "max": 0.2221546250002575,
+    "min": 0.03803558300023724,
+    "p50": 0.05510550000144576,
+    "p95": 0.1424787500000093
   },
   "promotion_gate": {
     "reasons": [
@@ -87,11 +87,11 @@
   "schema_version": 2,
   "source_age_seconds": {
     "count": 20,
-    "max": 5350.722421884537,
-    "min": 196.1039810180664,
-    "p50": 320.841938495636,
-    "p95": 1593.725662946701
+    "max": 7059.706732034683,
+    "min": 2.053541898727417,
+    "p50": 328.7300624847412,
+    "p95": 1890.1829569339752
   },
-  "substantive_attempts_total": 133,
-  "unique_attempted_snapshots": 133
+  "substantive_attempts_total": 180,
+  "unique_attempted_snapshots": 180
 }
