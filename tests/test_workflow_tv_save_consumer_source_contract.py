@@ -274,7 +274,15 @@ def test_binding_repair_is_explicit_and_reverified_before_success() -> None:
     assert "repairSelectedSource" in verifier
     assert 'getByRole("option", { name: expected, exact: true })' in verifier
     assert 'button[name="submit"]' in verifier
-    assert "binding.actual = await readSelectedSource" in verifier
+    # 2026-10-01: the re-read after the repair is still what this pins — it now
+    # goes through canonicalSourceSelection, because TradingView can show the
+    # producer's status-line argument inside the combobox text
+    # ("SMC Long-Dip Suite · 411.0: BUS Armed", run 36859274386). Reading it raw
+    # would turn every successful repair on such a layout into a mismatch.
+    assert (
+        "binding.actual = canonicalSourceSelection(await readSelectedSource(session.page, binding.label), producerName)"
+        in verifier
+    )
 
 
 def test_default_mapping_covers_every_binding_order_consumer() -> None:
@@ -757,8 +765,27 @@ def test_a_layout_is_saved_whole_or_discarded_whole() -> None:
 
     shared = (_REPO_ROOT / "automation" / "tradingview" / "lib" / "tv_shared.ts").read_text(encoding="utf-8")
     assert "export async function saveChangedChartLayout(page: Page)" in shared
-    assert 'data-qa-id="header-toolbar-save-load"' in shared
-    assert "all changes saved" in shared
+    # 2026-10-01: these two lines used to pin the selector
+    # `data-qa-id="header-toolbar-save-load"` and the label "all changes saved"
+    # -- i.e. they pinned the exact text TradingView had retired a month
+    # earlier, and stayed green through 467 runs without a single saved layout.
+    # What is worth pinning is the shape that survives a header rebuild: one
+    # module owns the save, it confirms on the save REQUEST, and neither caller
+    # keeps a selector of its own that could rot separately again.
+    assert "await saveChartLayout(page)" in shared
+    lib = _REPO_ROOT / "automation" / "tradingview" / "lib"
+    layout_save = (lib / "tv_layout_save.ts").read_text(encoding="utf-8")
+    assert 'CHART_LAYOUT_SAVE_REQUEST_PATH = "/api/v1/charts/save/"' in layout_save
+    assert ".waitForRequest(" in layout_save
+    assert "'button[data-qa-id=\"save-load-button\"]'" in layout_save
+    onboard = (_REPO_ROOT / "scripts" / "tv_onboard_consumers.ts").read_text(encoding="utf-8")
+    assert "await saveChartLayout(page)" in onboard
+    for name, source in (("tv_shared.ts", shared), ("tv_onboard_consumers.ts", onboard)):
+        for retired in ('data-qa-id="header-toolbar-save-load"', 'data-qa-id="save-load-button"'):
+            assert retired not in source, (
+                f"{name} carries its own save-button selector again ({retired}); "
+                "the two copies rotted together once -- keep it in tv_layout_save.ts"
+            )
 
 
 def test_producer_refresh_is_explicit_and_requires_full_rebind() -> None:

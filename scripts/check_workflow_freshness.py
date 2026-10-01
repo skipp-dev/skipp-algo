@@ -227,6 +227,91 @@ def check_workflow(
     )
 
 
+def check_product(
+    *,
+    pattern: str,
+    budget_hours: float,
+    now: datetime | None = None,
+    root: str = ".",
+    weekday_only: bool = False,
+    expected_stale_until: date | None = None,
+) -> WorkflowFreshness:
+    """Classify the age of a committed, dated PRODUCT instead of a run.
+
+    A run-based row answers "did the workflow end green recently?". That is
+    not the question when green and idle look alike: ``promotion-gate-daily``
+    ended ``success`` on 17 of 18 runs between 2026-08-31 and 2026-09-30 while
+    skipping its whole body (no upstream artifact), and the rolling benchmark
+    reported ``success`` for every fire its own cadence gate skipped. Both
+    rows stayed fresh; the newest gate report on ``main`` was five weeks old.
+
+    This row looks at what the chain is FOR: the newest file matching
+    *pattern* under *root* whose name carries an ISO date
+    (``…_YYYY-MM-DD.json``). It covers every way the product can fail to
+    arrive — the producer skipped, an upstream died, the bot PR never merged —
+    because it does not care which one it was.
+
+    The age counts from 00:00 UTC of the newest date (the file names a day,
+    not an instant); budgets are chosen with that in mind.
+    """
+    import re
+    from pathlib import Path
+
+    now = now or datetime.now(tz=UTC)
+    name = f"product:{pattern}"
+    dated: list[date] = []
+    for path in Path(root).glob(pattern):
+        found = re.findall(r"\d{4}-\d{2}-\d{2}", path.name)
+        if not found:
+            continue
+        try:
+            dated.append(date.fromisoformat(found[-1]))
+        except ValueError:
+            continue
+    if not dated:
+        return WorkflowFreshness(
+            workflow=name,
+            status="missing",
+            budget_hours=budget_hours,
+            detail="no dated file matches the pattern in the checkout",
+            timestamp_source="filename_date",
+        )
+
+    newest = max(dated)
+    stamp = datetime(newest.year, newest.month, newest.day, tzinfo=UTC)
+    age = (now - stamp).total_seconds() / 3600.0
+    if weekday_only:
+        age = max(0.0, age - _weekend_hours_between(stamp, now))
+
+    status = "fresh" if age <= budget_hours else "stale"
+    detail = None
+    if status == "stale" and expected_stale_until is not None:
+        # Same tripwire-not-mute semantics as the run-based rows.
+        if now.date() <= expected_stale_until:
+            status = "expected_stale"
+            detail = (
+                f"stale as declared (known incident); "
+                f"expectation expires {expected_stale_until.isoformat()}"
+            )
+        else:
+            detail = (
+                f"expected-stale declaration EXPIRED {expected_stale_until.isoformat()} "
+                f"— fix the producer chain or renew the dated declaration"
+            )
+    return WorkflowFreshness(
+        workflow=name,
+        status=status,
+        last_success_at=stamp.isoformat(),
+        age_hours=round(age, 2),
+        budget_hours=budget_hours,
+        detail=detail,
+        timestamp_source="filename_date",
+        expected_stale_until=(
+            expected_stale_until.isoformat() if expected_stale_until is not None else None
+        ),
+    )
+
+
 def check_all(
     *,
     repo: str,
@@ -234,8 +319,15 @@ def check_all(
     token: str,
     now: datetime | None = None,
     fetcher: Fetcher | None = None,
+    products: list[tuple] | None = None,
+    root: str = ".",
 ) -> FreshnessReport:
-    """Check ``(workflow_file, budget_hours, any_conclusion, [weekday_only], [expected_stale_until])`` elements."""
+    """Check ``(workflow_file, budget_hours, any_conclusion, [weekday_only], [expected_stale_until])`` elements.
+
+    *products* are ``(pattern, budget_hours, weekday_only, expected_stale_until)``
+    rows for :func:`check_product`; they land in the same report and count
+    toward the same overall verdict.
+    """
     now = now or datetime.now(tz=UTC)
     results = []
     for item in workflows:
@@ -253,6 +345,17 @@ def check_all(
                 now=now,
                 fetcher=fetcher,
                 any_conclusion=any_conc,
+                weekday_only=wkday,
+                expected_stale_until=until,
+            )
+        )
+    for pattern, budget, wkday, until in products or []:
+        results.append(
+            check_product(
+                pattern=pattern,
+                budget_hours=budget,
+                now=now,
+                root=root,
                 weekday_only=wkday,
                 expected_stale_until=until,
             )
@@ -369,6 +472,56 @@ def _parse_workflow_spec(raw: str) -> tuple[str, float, bool, bool, date | None]
     return name, budget, any_conclusion, weekday_only, expected_stale_until
 
 
+def _parse_product_spec(raw: str) -> tuple[str, float, bool, date | None]:
+    """Parse ``GLOB=HOURS`` plus optional ``:weekday`` / ``:expected-stale-until=``.
+
+    The pattern ends at the FIRST ``=`` (a glob with ``=`` in it is not
+    supported). ``:any`` / ``:success`` have no meaning for a product (there
+    is no conclusion) and are rejected — like every unknown suffix, see
+    :func:`_parse_workflow_spec`.
+    """
+    pattern, sep, rest = raw.partition("=")
+    pattern = pattern.strip()
+    if not sep or not pattern:
+        raise argparse.ArgumentTypeError(
+            f"product spec must be 'GLOB=HOURS', got {raw!r}"
+        )
+    if "*" not in pattern:
+        raise argparse.ArgumentTypeError(
+            f"product pattern must be a glob over dated files, got {pattern!r}"
+        )
+
+    parts = rest.split(":")
+    weekday_only = False
+    expected_stale_until: date | None = None
+    for part in parts[1:]:
+        tag = part.strip()
+        if tag.lower() == "weekday":
+            weekday_only = True
+        elif tag.lower().startswith("expected-stale-until="):
+            date_s = tag.partition("=")[2].strip()
+            try:
+                expected_stale_until = date.fromisoformat(date_s)
+            except ValueError as exc:
+                raise argparse.ArgumentTypeError(
+                    f"expected-stale-until must be YYYY-MM-DD, got {date_s!r}"
+                ) from exc
+        else:
+            raise argparse.ArgumentTypeError(
+                f"unknown product-spec suffix {tag!r} in {raw!r} "
+                f"(known: weekday, expected-stale-until=YYYY-MM-DD)"
+            )
+    try:
+        budget = float(parts[0].strip())
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(
+            f"budget hours must be numeric, got {parts[0]!r}"
+        ) from exc
+    if budget <= 0:
+        raise argparse.ArgumentTypeError("budget hours must be positive")
+    return pattern, budget, weekday_only, expected_stale_until
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Check freshness of recent successful workflow runs.")
     parser.add_argument(
@@ -388,6 +541,15 @@ def main(argv: list[str] | None = None) -> int:
         help="Env var holding the GitHub token (default GITHUB_TOKEN; falls back to GH_PAT)",
     )
     parser.add_argument("--output", type=str, default=None, help="Also write the JSON report to this file")
+    parser.add_argument(
+        "--product",
+        action="append",
+        default=[],
+        type=_parse_product_spec,
+        metavar="GLOB=HOURS",
+        help="Also check the newest dated file matching GLOB in the checkout "
+        "(repeatable; suffixes :weekday, :expected-stale-until=YYYY-MM-DD)",
+    )
     args = parser.parse_args(argv)
 
     if not args.repo or "/" not in args.repo:
@@ -405,7 +567,9 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 1
 
-    report = check_all(repo=args.repo, workflows=args.workflows, token=token)
+    report = check_all(
+        repo=args.repo, workflows=args.workflows, token=token, products=args.product
+    )
     rendered = json.dumps(asdict(report), indent=2)
     print(rendered)
     if args.output:

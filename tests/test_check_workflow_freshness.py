@@ -17,9 +17,11 @@ import pytest
 
 from scripts.check_workflow_freshness import (
     FreshnessReport,
+    _parse_product_spec,
     _parse_workflow_spec,
     _weekend_hours_between,
     check_all,
+    check_product,
     check_workflow,
     main,
 )
@@ -510,3 +512,186 @@ def test_weekday_only_workflow_freshness() -> None:
     )
     assert r_weekday.status == "fresh"
     assert r_weekday.age_hours == 12.0
+
+
+# ---------------------------------------------------------------------------
+# Product rows (2026-10-01): the age of what the chain is FOR.
+#
+# A run-based row cannot tell a green run from a green-but-idle one. Measured
+# 2026-10-01: promotion-gate-daily ended `success` on 17 of 18 runs since
+# 2026-08-31 while skipping its body; its row stayed fresh, the newest gate
+# report on main was dated 2026-08-27.
+# ---------------------------------------------------------------------------
+
+_GATE_GLOB = "docs/calibration/gates/track_record_gate_*.json"
+
+
+def _gate_files(root: Path, *days: str) -> None:
+    gates = root / "docs" / "calibration" / "gates"
+    gates.mkdir(parents=True, exist_ok=True)
+    for day in days:
+        (gates / f"track_record_gate_{day}.json").write_text("{}", encoding="utf-8")
+
+
+def _product(root: Path, now: datetime, **kwargs):
+    return check_product(
+        pattern=_GATE_GLOB, budget_hours=72, now=now, root=str(root), **kwargs
+    )
+
+
+@pytest.mark.parametrize(
+    ("label", "newest", "now", "expect"),
+    [
+        # Probe runs 06:30 UTC; a report dated D counts from D 00:00 UTC.
+        ("yesterday's report, normal morning", "2026-09-22", "2026-09-23T06:30", "fresh"),
+        ("one business day missing", "2026-09-21", "2026-09-23T06:30", "fresh"),
+        ("two business days missing", "2026-09-21", "2026-09-24T06:30", "stale"),
+        ("Friday's report on Monday", "2026-09-25", "2026-09-28T06:30", "fresh"),
+        ("Friday's report on Tuesday", "2026-09-25", "2026-09-29T06:30", "fresh"),
+        ("Friday's report on Wednesday", "2026-09-25", "2026-09-30T06:30", "stale"),
+    ],
+)
+def test_product_budget_trips_after_two_missing_business_days(
+    tmp_path: Path, label: str, newest: str, now: str, expect: str
+) -> None:
+    _gate_files(tmp_path, "2026-09-01", newest)
+    row = _product(
+        tmp_path, datetime.fromisoformat(now).replace(tzinfo=UTC), weekday_only=True
+    )
+    assert row.status == expect, f"{label}: age {row.age_hours}h"
+    assert row.workflow == f"product:{_GATE_GLOB}"
+    assert row.timestamp_source == "filename_date"
+    assert row.last_success_at.startswith(newest)
+
+
+def test_product_the_measured_situation_is_stale_while_the_run_row_is_fresh(
+    tmp_path: Path,
+) -> None:
+    """2026-10-01 as it was: gate run green yesterday, newest report 2026-08-27."""
+    now = datetime(2026, 10, 1, 6, 30, tzinfo=UTC)
+    _gate_files(tmp_path, "2026-08-25", "2026-08-26", "2026-08-27")
+
+    def green_yesterday(url: str, headers: dict[str, str]) -> dict:
+        return {"workflow_runs": [{"id": 1, "updated_at": "2026-09-30T14:05:00Z"}]}
+
+    report = check_all(
+        repo="o/r",
+        workflows=[("promotion-gate-daily.yml", 72.0, False, True)],
+        token="t",
+        now=now,
+        fetcher=green_yesterday,
+        products=[(_GATE_GLOB, 72.0, True, None)],
+        root=str(tmp_path),
+    )
+    by_name = {row["workflow"]: row for row in report.workflows}
+    assert by_name["promotion-gate-daily.yml"]["status"] == "fresh"
+    assert by_name[f"product:{_GATE_GLOB}"]["status"] == "stale"
+    assert report.overall == "stale"
+    assert report.stale_count == 1
+
+
+def test_product_weekday_flag_is_what_keeps_monday_green(tmp_path: Path) -> None:
+    _gate_files(tmp_path, "2026-09-25")  # a Friday
+    monday = datetime(2026, 9, 28, 6, 30, tzinfo=UTC)
+    assert _product(tmp_path, monday, weekday_only=True).status == "fresh"
+    assert _product(tmp_path, monday, weekday_only=False).status == "stale"
+
+
+def test_product_missing_when_nothing_dated_matches(tmp_path: Path) -> None:
+    now = datetime(2026, 9, 23, 6, 30, tzinfo=UTC)
+    assert _product(tmp_path, now).status == "missing"  # directory absent
+    gates = tmp_path / "docs" / "calibration" / "gates"
+    gates.mkdir(parents=True)
+    (gates / "track_record_gate_latest.json").write_text("{}", encoding="utf-8")
+    (gates / "track_record_gate_2026-13-45.json").write_text("{}", encoding="utf-8")
+    row = _product(tmp_path, now)
+    assert row.status == "missing"
+    assert "no dated file" in (row.detail or "")
+
+
+def test_product_ignores_sibling_families_and_subdirectories(tmp_path: Path) -> None:
+    """Only the pattern's own files count — not a newer file of another family."""
+    now = datetime(2026, 9, 24, 6, 30, tzinfo=UTC)
+    _gate_files(tmp_path, "2026-09-21")
+    gates = tmp_path / "docs" / "calibration" / "gates"
+    (gates / "returns_series_2026-09-23.json").write_text("{}", encoding="utf-8")
+    (gates / "15m").mkdir()
+    (gates / "15m" / "track_record_gate_2026-09-23.json").write_text("{}", encoding="utf-8")
+    row = _product(tmp_path, now, weekday_only=True)
+    assert row.status == "stale"
+    assert row.last_success_at.startswith("2026-09-21")
+
+
+def test_product_expected_stale_is_a_tripwire_not_a_mute(tmp_path: Path) -> None:
+    _gate_files(tmp_path, "2026-08-27")
+    until = date(2026, 10, 8)
+    inside = _product(
+        tmp_path, datetime(2026, 10, 8, 6, 30, tzinfo=UTC),
+        weekday_only=True, expected_stale_until=until,
+    )
+    assert inside.status == "expected_stale"
+    after = _product(
+        tmp_path, datetime(2026, 10, 9, 6, 30, tzinfo=UTC),
+        weekday_only=True, expected_stale_until=until,
+    )
+    assert after.status == "stale"
+    assert "EXPIRED 2026-10-08" in (after.detail or "")
+    # A fresh product is fresh regardless of a still-open declaration.
+    _gate_files(tmp_path, "2026-10-07")
+    healed = _product(
+        tmp_path, datetime(2026, 10, 8, 6, 30, tzinfo=UTC),
+        weekday_only=True, expected_stale_until=until,
+    )
+    assert healed.status == "fresh"
+
+
+def test_parse_product_spec() -> None:
+    assert _parse_product_spec(f"{_GATE_GLOB}=72:weekday") == (_GATE_GLOB, 72.0, True, None)
+    assert _parse_product_spec(
+        f"{_GATE_GLOB}=72:weekday:expected-stale-until=2026-10-08"
+    ) == (_GATE_GLOB, 72.0, True, date(2026, 10, 8))
+    assert _parse_product_spec("a/b_*.json=30") == ("a/b_*.json", 30.0, False, None)
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "docs/x_*.json",  # no budget
+        "=72",  # no pattern
+        "docs/x_2026-01-01.json=72",  # not a glob
+        "docs/x_*.json=abc",  # non-numeric budget
+        "docs/x_*.json=0",  # non-positive budget
+        "docs/x_*.json=72:any",  # a product has no conclusion
+        "docs/x_*.json=72:success",
+        "docs/x_*.json=72:wekday",  # typo must not parse silently
+        "docs/x_*.json=72:expected-stale-until=soon",
+    ],
+)
+def test_parse_product_spec_rejects(raw: str) -> None:
+    import argparse
+
+    with pytest.raises(argparse.ArgumentTypeError):
+        _parse_product_spec(raw)
+
+
+def test_main_exit_code_follows_a_stale_product(tmp_path: Path, monkeypatch, capsys) -> None:
+    """End to end through the CLI: a stale product alone turns the probe red."""
+    import scripts.check_workflow_freshness as cwf
+
+    _gate_files(tmp_path, "2020-01-02")  # stale against any real clock
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("GITHUB_TOKEN", "t")
+    monkeypatch.setattr(
+        cwf,
+        "_default_fetcher",
+        lambda url, headers: {
+            "workflow_runs": [
+                {"id": 1, "updated_at": datetime.now(tz=UTC).isoformat().replace("+00:00", "Z")}
+            ]
+        },
+    )
+    rc = main(["wf.yml=72", "--repo", "o/r", "--product", f"{_GATE_GLOB}=72:weekday"])
+    report = json.loads(capsys.readouterr().out)
+    assert rc == 2
+    assert report["overall"] == "stale"
+    assert [row["status"] for row in report["workflows"]] == ["fresh", "stale"]

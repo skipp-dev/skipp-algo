@@ -122,6 +122,26 @@ jobs:
           # Woche danach): ab dann faellt die Zeile wieder hart rot aus —
           # Tripwire, kein Mute. Verlaengern heisst: Datum UND Begruendung
           # hier erneuern.
+          # 2026-10-01 PRODUKT-Zeile (--product): alle Zeilen darueber fragen
+          # "endete der Workflow gruen?". Das ist die falsche Frage, sobald
+          # gruen und leer gleich aussehen: promotion-gate-daily endete vom
+          # 31.8. bis 30.9. in 17 von 18 Laeufen `success` und uebersprang
+          # dabei alles (kein Upstream-Artefakt); der Rolling-Benchmark
+          # meldete `success` fuer jeden Fire, den sein eigenes Kadenz-Gate
+          # uebersprang. Beide Zeilen blieben frisch, der juengste Gate-Bericht
+          # auf main war fuenf Wochen alt (2026-08-27).
+          #   docs/calibration/gates/track_record_gate_*.json  72:weekday
+          #     Alter des juengsten DATIERTEN Berichts im Checkout, gezaehlt ab
+          #     00:00 UTC des Datums im Dateinamen. Normal: 30,5 Werktags-
+          #     stunden (Vortag, Sonde 06:30). Ein fehlender Werktag: 54,5 h —
+          #     frisch. Zwei fehlende Werktage in Folge: 78,5 h — rot. Die
+          #     Zeile ist egal dagegen, WARUM der Bericht fehlt (Producer
+          #     uebersprang, Upstream tot, Bot-PR nie gemergt).
+          #     expected-stale-until=2026-10-08: der Bericht IST heute alt, die
+          #     Ursachen sind benannt und in Arbeit (Kadenz-Gate + Restore,
+          #     #5584). Bis zum 8.10. meldet die Zeile
+          #     das als deklariert; danach faellt sie hart rot — Stolperdraht
+          #     dafuer, dass die Reparatur wirklich einen Bericht landet.
           set +e
           python scripts/check_workflow_freshness.py \
             --output artifacts/ci/workflow_freshness.json \
@@ -156,7 +176,8 @@ jobs:
             fvg-quality-quartile-gate.yml=72:weekday \
             proof-ledger-monitor.yml=30:any \
             runner-label-variable-watch.yml=12:any \
-            stuck-run-watch.yml=6:any
+            stuck-run-watch.yml=6:any \
+            --product "docs/calibration/gates/track_record_gate_*.json=72:weekday:expected-stale-until=2026-10-08"
           rc=$?
           set -e
           echo "rc=$rc" >> "$GITHUB_OUTPUT"
@@ -190,7 +211,7 @@ jobs:
               elif status == "stale":
                   print(f"::error title=workflow-freshness::{name}: STALE -- last success {wf.get('age_hours')}h ago, budget {wf.get('budget_hours')}h")
               elif status == "missing":
-                  print(f"::error title=workflow-freshness::{name}: NO successful runs in API window")
+                  print(f"::error title=workflow-freshness::{name}: MISSING -- {wf.get('detail') or 'no successful runs in API window'}")
               else:
                   print(f"::error title=workflow-freshness::{name}: api_error -- {wf.get('detail')}")
           PY

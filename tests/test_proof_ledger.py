@@ -957,6 +957,65 @@ def test_the_judge_never_reads_the_run_conclusion():
     )
 
 
+# --- 2026-10-01: der Urteiler fuer #5025 las das Speichern nicht --------------
+
+
+def test_a_repair_that_was_not_saved_is_a_failure_not_a_pass():
+    """Lauf 35590264660: 108 Bindungen repariert, layoutSaved: false.
+
+    Eintrag 5025 behauptet "...und der repariert UND SPEICHERT". Der Urteiler
+    pruefte bis 2026-10-01 nur die andere Haelfte seines Namens -- "nichts
+    deployt, nichts zerlegt" -- und gab fuer diesen Lauf PASS/contract_held
+    zurueck. 32 solcher Laeufe in Folge (2026-09-01..09-21) blieben so
+    unsichtbar, waehrend 108 Bindungen auf dem Operator-Chart auf Close
+    standen. Ein Name, der mehr verspricht als sein Ausdruck prueft.
+    """
+    from scripts.proof_judges import corpus_for, load_judge
+
+    entry = next(e for e in load_entries() if e.id == "5025")
+    corpus = dict(corpus_for("tv_repair_only_contract"))
+    evidence = corpus["35590264660"]
+    assert evidence["mutations"]["bindingsRepaired"] == 108  # Praemisse
+    assert evidence["mutations"]["layoutSaved"] is False  # Praemisse
+
+    verdict = load_judge("tv_repair_only_contract").judge(evidence, entry)
+
+    assert verdict.state == "FAIL", verdict
+    assert verdict.branch == "repaired_not_saved", verdict
+    assert "108" in verdict.detail, verdict
+
+
+def test_a_repair_run_that_repaired_nothing_cannot_witness_the_claim():
+    """Lauf 36820265832 erreichte den Browser nie (Publish-Drift 497 vs 544).
+
+    "Nichts deployt, nichts zerlegt" stimmt fuer ihn trivial -- er hat gar
+    nichts getan. Das als PASS zu fuehren hiesse, die leere Beobachtung als
+    Beweis fuer "repariert und speichert" zu zaehlen.
+    """
+    from scripts.proof_judges import corpus_for, load_judge
+
+    entry = next(e for e in load_entries() if e.id == "5025")
+    corpus = dict(corpus_for("tv_repair_only_contract"))
+
+    verdict = load_judge("tv_repair_only_contract").judge(corpus["36820265832"], entry)
+
+    assert verdict.state == "STEHT_AUS", verdict
+    assert verdict.branch == "nothing_repaired", verdict
+
+
+def test_the_repair_that_was_saved_still_passes():
+    """Gegenrichtung: der Zeuge vom 2026-08-23 darf nicht mit rot werden."""
+    from scripts.proof_judges import corpus_for, load_judge
+
+    entry = next(e for e in load_entries() if e.id == "5025")
+    corpus = dict(corpus_for("tv_repair_only_contract"))
+
+    verdict = load_judge("tv_repair_only_contract").judge(corpus["32620808573"], entry)
+
+    assert verdict.state == "PASS", verdict
+    assert verdict.branch == "contract_held", verdict
+
+
 # --- Anti-Vakuitaet (Task 5) ------------------------------------------------
 
 
