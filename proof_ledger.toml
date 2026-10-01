@@ -481,6 +481,13 @@ artifact        = "tradingview-consumer-bindings"
 version_probe   = "KEINE"
 version_probe_reason = "Feld-Praesenz-Probe kann eine neue WERT-Variante eines bestehenden Feldes nicht ausdruecken (Feld seit #4085, Wert seit #5025); der Urteiler faengt den Fall selbst per not_a_repair_run ab"
 judge           = "tv_repair_only_contract"
+# 2026-10-01: der Urteiler liest jetzt auch die GEBOTS-Haelfte dieser
+# Behauptung ("...und speichert"). Bis dahin war jeder repair-only-Lauf mit
+# bindingsRepaired > 0 und layoutSaved=false ein PASS/contract_held -- 32 in
+# Folge, waehrend TradingViews umgebauter Speicherknopf jede Reparatur verwarf
+# (Korpus 35590264660 -> FAIL/repaired_not_saved; 36820265832 ->
+# STEHT_AUS/nothing_repaired). Der Zeuge 32620808573 unten bleibt PASS: er
+# trug layoutSaved=true.
 # 2026-08-23: derselbe Lauf 32620808573 traegt executionMode=repair-only und
 # haelt den Vertrag: sourceSavesCompleted 0, producerInstancesRemoved 0,
 # consumerInstancesRemoved 0 — nichts deployt, nichts zerlegt.
@@ -1798,6 +1805,71 @@ required, Konstante ohne ihn) und wurde mit #5160 geschlossen; er ist der
 Grund fuer diesen Waechter. Kein Korpus traegt ihn, weil die Baseline seit
 #5160 haelt -- feuert er, ist das der Ernstfall, nicht ein Testfall.
 """
+# ---------------------------------------------------------------------------
+# 5586 (1.10.): Der workflow-freshness-monitor fragt je Zeile "endete der
+# Workflow gruen?". promotion-gate-daily endete vom 31.8. bis 30.9. in 17 von
+# 18 Laeufen `success` und uebersprang dabei alles; der Rolling-Benchmark
+# meldet `success` fuer jeden Fire, den sein Kadenz-Gate ueberspringt. Beide
+# Zeilen blieben frisch, der juengste Gate-Bericht auf main war fuenf Wochen
+# alt. Neu ist eine PRODUKT-Zeile: das Alter der juengsten datierten Datei
+# docs/calibration/gates/track_record_gate_*.json, 72 Werktagsstunden.
+#
+# OFFEN mit Urteiler: die Regel ist suite-ausfuehrbar (65 Tests, gemessene
+# Lage als Fall, Mutationsprobe 2 rot), die Verdrahtung nicht — ob die Sonde
+# die Zeile traegt und ihr Muster im Monitor-Checkout Dateien findet, zeigt
+# erst ein echter Lauf. Die Zeile traegt expected-stale-until=2026-10-08; ab
+# dann faellt sie hart rot, solange kein neuer Gate-Bericht gelandet ist.
+# ---------------------------------------------------------------------------
+[[proof]]
+id              = "5586"
+kind            = "fix"
+merged_at       = "<wird beim Merge nachgetragen>"
+merge_sha       = "<dito>"
+claim           = "Der workflow-freshness-monitor wertet bei jedem Lauf das Alter des juengsten datierten Gate-Berichts im Checkout aus (docs/calibration/gates/track_record_gate_*.json, 72 Werktagsstunden) und gibt das Ergebnis als eigene Zeile aus — unabhaengig davon, ob die erzeugenden Workflows gruen endeten."
+witness         = "workflow-freshness-monitor"
+witness_job     = "probe"
+evidence_source = "job_log"
+artifact        = ""
+version_probe   = "product:docs/calibration/gates/track_record_gate_"
+judge           = "freshness_product_row"
+state           = "OFFEN"
+due_by          = "2026-10-09"
+owner           = "operator"
+
+[[unreachable_branch]]
+judge  = "freshness_product_row"
+branch = "kein_log"
+reason = """
+Feuert, wenn der Monitor den Zeugen-Job nicht auffindet und ein leeres Log
+durchreicht. Die Aufzeichnung im Korpus entstand aus einem erfolgreich
+geholten Log, der Zweig ist dort strukturell unerreichbar. Er ist die
+fail-closed-Kante: KANN_NICHT_BEZEUGEN statt PASS.
+"""
+
+[[unreachable_branch]]
+judge  = "freshness_product_row"
+branch = "zeile_ausgewertet"
+reason = """
+Verlangt ein echtes Sonden-Log mit der ausgegebenen product:-Annotation. Vor
+dem Merge gibt es die Zeile nicht — der aufgezeichnete Lauf 36827349579 vom
+1.10. erreicht deshalb zeile_fehlt. Der Zweig wird beim ersten Lauf nach dem
+Merge erreicht (die Sonde laeuft taeglich 06:30 UTC); wer den Eintrag auf PASS
+setzt, muss dieses Log als Korpus aufzeichnen, und der Widerspruchs-Test
+erzwingt dann die Entfernung dieser Deklaration.
+"""
+
+[[unreachable_branch]]
+judge  = "freshness_product_row"
+branch = "muster_findet_nichts"
+reason = """
+Feuert, wenn die Zeile ausgewertet wird und MISSING meldet — das Muster faende
+im Checkout des Monitors keine datierte Datei. Vor dem Merge nicht
+beobachtbar. Dass das Muster im Baum Dateien findet, prueft die
+Positivkontrolle test_product_row_pattern_matches_real_files; dieser Zweig
+faengt den Fall, dass der Checkout der Sonde (fetch-depth 1) davon abweicht.
+"""
+
+# ---------------------------------------------------------------------------
 # library-refresh-safety-net-cadence (29.8.): Die Cron-Ticks des Consumers
 # sanken von 9 auf 4, weil der `workflow_run`-Fast-Path im gesunden Betrieb
 # ohnehin bei JEDEM Producer-Abschluss feuert — das Netz lief bis dahin
