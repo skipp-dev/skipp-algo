@@ -7806,9 +7806,9 @@ export async function closePineEditorIfVisible(page: Page): Promise<boolean> {
  *
  * The mechanics live in tv_layout_save.ts, shared with the onboarding package:
  * the save counts when TradingView answered `POST /api/v1/charts/save/`, not
- * when a header control changed its label. NOT a no-op on a clean layout any
- * more — a "nothing to save" button is not trusted (see that file), so every
- * call issues one save request.
+ * when a header control changed its label. A button that reports nothing to
+ * save is believed (measured, see that file), so this is a no-op on a layout
+ * TradingView's autosave already persisted.
  */
 export async function saveChangedChartLayout(page: Page): Promise<void> {
   await runTrackedStep(page, "saveChangedChartLayout", async () => {

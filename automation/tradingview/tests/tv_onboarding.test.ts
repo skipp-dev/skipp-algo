@@ -306,16 +306,24 @@ test("an enabled save button is clicked and the save counts once TradingView ans
   assert.equal(outcome.status, 200);
 });
 
-test("a disabled save button is not taken as 'already saved' -- the shortcut forces the save", async () => {
-  // The measured idle state. Whether TradingView also disables the button
-  // while autosave is on is NOT measured, so "disabled" must never end the
-  // run without a request: that would be the silent non-persistence again.
-  const { page, log } = fakeSavePage({ buttons: { [NEW_SAVE_BUTTON]: { ariaDisabled: "true" } } });
+test("a save button that reports nothing to save is believed: no click, no shortcut", async () => {
+  // First written the other way round ("disabled is not trusted, force the
+  // save"), because the button's meaning was unmeasured. Measured since, on
+  // 2026-10-01: write run 36871652895 rebound 108 inputs, found the button
+  // disabled with aria-label "All changes saved", got no save request for the
+  // shortcut — and the next fresh read-only session (36872036826) read all
+  // 108 as bound. TradingView's autosave had already persisted them; the
+  // "failure" was this function's, and it stopped the R1 re-attestation.
+  const { page, log } = fakeSavePage({
+    buttons: { [NEW_SAVE_BUTTON]: { ariaDisabled: "true", ariaLabel: "All changes saved" } },
+    answer: null,
+  });
 
   const outcome = await saveChartLayout(page as any);
 
-  assert.deepEqual(log, [`key:${CHART_LAYOUT_SAVE_SHORTCUT}`]);
-  assert.equal(outcome.trigger, "shortcut");
+  assert.deepEqual(log, []);
+  assert.equal(outcome.trigger, "already-saved");
+  assert.equal(outcome.control, NEW_SAVE_BUTTON);
 });
 
 test("a header without any save button still saves through the shortcut", async () => {
@@ -335,11 +343,12 @@ test("the header that carried until 2026-08-23 is still served", async () => {
   assert.deepEqual(dirty.log, [`click:${LEGACY_SAVE_BUTTON}`]);
 
   const clean = fakeSavePage({ buttons: { [LEGACY_SAVE_BUTTON]: { ariaLabel: "All changes saved" } } });
-  assert.equal((await saveChartLayout(clean.page as any)).trigger, "shortcut");
+  assert.equal((await saveChartLayout(clean.page as any)).trigger, "already-saved");
+  assert.deepEqual(clean.log, []);
 });
 
 test("a save TradingView never answered is a failure, and the message says what the header looked like", async () => {
-  const { page } = fakeSavePage({ buttons: { [NEW_SAVE_BUTTON]: { ariaDisabled: "true" } }, answer: null });
+  const { page } = fakeSavePage({ buttons: { [NEW_SAVE_BUTTON]: { ariaDisabled: "false" } }, answer: null });
 
   await assert.rejects(
     saveChartLayout(page as any),
@@ -348,7 +357,7 @@ test("a save TradingView never answered is a failure, and the message says what 
       && error.failure === "unconfirmed"
       && /api\/v1\/charts\/save/.test(error.message)
       && /save-load-button/.test(error.message)
-      && /aria-disabled=true/.test(error.message)
+      && /aria-disabled=false/.test(error.message)
       && /open dialogs: /.test(error.message),
   );
 });
