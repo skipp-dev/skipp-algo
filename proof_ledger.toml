@@ -2834,3 +2834,67 @@ der Seed vom 31.8. traegt die unveraenderte Regel. Feuert er, wird das Log als
 Korpus nachgetragen und ADR-0034 neu bewertet (due_by 2026-09-08 haelt die
 Kette wach, bis der erste echte Lauf da ist).
 """
+
+# ---------------------------------------------------------------------------
+# 5584 (1.10.): Der Rolling-Benchmark lieferte kein Tagesartefakt mehr — aus
+# zwei unabhaengigen Ursachen. (a) Seit 31.8. zaehlte das Kadenz-Gate jeden
+# Lauf mit conclusion=success als "Fenster bedient", auch den Fire, den es
+# selbst uebersprungen hatte (Gate-Job success, Worker skipped); Fenster A lief
+# nie. (b) Seit 25.9. ~16 UTC antwortet GET /actions/artifacts?per_page=100 mit
+# HTTP 500, und restore_databento_export_bundle.py starb in Zeile 161.
+#
+# OFFEN mit Urteiler: die Entscheidungsregel und die Kandidatensuche sind
+# suite-ausfuehrbar, die beiden Dinge, die den Ausfall trugen, aber nicht —
+# die Job-Abfrage im Shell-Schritt des Workflows und die echte GitHub-API.
+# Der Zeuge ist bewusst NICHT der Benchmark (der war die ganze Zeit gruen),
+# sondern sein Konsument: promotion-gate-daily findet das datierte Artefakt
+# wieder oder findet es nicht. Gemessen 1.10.: 17 von 18 Laeufen seit 31.8.
+# fanden es nicht.
+#
+# Der Vorgaenger-Eintrag "rolling-bench-two-windows" (OFFEN, due 5.9.) hat
+# genau diesen Defekt nicht gesehen. NICHT in diesem PR behoben, nur benannt:
+# sein Urteiler sucht `run=true` klein, das Skript druckt `run=True`; der
+# Zweig decided_and_ran ist damit nie erreichbar, und jedes Log mit einer
+# Gate-Entscheidung faellt auf PASS/decided_and_skipped.
+# ---------------------------------------------------------------------------
+[[proof]]
+id              = "5584"
+kind            = "fix"
+merged_at       = "<wird beim Merge nachgetragen>"
+merge_sha       = "<dito>"
+claim           = "promotion-gate-daily (14:00 UTC) findet das datierte Bench-Artefakt des Tages wieder, weil der Rolling-Benchmark sein Fenster vor 13:30 UTC wirklich faehrt (ein uebersprungener Fire bedient kein Fenster mehr) und sein Restore-Schritt nicht mehr am HTTP 500 des repo-weiten Artefakt-Index stirbt."
+witness         = "promotion-gate-daily"
+witness_job     = "promotion-gate"
+evidence_source = "job_log"
+artifact        = ""
+version_probe   = "KEINE"
+version_probe_reason = "Der Zeuge ist der Konsument. Dieser PR aendert weder promotion-gate-daily.yml noch irgendetwas, das dessen Log druckt — es gibt dort kein Feld, das erst seit der Aenderung existiert. Zurechenbar ist das Urteil ueber started_at des Zeugen-Jobs nach merged_at."
+judge           = "daily_gate_bench_artifact"
+state           = "OFFEN"
+due_by          = "2026-10-09"
+owner           = "operator"
+
+[[unreachable_branch]]
+judge  = "daily_gate_bench_artifact"
+branch = "kein_log"
+reason = """
+Feuert, wenn der Monitor den Zeugen-Job nicht auffindet und ein leeres Log
+durchreicht. Im aufgezeichneten Korpus kommt das nicht vor: beide Aufzeichnungen
+entstanden aus einem erfolgreich geholten Log. Der Zweig ist die
+fail-closed-Kante — KANN_NICHT_BEZEUGEN statt PASS, damit ein Abrufproblem nie
+wie ein bestandener Beweis aussieht.
+"""
+
+[[unreachable_branch]]
+judge  = "daily_gate_bench_artifact"
+branch = "download_nicht_erreicht"
+reason = """
+Feuert, wenn das Log weder die ausgegebene Fund- noch die ausgegebene
+Fehlanzeige-Zeile traegt — der Job also vor dem Download-Schritt endete. Kein
+aufgezeichneter Lauf tat das: beide Korpus-Logs (21.9. Fund, 30.9. Fehlanzeige)
+erreichten den Schritt. Der Zweig existiert wegen des Skript-Echos: der Runner
+druckt den run-Block mit unaufgeloestem ${ART_NAME} in JEDES Log, und ohne diese
+Kante faende eine Textsuche dort einen "Fund". Synthetisch geprueft in
+tests/test_proof_judge_daily_gate_bench_artifact.py (echtes Log, ausgegebene
+Zeile entfernt).
+"""
