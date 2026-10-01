@@ -1,7 +1,7 @@
 {
-  "eod_to_minute_session_median": 1.330686,
+  "eod_to_minute_session_median": 1.309909,
   "minimum_sessions": 5,
-  "quote_to_minute_session_median": 1.297196,
+  "quote_to_minute_session_median": 1.289745,
   "ready_for_decision": true,
   "recommended_next_step": "continue collection; do not change source semantics yet",
   "schema_version": 1,
@@ -161,8 +161,14 @@
       "quote_to_minute_median": 1.227971,
       "session_date": "2026-09-09",
       "symbols_measured": 10
+    },
+    {
+      "eod_to_minute_median": 1.191972,
+      "quote_to_minute_median": 1.192229,
+      "session_date": "2026-10-01",
+      "symbols_measured": 10
     }
   ],
-  "sessions_observed": 26,
+  "sessions_observed": 27,
   "verdict": "inconclusive"
 }
