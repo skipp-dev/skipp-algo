@@ -23,6 +23,7 @@ import pytest
 import yaml
 
 from scripts.decide_rolling_benchmark_run import decide, main
+from tests._workflow_step_shell import Stub, run_step
 
 UTC = _dt.UTC
 _REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -311,3 +312,103 @@ def test_the_gate_asks_about_the_job_that_actually_does_the_work() -> None:
     assert "actions/runs/${run_id}/jobs" in run
     assert "${GATE_WORKER_JOB}" in run
     assert '--worked-run-ids "${WORKED}"' in run
+
+
+# ---------------------------------------------------------------------------
+# Der Shell-Schritt, AUSGEFUEHRT: welche Laeufe fragt er ab, was reicht er weiter?
+#
+# Die Entscheidung selbst haengt an der Uhr (das Skript nimmt "jetzt"); geprueft
+# wird hier deshalb nicht das Urteil, sondern die Verdrahtung davor — die
+# Aufrufe, die der Schritt macht, und die Argumente, die das Skript bekommt.
+# Beides ist uhrunabhaengig.
+# ---------------------------------------------------------------------------
+
+_GATE_WF = "smc-measurement-benchmark-rolling.yml"
+_DECIDE_STEP = "Decide whether this fire has to run"
+
+# Drei heutige Laeufe: 111 und 222 gruen, 333 rot. Nur bei 222 lief der Worker.
+_RUNS_JSON = (
+    '[{"id":111,"conclusion":"success","created_at":"2026-10-01T09:40:00Z"},'
+    '{"id":222,"conclusion":"success","created_at":"2026-10-01T12:42:00Z"},'
+    '{"id":333,"conclusion":"failure","created_at":"2026-10-01T21:16:00Z"}]'
+)
+
+
+def _gh_stub(*, jobs_fail: bool = False) -> Stub:
+    """`gh`, wie der Schritt es dreimal verschieden ruft.
+
+    * ``run list … --json databaseId,conclusion,createdAt`` -> die Lauf-Liste
+    * ``run list … --json databaseId,conclusion``           -> die gruenen Ids
+    * ``api repos/…/runs/<id>/jobs``                        -> die Run-Id, wenn
+      der Worker-Job dieses Laufs mit success endete, sonst nichts
+    """
+    return Stub(script=f"""
+case "$1" in
+  run)
+    case "$*" in
+      *databaseId,conclusion,createdAt*) printf '%s\\n' '{_RUNS_JSON}' ;;
+      *) printf '111\\n222\\n' ;;
+    esac ;;
+  api)
+    {"exit 1" if jobs_fail else ""}
+    case "$2" in
+      */runs/222/jobs) printf '222\\n' ;;
+    esac ;;
+esac
+exit 0
+""")
+
+
+def _run_decide_step(tmp_path, *, jobs_fail: bool = False):
+    return run_step(
+        _GATE_WF, _DECIDE_STEP, tmp_path,
+        env={
+            "GH_TOKEN": "stub-token",
+            "GATE_REPOSITORY": "o/r",
+            "GATE_WORKFLOW": "smc-measurement-benchmark-rolling",
+            "GATE_EVENT_NAME": "workflow_run",
+            "GATE_PRODUCER_CONCLUSION": "success",
+            "GATE_WORKER_JOB": "rolling-benchmark",
+        },
+        stubs={"gh": _gh_stub(jobs_fail=jobs_fail), "python": Stub(exit_code=0)},
+    )
+
+
+def _python_argv(result) -> str:
+    calls = [c for c in result.calls if "scripts/decide_rolling_benchmark_run.py" in c]
+    assert len(calls) == 1, result.calls
+    return calls[0]
+
+
+def test_the_step_asks_for_the_jobs_of_every_green_run_and_only_those(tmp_path) -> None:
+    result = _run_decide_step(tmp_path)
+    assert result.returncode == 0, result.stderr
+    job_calls = [c for c in result.calls if c.startswith("api ")]
+    asked = sorted(c.split()[1] for c in job_calls)
+    assert asked == [
+        "repos/o/r/actions/runs/111/jobs",
+        "repos/o/r/actions/runs/222/jobs",
+    ], result.calls  # der rote Lauf 333 wird gar nicht erst gefragt
+    # Der Job-Filter traegt den Worker-Namen aus dem env, nicht aus dem Text.
+    assert all('.name == "rolling-benchmark"' in c for c in job_calls), job_calls
+
+
+def test_the_step_hands_on_exactly_the_runs_whose_worker_ran(tmp_path) -> None:
+    argv = _python_argv(_run_decide_step(tmp_path))
+    assert "--todays-runs" in argv
+    assert '"id":111' in argv and '"id":222' in argv and '"id":333' in argv
+    worked = argv.split("--worked-run-ids", 1)[1].split()
+    assert worked == ["222"], argv
+
+
+def test_a_failing_job_lookup_hands_on_no_worker_at_all(tmp_path) -> None:
+    """Blindheit auf der Worker-Achse: kein Lauf gilt als bedienend.
+
+    Der Schritt darf daran nicht sterben (er wuerde sonst jeden Fire rot
+    machen), und er darf die gruenen Laeufe nicht ersatzweise als "gearbeitet"
+    weiterreichen (das waere der alte Fehler).
+    """
+    result = _run_decide_step(tmp_path, jobs_fail=True)
+    assert result.returncode == 0, result.stderr
+    argv = _python_argv(result)
+    assert argv.split("--worked-run-ids", 1)[1].split() == [], argv
