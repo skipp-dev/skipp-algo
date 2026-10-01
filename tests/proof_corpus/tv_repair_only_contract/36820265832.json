@@ -1,0 +1,30 @@
+{
+  "_herkunft": {
+    "geladen_am": "2026-10-01",
+    "lauf_conclusion": "failure",
+    "run_id": "36820265832",
+    "warum": "repair-only, der den Browser nie erreichte (Library publish drift 497 vs 544): nichts repariert, nichts gespeichert -- kann die Behauptung nicht bezeugen"
+  },
+  "bindings": {
+    "checkedConsumers": 0,
+    "failed": [],
+    "mismatches": 0
+  },
+  "executionMode": "repair-only",
+  "generatedAt": "2026-10-01T05:33:44.826Z",
+  "mutations": {
+    "abandonedChartUrls": [],
+    "bindingRepairRequested": true,
+    "bindingsRepaired": 0,
+    "consumerInstancesRemoved": 0,
+    "layoutSaveRequested": true,
+    "layoutSaved": false,
+    "partiallyRepairedChartUrls": [],
+    "producerInstancesRemoved": 0,
+    "producerRefreshRequested": false,
+    "savedChartUrls": [],
+    "savedWithoutAttestation": [],
+    "sourceSaveRequested": false,
+    "sourceSavesCompleted": 0
+  }
+}

@@ -5,6 +5,20 @@ Er darf genau zwei Dinge — Bindungen reparieren und das Layout speichern — u
 weder Quellen deployen noch Instanzen entfernen. Am 2026-08-23 (Lauf
 32620808573) gemessen: sourceSavesCompleted 0, producerInstancesRemoved 0,
 consumerInstancesRemoved 0.
+
+2026-10-01: bis dahin pruefte dieser Urteiler NUR die Verbots-Haelfte ("nichts
+deployt, nichts zerlegt"). Die Gebots-Haelfte der Behauptung -- "repariert UND
+SPEICHERT" -- las er nicht. TradingView baute Ende August den Speicherknopf um;
+32 repair-/write-Laeufe in Folge reparierten ihre Bindungen, scheiterten am
+Layout-Save und galten hier als ``PASS/contract_held`` (Korpus 35590264660).
+Einen Monat lang standen 108 Bindungen auf ``Close``, ohne dass der Monitor
+einen Widerspruch sah. Seither:
+
+* repariert, aber nicht gespeichert  -> FAIL (die Reparatur ueberlebt das
+  naechste Laden nicht -- das ist der Schaden, nicht ein Schoenheitsfehler);
+* nichts repariert                  -> STEHT_AUS (ein Lauf, der nichts tat,
+  bezeugt "repariert und speichert" nicht; Korpus 36820265832 erreichte den
+  Browser nie).
 """
 
 from __future__ import annotations
@@ -41,8 +55,25 @@ def judge(evidence: dict, entry) -> Verdict:
             branch="contract_broken",
             detail=f"repair-only hat mutiert: {verletzt}",
         )
+    repaired = mutations.get("bindingsRepaired") or 0
+    if not repaired:
+        return Verdict(
+            "STEHT_AUS",
+            branch="nothing_repaired",
+            detail="bindingsRepaired=0 — der Lauf bezeugt weder Reparatur noch Save",
+        )
+    if not mutations.get("layoutSaved"):
+        return Verdict(
+            "FAIL",
+            branch="repaired_not_saved",
+            detail=(
+                f"{repaired} Bindungen repariert, layoutSaved="
+                f"{mutations.get('layoutSaved')!r}, abandonedChartUrls="
+                f"{mutations.get('abandonedChartUrls')!r} — die Reparatur ist nicht persistiert"
+            ),
+        )
     return Verdict(
         "PASS",
         branch="contract_held",
-        detail="nichts deployt, nichts zerlegt",
+        detail=f"{repaired} Bindungen repariert und gespeichert; nichts deployt, nichts zerlegt",
     )
