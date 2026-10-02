@@ -5,6 +5,7 @@ import json
 import time
 from pathlib import Path
 
+from governance.family_returns import BAR_GRID, LEGACY_BAR_GRID
 from scripts.accumulate_family_events import _cutoff_ts, _forward_len, accumulate
 
 # ---------------------------------------------------------------------------
@@ -28,6 +29,7 @@ def _event(
         "direction": "UP",
         "entry_mode": "immediate",
         "entry_price": 100.0,
+        "bar_grid": BAR_GRID,
         "forward_closes": [100.0 + i for i in range(n_closes)],
         "forward_highs": [101.0 + i for i in range(n_closes)],
         "forward_lows": [99.0 + i for i in range(n_closes)],
@@ -839,3 +841,86 @@ def test_a_copy_that_has_opens_keeps_its_own(tmp_path: Path) -> None:
     mine = _with_opens(_event_with_id("BOS", "AAPL", "15m", ts))
     other = {**mine, "forward_opens": [o + 1.0 for o in mine["forward_opens"]]}
     assert _pool_then_today(tmp_path, mine, other)[0]["forward_opens"] == mine["forward_opens"]
+
+
+# ---------------------------------------------------------------------------
+# Bar grid (ADR-0031, Nachtrag 2026-10-02 III): events of the previous grid
+# are different events and never share the pool.
+# ---------------------------------------------------------------------------
+
+
+def _legacy(event: dict) -> dict:
+    """The same event as recorded before the grid was corrected: no stamp."""
+    return {k: v for k, v in event.items() if k != "bar_grid"}
+
+
+def test_events_of_another_bar_grid_are_not_pooled(tmp_path: Path) -> None:
+    ts = _ts_days_ago(2)
+    current = _event_with_id("BOS", "AAPL", "15m", ts)
+    unstamped = _legacy(_event_with_id("BOS", "MSFT", "15m", ts))
+    named_legacy = {**_event_with_id("BOS", "NVDA", "15m", ts), "bar_grid": LEGACY_BAR_GRID}
+    path = tmp_path / "pool.json"
+    path.write_text(json.dumps([current, unstamped, named_legacy]), encoding="utf-8")
+
+    merged = accumulate([path], max_age_days=30)
+
+    assert [e["event_id"] for e in merged] == [current["event_id"]]
+    assert merged[0]["bar_grid"] == BAR_GRID == "exchange_aligned"
+
+
+def test_the_same_id_on_both_grids_keeps_the_current_grids_bars(tmp_path: Path) -> None:
+    """A break detected on both grids can carry the SAME id — same label, same
+    level — while the bars behind it differ by a minute. The pooled copy of
+    the old grid must not survive in place of the new one, in either order."""
+    ts = _ts_days_ago(2)
+    new = _event_with_id("BOS", "AAPL", "15m", ts)
+    old = _legacy(new)
+    old["forward_closes"] = [c + 0.07 for c in old["forward_closes"]]
+    assert old["event_id"] == new["event_id"]
+
+    for first, second in ((old, new), (new, old)):
+        merged = _pool_then_today(tmp_path, first, second)
+        assert len(merged) == 1
+        assert merged[0]["bar_grid"] == BAR_GRID
+        assert merged[0]["forward_closes"] == new["forward_closes"]
+
+
+def test_the_grid_transition_is_not_a_pool_wipe(tmp_path: Path) -> None:
+    """First run after the correction: the previous pool holds only old-grid
+    events, today's run brings a handful on the new grid. The continuity
+    guard compares like with like and lets the pool start over."""
+    from scripts.accumulate_family_events import main
+
+    now = time.time()
+    previous = [_legacy(_event_with_id("BOS", f"S{i}", "15m", now - 86_400 - i)) for i in range(200)]
+    today = [_event_with_id("BOS", f"S{i}", "15m", now - 3_600 - i) for i in range(5)]
+
+    rc = main(_guard_args(tmp_path, prev_events=previous, curr_events=today))
+
+    assert rc == 0
+    result = json.loads((tmp_path / "out.json").read_text())
+    assert len(result) == 5
+    assert {e["bar_grid"] for e in result} == {BAR_GRID}
+
+
+def test_the_guard_still_refuses_a_shrink_of_current_grid_events(tmp_path: Path) -> None:
+    """The like-with-like count must not disarm the guard for the grid in use."""
+    from scripts.accumulate_family_events import main
+
+    now = time.time()
+    fresh = [_event("BOS", now - 86_400 + i) for i in range(10)]
+    aged = [_event("BOS", now - 90 * 86_400 + i) for i in range(90)]
+    legacy = [_legacy(_event("SWEEP", now - 86_400 + i)) for i in range(500)]
+    rc = main(_guard_args(tmp_path, prev_events=fresh + aged + legacy, curr_events=[]))
+    assert rc == 4
+    assert not (tmp_path / "out.json").exists()
+
+
+def test_the_run_says_how_many_events_of_another_grid_it_dropped(tmp_path: Path, capsys) -> None:
+    from scripts.accumulate_family_events import main
+
+    now = time.time()
+    previous = [_legacy(_event_with_id("BOS", f"S{i}", "15m", now - 86_400 - i)) for i in range(7)]
+    today = [_event_with_id("BOS", "AAPL", "15m", now - 3_600)]
+    assert main(_guard_args(tmp_path, prev_events=previous, curr_events=today)) == 0
+    assert "dropped 7 input event(s) of another bar grid (pool grid: exchange_aligned)" in capsys.readouterr().err

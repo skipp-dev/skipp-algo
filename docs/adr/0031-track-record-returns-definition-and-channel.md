@@ -438,3 +438,92 @@ zusammengezählt, nicht gepoolt und nicht zu einer Serie fortgesetzt.
 - **1D.** Die Messung, die den Anlass gab, lief auf 15m. Auf 1D ist für OB
   der Anteil nicht gehandelter Zonenmitten gemessen (80 %, n = 20), für BOS
   und SWEEP nichts.
+
+## Nachtrag 2026-10-02 III: Intraday-Kerzen liegen auf dem Börsenraster
+
+- **Status:** accepted (Owner-Entscheidung 2026-10-02)
+- **Ändert nicht:** Ertragsregel, Evidenz-Start, Ebenen, Kanäle.
+
+### Anlass (gemessen 2026-10-02)
+
+`resample_bars_to_timeframe` las jede Quellkerze als am ENDE gestempelt. Die
+1m-Kerzen der Pipeline (Databento `ohlcv-1m`) sind am BEGINN gestempelt —
+belegt am Eröffnungsvolumen, das auf dem Stempel 13:30 UTC liegt, nicht auf
+13:31. Die Minute 13:30 landete so in der Kerze, die um 13:30 endet:
+
+- Jede Intraday-Kerze war um eine Minute gegen die Börsenuhr versetzt; die
+  15m-Kerze „13:45" enthielt die Minuten 13:31 bis 13:45.
+- Die Eröffnungsminute des regulären Handels lag in der letzten
+  Vorbörsen-Kerze.
+- Dieselben Erkennungsregeln auf börsengerechten 15m-Kerzen trafen nur 68 %
+  (BOS), 58 % (OB), 84 % (FVG) und 69 % (SWEEP) der gemessenen Events auf
+  derselben Kerze. Was der Track Record maß, war auf keinem Chart zu sehen.
+
+In sich war die Messung stimmig; falsch war das Raster, nicht die Rechnung.
+
+### Entscheidung 9: Quellkerzen gelten als am Beginn gestempelt
+
+`resample_bars_to_timeframe(…, source_stamp="start")` ist der Standard: die
+Minute `T` gehört zur Kerze `[floor(T), floor(T) + tf)`. Die Ausgabe bleibt am
+ENDE beschriftet, also bleibt der Anker eines Events der Zeitpunkt, zu dem
+seine Kerze abgeschlossen ist.
+
+- Kerzen, die bereits auf dem Zielraster liegen (höchstens eine je Eimer, alle
+  Stempel auf dem Raster), werden unverändert durchgereicht.
+- `source_stamp="end"` ist für die eigene Ausgabe des Resamplers da, wenn sie
+  weiter verdichtet wird.
+- Die letzte Kerze entfällt, solange die Quelle ihre letzte Teilkerze nicht
+  erreicht hat.
+- Die Trade-Eimer in `pull_databento_edge_input.py` folgen derselben Regel:
+  ein Trade exakt auf der Grenze gehört zur Kerze, die dort beginnt.
+- Tageskerzen sind nicht betroffen; sie werden unverändert übernommen.
+
+Am echten 1m-Bestand geprüft (24 Symbole, 10.8.–2.10.): 28 685 von 28 709
+börsengerechten 15m-Kerzen sind identisch, die fehlenden 24 sind je Symbol die
+letzte, noch unvollständige Kerze; keine zusätzliche.
+
+### Entscheidung 10: das Kerzenraster gehört zur Mess-Definition
+
+Events der beiden Raster sind verschiedene Events. Sie können dieselbe
+`event_id` tragen (gleiches Label, gleiches Level) und beschreiben doch andere
+Kerzen. Deshalb:
+
+1. **Stempel.** Der Benchmark schreibt `bar_grid = "exchange_aligned"` auf
+   jedes FamilyEvent (`governance.family_returns.BAR_GRID`). Ein Event ohne
+   Stempel stammt vom alten Raster (`offset_one_minute`).
+2. **Pool.** `accumulate_family_events.py` nimmt nur Events des aktuellen
+   Rasters auf und meldet, wie viele es verworfen hat. Der
+   Kontinuitäts-Wächter zählt Gleiches gegen Gleiches: frühere Events eines
+   anderen Rasters sind per Regel verworfen, nicht verloren. Der Pool beginnt
+   mit dem ersten Lauf nach der Korrektur neu, ohne Reseed.
+3. **Ledger und Serien.** Jede Ledger-Zeile und jede Serie nennt ihr
+   `bar_grid`; der Ledger-Produzent verweigert (rc 2) einen Ledger mit Zeilen
+   eines anderen Rasters und zeichnet Events eines anderen Rasters nicht auf.
+4. **Archiv.** Was zwischen der Regeländerung und dieser Korrektur entstand —
+   die 15m-Fenster-Urteile vom 2026-10-02 und beide Ledger — liegt eingefroren
+   unter `docs/calibration/gates/offset_grid_frozen/`. Die 1D-Dateien des
+   Tages bleiben: Tageskerzen sind vom Raster nicht betroffen. Der 1D-Ledger
+   beginnt trotzdem neu, weil seine Zeilen kein `bar_grid` tragen und
+   Ledger-Zeilen nie umgeschrieben werden.
+
+### Folgen
+
+- **Der Evidenz-Start bleibt 2026-10-05.** Keine der archivierten Zeilen
+  zählte je für ein kumulatives Urteil.
+- **Chart und Messung stimmen überein.** Ein Skript, das die Messregeln auf
+  Chart-Kerzen anwendet, sieht dieselben Kerzen wie die Pipeline — soweit die
+  Kursdaten übereinstimmen.
+- **Alles, was Struktur aus Intraday-Kerzen rechnet, rechnet auf dem neuen
+  Raster:** der Benchmark, die Struktur-Artefakte
+  (`smc_integration/structure_batch.py`) und der Databento-Abruf für
+  Edge-Läufe. Frühere Intraday-Befunde (auch die Rückschau im Mess-Memo vom
+  2026-10-02) sind auf dem alten Raster gerechnet.
+
+### Was dieser Nachtrag nicht korrigiert
+
+- **Das Sekunden-Fenster** (`full_universe_second_detail_open`), der Rückfall
+  für Symbole außerhalb des 24er-Universums: ob seine Zeilen am Beginn oder
+  am Ende gestempelt sind, ist nicht geprüft. Es deckt nur rund vier Minuten
+  um die Eröffnung.
+- **Die Kursquelle.** TradingView und Databento liefern nicht dieselben Kurse;
+  einzelne Kerzen und damit einzelne Events können abweichen.

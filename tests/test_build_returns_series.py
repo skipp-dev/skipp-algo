@@ -34,6 +34,7 @@ def _sweep_event(
         "direction": direction,
         "entry_mode": "immediate",
         "entry_price": 100.0,
+        "bar_grid": "exchange_aligned",
         "anchor_ts": anchor_ts,
         # the bar after the signal opens at the level, later bars at the prior close
         "forward_opens": [100.0, *closes[:-1]],
@@ -153,3 +154,21 @@ def test_every_return_carries_its_anchor_for_the_gates_day_checks() -> None:
     verdict = build_track_record_gate_payload(payload)
     days = {c["name"]: c for c in verdict["per_variant"]["SWEEP"]["checks"]}["trading_days"]
     assert (days["status"], days["value"]) == ("red", 3.0)
+
+
+def test_the_series_names_its_bar_grid_and_ignores_events_of_another(tmp_path: Path, capsys) -> None:
+    """ADR-0031, Nachtrag 2026-10-02 III: a pool read before its first run on
+    the corrected grid still holds events detected on shifted bars."""
+    stamped = [_sweep_event(), _sweep_event(anchor_ts=_ANCHOR + _DAY, closes=(101.0, 102.0, 99.0))]
+    unstamped = _sweep_event(anchor_ts=_ANCHOR + 2 * _DAY)
+    del unstamped["bar_grid"]
+    pool = tmp_path / "pool.json"
+    pool.write_text(json.dumps([*stamped, unstamped]), encoding="utf-8")
+    out = tmp_path / "series.json"
+
+    assert main(["--events", str(pool), "--date", "2026-10-05", "--output", str(out)]) == 0
+
+    payload = json.loads(out.read_text(encoding="utf-8"))
+    assert payload["measurement"]["bar_grid"] == "exchange_aligned"
+    assert payload["n_trades"] == 2
+    assert "bar grid filter: kept 2/3 pool events on grid exchange_aligned" in capsys.readouterr().err

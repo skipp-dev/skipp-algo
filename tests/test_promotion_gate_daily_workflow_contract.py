@@ -460,6 +460,7 @@ def _sweep(symbol: str, anchor_ts: float, *, step: float, timeframe: str, exit_c
         "direction": "LONG",
         "entry_mode": "immediate",
         "entry_price": 100.0,
+        "bar_grid": "exchange_aligned",
         "anchor_ts": anchor_ts,
         "regime": "RANGING",
         "forward_opens": [100.0, *closes[:-1]],
