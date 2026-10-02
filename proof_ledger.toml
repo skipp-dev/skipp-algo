@@ -1873,6 +1873,42 @@ faengt den Fall, dass der Checkout der Sonde (fetch-depth 1) davon abweicht.
 """
 
 # ---------------------------------------------------------------------------
+# freshness-product-row-returns-series (2.10.): Die Produkt-Zeile aus #5586
+# pruefte das Alter des juengsten track_record_gate_<Datum>.json. Mit der neuen
+# Ertragsregel (ADR-0031, Nachtrag 2026-10-02 II) liegen die Variante-A-Urteile
+# im Archiv, und ein Tag ohne Trades schreibt kein Urteil — die Zeile haette
+# einen korrekten Zustand angeklagt. Die Serie returns_series_<Datum>.json
+# entsteht dagegen an jedem Tag, an dem der Pool existiert; sie ist der
+# Bericht, dessen Ausbleiben die Zeile melden soll. Das Muster wechselt, das
+# Budget bleibt (72 Werktagsstunden), expected-stale-until entfaellt.
+#
+# Suite-bewiesen: die Regel (tests/test_check_workflow_freshness.py), dass die
+# Zeile im Workflow steht und ihr Muster im Baum eine datierte Datei findet
+# (tests/test_workflow_freshness_monitor_workflow_contract.py). Nicht
+# suite-sichtbar: ob die Sonde im echten Lauf die neue Zeile ausgibt.
+#
+# Derselbe Urteiler wie #5586; er liest je Eintrag die Zeile, die dessen
+# version_probe nennt. Der Zeuge von #5586 (Lauf 36885087891) traegt die alte
+# Zeile und ist fuer diesen Eintrag STEHT_AUS — ausgefuehrt geprueft in
+# test_the_old_row_is_no_witness_for_the_new_entry.
+# ---------------------------------------------------------------------------
+[[proof]]
+id              = "freshness-product-row-returns-series"
+kind            = "fix"
+merged_at       = "<wird beim Merge nachgetragen>"
+merge_sha       = "<dito>"
+claim           = "Der workflow-freshness-monitor wertet bei jedem Lauf das Alter der juengsten datierten Ertragsserie im Checkout aus (docs/calibration/gates/returns_series_*.json, 72 Werktagsstunden) und gibt das Ergebnis als Annotation 'product:docs/calibration/gates/returns_series_*.json: …' aus."
+witness         = "workflow-freshness-monitor"
+witness_job     = "probe"
+evidence_source = "job_log"
+artifact        = ""
+version_probe   = "product:docs/calibration/gates/returns_series_"
+judge           = "freshness_product_row"
+state           = "OFFEN"
+due_by          = "2026-10-09"
+owner           = "operator"
+
+# ---------------------------------------------------------------------------
 # library-refresh-safety-net-cadence (29.8.): Die Cron-Ticks des Consumers
 # sanken von 9 auf 4, weil der `workflow_run`-Fast-Path im gesunden Betrieb
 # ohnehin bei JEDEM Producer-Abschluss feuert — das Netz lief bis dahin

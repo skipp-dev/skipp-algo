@@ -81,7 +81,7 @@ def test_monitors_critical_crons_with_budgets(text: str) -> None:
         # wird also von jedem uebersprungenen Fire erfuellt. Genau dieser
         # Fall trat ein (Fenster A lief seit 31.8. nie) und blieb hier
         # gruen. Den Alarm traegt seither die PRODUKT-Zeile des Monitors
-        # (`--product …track_record_gate_*.json`), nicht diese.
+        # (`--product …returns_series_*.json`), nicht diese.
         "smc-measurement-benchmark-rolling.yml=72:success:weekday",
         "adr0023-magnitude-shadow-daily.yml=72:any:weekday",
         "adr0023-magnitude-stage1-weekly.yml=192",

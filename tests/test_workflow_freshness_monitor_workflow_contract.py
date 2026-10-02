@@ -322,7 +322,10 @@ def test_workflow_has_step_timeout(workflow: dict) -> None:
 # ---------------------------------------------------------------------------
 
 _PRODUCT_ARG = re.compile(r'--product\s+"([^"]+)"')
-_GATE_REPORT_GLOB = "docs/calibration/gates/track_record_gate_*.json"
+# 2026-10-02: the returns series, not the verdict. Under the return rule
+# next_open_then_horizon_close a day without trades writes no verdict file but
+# always a series — the series is the report whose absence the row must flag.
+_GATE_REPORT_GLOB = "docs/calibration/gates/returns_series_*.json"
 
 
 def _product_specs(workflow_text: str) -> list[str]:
