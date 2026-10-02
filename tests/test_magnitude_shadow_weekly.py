@@ -962,3 +962,54 @@ def test_report_latest_date_and_red_flag_ignore_malformed_dates():
     # Red flag judged on the parseable in-window rows (PASS+FAIL → no
     # flag), not on the lone malformed-date PASS row.
     assert report["all_pass_red_flag"] is False
+
+
+# ---- return rule (ADR-0031, Nachtrag 2026-10-02 II) ------------------------
+#
+# The move-size target is the size of the realized return; rows graded under
+# another return rule are another experiment and must not vote.
+
+
+def _legacy(rows: list[dict[str, object]]) -> list[dict[str, object]]:
+    """The same rows as written before 2026-10-02: no ``return_rule`` field."""
+    return [{k: v for k, v in row.items() if k != "return_rule"} for row in rows]
+
+
+def test_a_ledger_with_only_other_rule_rows_has_nothing_to_judge(tmp_path, capsys):
+    import json
+
+    ledger = tmp_path / "ledger.jsonl"
+    rows = _legacy(_streak("BOS", ["PASS", "PASS", "PASS", "PASS"]))
+    assert len(rows) == 4
+    ledger.write_text("\n".join(json.dumps(r) for r in rows) + "\n")
+    out = tmp_path / "report.json"
+    rc = main(["--ledger", str(ledger), "--k", "3", "--n", "4", "--output", str(out)])
+    assert rc == 3
+    err = capsys.readouterr().err
+    assert "4 under touch_then_horizon_close left out" in err
+    assert "no ledger rows under the current return rule next_open_then_horizon_close" in err
+    assert not out.exists()
+
+
+def test_passes_under_the_old_rule_do_not_make_a_family_eligible(tmp_path, capsys):
+    """Four weekly PASSes under Variant A, then one FAIL under the current
+    rule. Counted together BOS would clear 3-of-4; under the current rule it
+    has one measurable week, and that one failed."""
+    import json
+
+    old = _legacy(_streak("BOS", ["PASS", "PASS", "PASS", "PASS"]))
+    new = [_row(date=str(_WEEK0 + timedelta(weeks=4)), family="BOS", status="FAIL")]
+    report_path = tmp_path / "report.json"
+
+    pooled = tmp_path / "as_if_one_rule.jsonl"
+    pooled.write_text("\n".join(json.dumps({**r, "return_rule": new[0]["return_rule"]}) for r in old + new) + "\n")
+    assert main(["--ledger", str(pooled), "--k", "3", "--n", "4", "--output", str(report_path)]) == 0
+    as_if = json.loads(report_path.read_text())
+    assert as_if["families"]["BOS"]["pass_count"] == 3, "control: pooled, the old passes would carry BOS"
+
+    ledger = tmp_path / "ledger.jsonl"
+    ledger.write_text("\n".join(json.dumps(r) for r in old + new) + "\n")
+    assert main(["--ledger", str(ledger), "--k", "3", "--n", "4", "--output", str(report_path)]) == 0
+    report = json.loads(report_path.read_text())
+    assert report["families"]["BOS"]["pass_count"] == 0
+    assert "4 under touch_then_horizon_close left out" in capsys.readouterr().err

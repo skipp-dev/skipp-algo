@@ -67,6 +67,7 @@ from datetime import date as _date
 from pathlib import Path
 from typing import Any
 
+from governance.family_returns import RETURN_RULE
 from governance.magnitude_resolution_gate import MAG_AUC_CI_LOW_FLOOR
 from governance.magnitude_stage_policy import (
     DEFAULT_ARMED_PLANE,
@@ -76,7 +77,6 @@ from governance.magnitude_stage_policy import (
     load_policy,
     save_policy,
 )
-from governance.family_returns import RETURN_RULE
 from scripts.run_magnitude_shadow_ledger import (
     CANDIDATE_FAMILIES,
     DEFAULT_LEDGER,

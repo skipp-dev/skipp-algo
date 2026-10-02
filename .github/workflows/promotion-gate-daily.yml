@@ -196,6 +196,11 @@ jobs:
           # a family reaches MIN_OOS), a different, unproven plane — feeding it
           # here would wrongly flip the gate's magnitude fields to "not
           # measured". Read the 15m proof. Fail-soft when absent/empty.
+          # 2026-10-02 (ADR-0031 Nachtrag II): the proof was graded under
+          # Variant-A returns. The bundle takes move-size snapshots only from
+          # rows of the CURRENT return rule, so the seed's rows no longer
+          # reach the gate and the armed families read "not measured" — which
+          # under the new rule is the truth, not the mistake described above.
           # Guard the find on the dir: the events download is if_no_artifact_found:warn,
           # so on a thin day (no accumulated pool yet) the dir is absent and an
           # unguarded `find <missing> | head` exits non-zero -> pipefail + set -e
@@ -488,6 +493,9 @@ jobs:
           LEDGER_DIR="${GATES_DIR}/ledger"
           mkdir -p "${LEDGER_DIR}" artifacts/ledger
           for PLANE in 1D 15m; do
+            # The script never starts earlier than the return rule's own
+            # evidence start (RETURN_RULE_EVIDENCE_START, 2026-10-05, both
+            # planes); the 15m date below is older and no longer binding.
             START_ARGS=()
             if [ "${PLANE}" = "15m" ]; then
               START_ARGS=(--evidence-start 2026-10-01)

@@ -646,7 +646,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"error: {exc}", file=sys.stderr)
             return 1
         print(
-            f"shadow ledger {args.ledger}: {_summarize(new_rows)}",
+            f"shadow ledger {args.ledger} [{RETURN_RULE}]: {_summarize(new_rows)}",
             file=sys.stderr,
         )
         return 3
@@ -696,7 +696,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
-    print(f"shadow ledger {args.ledger}: {_summarize(new_rows)}", file=sys.stderr)
+    print(f"shadow ledger {args.ledger} [{RETURN_RULE}]: {_summarize(new_rows)}", file=sys.stderr)
     if not report["results"]:
         print(
             "thin-input profile: "

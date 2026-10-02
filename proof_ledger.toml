@@ -2905,6 +2905,78 @@ echten Lauf.
 """
 
 # ---------------------------------------------------------------------------
+# shadow-ledger-return-rule (2.10.): Die Ertragsregel wurde ersetzt (ADR-0031,
+# Nachtrag 2026-10-02 II: Einstieg zur Eroeffnung nach der Entscheidungskerze
+# statt zur Zonenmitte bzw. zum Level). Das Move-Size-Ziel des ADR-0023-
+# Shadow-Ledgers ist die Groesse des realisierten Ertrags, also regelabhaengig.
+# scripts/run_magnitude_shadow_ledger.py stempelt deshalb `return_rule` in jede
+# neue Zeile, das Wochen-Urteil und das Promotion-Gate lesen nur Zeilen der
+# aktuellen Regel.
+#
+# Suite-bewiesen: Stempel, Trennung nach Regel, Wochen-Urteil, Gate-Snapshots
+# (auch gegen die echte Seed-Datei), der Stale-Feed-Waechter. Nicht
+# suite-sichtbar: ob adr0023-magnitude-shadow-daily im echten Lauf den neuen
+# Stand ausfuehrt. Zeuge ist die Zusammenfassung des Skripts, die seit der
+# Aenderung die Regel in eckigen Klammern nennt.
+#
+# Derselbe PR aendert in promotion-gate-daily.yml zwei KOMMENTARE (Seed-Proof
+# erreicht das Gate nicht mehr; das 15m-Datum ist nicht mehr das bindende).
+# Am Aufruf aendert sich dort nichts.
+#
+# Symbolische id statt PR-Nummer: der Eintrag entsteht im selben Push wie der
+# PR.
+# ---------------------------------------------------------------------------
+[[proof]]
+id              = "shadow-ledger-return-rule"
+kind            = "fix"
+merged_at       = "<wird beim Merge nachgetragen>"
+merge_sha       = "<dito>"
+claim           = "adr0023-magnitude-shadow-daily haengt Zeilen an, die return_rule = next_open_then_horizon_close tragen, und nennt die Regel in seiner Zusammenfassung ('shadow ledger <pfad> [next_open_then_horizon_close]: …')."
+witness         = "adr0023-magnitude-shadow-daily"
+witness_job     = "magnitude-shadow"
+evidence_source = "job_log"
+artifact        = ""
+version_probe   = "[next_open_then_horizon_close]:"
+judge           = "shadow_ledger_return_rule"
+state           = "OFFEN"
+due_by          = "2026-10-09"
+owner           = "operator"
+
+[[unreachable_branch]]
+judge  = "shadow_ledger_return_rule"
+branch = "kein_log"
+reason = """
+Feuert, wenn der Monitor den Zeugen-Job nicht auffindet und ein leeres Log
+durchreicht. Die Aufzeichnung im Korpus entstand aus einem erfolgreich
+geholten Log, der Zweig ist dort strukturell unerreichbar. Er ist die
+fail-closed-Kante: KANN_NICHT_BEZEUGEN statt PASS.
+"""
+
+[[unreachable_branch]]
+judge  = "shadow_ledger_return_rule"
+branch = "falsche_regel"
+reason = """
+Feuert, wenn die Zusammenfassung eine andere Regel nennt als die erwartete.
+Das Skript druckt seine eigene Konstante RETURN_RULE; ein Lauf mit dem
+gemergten Stand kann keine andere drucken. Der Zweig faengt den Fall, dass die
+Regel spaeter erneut wechselt, ohne dass dieser Urteiler nachgezogen wird —
+dann FAIL statt eines PASS auf den falschen Stand. Ausgefuehrt geprueft in
+test_a_summary_stamped_with_another_rule_fails.
+"""
+
+[[unreachable_branch]]
+judge  = "shadow_ledger_return_rule"
+branch = "regel_gestempelt"
+reason = """
+Der PASS-Zweig. Vor dem Merge druckt kein Lauf die Regel; der letzte echte Lauf
+(37014478924, Job 110861865818, 2026-10-02 13:39 UTC) steht im Korpus und
+urteilt STEHT_AUS/nicht_gestempelt. Dass das Skript genau die Zeile druckt, die
+dieser Zweig liest, prueft test_the_runner_prints_exactly_the_line_the_judge_reads
+am echten Runner. Diese Erklaerung entfaellt, sobald der erste Lauf nach dem
+Merge als Korpus aufgezeichnet ist.
+"""
+
+# ---------------------------------------------------------------------------
 # house-rules-watch (31.8. spaetabends, Operator-Bestellung): ADR-0034 ruhte
 # auf einem UNGESICHERT -- niemand beobachtete die Hausregel-Seite. Jetzt
 # difft der Montags-Watcher (pine-release-notes-watch) sie als zweites Ziel

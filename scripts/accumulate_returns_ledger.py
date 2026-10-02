@@ -268,7 +268,7 @@ def build_cumulative_series(
         "anchor_ts_by_variant": dict(sorted(anchor_ts_by_variant.items())),
         "trades": trades,
         "trades_per_year": _trades_per_year(anchors),
-        # Variant A has no target/stop (see build_returns_series).
+        # The rule has no target/stop (see build_returns_series).
         "rr_target": 1.0,
     }
 

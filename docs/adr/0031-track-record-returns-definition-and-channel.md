@@ -313,10 +313,128 @@ und keine Reihe erreicht die Schwelle.
   ist, nicht, ob er über dem liegt, was ein beliebiger Einstieg zur selben
   Zeit im selben Symbol gebracht hätte.
 - **Einstiegspreis.** Entscheidung 1 setzt den Einstieg zur Zonenmitte bzw.
-  zum Level an. Gemessen am 2026-10-02 auf 15m: dieser Preis wurde auf der
-  Einstiegskerze bei rund zwei Dritteln der Zonen-Trades und rund der Hälfte
-  der Level-Trades nicht gehandelt; mit Einstieg zum Schlusskurs derselben
-  Kerze ist keine Familie positiv (gepoolt −6,4 statt +12,5 bps je Trade).
-  Messung und Grenzen:
-  `docs/governance/variant_a_entry_price_measurement_2026-10-02.md`. Die Regel
-  selbst ändert dieser Nachtrag nicht.
+  zum Level an — ein Preis, der nach der Entscheidung nicht mehr erreichbar
+  war. Das korrigiert der folgende Nachtrag (2026-10-02 II). (Die erste
+  Fassung dieses Punkts nannte „rund die Hälfte der Level-Trades" ohne
+  gehandeltes Level; die Zahl stammte von einem verschobenen Kerzenraster und
+  ist im Memo berichtigt.)
+
+## Nachtrag 2026-10-02 II: der Einstieg ist ein erreichbarer Preis, und die Bilanz beginnt neu
+
+- **Status:** accepted (Owner-Entscheidung 2026-10-02)
+- **Ersetzt:** in Entscheidung 1 die Einstiegsregel. Ausstieg, Kosten,
+  Horizont, Ebenen, Kanäle und alle übrigen Entscheidungen bleiben.
+- **Beleg:** `docs/governance/variant_a_entry_price_measurement_2026-10-02.md`.
+
+### Anlass (gemessen 2026-10-02, 15m)
+
+Variante A stieg zur Zonenmitte (OB, FVG) oder zum Level (BOS, SWEEP) ein.
+
+- Die Zonenmitte wurde auf der Touch-Kerze bei 66 % der OB- und 63 % der
+  FVG-Trades nicht gehandelt.
+- Ein Bruch oder Sweep steht erst mit dem Schluss der Signalkerze fest; der
+  liegt im Mittel 18 bis 20 bps weiter in Trade-Richtung als das Level.
+- Gemeldet waren +12,0 bps je Trade [5,3; 16,9]. Zum Schlusskurs der
+  Entscheidungskerze gekauft sind es −6,5 bps [−11,1; −2,9], und −3,7 bps
+  gegenüber zufälligen Einstiegen im selben Symbol am selben Tag.
+
+Der gemeldete Ertrag war der Einstiegsvorteil.
+
+### Entscheidung 7: Einstieg zur Eröffnung nach der Entscheidungskerze
+
+Ein Trade zählt zu dem ersten Preis, der gehandelt wird, nachdem die
+Entscheidung feststeht (`RETURN_RULE = "next_open_then_horizon_close"`):
+
+| | Entscheidungskerze | Einstieg | Ausstieg |
+|---|---|---|---|
+| BOS, SWEEP | die Ankerkerze — ihr Schluss bestätigt Bruch bzw. Sweep | Eröffnung der Folgekerze | Schluss `horizon` Kerzen nach der Ankerkerze |
+| OB, FVG | die erste Kerze, deren Spanne die Zone erreicht, sofern die Zone bei ihrem Schluss noch gilt | Eröffnung der Folgekerze | Schluss `horizon` Kerzen nach der Entscheidungskerze |
+
+- **Der Ausstieg ist dieselbe Kerze wie zuvor.** Label-Fenster, Purge und
+  Embargo des Walk-Forward ändern sich nicht.
+- **„Erreicht" statt „zur Ruhe gekommen".** Eine Kerze, die durch die Zone
+  hindurchhandelt, ist die Entscheidungskerze. Variante A zählte nur Kerzen,
+  deren Tief bzw. Hoch in der Zone blieb — eine Auswahl nach dem Verlauf.
+- **Ungültig bei Entscheidung heißt kein Trade.** Ist die Zone mit dem Schluss
+  der Entscheidungskerze bereits invalidiert (OB: ein Schluss jenseits, FVG:
+  zwei in Folge), wird nicht eingestiegen.
+- **Ohne Eröffnungskurs kein Trade.** Events tragen dafür `forward_opens`
+  (die Eröffnungen ihrer Vorwärtskerzen). Fehlen sie, gibt es keinen Ertrag;
+  kein anderer Preis wird ersatzweise genommen.
+- **Wann die Entscheidung feststeht,** ist am Detektor geprüft: alle vier
+  Familien entstehen mit dem Schluss ihrer Ankerkerze. Pivots gehen erst ab
+  ihrer Bestätigung ein, ein Sweep braucht eine bereits bestätigte Linie, OB
+  und FVG lesen nur die Ankerkerze und ihre Vorgänger.
+
+**Warum die Eröffnung und nicht der Schlusskurs.** Zum Schlusskurs der Kerze,
+deren Schluss man abgewartet hat, lässt sich nicht handeln. Intraday liegt die
+nächste Eröffnung daneben; auf 1D liegt eine Nacht dazwischen.
+
+**Verworfen.** Limit-Orders an Zonenmitte oder Zonenrand: sie brauchen eine
+Annahme darüber, ob eine berührte Order gefüllt wird, die sich aus Kerzen
+nicht prüfen lässt. Ein Einstieg zum Level mit vorab liegender Stop-Order:
+der Pool hält nur bestätigte Ereignisse, die Fälle ohne Bestätigung fehlen.
+
+### Entscheidung 8: die Bilanz unter der neuen Regel beginnt getrennt
+
+Erträge unter den beiden Regeln sind verschiedene Größen. Sie werden nicht
+zusammengezählt, nicht gepoolt und nicht zu einer Serie fortgesetzt.
+
+1. **Archiv.** Alles, was `promotion-gate-daily` bis 2026-10-02 nach
+   `docs/calibration/gates/` schrieb, liegt eingefroren unter
+   `docs/calibration/gates/variant_a_frozen/`. Kein Workflow liest oder
+   schreibt dort.
+2. **Neue Ledger.** `ledger/returns_ledger_<Ebene>.jsonl` beginnen leer. Jede
+   Zeile trägt `return_rule`; der Produzent verweigert (rc 2) einen Ledger mit
+   Zeilen einer anderen Regel.
+3. **Evidenz-Start 2026-10-05, beide Ebenen.** Die Regel wurde gewählt, als
+   die Daten bis 2026-10-02 auf dem Tisch lagen. Kumulative Urteile zählen
+   nur Trades, deren Anker am oder nach dem ersten Handelstag danach liegt
+   (`RETURN_RULE_EVIDENCE_START`). Ein Aufruf kann den Start einer Ebene
+   später legen, nie früher; das 15m-Flag `2026-10-01` im Workflow ist damit
+   nicht mehr das bindende Datum.
+4. **Der Pool wird nicht umgepreist.** Ein Event ohne `forward_opens` ist
+   unter der neuen Regel kein Trade. Erkennt ein späterer Lauf dasselbe Event
+   mit denselben Vorwärtskerzen erneut, übernimmt der Pool dessen
+   Eröffnungskurse; solche Trades stehen im Ledger, zählen aber wegen Punkt 3
+   nicht, wenn ihr Anker vor dem 5.10. liegt.
+5. **Move-Size-Ledger (ADR-0023).** Das Ziel dort ist die Größe des
+   realisierten Ertrags, also regelabhängig. Neue Zeilen tragen
+   `return_rule`; Zeilen ohne das Feld gelten als Variante A. Das
+   Wochen-Urteil (`eval_magnitude_shadow_weekly.py`) zählt nur Zeilen der
+   aktuellen Regel. Das Promotion-Gate nimmt als Move-Size-Befund nur Zeilen
+   der aktuellen Regel: der eingefrorene 15m-Proof vom 2026-06-11 ist unter
+   Variante A gemessen und erreicht das Gate nicht mehr. BOS und SWEEP bleiben
+   in `governance/magnitude_stage_policy.json` scharf; ihre Move-Size-Auflösung
+   ist unter der neuen Regel ungemessen, was das Gate für scharfe Familien
+   fail-closed als `info`-Blocker meldet.
+6. **§5-Artefakt.** `epnl_after_cost_<date>.json` trägt `return_rule`.
+
+### Folgen
+
+- **Die neue Bilanz ist zunächst leer.** Die kumulativen Urteile entstehen
+  mit dem ersten geschlossenen Trade, dessen Anker am oder nach dem 5.10.
+  liegt; `green` setzt 30 Handelstage voraus (Nachtrag 2026-10-02).
+- **Fenster-Urteile** haben keinen Evidenz-Start. Sie zeigen die letzten 30
+  Tage unter der neuen Regel, sobald Pool-Events Eröffnungskurse tragen, und
+  sind eine Rückschau, kein Vorwärts-Beleg.
+- **Rückschau auf September (15m, 2 701 Trades, Eröffnungskurse aus den
+  1m-Kerzen ergänzt):** BOS −7,8, OB −7,4, FVG −6,9, SWEEP −5,6 bps je Trade;
+  nur das FVG-Intervall schließt die Null ein. Steht im Memo; geht nicht in
+  das Ledger ein.
+- **Jeder Verbraucher von `governance/family_returns.py` rechnet mit der
+  neuen Regel:** Promotion-Bundle (Tier 1), §5, Kalibrierung, Meta-Label,
+  Feature-A/B. Bis der Pool Events mit Eröffnungskursen trägt, sehen sie
+  keine oder wenige Trades und melden „zu dünn".
+
+### Was dieser Nachtrag nicht entscheidet
+
+- **Ob BOS und SWEEP scharf bleiben.** Ihr Arming ruht auf dem 15m-Proof
+  unter Variante A. Der Nachtrag nimmt den Proof aus dem Gate, ändert aber
+  die Policy-Datei nicht.
+- **Frühere Aussagen, die auf Variante-A-Erträgen beruhen** (EV-20 vom
+  2026-07-06, der Magnitude-Proof vom 2026-06-11): sie sind nicht neu
+  gemessen. Die Events jener Läufe tragen keine Eröffnungskurse.
+- **1D.** Die Messung, die den Anlass gab, lief auf 15m. Auf 1D ist für OB
+  der Anteil nicht gehandelter Zonenmitten gemessen (80 %, n = 20), für BOS
+  und SWEEP nichts.

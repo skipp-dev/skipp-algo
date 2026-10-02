@@ -385,7 +385,7 @@ def test_bundle_fills_tier1_direction_metrics_from_events_pool(tmp_path: Path) -
     assert bos["fdr_pvalue"] is not None
     assert bos["extras"]["n_triggered_returns"] == 35.0
     assert bos["provenance"]["measurement_plane"] == "1D"
-    assert bos["provenance"]["tier1_return_rule"] == "touch_then_horizon_close"
+    assert bos["provenance"]["tier1_return_rule"] == RETURN_RULE == "next_open_then_horizon_close"
     # Families absent from the pool stay honestly unmeasured.
     ob = next(e for e in bundle if e["family"] == "OB")
     assert ob["psr"] is None

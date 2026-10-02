@@ -33,9 +33,10 @@ Why the rule changed. Until 2026-10-02 the rule was Variant A
 touch, and at the event level for level families. Measured on 15m
 (``docs/governance/variant_a_entry_price_measurement_2026-10-02.md``):
 the midpoint did not trade on the touch bar for about two thirds of the
-zone trades, the level lay outside the signal bar's range for about half
-of the level trades, and the assumed entry carried the whole reported
-return. Returns under the two rules are different quantities and must
+zone trades; the level of a level trade traded before the signal bar's
+close made it a signal, and that close lay 18-20 bps further in the
+trade's direction; the assumed entry carried the whole reported return.
+Returns under the two rules are different quantities and must
 never be pooled — ``RETURN_RULE`` is stamped into every persisted row
 for that purpose.
 

@@ -23,6 +23,9 @@ Deduplication rule (Score-Persistenz):
     generated at event-formation time in each separate daily run; we merely
     keep the most informative copy.
 
+    ``forward_opens`` missing from the winner are taken from the loser when
+    both copies carry the same forward bars (see ``_opens_of_the_same_bars``).
+
     Anchor-time fields missing from the winner are backfilled from the loser
     (the actual Score-Persistenz half of the fix).  ``score``, ``regime``,
     ``relative_volume`` etc. are computed from the trailing bars at anchor
@@ -139,7 +142,37 @@ def _merge_event(
     for field in _ANCHOR_TIME_FIELDS:
         if merged.get(field) is None and loser.get(field) is not None:
             merged[field] = loser[field]
+    opens = _opens_of_the_same_bars(merged, loser)
+    if opens is not None:
+        merged["forward_opens"] = opens
     return merged
+
+
+def _opens_of_the_same_bars(
+    winner: dict[str, Any], loser: dict[str, Any]
+) -> list[Any] | None:
+    """The loser's ``forward_opens`` when they belong to the winner's bars.
+
+    Events recorded before 2026-10-02 carry no ``forward_opens``; the return
+    rule enters at one (ADR-0031, Nachtrag 2026-10-02 II), so such an event is
+    not a trade. A later re-detection of the same event does carry them. They
+    are taken over only when both copies describe the SAME forward bars —
+    identical timestamps and identical closes — because an open is a property
+    of a bar, and opens of other bars would shift or falsify the entry. A
+    winner that already has opens keeps its own.
+    """
+    if winner.get("forward_opens") is not None:
+        return None
+    opens = loser.get("forward_opens")
+    if not isinstance(opens, list) or not opens:
+        return None
+    timestamps = winner.get("forward_timestamps")
+    closes = winner.get("forward_closes")
+    if not timestamps or timestamps != loser.get("forward_timestamps"):
+        return None
+    if closes != loser.get("forward_closes") or len(opens) != len(closes or []):
+        return None
+    return list(opens)
 
 
 def _event_key(event: dict[str, Any], family: str, anchor_ts: float) -> tuple[Any, ...]:
