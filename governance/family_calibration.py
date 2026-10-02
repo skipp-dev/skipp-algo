@@ -6,7 +6,8 @@ promotion gate can score with Brier / ECE. It is built to satisfy the four
 gaps the senior-quant review (2026-06-01) flagged, so the resulting metric is a
 *measurement*, not optimistically biased (i.e. fabricated) evidence:
 
-GAP 1 (overlapping-label leakage, BLOCKER). ``touch_then_horizon_close`` labels
+GAP 1 (overlapping-label leakage, BLOCKER). Horizon-close labels (the exit
+    bar is the same under Variant A and under ``next_open_then_horizon_close``)
     span a forward horizon H. Neighbouring events whose forward windows cross
     the train/test boundary share bars -> leakage that a plain time split does
     not stop. We purge any training event whose *guard window* (label-window end

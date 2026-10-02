@@ -124,3 +124,23 @@ score-persistence work addresses), NOT a paper-trading problem.
 - Whether §5's `MIN_TRADES=40`/family is the right floor for a rare family, or
   whether rare families should be judged on a pooled/relaxed basis (a science
   decision, deliberately not taken here).
+
+
+## Note 2026-10-02: the return rule behind the 15m proof was replaced
+
+The 15m proof of 2026-06-11 (BOS and SWEEP PASS, the basis of the arming) was
+measured on Variant-A returns. On 2026-10-02 that rule was found to enter at
+prices that were not reachable once the decision existed, and was replaced by
+`next_open_then_horizon_close` (ADR-0031, Nachtrag 2026-10-02 II; measurement
+in `variant_a_entry_price_measurement_2026-10-02.md`).
+
+What this changes here:
+
+- The move-size target is the size of the realized return, so the proof is an
+  observation under the old rule. `scripts/magnitude_snapshot_wiring.py` hands
+  the promotion gate only rows graded under the current rule; the frozen seed
+  (`magnitude_resolution_shadow_15m_seed.jsonl`) no longer reaches it.
+- New rows of the live 1D ledger carry `return_rule`; the weekly judgement
+  counts only rows of the current rule.
+- The roles in §2 stand. Whether BOS and SWEEP stay armed without a proof
+  under the current rule is not decided here; the policy file is unchanged.

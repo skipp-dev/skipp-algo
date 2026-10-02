@@ -2,11 +2,11 @@
 
 ADR-0031: this is the missing "persisted returns source" edge the C6/C7
 track-record gate and the C5 regime stratification were blocked on. The
-returns definition is deliberately NOT new: it is the same Variant-A rule
-(``touch_then_horizon_close`` + fixed round-turn cost, see
-``governance/family_returns.py``) the daily promotion gate has graded
-direction edge with since 2026-07-06 — one repo-wide trade definition,
-no second scale to drift against.
+returns definition is deliberately NOT its own: it is the repo-wide rule in
+``governance/family_returns.py`` (``next_open_then_horizon_close`` + fixed
+round-turn cost since 2026-10-02; Variant A before) that the daily promotion
+gate grades direction edge with — one trade definition, no second scale to
+drift against.
 
 Input: the accumulated FamilyEvent pool
 (``accumulated_family_events.json``, a CI-artifact chain maintained by
@@ -140,9 +140,10 @@ def build_series_payload(
             "regime_taxonomy": "point_in_time (TRENDING/RANGING/NEUTRAL)",
             "note": (
                 "net returns GIVEN a triggered setup (untriggered events are "
-                "not trades); entry zone-midpoint on first touch, exit at the "
-                "family-horizon close, fixed round-turn cost — see ADR-0031 "
-                "and governance/family_returns.py"
+                "not trades); entry at the open of the bar after the decision "
+                "bar, exit at the family-horizon close, fixed round-turn cost — "
+                "see ADR-0031 (Nachtrag 2026-10-02 II) and "
+                "governance/family_returns.py"
             ),
         },
         "plane": plane,
@@ -152,7 +153,7 @@ def build_series_payload(
         "anchor_ts_by_variant": anchor_ts_by_variant,
         "trades": trades,
         "trades_per_year": _trades_per_year(all_ts),
-        # Variant A has no target/stop, so no realized-RR concept applies;
+        # The rule has no target/stop, so no realized-RR concept applies;
         # rr_target=1.0 keeps the gate on its stricter 0.55 win-rate branch.
         "rr_target": 1.0,
     }
@@ -160,7 +161,7 @@ def build_series_payload(
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(
-        description="Persist the Variant-A per-trade returns series (ADR-0031)."
+        description="Persist the per-trade returns series (ADR-0031)."
     )
     p.add_argument("--events", type=Path, required=True, help="accumulated_family_events.json")
     p.add_argument("--date", required=True, help="Run date (YYYY-MM-DD), recorded in the payload")

@@ -132,6 +132,7 @@ def _triggered_event(family: str, anchor_ts: float, n_forward: int = 10) -> dict
         "entry_mode": "immediate",
         "entry_price": 100.0,
         "score": 1.5,
+        "forward_opens": [100.0, *closes[:-1]],
         "forward_closes": closes,
         "forward_highs": [c + 1 for c in closes],
         "forward_lows": [c - 1 for c in closes],
@@ -471,6 +472,7 @@ def test_main_stale_feed_same_hash_earlier_date_returns_5(
         "family": "BOS",
         "status": "PASS",
         "events_hash": shadow.events_content_hash(events),
+        "return_rule": shadow.RETURN_RULE,
     }
     ledger.write_text(json.dumps(stale_row) + "\n", encoding="utf-8")
     before = ledger.read_text(encoding="utf-8")
@@ -651,3 +653,70 @@ def test_committed_live_ledger_is_single_plane_1d() -> None:
         json.loads(ln) for ln in quarantine.read_text().splitlines() if ln.strip()
     ]
     assert {r.get("plane") for r in qrows} == {"5m"}
+
+
+# --------------------------------------------------------------------------- #
+# return rule (ADR-0031, Nachtrag 2026-10-02 II): a row is an observation of
+# the rule its returns were computed under
+# --------------------------------------------------------------------------- #
+def test_every_new_row_names_the_return_rule() -> None:
+    measured = shadow.build_ledger_rows(
+        _report({"BOS": _result()}), date="2026-10-05", events_hash="h", plane="1D"
+    )
+    heartbeat = shadow.build_heartbeat_rows(
+        [], date="2026-10-05", events_hash="h", plane="1D", cost_bps=5.0
+    )
+    rows = measured + heartbeat
+    assert len(rows) == 1 + len(shadow.ALL_FAMILIES)
+    assert {row["return_rule"] for row in rows} == {"next_open_then_horizon_close"}
+    assert "return_rule" in shadow.LEDGER_COLUMNS
+
+
+def test_rows_without_a_rule_are_variant_a() -> None:
+    """Every row written before 2026-10-02 lacks the field; there was one rule."""
+    assert shadow.row_return_rule({"family": "BOS"}) == "touch_then_horizon_close"
+    assert shadow.row_return_rule({"return_rule": None}) == "touch_then_horizon_close"
+    assert shadow.row_return_rule({"return_rule": shadow.RETURN_RULE}) == shadow.RETURN_RULE
+
+
+def test_rows_are_split_by_rule_and_the_others_are_counted() -> None:
+    rows = [
+        {"family": "BOS", "date": "2026-06-11", "status": "PASS"},
+        {"family": "SWEEP", "date": "2026-06-11", "status": "PASS"},
+        {"family": "BOS", "date": "2026-10-05", "status": "FAIL", "return_rule": shadow.RETURN_RULE},
+        {"family": "OB", "date": "2026-10-05", "status": "FAIL", "return_rule": "some_future_rule"},
+    ]
+    current, others = shadow.rows_under_current_rule(rows)
+    assert current == [rows[2]]
+    assert others == {"touch_then_horizon_close": 2, "some_future_rule": 1}
+
+
+def test_the_same_events_graded_under_the_old_rule_are_not_a_stale_feed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The stale-feed guard refuses a duplicate vote. A row for the same
+    events under ANOTHER return rule was a different measurement, so today's
+    grading under the current rule is new evidence, not a re-served one."""
+    events = [{"family": "BOS", "x": 1}]
+    events_path = tmp_path / "events.json"
+    events_path.write_text(json.dumps(events), encoding="utf-8")
+    ledger = tmp_path / "shadow.jsonl"
+    legacy_row = {
+        "date": "2026-10-01",
+        "family": "BOS",
+        "status": "PASS",
+        "events_hash": shadow.events_content_hash(events),
+    }  # no return_rule: graded under Variant A
+    ledger.write_text(json.dumps(legacy_row) + "\n", encoding="utf-8")
+    graded: list[int] = []
+
+    def _report_once(*args: object, **kwargs: object) -> dict:
+        graded.append(1)
+        return _report({"BOS": _result()})
+
+    monkeypatch.setattr(shadow, "build_report", _report_once)
+    code = shadow.main([str(events_path), "--ledger", str(ledger), "--date", "2026-10-05"])
+    assert code != 5
+    assert graded == [1]
+    rows = [json.loads(line) for line in ledger.read_text(encoding="utf-8").splitlines()]
+    assert [shadow.row_return_rule(row) for row in rows] == ["touch_then_horizon_close", shadow.RETURN_RULE]

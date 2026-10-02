@@ -46,6 +46,7 @@ from governance.epnl_after_cost import (
 )
 from governance.family_returns import (
     DEFAULT_COST_BPS,
+    RETURN_RULE,
     extract_family_calibration_samples,
 )
 from scripts.run_magnitude_resolution_gate import _load_events
@@ -95,6 +96,10 @@ def build_report(
     )
 
     return {
+        # The rule the realized returns behind every number here were computed
+        # under; verdicts of different rules must never be pooled (ADR-0031,
+        # Nachtrag 2026-10-02 II).
+        "return_rule": RETURN_RULE,
         "cost_bps": cost_bps,
         "cost_source": "empirical_calibration" if cost_calibration is not None else "flat_default",
         "cost_calibration": cost_calibration,

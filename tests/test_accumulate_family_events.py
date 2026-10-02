@@ -779,3 +779,63 @@ def test_output_order_is_deterministic_for_same_bar_events(tmp_path: Path) -> No
     first = [e["event_id"] for e in accumulate([f1], max_age_days=30)]
     second = [e["event_id"] for e in accumulate([f2], max_age_days=30)]
     assert first == second
+
+
+# ---------------------------------------------------------------------------
+# forward_opens (ADR-0031, Nachtrag 2026-10-02 II): the return rule enters at
+# an open; pool copies recorded before the rule carry none.
+# ---------------------------------------------------------------------------
+
+
+def _with_opens(event: dict) -> dict:
+    closes = event["forward_closes"]
+    return {**event, "forward_opens": [closes[0] - 0.5, *closes[:-1]]}
+
+
+def _pool_then_today(tmp_path: Path, pooled: dict, today: dict) -> list[dict]:
+    prev = tmp_path / "prev.json"
+    curr = tmp_path / "curr.json"
+    prev.write_text(json.dumps([pooled]), encoding="utf-8")
+    curr.write_text(json.dumps([today]), encoding="utf-8")
+    return accumulate([prev, curr], max_age_days=30)
+
+
+def test_a_pooled_event_takes_the_opens_of_its_redetected_copy(tmp_path: Path) -> None:
+    """The pooled copy predates the rule (no opens) and wins the tie on
+    forward length; the re-detection carries the opens of the SAME bars."""
+    ts = _ts_days_ago(2)
+    old = _event_with_id("BOS", "AAPL", "15m", ts)
+    new = _with_opens(old)
+    assert "forward_opens" not in old
+
+    for first, second in ((old, new), (new, old)):  # file order must not matter
+        merged = _pool_then_today(tmp_path, first, second)
+        assert len(merged) == 1
+        assert merged[0]["forward_opens"] == new["forward_opens"]
+
+
+def test_opens_of_different_bars_are_not_taken_over(tmp_path: Path) -> None:
+    """An open belongs to a bar. A copy whose forward bars differ — other
+    timestamps, or the same timestamps with revised closes — cannot lend its
+    opens: they would shift or falsify the entry."""
+    ts = _ts_days_ago(2)
+    old = _event_with_id("BOS", "AAPL", "15m", ts)
+
+    shifted = _with_opens(old)
+    shifted["forward_timestamps"] = [t + 900 for t in shifted["forward_timestamps"]]
+    assert "forward_opens" not in _pool_then_today(tmp_path, old, shifted)[0]
+
+    revised = _with_opens(old)
+    revised["forward_closes"] = [c + 0.01 for c in revised["forward_closes"]]
+    assert "forward_opens" not in _pool_then_today(tmp_path, old, revised)[0]
+
+    short = _with_opens(old)
+    short["forward_opens"] = short["forward_opens"][:-1]
+    assert "forward_opens" not in _pool_then_today(tmp_path, old, short)[0]
+
+
+def test_a_copy_that_has_opens_keeps_its_own(tmp_path: Path) -> None:
+    ts = _ts_days_ago(2)
+    mine = _with_opens(_event_with_id("BOS", "AAPL", "15m", ts))
+    other = {**mine, "forward_opens": [o + 1.0 for o in mine["forward_opens"]]}
+    assert _pool_then_today(tmp_path, mine, other)[0]["forward_opens"] == mine["forward_opens"]

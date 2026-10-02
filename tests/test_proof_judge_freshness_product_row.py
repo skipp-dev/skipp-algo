@@ -98,3 +98,55 @@ def test_the_run_block_echo_cannot_impersonate_the_row() -> None:
 def test_an_empty_log_cannot_testify() -> None:
     verdict = _judge("")
     assert (verdict.state, verdict.branch) == ("KANN_NICHT_BEZEUGEN", "kein_log")
+
+
+# --- 2026-10-02: the row moved from the verdict file to the returns series ---
+
+
+def _series_entry():
+    entries = [e for e in load_entries() if e.judge == _JUDGE and "returns_series_" in e.version_probe]
+    assert len(entries) == 1, [e.id for e in entries]
+    return entries[0]
+
+
+_SERIES_ROW = (
+    "2026-10-05T06:31:02.1000000Z ##[notice]product:docs/calibration/gates/returns_series_*.json: "
+    "fresh (30.5h, budget 72h, newest returns_series_2026-10-02.json)\n"
+)
+
+
+def test_the_two_entries_witness_different_rows() -> None:
+    first, second = _entry(), _series_entry()
+    assert first.id == "5586" and second.id != first.id
+    assert "track_record_gate_" in first.version_probe
+    assert "returns_series_" in second.version_probe
+
+
+def test_the_old_row_is_no_witness_for_the_new_entry() -> None:
+    """The recorded run of 2026-10-01 evaluated the verdict-file row. For the
+    entry about the series row that run predates the change."""
+    judge = load_judge(_JUDGE).judge
+    log = _corpus()[_POST_MERGE_RUN]["log"]
+    assert (judge({"log": log}, _entry()).state, judge({"log": log}, _entry()).branch) == ("PASS", "zeile_ausgewertet")
+    verdict = judge({"log": log}, _series_entry())
+    assert (verdict.state, verdict.branch) == ("STEHT_AUS", "zeile_fehlt")
+
+
+def test_the_series_row_is_the_pass_for_the_new_entry_only() -> None:
+    judge = load_judge(_JUDGE).judge
+    log = _real_log() + _SERIES_ROW
+    verdict = judge({"log": log}, _series_entry())
+    assert (verdict.state, verdict.branch) == ("PASS", "zeile_ausgewertet")
+    assert "returns_series_2026-10-02.json" in verdict.detail
+    # … and it cannot stand in for #5586's row.
+    old = judge({"log": log}, _entry())
+    assert (old.state, old.branch) == ("STEHT_AUS", "zeile_fehlt")
+
+
+def test_a_series_row_that_sees_nothing_is_a_fail() -> None:
+    log = _real_log() + (
+        "2026-10-05T06:31:02.1000000Z ##[error]product:docs/calibration/gates/returns_series_*.json: "
+        "MISSING (no dated file matches)\n"
+    )
+    verdict = load_judge(_JUDGE).judge({"log": log}, _series_entry())
+    assert (verdict.state, verdict.branch) == ("FAIL", "muster_findet_nichts")

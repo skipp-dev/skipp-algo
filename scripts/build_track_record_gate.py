@@ -12,7 +12,7 @@ Wiring status (2026-07-29, ADR-0031 — supersedes the 2026-07-28
 
 1. **Persisted returns source:** ``scripts/build_returns_series.py``
    writes ``docs/calibration/gates/returns_series_<date>.json`` in exactly
-   the ``{"returns_by_variant": ...}`` shape this reads — the Variant-A
+   the ``{"returns_by_variant": ...}`` shape this reads — the returns
    series (``governance.family_returns.extract_family_returns``) over the
    plane-filtered accumulated FamilyEvent pool; the trade definition was
    blessed for gate use by ADR-0031 (same rule the promotion gate grades).

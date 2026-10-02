@@ -130,18 +130,20 @@ jobs:
           # meldete `success` fuer jeden Fire, den sein eigenes Kadenz-Gate
           # uebersprang. Beide Zeilen blieben frisch, der juengste Gate-Bericht
           # auf main war fuenf Wochen alt (2026-08-27).
-          #   docs/calibration/gates/track_record_gate_*.json  72:weekday
+          #   docs/calibration/gates/returns_series_*.json  72:weekday
+          #     (bis 2026-10-02: track_record_gate_*.json. Seit der neuen
+          #     Ertragsregel entsteht an einem Tag ohne Trades kein Urteil,
+          #     die Serie aber an jedem Tag mit Pool — sie ist der Bericht,
+          #     dessen Ausbleiben diese Zeile melden soll. Die Variante-A-
+          #     Urteile liegen unter variant_a_frozen/ und zaehlen hier nicht.)
           #     Alter des juengsten DATIERTEN Berichts im Checkout, gezaehlt ab
           #     00:00 UTC des Datums im Dateinamen. Normal: 30,5 Werktags-
           #     stunden (Vortag, Sonde 06:30). Ein fehlender Werktag: 54,5 h —
           #     frisch. Zwei fehlende Werktage in Folge: 78,5 h — rot. Die
           #     Zeile ist egal dagegen, WARUM der Bericht fehlt (Producer
           #     uebersprang, Upstream tot, Bot-PR nie gemergt).
-          #     expected-stale-until=2026-10-08: der Bericht IST heute alt, die
-          #     Ursachen sind benannt und in Arbeit (Kadenz-Gate + Restore,
-          #     #5584). Bis zum 8.10. meldet die Zeile
-          #     das als deklariert; danach faellt sie hart rot — Stolperdraht
-          #     dafuer, dass die Reparatur wirklich einen Bericht landet.
+          #     Kein expected-stale-until mehr: die Reparatur (#5584) hat
+          #     geliefert, die Serie vom 2026-10-02 liegt auf main.
           set +e
           python scripts/check_workflow_freshness.py \
             --output artifacts/ci/workflow_freshness.json \
@@ -177,7 +179,7 @@ jobs:
             proof-ledger-monitor.yml=30:any \
             runner-label-variable-watch.yml=12:any \
             stuck-run-watch.yml=6:any \
-            --product "docs/calibration/gates/track_record_gate_*.json=72:weekday:expected-stale-until=2026-10-08"
+            --product "docs/calibration/gates/returns_series_*.json=72:weekday"
           rc=$?
           set -e
           echo "rc=$rc" >> "$GITHUB_OUTPUT"

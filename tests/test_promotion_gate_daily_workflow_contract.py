@@ -443,8 +443,11 @@ _LEDGER_STEP = "Build 15m observation series + cumulative returns ledger (ADR-00
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _M15 = 900.0
 _DAY = 86_400.0
-_OCT_1 = 1_790_865_000.0  # 2026-10-01T14:30:00Z, on/after the 15m evidence start
-_SEP_24 = _OCT_1 - 7 * _DAY  # before it
+# 2026-10-05T14:30:00Z: the first day that counts as evidence under the return
+# rule (governance.family_returns.RETURN_RULE_EVIDENCE_START). The workflow's
+# own 15m flag (2026-10-01) is earlier and therefore no longer the binding one.
+_OCT_5 = 1_791_210_600.0
+_SEP_28 = _OCT_5 - 7 * _DAY  # before it
 
 _REAL_PY = Stub(script='exec "$REAL_PYTHON" -B "$@"')
 
@@ -459,6 +462,7 @@ def _sweep(symbol: str, anchor_ts: float, *, step: float, timeframe: str, exit_c
         "entry_price": 100.0,
         "anchor_ts": anchor_ts,
         "regime": "RANGING",
+        "forward_opens": [100.0, *closes[:-1]],
         "forward_closes": closes,
         "forward_highs": [c + 0.5 for c in closes],
         "forward_lows": [c - 0.5 for c in closes],
@@ -467,22 +471,23 @@ def _sweep(symbol: str, anchor_ts: float, *, step: float, timeframe: str, exit_c
 
 
 def _pool_events(*, forward_15m: int) -> list[dict]:
+    # 1D: anchored 2026-10-03, -04, -05, -06 — two before the rule's start, two after.
     events = [
-        _sweep(f"D{i}", _SEP_24 + i * _DAY, step=_DAY, timeframe="1D", exit_close=101.0 + i)
+        _sweep(f"D{i}", _OCT_5 - 2 * _DAY + i * _DAY, step=_DAY, timeframe="1D", exit_close=101.0 + i)
         for i in range(4)
     ]
     events += [
-        _sweep(f"OLD{i}", _SEP_24 + i * _M15, step=_M15, timeframe="15m", exit_close=99.0 + i)
+        _sweep(f"OLD{i}", _SEP_28 + i * _M15, step=_M15, timeframe="15m", exit_close=99.0 + i)
         for i in range(5)
     ]
     events += [
-        _sweep(f"NEW{i}", _OCT_1 + i * _M15, step=_M15, timeframe="15m", exit_close=100.0 + i)
+        _sweep(f"NEW{i}", _OCT_5 + i * _M15, step=_M15, timeframe="15m", exit_close=100.0 + i)
         for i in range(forward_15m)
     ]
     return events
 
 
-def _ledger_step(tmp_path: Path, events: list[dict] | None, *, date: str = "2026-10-01"):
+def _ledger_step(tmp_path: Path, events: list[dict] | None, *, date: str = "2026-10-05"):
     if events is not None:
         pool = tmp_path / "artifacts/ci/scored_family_events_accumulated"
         pool.mkdir(parents=True, exist_ok=True)
@@ -510,15 +515,15 @@ def test_the_ledger_step_commits_verdicts_and_ledgers_not_the_window_series(tmp_
         if path.is_file()
     )
     assert committed == [
-        "15m/regime_stratified_2026-10-01.json",
-        "15m/track_record_gate_2026-10-01.json",
+        "15m/regime_stratified_2026-10-05.json",
+        "15m/track_record_gate_2026-10-05.json",
         "ledger/returns_ledger_15m.jsonl",
         "ledger/returns_ledger_1D.jsonl",
         "ledger/track_record_gate_15m.json",
         "ledger/track_record_gate_1D.json",
     ]
     # The 30-day window series is a run artifact, not a committed file.
-    assert (tmp_path / "artifacts/ledger/returns_series_window_15m_2026-10-01.json").exists()
+    assert (tmp_path / "artifacts/ledger/returns_series_window_15m_2026-10-05.json").exists()
 
 
 def test_nothing_of_the_15m_observation_is_visible_to_the_1d_consumers(tmp_path: Path) -> None:
@@ -538,20 +543,24 @@ def test_the_15m_window_verdict_counts_every_15m_trade_the_cumulative_one_only_f
 ) -> None:
     result = _ledger_step(tmp_path, _pool_events(forward_15m=6))
     gates = tmp_path / "docs/calibration/gates"
-    window = _read(gates / "15m/track_record_gate_2026-10-01.json")
+    window = _read(gates / "15m/track_record_gate_2026-10-05.json")
     cumulative = _read(gates / "ledger/track_record_gate_15m.json")
     assert window["n_trades"] == 11  # 5 before + 6 after the evidence start
-    assert cumulative["n_trades"] == 6  # only what arrived after 2026-10-01
+    assert cumulative["n_trades"] == 6  # only what arrived on or after 2026-10-05
     ledger_rows = (gates / "ledger/returns_ledger_15m.jsonl").read_text(encoding="utf-8").splitlines()
     assert len(ledger_rows) == 11  # …but the ledger keeps all of them
-    assert result.outputs == {"ledger_trades_1D": "4", "ledger_trades_15m": "6"}
+    assert result.outputs == {"ledger_trades_1D": "2", "ledger_trades_15m": "6"}
 
 
-def test_the_1d_ledger_has_no_evidence_start(tmp_path: Path) -> None:
-    """1D is the long-governed plane: every recorded trade counts."""
+def test_the_1d_ledger_starts_with_the_return_rule(tmp_path: Path) -> None:
+    """The workflow passes no evidence start for 1D; the return rule has one.
+
+    Four 1D trades are recorded, two of them anchored before 2026-10-05: they
+    were on the table when the rule was chosen and do not count."""
     _ledger_step(tmp_path, _pool_events(forward_15m=6))
-    verdict = _read(tmp_path / "docs/calibration/gates/ledger/track_record_gate_1D.json")
-    assert verdict["n_trades"] == 4
+    gates = tmp_path / "docs/calibration/gates"
+    assert len((gates / "ledger/returns_ledger_1D.jsonl").read_text(encoding="utf-8").splitlines()) == 4
+    assert _read(gates / "ledger/track_record_gate_1D.json")["n_trades"] == 2
 
 
 def test_an_empty_forward_series_emits_no_cumulative_15m_verdict(tmp_path: Path) -> None:
@@ -567,16 +576,16 @@ def test_an_empty_forward_series_emits_no_cumulative_15m_verdict(tmp_path: Path)
 
 
 def test_the_ledger_grows_across_days_while_the_pool_window_moves(tmp_path: Path) -> None:
-    _ledger_step(tmp_path, _pool_events(forward_15m=3), date="2026-10-01")
+    _ledger_step(tmp_path, _pool_events(forward_15m=3), date="2026-10-05")
     day2 = [
-        _sweep(f"LATER{i}", _OCT_1 + _DAY + i * _M15, step=_M15, timeframe="15m", exit_close=100.0 + i)
+        _sweep(f"LATER{i}", _OCT_5 + _DAY + i * _M15, step=_M15, timeframe="15m", exit_close=100.0 + i)
         for i in range(4)
     ]
-    result = _ledger_step(tmp_path, day2, date="2026-10-02")  # yesterday's events aged out
+    result = _ledger_step(tmp_path, day2, date="2026-10-06")  # yesterday's events aged out
     assert result.returncode == 0, result.stderr
     assert result.outputs["ledger_trades_15m"] == "7"
     gates = tmp_path / "docs/calibration/gates"
-    assert _read(gates / "15m/track_record_gate_2026-10-02.json")["n_trades"] == 4  # window
+    assert _read(gates / "15m/track_record_gate_2026-10-06.json")["n_trades"] == 4  # window
     assert _read(gates / "ledger/track_record_gate_15m.json")["n_trades"] == 7  # memory
 
 

@@ -6,22 +6,58 @@ PR) and consumed fail-soft by `c13-daily-cron` (22:00 UTC, Step 5b — moved
 
 | File | Producer | Consumer |
 |---|---|---|
-| `returns_series_<date>.json` | `scripts/build_returns_series.py` | gate + regime producers below (provenance) |
+| `returns_series_<date>.json` | `scripts/build_returns_series.py` | gate + regime producers below (provenance); `c13-daily-cron` Step 5a (trade counts per family) |
 | `track_record_gate_<date>.json` | `scripts/build_track_record_gate.py` | `emit_public_calibration_report` → public report key `track_record_gate` |
 | `regime_stratified_<date>.json` | `scripts/build_regime_stratified_report.py` | `emit_public_calibration_report` → public report key `regime_stratified` |
+| `epnl_after_cost_<date>.json` | `scripts/run_epnl_after_cost_gate.py` | the day's ADR-0023 §5 verdict, kept as a record |
 
-Measurement basis (disclosed in every file's `measurement` block): Variant-A
-net returns *given a triggered setup* — `touch_then_horizon_close`, fixed
-5 bps round-turn cost, governed 1D plane. NOT portfolio P&L. See ADR-0031.
+Measurement basis (disclosed in every file's `measurement` block, the §5 file
+in `return_rule`): net returns *given a triggered setup* under the rule
+`next_open_then_horizon_close` — entry at the open of the bar after the
+decision bar, exit at the family-horizon close, fixed 5 bps round-turn cost,
+governed 1D plane. NOT portfolio P&L. See ADR-0031, Nachtrag 2026-10-02 II.
 
-Retention: the workflow prunes each family to the newest 90 files. An empty
-directory (or a missing gate file on empty-pool days) is a normal state — the
-public report simply omits the keys.
+Retention: the workflow prunes each family to the newest 90 files. A missing
+gate file on a day without trades is a normal state — the public report simply
+omits the key. `returns_series_<date>.json` is written every day the pool
+exists, also with zero trades.
+
+## Two track records, never pooled
+
+The return rule changed on 2026-10-02. Until then every number here was a
+Variant-A return (`touch_then_horizon_close`): entry at the zone midpoint or
+at the event level — a price that was not reachable once the decision
+existed. Measured on 15m, that entry carried the whole reported return
+(+12.0 bps per trade reported, -6.5 bps when bought at the decision bar's
+close); see `docs/governance/variant_a_entry_price_measurement_2026-10-02.md`.
+
+Returns under the two rules are different quantities. They are kept apart:
+
+| Where | Rule | What it is |
+|---|---|---|
+| `variant_a_frozen/` | `touch_then_horizon_close` | everything written up to 2026-10-02: the dated 1D files, `15m/`, `ledger/`. Frozen; nothing appends to it. Not a track record. |
+| this directory, `15m/`, `ledger/` | `next_open_then_horizon_close` | the record that began on 2026-10-02 |
+
+Three things keep them apart, none of them a convention:
+
+- every ledger row and every series names its `return_rule`, and
+  `accumulate_returns_ledger.py` refuses (rc 2) to append to a ledger that
+  holds rows of another rule;
+- an event without `forward_opens` — every pool event recorded before the
+  change — yields no return under the new rule, so no old trade is re-priced
+  into the new record by accident;
+- the cumulative verdicts count only trades anchored on or after
+  **2026-10-05**, the first trading day after the rule was fixed
+  (`governance.family_returns.RETURN_RULE_EVIDENCE_START`). The rule was
+  chosen with September's data on the table; trades anchored earlier stay in
+  the ledger and out of the verdict. The workflow's `--evidence-start
+  2026-10-01` for 15m is older and no longer the binding date.
 
 ## Subdirectories (ADR-0031, Nachtrag 2026-10-01)
 
-Both are written by the `ledger` step of `promotion-gate-daily`. No 1D
-consumer sees them: every reader of this directory globs it non-recursively.
+`15m/` and `ledger/` are written by the `ledger` step of
+`promotion-gate-daily`. No 1D consumer sees them, nor `variant_a_frozen/`:
+every reader of this directory globs it non-recursively.
 
 | Path | Producer | What it is |
 |---|---|---|
@@ -31,21 +67,7 @@ consumer sees them: every reader of this directory globs it non-recursively.
 | `ledger/track_record_gate_<plane>.json` | `scripts/build_track_record_gate.py` | CUMULATIVE verdict over the ledger (overwritten daily) |
 
 The 15m plane is an observation, not a gate: no §5 verdict, no effect on
-arming or claim tier, not embedded in the public report. The 15m cumulative
-verdict counts only trades anchored on or after 2026-10-01 (the day the plane
-was fixed); earlier 15m trades stay in the ledger.
-
-## The entry price behind every number (measured 2026-10-02)
-
-Every return here assumes the Variant-A entry: the zone midpoint for OB and
-FVG, the broken or swept level for BOS and SWEEP. On 15m that price did not
-trade on the entry bar for about two thirds of the zone trades and about half
-of the level trades. With an entry at the close of the same bar, no family is
-positive after costs (pooled -6.4 bps per trade against +12.5 bps reported),
-and BOS and OB earn less than random entries in the same symbol on the same
-day. A positive mean in these files is therefore not evidence of a tradable
-edge. Method, tables and limits:
-`docs/governance/variant_a_entry_price_measurement_2026-10-02.md`.
+arming or claim tier, not embedded in the public report.
 
 ## Reading it: which family stands where
 
@@ -55,7 +77,7 @@ costs, and is the sample large enough to say so". Read it in this order.
 1. **Pick the plane.** `ledger/track_record_gate_1D.json` is the governed
    plane; `ledger/track_record_gate_15m.json` is the observation plane. Both
    are cumulative. A file that does not exist yet means the cumulative series
-   is still empty (for 15m: no trade anchored on or after 2026-10-01).
+   is still empty: no trade anchored on or after 2026-10-05 has closed.
 2. **Check the sample first.** `per_variant.<FAMILY>.n_trades`. Below 100 the
    check `oos_trades` is red and every other row is a diagnostic, not a
    finding — `claim_note` says so in words.
@@ -63,13 +85,13 @@ costs, and is the sample large enough to say so". Read it in this order.
    `per_variant.<FAMILY>.checks[]` (each row is `name`, `status`, `value`,
    `threshold`):
    - `win_rate` — share of winning trades (threshold 0.55);
-   - `bootstrap_sharpe_ci_low` — lower bound of the Sharpe interval. This is
-     the row that separates "positive" from "indistinguishable from zero";
+   - `bootstrap_sharpe_ci_low` — lower bound of the Sharpe interval;
    - `psr_sr_star_zero` — probabilistic Sharpe against zero (threshold 0.95);
    - `min_trl_within_n` — trades needed for that Sharpe to be credible,
      against the trades there are;
    - `trading_days` and `day_clustered_mean_ci_low` — see "The day checks"
-     below. On 15m these two decide; the rows above overstate there.
+     below. These two decide whether a positive mean is distinguishable from
+     zero; the rows above overstate on planes with many trades per day.
 4. **Then the verdict.** `per_variant.<FAMILY>.status` and `.claimable`.
 5. **Check how fresh it is.** The last line of
    `ledger/returns_ledger_<plane>.jsonl` carries `first_recorded` (the run
@@ -89,14 +111,15 @@ for plane in ("1D", "15m"):
         row = {c["name"]: c for c in verdict["checks"]}
         show = lambda name: f"{row[name]['value']:.3g} ({row[name]['status']})" if row[name]["value"] is not None else "n/a"
         print(f"{plane} {family:5} n={verdict['n_trades']:4d} status={verdict['status']:6} "
-              f"win_rate={show('win_rate')} sharpe_ci_low={show('bootstrap_sharpe_ci_low')} psr={show('psr_sr_star_zero')}")
+              f"days={show('trading_days')} day_ci_low={show('day_clustered_mean_ci_low')} psr={show('psr_sr_star_zero')}")
 PY
 ```
 
 The 30-day window verdicts (`track_record_gate_<date>.json` here for 1D,
 `15m/track_record_gate_<date>.json` for 15m) have the same structure. Use
 them for "how were the last 30 days", the ledger verdicts for "what has
-accumulated".
+accumulated". A window verdict has no evidence start: it also contains trades
+anchored before 2026-10-05, priced under the new rule.
 
 ## The day checks: count the days, not the trades
 
@@ -115,35 +138,32 @@ Both must be green for `status` to be green. A 30-day window verdict holds
 at most 22 trading days, so only the cumulative verdicts under `ledger/` can
 turn green at all. `sharpe`, `bootstrap_sharpe_ci_low`, `psr_sr_star_zero`
 and `min_trl_within_n` still resample trades; on a plane with many trades
-per day they read stronger than the evidence is. A verdict with
-`schema_version` 1.0.0 was written before the day checks and carries neither.
+per day they read stronger than the evidence is.
 
-Measured on the ledgers of 2026-10-02:
+Why they exist, measured on the Variant-A ledgers of 2026-10-02 (now under
+`variant_a_frozen/ledger/`): the 2 490 trades of the 15m ledger came from 19
+trading days, up to 56 on one bar, and the 30-day window verdict read `green`
+for all four families; the 170 trades of the 1D ledger came from 13 days.
 
-- 15m: 2 490 trades come from 19 trading days; one bar carries up to 56
-  trades (median 2). The 30-day window verdict of that day reads `green`
-  for all four families (n = 2 469). Resampling whole days instead of
-  trades gives a mean per trade of BOS 12.4 bps [4.2, 19.0], FVG 11.4
-  [-0.4, 22.7], OB 9.3 [1.2, 14.7], SWEEP 12.2 [5.9, 16.9], with 10 to 12
-  positive days out of 18 — modest, and for FVG not separable from zero.
-  The cumulative 15m verdict reads `green` for SWEEP on 210 trades that
-  all come from one day (2026-10-01).
-- 1D: 170 trades come from 13 trading days (up to 27 per day). No family's
-  day-resampled interval excludes zero.
-
-The day-resampled reading, printed (run from the repo root; covers the whole
-ledger, including 15m trades anchored before 2026-10-01):
+The day-resampled reading of a ledger, printed (run from the repo root; it
+covers the whole ledger, including trades anchored before the evidence
+start). Set `LEDGER_DIR` to `docs/calibration/gates/variant_a_frozen/ledger`
+to read the frozen Variant-A ledgers instead:
 
 ```bash
 python - <<'PY'
-import collections, json, random
+import collections, json, os, random
 from datetime import datetime, timezone
 random.seed(0)
+ledger_dir = os.environ.get("LEDGER_DIR", "docs/calibration/gates/ledger")
 for plane in ("1D", "15m"):
     try:
-        rows = [json.loads(line) for line in open(f"docs/calibration/gates/ledger/returns_ledger_{plane}.jsonl") if line.strip()]
+        rows = [json.loads(line) for line in open(f"{ledger_dir}/returns_ledger_{plane}.jsonl") if line.strip()]
     except FileNotFoundError:
         print(f"{plane}: no ledger yet"); continue
+    if not rows:
+        print(f"{plane}: ledger is empty"); continue
+    print(f"{plane}: rule {rows[0]['return_rule']}")
     for family in sorted({row["family"] for row in rows}):
         by_day = collections.defaultdict(list)
         for row in rows:
@@ -163,4 +183,3 @@ PY
 
 The gate computes the same interval with its own random draws; the bounds
 differ in the first decimal.
-

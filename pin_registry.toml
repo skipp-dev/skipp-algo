@@ -333,7 +333,7 @@ codes = ["E402"]
 # for four sites that need suppressions rather than code changes.
 [[noqa_budget.sites]]
 file = "governance/family_returns.py"
-line = 454  # 2026-07-13 guard_end_ts exit-idx tightening shifted _event_bar_interval (432->453); FamilyEvent event_id field +1 (453->454)
+line = 483  # 2026-07-13 guard_end_ts exit-idx tightening shifted _event_bar_interval (432->453); FamilyEvent event_id field +1 (453->454); 2026-10-02 next-open entry rule (454->483)
 codes = ["RUF007"]
 
 [[noqa_budget.sites]]

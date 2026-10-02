@@ -35,6 +35,7 @@ def _triggered_event(family: str, anchor_ts: float, bar_seconds: float, drift: f
         "entry_mode": "immediate",
         "entry_price": 100.0,
         "score": 1.5,
+        "forward_opens": [100.0, *closes[:-1]],
         "forward_closes": closes,
         "forward_highs": [c + 1 for c in closes],
         "forward_lows": [c - 1 for c in closes],
