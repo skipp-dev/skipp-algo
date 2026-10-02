@@ -76,9 +76,23 @@
       "status": "green",
       "threshold": 2469.0,
       "value": 94.0
+    },
+    {
+      "detail": "distinct UTC anchor days; at most 540 trades on one day",
+      "name": "trading_days",
+      "status": "red",
+      "threshold": 30.0,
+      "value": 18.0
+    },
+    {
+      "detail": "lower 95% bound of the mean return per trade, whole days resampled",
+      "name": "day_clustered_mean_ci_low",
+      "status": "green",
+      "threshold": 0.0,
+      "value": 0.0005251028454996259
     }
   ],
-  "claim_note": "gate is green but required claim evidence is unmeasured: walk_forward_efficiency, fdr_rate, per_regime_hit_rate_spread",
+  "claim_note": "aggregate status 'red': green sub-checks are diagnostics, not claimable evidence; red checks: trading_days",
   "claimable": false,
   "n_trades": 2469,
   "per_variant": {
@@ -160,15 +174,41 @@
           "status": "green",
           "threshold": 567.0,
           "value": 128.0
+        },
+        {
+          "detail": "distinct UTC anchor days; at most 107 trades on one day",
+          "name": "trading_days",
+          "status": "red",
+          "threshold": 30.0,
+          "value": 18.0
+        },
+        {
+          "detail": "lower 95% bound of the mean return per trade, whole days resampled",
+          "name": "day_clustered_mean_ci_low",
+          "status": "green",
+          "threshold": 0.0,
+          "value": 0.0003900452383116459
         }
       ],
-      "claim_note": "gate is green but required claim evidence is unmeasured: walk_forward_efficiency, fdr_rate, per_regime_hit_rate_spread",
+      "claim_note": "aggregate status 'red': green sub-checks are diagnostics, not claimable evidence; red checks: trading_days",
       "claimable": false,
-      "failures": [],
+      "failures": [
+        "trading_days=18.0000 vs threshold 30.0000"
+      ],
       "n_trades": 567,
-      "schema_version": "1.0.0",
-      "status": "green",
+      "schema_version": "1.1.0",
+      "status": "red",
       "summary": {
+        "day_clustered": {
+          "B": 2000,
+          "ci_high": 0.00191820415978936,
+          "ci_low": 0.0003900452383116459,
+          "max_trades_per_day": 107,
+          "mean": 0.001232590469135501,
+          "n_days": 18,
+          "positive_days": 12,
+          "unit": "UTC calendar day of anchor_ts"
+        },
         "fdr_rate": null,
         "max_drawdown": {
           "B": 500,
@@ -300,15 +340,41 @@
           "status": "green",
           "threshold": 534.0,
           "value": 93.0
+        },
+        {
+          "detail": "distinct UTC anchor days; at most 119 trades on one day",
+          "name": "trading_days",
+          "status": "red",
+          "threshold": 30.0,
+          "value": 17.0
+        },
+        {
+          "detail": "lower 95% bound of the mean return per trade, whole days resampled",
+          "name": "day_clustered_mean_ci_low",
+          "status": "green",
+          "threshold": 0.0,
+          "value": 5.285707861938278e-05
         }
       ],
-      "claim_note": "gate is green but required claim evidence is unmeasured: walk_forward_efficiency, fdr_rate, per_regime_hit_rate_spread",
+      "claim_note": "aggregate status 'red': green sub-checks are diagnostics, not claimable evidence; red checks: trading_days",
       "claimable": false,
-      "failures": [],
+      "failures": [
+        "trading_days=17.0000 vs threshold 30.0000"
+      ],
       "n_trades": 534,
-      "schema_version": "1.0.0",
-      "status": "green",
+      "schema_version": "1.1.0",
+      "status": "red",
       "summary": {
+        "day_clustered": {
+          "B": 2000,
+          "ci_high": 0.002395012926400574,
+          "ci_low": 5.285707861938278e-05,
+          "max_trades_per_day": 119,
+          "mean": 0.0012171782654611795,
+          "n_days": 17,
+          "positive_days": 10,
+          "unit": "UTC calendar day of anchor_ts"
+        },
         "fdr_rate": null,
         "max_drawdown": {
           "B": 500,
@@ -440,15 +506,41 @@
           "status": "green",
           "threshold": 269.0,
           "value": 153.0
+        },
+        {
+          "detail": "distinct UTC anchor days; at most 65 trades on one day",
+          "name": "trading_days",
+          "status": "red",
+          "threshold": 30.0,
+          "value": 17.0
+        },
+        {
+          "detail": "lower 95% bound of the mean return per trade, whole days resampled",
+          "name": "day_clustered_mean_ci_low",
+          "status": "green",
+          "threshold": 0.0,
+          "value": 7.942810854543065e-05
         }
       ],
-      "claim_note": "gate is green but required claim evidence is unmeasured: walk_forward_efficiency, fdr_rate, per_regime_hit_rate_spread",
+      "claim_note": "aggregate status 'red': green sub-checks are diagnostics, not claimable evidence; red checks: trading_days",
       "claimable": false,
-      "failures": [],
+      "failures": [
+        "trading_days=17.0000 vs threshold 30.0000"
+      ],
       "n_trades": 269,
-      "schema_version": "1.0.0",
-      "status": "green",
+      "schema_version": "1.1.0",
+      "status": "red",
       "summary": {
+        "day_clustered": {
+          "B": 2000,
+          "ci_high": 0.0014550080571117264,
+          "ci_low": 7.942810854543065e-05,
+          "max_trades_per_day": 65,
+          "mean": 0.0009192353574537538,
+          "n_days": 17,
+          "positive_days": 10,
+          "unit": "UTC calendar day of anchor_ts"
+        },
         "fdr_rate": null,
         "max_drawdown": {
           "B": 500,
@@ -580,15 +672,41 @@
           "status": "green",
           "threshold": 1099.0,
           "value": 67.0
+        },
+        {
+          "detail": "distinct UTC anchor days; at most 267 trades on one day",
+          "name": "trading_days",
+          "status": "red",
+          "threshold": 30.0,
+          "value": 17.0
+        },
+        {
+          "detail": "lower 95% bound of the mean return per trade, whole days resampled",
+          "name": "day_clustered_mean_ci_low",
+          "status": "green",
+          "threshold": 0.0,
+          "value": 0.0006236179863175982
         }
       ],
-      "claim_note": "gate is green but required claim evidence is unmeasured: walk_forward_efficiency, fdr_rate, per_regime_hit_rate_spread",
+      "claim_note": "aggregate status 'red': green sub-checks are diagnostics, not claimable evidence; red checks: trading_days",
       "claimable": false,
-      "failures": [],
+      "failures": [
+        "trading_days=17.0000 vs threshold 30.0000"
+      ],
       "n_trades": 1099,
-      "schema_version": "1.0.0",
-      "status": "green",
+      "schema_version": "1.1.0",
+      "status": "red",
       "summary": {
+        "day_clustered": {
+          "B": 2000,
+          "ci_high": 0.0017153732615493562,
+          "ci_low": 0.0006236179863175982,
+          "max_trades_per_day": 267,
+          "mean": 0.0012340525035480937,
+          "n_days": 17,
+          "positive_days": 10,
+          "unit": "UTC calendar day of anchor_ts"
+        },
         "fdr_rate": null,
         "max_drawdown": {
           "B": 500,
@@ -643,9 +761,19 @@
       }
     }
   },
-  "schema_version": "1.0.0",
-  "status": "green",
+  "schema_version": "1.1.0",
+  "status": "red",
   "summary": {
+    "day_clustered": {
+      "B": 2000,
+      "ci_high": 0.0016963730401624644,
+      "ci_low": 0.0005251028454996259,
+      "max_trades_per_day": 540,
+      "mean": 0.0011957675181492563,
+      "n_days": 18,
+      "positive_days": 14,
+      "unit": "UTC calendar day of anchor_ts"
+    },
     "fdr_rate": null,
     "max_drawdown": {
       "B": 500,
