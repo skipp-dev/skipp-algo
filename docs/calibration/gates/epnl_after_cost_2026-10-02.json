@@ -9,7 +9,7 @@
   "cost_source": "flat_default",
   "epnl_ci_floor": 0.0,
   "events_on_plane": 172,
-  "events_total": 19893,
+  "events_total": 13822,
   "families_measured": [
     "BOS",
     "OB",
