@@ -17,6 +17,7 @@ from databento_reference import get_reference_event_risk_snapshot
 # so the magnitude shadow workflow can consume them without re-running
 # the detection pipeline.
 from governance.family_event_adapter import family_events_from_structure as _family_events_from_structure
+from governance.family_returns import BAR_GRID
 from scripts.explicit_structure_from_bars import build_explicit_structure_from_bars, resample_bars_to_timeframe
 from scripts.load_databento_export_bundle import load_export_bundle
 from scripts.smc_event_risk_builder import build_event_risk
@@ -2343,6 +2344,11 @@ def build_measurement_evidence(
             effective_structure,
             resampled_bars.to_dict("records"),
         )
+        # These bars come from ``resample_bars_to_timeframe`` a few lines up,
+        # so the events sit on the exchange-aligned grid. The stamp is what
+        # lets the pool and the ledgers refuse events of the previous grid.
+        for family_event in family_events:
+            family_event["bar_grid"] = BAR_GRID
     except Exception as exc:
         logger.warning("family_events_from_structure failed: %s", exc)
         family_events = []

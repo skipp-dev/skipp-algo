@@ -18,6 +18,13 @@
 > Alle Zahlen unten stammen vom korrigierten Raster; es ist an 38 274
 > Vorwärtskerzen der Events geprüft, ohne eine Abweichung im Schlusskurs.
 
+> **Zum Kerzenraster.** Alle Intraday-Zahlen dieses Memos sind auf dem Raster
+> gerechnet, das die Pipeline bis 2026-10-02 benutzte: um eine Minute gegen
+> die Börsenuhr versetzt. Das Raster ist seither korrigiert (ADR-0031,
+> Nachtrag 2026-10-02 III). Die Befunde über den Einstiegspreis hängen nicht
+> am Raster; die einzelnen Events und Zahlen sind auf dem neuen Raster nicht
+> neu gerechnet.
+
 ## Befund
 
 Variante A (`touch_then_horizon_close`) setzte den Einstieg zu einem Preis an,

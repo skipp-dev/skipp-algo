@@ -54,6 +54,18 @@ Event identity (2026-10-01):
     none with changed levels), which is what makes them the identity the
     "same event, re-detected" rule above was always meant to use.
 
+Bar grid (2026-10-02):
+    Only events measured on the current bar grid
+    (``governance.family_returns.BAR_GRID``) are pooled. Until that date the
+    intraday bars were shifted by one minute against the exchange clock; the
+    same structure detected on both grids can carry the SAME ``event_id``
+    (same label, same level) while describing different bars, so the two
+    cannot be told apart once merged. Events of another grid — every event
+    without the stamp — are dropped on read and counted. The pool-continuity
+    guard compares like with like: it counts only the previous events that are
+    eligible under this rule, so the one-time transition is not mistaken for a
+    wiped input.
+
 Age filter:
     Events whose ``anchor_ts`` is older than a rolling N × 86 400-second
     window (approximately ``--max-age-days`` days) before the current UTC time
@@ -82,6 +94,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from governance.family_returns import BAR_GRID, event_bar_grid
 from scripts.smc_atomic_write import atomic_write_json
 
 
@@ -228,6 +241,8 @@ def accumulate(
                 continue
             if anchor_ts < cutoff:
                 continue  # too old — skip
+            if event_bar_grid(event) != BAR_GRID:
+                continue  # measured on another bar grid — a different event
 
             key = _event_key(event, family, anchor_ts)
             existing = by_key.get(key)
@@ -319,9 +334,25 @@ def main(argv: list[str] | None = None) -> int:
             input_files.append(Path(args.previous))
 
     merged = accumulate(input_files, max_age_days=args.max_age_days)
+    other_grid = sum(
+        1
+        for path in input_files
+        if path.exists()
+        for event in _load_events(path)
+        if event_bar_grid(event) != BAR_GRID
+    )
+    if other_grid:
+        print(
+            f"accumulate_family_events: dropped {other_grid} input event(s) of another bar grid "
+            f"(pool grid: {BAR_GRID})",
+            file=sys.stderr,
+        )
 
     if args.max_shrink_fraction is not None and args.previous is not None:
-        prev_count = len(_load_events(Path(args.previous)))
+        # Like with like: previous events of another bar grid are dropped by
+        # rule, not lost, and must not count as a shrink.
+        previous_events = _load_events(Path(args.previous))
+        prev_count = sum(1 for event in previous_events if event_bar_grid(event) == BAR_GRID)
         floor_count = int(prev_count * (1.0 - args.max_shrink_fraction))
         if prev_count > 0 and (not merged or len(merged) < floor_count):
             print(

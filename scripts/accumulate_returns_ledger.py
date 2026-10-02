@@ -34,7 +34,10 @@ trade definition is an explicit, reviewed change (ADR-0031), and a ledger that
 silently pooled two definitions would be a third one nobody chose. Start a new
 ledger file instead. That is what happened on 2026-10-02: the Variant-A ledgers
 are frozen under ``docs/calibration/gates/variant_a_frozen/`` and these files
-began empty under ``next_open_then_horizon_close``.
+began empty under ``next_open_then_horizon_close``. The bar grid is part of
+the definition too (``bar_grid`` on every row): the rows written in the few
+hours before the one-minute offset of the intraday bars was corrected are
+frozen under ``docs/calibration/gates/offset_grid_frozen/``.
 
 A re-observed trade whose return differs from its recorded one (same rule) is
 NOT overwritten. It is counted and reported, because it means the pool
@@ -83,9 +86,11 @@ from pathlib import Path
 from typing import Any
 
 from governance.family_returns import (
+    BAR_GRID,
     DEFAULT_COST_BPS,
     RETURN_RULE,
     RETURN_RULE_EVIDENCE_START,
+    event_bar_grid,
     realized_return,
 )
 from scripts.build_returns_series import (
@@ -147,11 +152,14 @@ def pool_trades(
 
     Returns ``(trades_by_key, n_without_id)``. The return is computed by the
     one function the daily series uses, so ledger and series cannot disagree
-    about what a trade earned.
+    about what a trade earned. Events measured on another bar grid are not
+    trades of this ledger and are skipped (ADR-0031, Nachtrag 2026-10-02 III).
     """
     trades: dict[str, dict[str, Any]] = {}
     n_without_id = 0
     for event in events:
+        if event_bar_grid(event) != BAR_GRID:
+            continue
         ret = realized_return(event, cost_bps=cost_bps)
         if ret is None:
             continue
@@ -170,12 +178,18 @@ def pool_trades(
             "regime_at_entry": str(regime) if regime else None,
             "return_rule": RETURN_RULE,
             "cost_bps": cost_bps,
+            "bar_grid": BAR_GRID,
         }
     return trades, n_without_id
 
 
-def _existing_rules(rows: dict[str, dict[str, Any]]) -> set[tuple[Any, Any]]:
-    return {(row.get("return_rule"), row.get("cost_bps")) for row in rows.values()}
+def _existing_rules(rows: dict[str, dict[str, Any]]) -> set[tuple[Any, Any, Any]]:
+    """The trade definitions present in a ledger: rule, cost and bar grid.
+
+    A row without ``bar_grid`` was written before 2026-10-02 III and sits on
+    the previous grid.
+    """
+    return {(row.get("return_rule"), row.get("cost_bps"), event_bar_grid(row)) for row in rows.values()}
 
 
 def merge(
@@ -241,6 +255,7 @@ def build_cumulative_series(
         "date": run_date,
         "measurement": {
             "return_rule": RETURN_RULE,
+            "bar_grid": BAR_GRID,
             "cost_bps": cost_bps,
             "regime_taxonomy": "point_in_time (TRENDING/RANGING/NEUTRAL)",
             "note": (
@@ -313,12 +328,12 @@ def main(argv: list[str] | None = None) -> int:
     observed, n_without_id = pool_trades(on_plane, plane=args.plane, cost_bps=args.cost_bps)
 
     raw_lines, existing = load_ledger(args.ledger)
-    foreign = _existing_rules(existing) - {(RETURN_RULE, args.cost_bps)}
+    foreign = _existing_rules(existing) - {(RETURN_RULE, args.cost_bps, BAR_GRID)}
     if foreign:
         print(
             f"error: {args.ledger} holds rows under {sorted(map(str, foreign))}, this run "
-            f"uses ({RETURN_RULE!r}, {args.cost_bps}). A ledger carries ONE trade "
-            "definition; start a new file for a new rule or cost.",
+            f"uses ({RETURN_RULE!r}, {args.cost_bps}, {BAR_GRID!r}). A ledger carries ONE trade "
+            "definition; start a new file for a new rule, cost or bar grid.",
             file=sys.stderr,
         )
         return RC_RULE_MISMATCH

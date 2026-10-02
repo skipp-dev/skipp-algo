@@ -93,6 +93,23 @@ LEGACY_RETURN_RULE = "touch_then_horizon_close"
 # day is forward evidence. Cumulative verdicts never start earlier.
 RETURN_RULE_EVIDENCE_START = "2026-10-05"
 
+# The bar grid the measured events are detected on. Intraday bars are built
+# from start-stamped 1m bars: the bar labelled T covers [T - tf, T), aligned
+# with the exchange clock. Until 2026-10-02 the resampler booked the minute
+# stamped T into the bar ENDING at T, so every intraday bar was shifted by one
+# minute (ADR-0031, Nachtrag 2026-10-02 III). Events of the two grids are
+# different events — the same structure can appear on both with the same id —
+# and must never share a pool or a ledger. The benchmark stamps this value on
+# every FamilyEvent it emits; an event without it predates the correction.
+BAR_GRID = "exchange_aligned"
+LEGACY_BAR_GRID = "offset_one_minute"
+
+
+def event_bar_grid(event: Mapping[str, Any]) -> str:
+    """The bar grid an event (or a ledger row) was measured on."""
+    value = event.get("bar_grid")
+    return str(value) if value else LEGACY_BAR_GRID
+
 # Entry conventions. Two SMC event geometries locate the DECISION BAR
 # differently; the entry price is the same for both (next bar's open):
 #   - "retest_touch" (zone families OB/FVG): the decision bar is the first
@@ -130,6 +147,9 @@ class FamilyEvent(TypedDict, total=False):
     zone_high: float
     entry_price: float
     anchor_ts: float
+    # The bar grid the event was detected on (see ``BAR_GRID``). Stamped by the
+    # measurement benchmark; absent on events recorded before 2026-10-02.
+    bar_grid: str
     forward_opens: list[float]
     forward_highs: list[float]
     forward_lows: list[float]

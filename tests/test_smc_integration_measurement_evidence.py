@@ -1689,3 +1689,19 @@ class TestSessionContextScoreFamilyParity:
         assert scores["SWEEP"] == scores["BOS"] == scores["OB"] == scores["FVG"], (
             f"SWEEP must receive the same structure bonus as BOS/OB/FVG, got {scores}"
         )
+
+
+def test_family_events_carry_the_bar_grid_they_were_measured_on(monkeypatch) -> None:
+    """ADR-0031, Nachtrag 2026-10-02 III: the pool and the ledgers refuse
+    events of another bar grid, and an event without the stamp counts as the
+    previous one. The benchmark is where the stamp is put on."""
+    from governance.family_returns import BAR_GRID, event_bar_grid
+
+    contract, explicit = _contract_payload()
+    _monkeypatch_full_evidence(monkeypatch, contract=contract, explicit_payload=explicit, bars=_daily_bars())
+
+    evidence = measurement_evidence.build_measurement_evidence("AAPL", "1D")
+
+    assert evidence.family_events, "the fixture must yield family events, or the loop below proves nothing"
+    assert {event_bar_grid(event) for event in evidence.family_events} == {BAR_GRID}
+    assert BAR_GRID == "exchange_aligned"

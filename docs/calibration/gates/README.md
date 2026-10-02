@@ -36,9 +36,15 @@ Returns under the two rules are different quantities. They are kept apart:
 | Where | Rule | What it is |
 |---|---|---|
 | `variant_a_frozen/` | `touch_then_horizon_close` | everything written up to 2026-10-02: the dated 1D files, `15m/`, `ledger/`. Frozen; nothing appends to it. Not a track record. |
-| this directory, `15m/`, `ledger/` | `next_open_then_horizon_close` | the record that began on 2026-10-02 |
+| `offset_grid_frozen/` | `next_open_then_horizon_close`, on bars shifted by one minute | the 15m verdicts of 2026-10-02 and both ledgers as written in the hours before the intraday bar grid was corrected. Frozen. |
+| this directory, `15m/`, `ledger/` | `next_open_then_horizon_close`, bar grid `exchange_aligned` | the record that began on 2026-10-02 |
 
-Three things keep them apart, none of them a convention:
+The bar grid is part of the definition as well (ADR-0031, Nachtrag 2026-10-02
+III). Until 2026-10-02 the pipeline's intraday bars were shifted by one minute
+against the exchange clock; since the correction they are the bars a chart
+shows. Events of the two grids are different events.
+
+These things keep the records apart, none of them a convention:
 
 - every ledger row and every series names its `return_rule`, and
   `accumulate_returns_ledger.py` refuses (rc 2) to append to a ledger that
@@ -46,6 +52,9 @@ Three things keep them apart, none of them a convention:
 - an event without `forward_opens` — every pool event recorded before the
   change — yields no return under the new rule, so no old trade is re-priced
   into the new record by accident;
+- every event, ledger row and series names its `bar_grid`. The event pool
+  takes only events of the current grid, and the ledger producer neither
+  records events of another grid nor appends to a ledger that holds its rows;
 - the cumulative verdicts count only trades anchored on or after
   **2026-10-05**, the first trading day after the rule was fixed
   (`governance.family_returns.RETURN_RULE_EVIDENCE_START`). The rule was
@@ -56,8 +65,8 @@ Three things keep them apart, none of them a convention:
 ## Subdirectories (ADR-0031, Nachtrag 2026-10-01)
 
 `15m/` and `ledger/` are written by the `ledger` step of
-`promotion-gate-daily`. No 1D consumer sees them, nor `variant_a_frozen/`:
-every reader of this directory globs it non-recursively.
+`promotion-gate-daily`. No 1D consumer sees them, nor the two frozen
+directories: every reader of this directory globs it non-recursively.
 
 | Path | Producer | What it is |
 |---|---|---|

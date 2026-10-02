@@ -54,8 +54,10 @@ from pathlib import Path
 from typing import Any
 
 from governance.family_returns import (
+    BAR_GRID,
     DEFAULT_COST_BPS,
     RETURN_RULE,
+    event_bar_grid,
     extract_family_regime_samples,
     extract_family_returns,
 )
@@ -136,6 +138,7 @@ def build_series_payload(
         "date": date,
         "measurement": {
             "return_rule": RETURN_RULE,
+            "bar_grid": BAR_GRID,
             "cost_bps": cost_bps,
             "regime_taxonomy": "point_in_time (TRENDING/RANGING/NEUTRAL)",
             "note": (
@@ -176,6 +179,16 @@ def main(argv: list[str] | None = None) -> int:
     args = p.parse_args(argv)
 
     events = _load_pool_events(args.events)
+    # Events measured on the previous bar grid are different events (ADR-0031,
+    # Nachtrag 2026-10-02 III); a pool read before its first run on the
+    # corrected grid may still hold them.
+    on_grid = [e for e in events if event_bar_grid(e) == BAR_GRID]
+    if len(on_grid) != len(events):
+        print(
+            f"bar grid filter: kept {len(on_grid)}/{len(events)} pool events on grid {BAR_GRID}",
+            file=sys.stderr,
+        )
+    events = on_grid
     plane_total = len(events)
     plane = args.plane
     if plane:

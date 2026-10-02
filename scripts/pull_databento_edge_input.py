@@ -349,12 +349,13 @@ def normalize_opra_trades_frame(raw: pd.DataFrame, *, underlying: str) -> pd.Dat
 def aggregate_signed_volume(trades: pd.DataFrame, timeframe: str) -> pd.DataFrame:
     """Bucket signed trade volume onto the same grid the OHLCV bars use.
 
-    Reuses the resampler's exact ``bucket_end`` rule
+    Reuses the resampler's ``bucket_end`` rule for start-stamped sources
     (``scripts.explicit_structure_from_bars.resample_bars_to_timeframe``):
-    ``floored = ts.floor(freq)``; ``bucket_end = floored`` when the trade lands
-    exactly on the boundary, else ``floored + freq``. This left-open /
-    right-closed labelling is identical to the OHLCV resample, so the emitted
-    ``timestamp`` joins one-to-one onto the resampled bar timestamps.
+    ``bucket_end = ts.floor(freq) + freq``. A trade at ``T`` belongs to the bar
+    ``[floor(T), floor(T) + freq)`` — the same bar as the 1m candle that
+    contains it — so the emitted ``timestamp`` joins one-to-one onto the
+    resampled bar timestamps. (Until 2026-10-02 a trade exactly on a boundary
+    went to the bar ENDING there, mirroring the resampler's old rule.)
 
     Per bucket: ``signed_volume`` = ``sum(size)`` over buy aggressors (``side``
     ``B``) minus sell aggressors (``side`` ``A``); ``N`` (auction / non-displayed
@@ -375,7 +376,7 @@ def aggregate_signed_volume(trades: pd.DataFrame, timeframe: str) -> pd.DataFram
 
     ts = pd.to_datetime(trades["timestamp"], unit="s", utc=True)
     floored = ts.dt.floor(freq)
-    bucket_end = floored.where(ts.eq(floored), floored + offset)
+    bucket_end = floored + offset
 
     size = pd.to_numeric(trades["size"], errors="coerce").astype("float64").fillna(0.0)
     side = trades["side"].astype(str).str.strip().str.upper()
@@ -494,7 +495,7 @@ def aggregate_signed_uoa_notional(
 
     ts = pd.to_datetime(opra_trades["timestamp"], unit="s", utc=True)
     floored = ts.dt.floor(freq)
-    bucket_end = floored.where(ts.eq(floored), floored + offset)
+    bucket_end = floored + offset
 
     # float64 cast is load-bearing: Databento delivers ``size`` as uint32, and a
     # signed subtraction on an unsigned dtype underflows (see aggregate_signed_

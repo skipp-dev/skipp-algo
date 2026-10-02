@@ -59,6 +59,7 @@ def _sweep(
         "direction": direction,
         "entry_mode": "immediate",
         "entry_price": 100.0,
+        "bar_grid": "exchange_aligned",
         "anchor_ts": anchor_ts,
         # the bar after the signal opens at the level, later bars at the prior close
         "forward_opens": [100.0, *closes[:-1]],
@@ -398,3 +399,49 @@ def test_the_cumulative_series_carries_anchors_past_the_evidence_start_only() ->
     verdict = build_track_record_gate_payload(series)
     pooled_days = {c["name"]: c for c in verdict["checks"]}["trading_days"]
     assert (pooled_days["status"], pooled_days["value"]) == ("red", 2.0)
+
+
+# ---------------------------------------------------------------------------
+# Bar grid (ADR-0031, Nachtrag 2026-10-02 III): part of the trade definition.
+# ---------------------------------------------------------------------------
+
+
+def test_every_row_and_the_series_name_the_bar_grid(tmp_path: Path) -> None:
+    pool = _write_pool(tmp_path / "pool.json", [_sweep("AAPL", _ANCHOR)])
+    assert _run(tmp_path, pool) == RC_OK
+    rows = _ledger_rows(tmp_path)
+    assert len(rows) == 1
+    assert rows[0]["bar_grid"] == "exchange_aligned"
+    cumulative = json.loads((tmp_path / "cumulative_15m.json").read_text(encoding="utf-8"))
+    assert cumulative["measurement"]["bar_grid"] == "exchange_aligned"
+
+
+def test_events_of_the_previous_bar_grid_are_not_recorded(tmp_path: Path) -> None:
+    """An event without the stamp was detected on bars shifted by a minute.
+    It is a different event, even when its id is the same."""
+    stamped = _sweep("AAPL", _ANCHOR)
+    unstamped = _sweep("MSFT", _ANCHOR)
+    del unstamped["bar_grid"]
+    pool = _write_pool(tmp_path / "pool.json", [stamped, unstamped])
+    assert _run(tmp_path, pool) == RC_OK
+    assert [row["key"] for row in _ledger_rows(tmp_path)] == [stamped["event_id"]]
+
+
+def test_a_ledger_written_on_the_previous_grid_is_refused(tmp_path: Path, capsys) -> None:
+    """The rows written between the rule change and the grid correction carry
+    the current rule and cost but no ``bar_grid``. Appending to them would
+    pool two grids; the run refuses and names both definitions."""
+    pool = _write_pool(tmp_path / "pool.json", [_sweep("AAPL", _ANCHOR)])
+    assert _run(tmp_path, pool) == RC_OK
+    ledger = tmp_path / "ledger_15m.jsonl"
+    rows = _ledger_rows(tmp_path)
+    for row in rows:
+        del row["bar_grid"]
+    ledger.write_text("".join(json.dumps(row, sort_keys=True) + "\n" for row in rows), encoding="utf-8")
+    before = ledger.read_text(encoding="utf-8")
+
+    more = _write_pool(tmp_path / "pool2.json", [_sweep("MSFT", _ANCHOR)])
+    assert _run(tmp_path, more) == RC_RULE_MISMATCH
+    err = capsys.readouterr().err
+    assert "offset_one_minute" in err and "exchange_aligned" in err
+    assert ledger.read_text(encoding="utf-8") == before
