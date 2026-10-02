@@ -208,8 +208,10 @@ def build_cumulative_series(
     counted = [row for row in ordered if floor is None or float(row["anchor_ts"]) >= floor]
 
     returns_by_variant: dict[str, list[float]] = {}
+    anchor_ts_by_variant: dict[str, list[float]] = {}
     for row in counted:
         returns_by_variant.setdefault(str(row["family"]), []).append(float(row["pnl"]))
+        anchor_ts_by_variant.setdefault(str(row["family"]), []).append(float(row["anchor_ts"]))
     trades = [
         {
             "pnl": float(row["pnl"]),
@@ -247,6 +249,9 @@ def build_cumulative_series(
         "n_trades": len(counted),
         "n_trades_with_regime": len(trades),
         "returns_by_variant": dict(sorted(returns_by_variant.items())),
+        # Parallel to returns_by_variant: the gate's day checks read it
+        # (ADR-0031, Nachtrag 2026-10-02).
+        "anchor_ts_by_variant": dict(sorted(anchor_ts_by_variant.items())),
         "trades": trades,
         "trades_per_year": _trades_per_year(anchors),
         # Variant A has no target/stop (see build_returns_series).

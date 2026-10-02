@@ -335,3 +335,24 @@ def test_the_cumulative_series_feeds_the_track_record_gate(tmp_path: Path) -> No
     verdict = build_track_record_gate_payload(cumulative)
     assert verdict["n_trades"] == 12
     assert "SWEEP" in verdict["per_variant"]
+
+
+def test_the_cumulative_series_carries_anchors_past_the_evidence_start_only() -> None:
+    """The gate's day checks read ``anchor_ts_by_variant``; it must be
+    parallel to the returns AFTER the evidence-start cut, per family."""
+    midnight = 1_790_812_800.0  # 2026-10-01T00:00:00Z
+    rows = [
+        {"key": "a", "family": "SWEEP", "anchor_ts": midnight - 1, "pnl": 0.01, "regime_at_entry": None},
+        {"key": "c", "family": "BOS", "anchor_ts": midnight + 900, "pnl": -0.02, "regime_at_entry": None},
+        {"key": "b", "family": "SWEEP", "anchor_ts": midnight, "pnl": 0.02, "regime_at_entry": None},
+        {"key": "d", "family": "SWEEP", "anchor_ts": midnight + _DAY, "pnl": 0.03, "regime_at_entry": None},
+    ]
+    series = build_cumulative_series(
+        rows, run_date="2026-10-02", plane="15m", cost_bps=5.0, evidence_start="2026-10-01"
+    )
+    assert series["returns_by_variant"] == {"BOS": [-0.02], "SWEEP": [0.02, 0.03]}
+    assert series["anchor_ts_by_variant"] == {"BOS": [midnight + 900], "SWEEP": [midnight, midnight + _DAY]}
+
+    verdict = build_track_record_gate_payload(series)
+    pooled_days = {c["name"]: c for c in verdict["checks"]}["trading_days"]
+    assert (pooled_days["status"], pooled_days["value"]) == ("red", 2.0)

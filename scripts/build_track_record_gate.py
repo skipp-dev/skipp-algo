@@ -78,6 +78,8 @@ def _load_returns_payload(path: Path) -> dict[str, Any]:
 
     Shape A (global): ``{"returns": [r1, r2, ...]}``.
     Shape B (per-variant): ``{"returns_by_variant": {variant: [...]}}``.
+    Shape B may carry ``anchor_ts_by_variant`` (epoch seconds, parallel to
+    the returns) — the input of the gate's day checks.
     Either shape may also carry an optional ``rr_target`` scalar and
     optional per-variant scalars (WFE / permutation_p / fdr_rate /
     per_regime_hit_rate_spread) which are forwarded to the gate.
@@ -136,6 +138,34 @@ def _safe_by_variant(value: Any) -> dict[str, float] | None:
     return out or None
 
 
+def _anchors_by_variant(
+    returns_payload: Mapping[str, Any], returns_by_variant: Mapping[str, list[Any]]
+) -> dict[str, list[float]] | None:
+    """Read ``anchor_ts_by_variant``; ``None`` when the series carries none.
+
+    A series that carries anchors must carry them for EVERY family and in
+    the same length as the returns. A partial block would leave some
+    families with skipped day checks and nothing in the verdict to say why.
+    """
+
+    raw = returns_payload.get("anchor_ts_by_variant")
+    if raw is None:
+        return None
+    if not isinstance(raw, Mapping):
+        raise ValueError("anchor_ts_by_variant must map family -> list of epoch seconds")
+    out: dict[str, list[float]] = {}
+    for variant, returns in returns_by_variant.items():
+        anchors = raw.get(variant)
+        if not isinstance(anchors, list) or len(anchors) != len(returns):
+            got = len(anchors) if isinstance(anchors, list) else "no list"
+            raise ValueError(
+                f"anchor_ts_by_variant[{variant!r}]: expected {len(returns)} "
+                f"anchors parallel to the returns, got {got}"
+            )
+        out[variant] = [float(ts) for ts in anchors]
+    return out
+
+
 def build_track_record_gate_payload(returns_payload: Mapping[str, Any]) -> dict[str, Any]:
     """Compute the verdict dict (global + optional per-variant block)."""
 
@@ -161,8 +191,15 @@ def build_track_record_gate_payload(returns_payload: Mapping[str, Any]) -> dict[
         # Concatenate every variant for the global verdict; per-variant
         # block carries the per-row verdicts the dashboard renders.
         all_returns = [r for rs in returns_by_variant.values() for r in rs]
+        anchors_by_variant = _anchors_by_variant(returns_payload, returns_by_variant)
+        all_anchors = (
+            None
+            if anchors_by_variant is None
+            else [ts for variant in returns_by_variant for ts in anchors_by_variant[variant]]
+        )
         global_verdict = evaluate_track_record_gate(
             all_returns,
+            anchor_ts=all_anchors,
             rr_target=rr_target,
             walk_forward_efficiency=wfe_global,
             permutation_p=perm_p_global,
@@ -172,6 +209,7 @@ def build_track_record_gate_payload(returns_payload: Mapping[str, Any]) -> dict[
         )
         per_variant = evaluate_track_record_gate_per_variant(
             returns_by_variant,
+            anchor_ts_by_variant=anchors_by_variant,
             rr_target=rr_target,
             trades_per_year=trades_per_year,
             walk_forward_efficiency_by_variant=_safe_by_variant(
