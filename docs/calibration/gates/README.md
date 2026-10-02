@@ -121,6 +121,46 @@ them for "how were the last 30 days", the ledger verdicts for "what has
 accumulated". A window verdict has no evidence start: it also contains trades
 anchored before 2026-10-05, priced under the new rule.
 
+## Runbook: checking the new record
+
+What is expected when, and where to read it. Dates are UTC; "Actions" is the
+repository's GitHub Actions tab.
+
+1. **The daily run produced.** Actions → `promotion-gate-daily` → newest run
+   (weekdays 14:00) → "Annotations". Good: `artifact
+   smc-measurement-benchmark-rolling-<date> fetched from run …`. Bad:
+   `artifact … not found in the last 8 completed rolling-bench runs` or `no
+   recent completed rolling-bench run on main` — the benchmark did not
+   deliver; open Actions → `smc-measurement-benchmark-rolling` and read the
+   newest run's `[bench-gate]` line.
+2. **The ledgers grew.** Same run → job `promotion-gate` → step "Build 15m
+   observation series + cumulative returns ledger (ADR-0031 Nachtrag)". One
+   line per plane: `returns ledger 15m: … N new, … ledger now M`. On `main`
+   the rows are in `docs/calibration/gates/ledger/returns_ledger_<plane>.jsonl`.
+3. **The cumulative verdict exists.** `docs/calibration/gates/ledger/track_record_gate_<plane>.json`
+   on `main`. Until a trade anchored on or after 2026-10-05 has closed, the
+   run says `cumulative <plane> series still empty` instead — that is the
+   expected state, not a fault:
+   - 15m: an event enters the pool once its 8 to 20 forward bars exist, so
+     the first cumulative 15m trades arrive with the first run that sees bars
+     of 2026-10-05;
+   - 1D: the same 8 (BOS, SWEEP) to 12 (OB) forward bars are trading DAYS, so
+     the first cumulative 1D trade cannot arrive before the run of 2026-10-16.
+4. **Read the numbers.** Run the first snippet under "Reading it" from the
+   repo root. `status` can be `green` only with 30 trading days — 15m not
+   before 2026-11-13, 1D later.
+5. **The move-size ledger stamps the rule.** Actions →
+   `adr0023-magnitude-shadow-daily` → newest run (weekdays 13:30) → job
+   `magnitude-shadow` → step "Append magnitude-shadow ledger row". Good:
+   `shadow ledger artifacts/governance/magnitude_resolution_shadow.jsonl
+   [next_open_then_horizon_close]: …`. The proof entry
+   `shadow-ledger-return-rule` in `proof_ledger.toml` is open until that line
+   has been recorded; the proof-ledger monitor turns it red after its `due_by`.
+6. **The freshness row sees the series.** Actions →
+   `workflow-freshness-monitor` → newest run (daily 06:30) → "Annotations":
+   `product:docs/calibration/gates/returns_series_*.json: fresh (…)`. `STALE`
+   there means no series landed for two business days — go to step 1.
+
 ## The day checks: count the days, not the trades
 
 `n_trades` counts every symbol separately. Setups that form on the same day

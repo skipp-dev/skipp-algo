@@ -1895,8 +1895,10 @@ faengt den Fall, dass der Checkout der Sonde (fetch-depth 1) davon abweicht.
 [[proof]]
 id              = "freshness-product-row-returns-series"
 kind            = "fix"
-merged_at       = "<wird beim Merge nachgetragen>"
-merge_sha       = "<dito>"
+# 2026-10-02 nachgetragen (#5624): `gh pr view 5624 --json mergedAt,mergeCommit`
+# und `git log -1 origin/main` stimmen ueberein (SHA identisch).
+merged_at       = "2026-10-02T17:58:52Z"
+merge_sha       = "860fcbab0622cca8706bd8079ead05dc75304fef"
 claim           = "Der workflow-freshness-monitor wertet bei jedem Lauf das Alter der juengsten datierten Ertragsserie im Checkout aus (docs/calibration/gates/returns_series_*.json, 72 Werktagsstunden) und gibt das Ergebnis als Annotation 'product:docs/calibration/gates/returns_series_*.json: …' aus."
 witness         = "workflow-freshness-monitor"
 witness_job     = "probe"
@@ -1904,7 +1906,16 @@ evidence_source = "job_log"
 artifact        = ""
 version_probe   = "product:docs/calibration/gates/returns_series_"
 judge           = "freshness_product_row"
-state           = "OFFEN"
+# 2026-10-02, GEMESSEN: Lauf 37044446792 (workflow_dispatch auf main,
+# head_sha 860fcbab0, Job `probe` 110962289057, nach merged_at). Das Log traegt
+#   ##[notice]product:docs/calibration/gates/returns_series_*.json: fresh (18.0h ago)
+# Geurteilt ueber den Weg des Ledgers selbst (`_judge_entry`): newest_witness
+# waehlt diesen Lauf, Urteil PASS/zeile_ausgewertet. Der Lauf endete `failure`
+# — andere Zeilen sind ueberfaellig; der Urteiler liest den Inhalt, nicht die
+# Conclusion. Das Log ist als Korpus aufgezeichnet.
+state           = "PASS"
+pass_kind       = "live"
+witness_run     = "37044446792"
 due_by          = "2026-10-09"
 owner           = "operator"
 
@@ -2965,8 +2976,10 @@ echten Lauf.
 [[proof]]
 id              = "shadow-ledger-return-rule"
 kind            = "fix"
-merged_at       = "<wird beim Merge nachgetragen>"
-merge_sha       = "<dito>"
+# 2026-10-02 nachgetragen (#5624): `gh pr view 5624 --json mergedAt,mergeCommit`
+# und `git log -1 origin/main` stimmen ueberein (SHA identisch).
+merged_at       = "2026-10-02T17:58:52Z"
+merge_sha       = "860fcbab0622cca8706bd8079ead05dc75304fef"
 claim           = "adr0023-magnitude-shadow-daily haengt Zeilen an, die return_rule = next_open_then_horizon_close tragen, und nennt die Regel in seiner Zusammenfassung ('shadow ledger <pfad> [next_open_then_horizon_close]: …')."
 witness         = "adr0023-magnitude-shadow-daily"
 witness_job     = "magnitude-shadow"

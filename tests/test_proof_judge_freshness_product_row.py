@@ -15,6 +15,8 @@ from scripts.proof_ledger import load_entries
 _JUDGE = "freshness_product_row"
 _PRE_MERGE_RUN = "110255904403"
 _POST_MERGE_RUN = "110446234362"
+# 2026-10-02: der erste Lauf mit der Serien-Zeile (Lauf 37044446792, nach #5624).
+_SERIES_WITNESS_RUN = "110962289057"
 _ROW = "product:docs/calibration/gates/track_record_gate_*.json"
 
 
@@ -28,7 +30,7 @@ def _judge(log: str):
 
 def _corpus() -> dict[str, dict]:
     corpus = dict(corpus_for(_JUDGE))
-    assert set(corpus) == {_PRE_MERGE_RUN, _POST_MERGE_RUN}, sorted(corpus)
+    assert set(corpus) == {_PRE_MERGE_RUN, _POST_MERGE_RUN, _SERIES_WITNESS_RUN}, sorted(corpus)
     return corpus
 
 
@@ -150,3 +152,15 @@ def test_a_series_row_that_sees_nothing_is_a_fail() -> None:
     )
     verdict = load_judge(_JUDGE).judge({"log": log}, _series_entry())
     assert (verdict.state, verdict.branch) == ("FAIL", "muster_findet_nichts")
+
+
+def test_the_recorded_series_run_is_the_pass_of_the_new_entry() -> None:
+    """Der Zeuge, auf dem der PASS von ``freshness-product-row-returns-series`` steht."""
+    judge = load_judge(_JUDGE).judge
+    log = _corpus()[_SERIES_WITNESS_RUN]["log"]
+    verdict = judge({"log": log}, _series_entry())
+    assert (verdict.state, verdict.branch) == ("PASS", "zeile_ausgewertet")
+    assert verdict.detail == "Produkt-Zeile ausgewertet: fresh (18.0h ago)"
+    # Die Zeile des alten Musters gibt dieser Lauf nicht mehr aus.
+    old = judge({"log": log}, _entry())
+    assert (old.state, old.branch) == ("STEHT_AUS", "zeile_fehlt")
