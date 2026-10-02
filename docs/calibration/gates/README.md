@@ -35,6 +35,18 @@ arming or claim tier, not embedded in the public report. The 15m cumulative
 verdict counts only trades anchored on or after 2026-10-01 (the day the plane
 was fixed); earlier 15m trades stay in the ledger.
 
+## The entry price behind every number (measured 2026-10-02)
+
+Every return here assumes the Variant-A entry: the zone midpoint for OB and
+FVG, the broken or swept level for BOS and SWEEP. On 15m that price did not
+trade on the entry bar for about two thirds of the zone trades and about half
+of the level trades. With an entry at the close of the same bar, no family is
+positive after costs (pooled -6.4 bps per trade against +12.5 bps reported),
+and BOS and OB earn less than random entries in the same symbol on the same
+day. A positive mean in these files is therefore not evidence of a tradable
+edge. Method, tables and limits:
+`docs/governance/variant_a_entry_price_measurement_2026-10-02.md`.
+
 ## Reading it: which family stands where
 
 The question these files answer is "does this family earn anything after
