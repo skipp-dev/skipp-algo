@@ -128,3 +128,26 @@ def test_cli_roundtrip_gate_shape(tmp_path: Path) -> None:
     # 2 trades << MIN_OOS_TRADES → honest red, never a crash.
     assert verdict["status"] == "red"
     assert verdict["n_trades"] == 2
+
+
+def test_every_return_carries_its_anchor_for_the_gates_day_checks() -> None:
+    """``anchor_ts_by_variant`` is parallel to ``returns_by_variant`` — the
+    gate counts trading days from it (ADR-0031, Nachtrag 2026-10-02). An
+    untriggered event contributes to neither list."""
+    from scripts.build_track_record_gate import build_track_record_gate_payload
+
+    events = [
+        _sweep_event(anchor_ts=_ANCHOR + day * _DAY, closes=(101.0, 102.0, 100.0 + day))
+        for day in (0, 0, 1, 3)
+    ]
+    events.append(_sweep_event(direction="", anchor_ts=_ANCHOR + 2 * _DAY))  # no trade
+
+    payload = build_series_payload(events, date="2026-10-02", plane="1D")
+
+    assert payload["anchor_ts_by_variant"] == {
+        "SWEEP": [_ANCHOR, _ANCHOR, _ANCHOR + _DAY, _ANCHOR + 3 * _DAY]
+    }
+    assert len(payload["returns_by_variant"]["SWEEP"]) == 4
+    verdict = build_track_record_gate_payload(payload)
+    days = {c["name"]: c for c in verdict["per_variant"]["SWEEP"]["checks"]}["trading_days"]
+    assert (days["status"], days["value"]) == ("red", 3.0)

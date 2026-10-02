@@ -47,7 +47,7 @@ costs, and is the sample large enough to say so". Read it in this order.
 2. **Check the sample first.** `per_variant.<FAMILY>.n_trades`. Below 100 the
    check `oos_trades` is red and every other row is a diagnostic, not a
    finding — `claim_note` says so in words.
-3. **Read the four rows that carry the answer**, under
+3. **Read the rows that carry the answer**, under
    `per_variant.<FAMILY>.checks[]` (each row is `name`, `status`, `value`,
    `threshold`):
    - `win_rate` — share of winning trades (threshold 0.55);
@@ -55,7 +55,9 @@ costs, and is the sample large enough to say so". Read it in this order.
      the row that separates "positive" from "indistinguishable from zero";
    - `psr_sr_star_zero` — probabilistic Sharpe against zero (threshold 0.95);
    - `min_trl_within_n` — trades needed for that Sharpe to be credible,
-     against the trades there are.
+     against the trades there are;
+   - `trading_days` and `day_clustered_mean_ci_low` — see "The day checks"
+     below. On 15m these two decide; the rows above overstate there.
 4. **Then the verdict.** `per_variant.<FAMILY>.status` and `.claimable`.
 5. **Check how fresh it is.** The last line of
    `ledger/returns_ledger_<plane>.jsonl` carries `first_recorded` (the run
@@ -83,4 +85,70 @@ The 30-day window verdicts (`track_record_gate_<date>.json` here for 1D,
 `15m/track_record_gate_<date>.json` for 15m) have the same structure. Use
 them for "how were the last 30 days", the ledger verdicts for "what has
 accumulated".
+
+## The day checks: count the days, not the trades
+
+`n_trades` counts every symbol separately. Setups that form on the same day
+in several symbols move together, so they are closer to one observation of
+the market than to many. Two checks in every verdict carry that (ADR-0031,
+Nachtrag 2026-10-02):
+
+- `trading_days` — distinct UTC days the trades are anchored on (threshold
+  30). Its `detail` names the largest number of trades on one day.
+- `day_clustered_mean_ci_low` — lower 95 % bound of the mean return per
+  trade when whole days are resampled (must be above 0). The interval, the
+  number of positive days and the mean sit in `summary.day_clustered`.
+
+Both must be green for `status` to be green. A 30-day window verdict holds
+at most 22 trading days, so only the cumulative verdicts under `ledger/` can
+turn green at all. `sharpe`, `bootstrap_sharpe_ci_low`, `psr_sr_star_zero`
+and `min_trl_within_n` still resample trades; on a plane with many trades
+per day they read stronger than the evidence is. A verdict with
+`schema_version` 1.0.0 was written before the day checks and carries neither.
+
+Measured on the ledgers of 2026-10-02:
+
+- 15m: 2 490 trades come from 19 trading days; one bar carries up to 56
+  trades (median 2). The 30-day window verdict of that day reads `green`
+  for all four families (n = 2 469). Resampling whole days instead of
+  trades gives a mean per trade of BOS 12.4 bps [4.2, 19.0], FVG 11.4
+  [-0.4, 22.7], OB 9.3 [1.2, 14.7], SWEEP 12.2 [5.9, 16.9], with 10 to 12
+  positive days out of 18 — modest, and for FVG not separable from zero.
+  The cumulative 15m verdict reads `green` for SWEEP on 210 trades that
+  all come from one day (2026-10-01).
+- 1D: 170 trades come from 13 trading days (up to 27 per day). No family's
+  day-resampled interval excludes zero.
+
+The day-resampled reading, printed (run from the repo root; covers the whole
+ledger, including 15m trades anchored before 2026-10-01):
+
+```bash
+python - <<'PY'
+import collections, json, random
+from datetime import datetime, timezone
+random.seed(0)
+for plane in ("1D", "15m"):
+    try:
+        rows = [json.loads(line) for line in open(f"docs/calibration/gates/ledger/returns_ledger_{plane}.jsonl") if line.strip()]
+    except FileNotFoundError:
+        print(f"{plane}: no ledger yet"); continue
+    for family in sorted({row["family"] for row in rows}):
+        by_day = collections.defaultdict(list)
+        for row in rows:
+            if row["family"] == family:
+                by_day[datetime.fromtimestamp(row["anchor_ts"], timezone.utc).date()].append(row["pnl"] * 1e4)
+        days = list(by_day.values())
+        n = sum(map(len, days))
+        means = []
+        for _ in range(5000):
+            draw = [trade for day in random.choices(days, k=len(days)) for trade in day]
+            means.append(sum(draw) / len(draw))
+        means.sort()
+        print(f"{plane} {family:5} n={n:4d} days={len(days):3d} mean={sum(map(sum, days)) / n:6.1f} bps "
+              f"ci95=[{means[124]:.1f}, {means[4874]:.1f}] positive_days={sum(sum(day) > 0 for day in days)}")
+PY
+```
+
+The gate computes the same interval with its own random draws; the bounds
+differ in the first decimal.
 

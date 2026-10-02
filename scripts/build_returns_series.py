@@ -17,6 +17,9 @@ Output (one JSON, atomic):
 
 * ``returns_by_variant`` — per-family net-return lists in exactly the
   Shape-B contract ``scripts/build_track_record_gate.py`` reads.
+* ``anchor_ts_by_variant`` — the anchor of every return, parallel to
+  ``returns_by_variant``; the gate counts trading days from it and
+  resamples whole days (ADR-0031, Nachtrag 2026-10-02).
 * ``trades`` — per-trade records ``{"pnl", "regime_at_entry", "family",
   "anchor_ts"}`` for :mod:`scripts.regime_stratification` /
   :mod:`scripts.regime_stratified_inference` (only events that both
@@ -105,6 +108,10 @@ def build_series_payload(
     returns_by_variant = {
         family: list(bundle["returns"]) for family, bundle in sorted(grouped.items())
     }
+    anchor_ts_by_variant = {
+        family: [float(ts) for ts in bundle["timestamps"]]
+        for family, bundle in sorted(grouped.items())
+    }
     all_ts = [t for bundle in grouped.values() for t in bundle["timestamps"]]
 
     regime_samples = extract_family_regime_samples(events, cost_bps=cost_bps)
@@ -142,6 +149,7 @@ def build_series_payload(
         "n_trades": n_trades,
         "n_trades_with_regime": len(trades),
         "returns_by_variant": returns_by_variant,
+        "anchor_ts_by_variant": anchor_ts_by_variant,
         "trades": trades,
         "trades_per_year": _trades_per_year(all_ts),
         # Variant A has no target/stop, so no realized-RR concept applies;
