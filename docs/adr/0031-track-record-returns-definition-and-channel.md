@@ -312,3 +312,11 @@ und keine Reihe erreicht die Schwelle.
 - **Marktrichtung.** Die Prüfungen sagen, ob der Ertrag von null verschieden
   ist, nicht, ob er über dem liegt, was ein beliebiger Einstieg zur selben
   Zeit im selben Symbol gebracht hätte.
+- **Einstiegspreis.** Entscheidung 1 setzt den Einstieg zur Zonenmitte bzw.
+  zum Level an. Gemessen am 2026-10-02 auf 15m: dieser Preis wurde auf der
+  Einstiegskerze bei rund zwei Dritteln der Zonen-Trades und rund der Hälfte
+  der Level-Trades nicht gehandelt; mit Einstieg zum Schlusskurs derselben
+  Kerze ist keine Familie positiv (gepoolt −6,4 statt +12,5 bps je Trade).
+  Messung und Grenzen:
+  `docs/governance/variant_a_entry_price_measurement_2026-10-02.md`. Die Regel
+  selbst ändert dieser Nachtrag nicht.
