@@ -115,6 +115,36 @@ Variante A (2 469), weil eine Kerze, die die Zone durchschlägt, jetzt als
 Entscheidungskerze zählt. Diese Zahlen sind eine Rückschau auf Daten, die bei
 der Wahl der Regel bekannt waren; sie gehen nicht in das neue Ledger ein.
 
+## Erste Ablesung aus der Pipeline (2026-10-02, nach der Regeländerung)
+
+Nach dem Merge der Regel (#5624) lief der Benchmark auf dem neuen Stand (Lauf
+37044450503): 13 880 der 19 893 Pool-Events tragen Eröffnungskurse, auf 1D
+alle. Das Gate (Lauf 37048499180) rechnete daraus die ersten Fenster-Urteile
+unter der neuen Regel; sie liegen auf `main`
+(`docs/calibration/gates/track_record_gate_2026-10-02.json`,
+`docs/calibration/gates/15m/track_record_gate_2026-10-02.json`). Mittel je
+Trade in bps, Intervall über gezogene Tage, aus `summary.day_clustered`:
+
+| Ebene | Familie | n | Tage | neue Regel | Variante A, dieselben Events |
+|---|---|---|---|---|---|
+| 1D | BOS | 44 | 11 | −103,0 [−269,9; 68,1] | +21,0 [−187,8; 213,2] |
+| 1D | OB | 21 | 7 | −57,0 [−174,5; 109,0] | +76,3 [−64,3; 233,9] |
+| 1D | SWEEP | 103 | 12 | −59,0 [−122,7; −5,9] | +33,1 [−41,7; 93,9] |
+| 1D | alle | 168 | 12 | −70,3 [−142,8; 1,3] | – |
+| 15m | BOS | 388 | 4 | −4,5 [−11,5; 0,6] | – |
+| 15m | OB | 201 | 4 | −3,8 [−10,2; 1,3] | – |
+| 15m | FVG | 608 | 4 | −6,0 [−15,0; 5,4] | – |
+| 15m | SWEEP | 935 | 4 | −4,7 [−6,5; −3,0] | – |
+| 15m | alle | 2 132 | 4 | −5,0 [−9,0; −0,4] | – |
+
+Die Variante-A-Spalte stammt aus dem eingefrorenen Urteil desselben Tages
+(`variant_a_frozen/track_record_gate_2026-10-02.json`); OB hatte dort 20
+Trades. Auf 15m tragen nur die Events der letzten vier Tage Eröffnungskurse.
+
+Damit ist auch 1D gemessen: der Einstiegsvorteil war dort rund 90 bis 130 bps
+je Trade. Alle diese Trades liegen vor dem Evidenz-Start (2026-10-05) und
+zählen nicht für die kumulativen Urteile; es ist eine Rückschau.
+
 ## Daten und Abdeckung
 
 - Events: Pool aus `smc-measurement-benchmark-rolling`, Lauf 37007024689
@@ -136,8 +166,9 @@ der Wahl der Regel bekannt waren; sie gehen nicht in das neue Ledger ein.
   Limit-Orders. Für BOS und SWEEP ist eine vorab liegende Stop- oder
   Limit-Order am Level nicht prüfbar: der Pool hält nur bestätigte Ereignisse,
   nicht die Berührungen ohne Bestätigung.
-- **1D für BOS und SWEEP ungemessen.** Tageskerzen waren nicht Teil der
-  geladenen Artefakte.
+- **1D ist nur unter der neuen Regel gemessen** (Abschnitt „Erste Ablesung
+  aus der Pipeline"). Der Kerzen-Vergleich mit Placebo lief nur auf 15m;
+  Tageskerzen waren nicht Teil der geladenen Artefakte.
 
 ## Nachrechnen
 
