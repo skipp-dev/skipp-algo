@@ -246,9 +246,10 @@ def test_normalize_trades_frame_rejects_empty() -> None:
 
 
 def test_aggregate_signed_volume_signs_and_counts() -> None:
-    # Three trades inside one 15m window (the first bucket ends at _T0+100s, the
-    # 22:15:00 boundary): B(+10), A(-4), N(0 signed, still counted).
-    raw = _raw_trades_frame([0, 60, 100], [10.0, 4.0, 7.0], ["B", "A", "N"])
+    # Three trades inside one 15m window (the bar ends at _T0+100s, the
+    # 22:15:00 boundary; the last trade prints one second before it):
+    # B(+10), A(-4), N(0 signed, still counted).
+    raw = _raw_trades_frame([0, 60, 99], [10.0, 4.0, 7.0], ["B", "A", "N"])
     trades = normalize_trades_frame(raw, symbol="AAPL")
 
     agg = aggregate_signed_volume(trades, "15m")
@@ -257,6 +258,21 @@ def test_aggregate_signed_volume_signs_and_counts() -> None:
     assert float(agg["signed_volume"].iloc[0]) == 6.0  # 10 - 4 + 0
     assert int(agg["trade_count"].iloc[0]) == 3
     assert float(agg["abs_volume"].iloc[0]) == 21.0  # 10 + 4 + 7 (unsigned sum)
+
+
+def test_a_trade_exactly_on_a_bar_boundary_belongs_to_the_bar_that_starts_there() -> None:
+    """22:15:00.000 is the first instant of the bar [22:15, 22:30) — the same
+    bar the 1m candle stamped 22:15 goes to. Until 2026-10-02 it was booked
+    into the bar ENDING at 22:15, mirroring the resampler's old rule
+    (ADR-0031, Nachtrag 2026-10-02 III)."""
+    raw = _raw_trades_frame([0, 60, 100], [10.0, 4.0, 7.0], ["B", "A", "B"])
+    trades = normalize_trades_frame(raw, symbol="AAPL")
+
+    agg = aggregate_signed_volume(trades, "15m")
+
+    assert [int(t) for t in agg["timestamp"]] == [_T0 + 100, _T0 + 100 + 900]
+    assert [float(v) for v in agg["signed_volume"]] == [6.0, 7.0]
+    assert [int(n) for n in agg["trade_count"]] == [2, 1]
 
 
 def test_aggregate_signed_volume_uint32_size_no_underflow() -> None:
@@ -509,7 +525,7 @@ def test_normalize_opra_tcbbo_reconstructs_side_from_quote_rule() -> None:
     # recover A (ask-lift) and B (bid-hit) from the NBBO so the signed notional
     # is non-degenerate -- the entire point of the trades->tcbbo switch.
     raw = _raw_opra_tcbbo(
-        offsets=[0, 60, 100],
+        offsets=[0, 60, 99],
         sizes=[10.0, 4.0, 7.0],
         prices=[2.0, 3.0, 1.5],  # at/above ask, at/below bid, inside spread
         bids=[1.8, 3.2, 1.0],
@@ -548,7 +564,7 @@ def test_aggregate_signed_uoa_notional_inverse_aggressor_signs() -> None:
     #   A (ask-lift) = call bought = bullish (+): size 10 * price 2 * 100 = +2000
     #   B (bid-hit)  = call sold   = bearish (-): size  4 * price 3 * 100 = -1200
     #   N (cross)    = unsigned (0 signed), still counted: size 7 * price 1 * 100 = 700 abs
-    raw = _raw_opra_trades([0, 60, 100], [10.0, 4.0, 7.0], [2.0, 3.0, 1.0], ["A", "B", "N"])
+    raw = _raw_opra_trades([0, 60, 99], [10.0, 4.0, 7.0], [2.0, 3.0, 1.0], ["A", "B", "N"])
 
     agg = aggregate_signed_uoa_notional(raw, "15m")
 

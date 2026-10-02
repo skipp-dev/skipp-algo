@@ -219,7 +219,8 @@ def _process_symbol_tf(
         return []
 
     if timeframe != "5m":
-        sym_bars = resample_bars_to_timeframe(sym_bars, timeframe)
+        # The 5m base is this resampler's own output, stamped at each bar's END.
+        sym_bars = resample_bars_to_timeframe(sym_bars, timeframe, source_stamp="end")
         if sym_bars.empty:
             return []
 
