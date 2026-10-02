@@ -229,3 +229,86 @@ Mit dem korrigierten Pool-Schlüssel (#5585) ist auf 15m mit dem Zwölffachen zu
 rechnen (2 133 statt 177 Trades aus denselben zwei Tagesdateien), also grob
 130 KB täglich und rund 30 MB im Jahr.
 
+
+## Nachtrag 2026-10-02: der Handelstag ist die Einheit, nicht der Trade
+
+- **Status:** accepted (Owner-Entscheidung 2026-10-02)
+- **Löst auf:** den dritten Punkt unter „Was dieser Nachtrag nicht
+  entscheidet" des Nachtrags vom 2026-10-01 (Gewichtung gleichzeitiger Trades).
+- **Ändert nicht:** Entscheidung 1–5. Trade-Definition, Ebenen, Ledger und
+  Kanäle bleiben.
+
+### Anlass (gemessen 2026-10-02)
+
+Am ersten Tag nach #5585 las das 15m-Fenster-Urteil für alle vier Familien
+`green` (n = 2 469, PSR ≈ 1,0); am Vortag war mit n = 634 keine Familie von
+null unterscheidbar. Dazwischen lag keine neue Evidenz, sondern der neue
+Pool-Schlüssel: er hält jedes Symbol als eigenen Trade.
+
+- Die 2 490 Trades des 15m-Ledgers stammen aus 19 Handelstagen; auf einer
+  einzigen Kerze liegen bis zu 56 (Median 2).
+- Das kumulative 15m-Urteil las für SWEEP `green` auf 210 Trades, die alle
+  am 2026-10-01 verankert sind.
+- Die 170 Trades des 1D-Ledgers stammen aus 13 Handelstagen, bis zu 27 je Tag.
+
+Das Gate zieht Trades in ihrer Reihenfolge (stationäre Blöcke der Länge 5) und
+annualisiert mit Trades pro Jahr. Trades desselben Tages bewegen sich aber
+gemeinsam. Tageweise gezogen bleibt auf 15m ein mäßig positiver Mittelwert für
+BOS, OB und SWEEP (rund 9–12 bps je Trade, Untergrenzen 1–6 bps) und für FVG
+ein Intervall durch die Null; auf 1D schließt kein Intervall die Null aus.
+
+### Entscheidung 6: zwei Tages-Prüfungen im Track-Record-Gate
+
+Die Serien tragen zu jedem Ertrag seinen Anker (`anchor_ts_by_variant`,
+parallel zu `returns_by_variant`). `scripts/track_record_gate.py` rechnet
+daraus zwei zusätzliche Prüfungen, je Familie und gepoolt:
+
+| Prüfung | Wert | Schwelle |
+|---|---|---|
+| `trading_days` | Zahl verschiedener UTC-Kalendertage der Anker | ≥ 30 |
+| `day_clustered_mean_ci_low` | untere 95-%-Grenze des mittleren Ertrags je Trade, wenn ganze Tage mit Zurücklegen gezogen werden (2 000 Züge) | > 0 |
+
+Beide gehen in das Aggregat ein wie jede andere Prüfung (rot dominiert), und
+beide sind Pflicht-Evidenz für `claimable`. Liefert ein Aufrufer keine Anker,
+sind beide `skipped`; ein grünes Urteil ist dann nicht claimable und sagt in
+`claim_note`, was fehlt. Eine Serie, die Anker nur für einen Teil der Familien
+trägt, wird verweigert.
+
+**Warum 30.** Ein über Tage gezogenes Intervall ist bei wenigen Tagen selbst
+unzuverlässig; unter rund 30 Ziehungseinheiten unterschätzt es die Streuung.
+Die Zahl ist eine Setzung, keine Messung.
+
+**Offenlegung zur Wahl.** Schwelle und Verfahren wurden gewählt, nachdem die
+Tageszahlen bekannt waren (13 auf 1D, 18–19 auf 15m). Die Wahl kann keine
+Familie begünstigen: beide Prüfungen können ein Urteil nur strenger machen,
+und keine Reihe erreicht die Schwelle.
+
+### Folgen
+
+- **Kein Fenster-Urteil kann mehr `green` werden.** Der Pool hält 30
+  Kalendertage, also höchstens 22 Handelstage. `green` kann nur noch ein
+  kumulatives Urteil über dem Ledger werden. Der Public-Report bettet das
+  1D-Fenster-Urteil ein; ob er stattdessen das kumulative Urteil zeigen soll,
+  bleibt offen wie im Nachtrag vom 2026-10-01.
+- **Die 15m-Vorwärts-Reihe** (Evidenz-Start 2026-10-01) erreicht 30
+  Handelstage frühestens nach 30 Börsentagen mit mindestens einem Trade je
+  Familie.
+- **Die übrigen Prüfungen bleiben, wie sie sind.** `sharpe`,
+  `bootstrap_sharpe_ci_low`, `psr_sr_star_zero` und `min_trl_within_n` rechnen
+  weiter über Trades und überzeichnen auf Ebenen mit vielen Trades je Tag. Sie
+  sind dort Diagnose; bindend gegen die Überzeichnung sind die beiden
+  Tages-Prüfungen.
+- **Verdict-Schema 1.0.0 → 1.1.0** (additive Prüfungen,
+  `summary.day_clustered`). Die beiden Namen stehen am Ende von
+  `KNOWN_GATE_CHECK_NAMES`; die Positionen der bisherigen bleiben.
+
+### Was dieser Nachtrag nicht korrigiert
+
+- **Überlappung über Tagesgrenzen.** Ein Trade hält 3 bis 8 Kerzen (SWEEP 3,
+  FVG 4, OB 6, BOS 8). Auf 15m endet das innerhalb des Tages. Auf 1D sind es
+  3 bis 8 Handelstage: benachbarte Tage teilen sich Haltefenster und sind
+  nicht unabhängig. Das Tages-Intervall ist auf 1D deshalb weiterhin zu eng,
+  nur weniger als zuvor.
+- **Marktrichtung.** Die Prüfungen sagen, ob der Ertrag von null verschieden
+  ist, nicht, ob er über dem liegt, was ein beliebiger Einstieg zur selben
+  Zeit im selben Symbol gebracht hätte.

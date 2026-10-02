@@ -47,7 +47,7 @@ costs, and is the sample large enough to say so". Read it in this order.
 2. **Check the sample first.** `per_variant.<FAMILY>.n_trades`. Below 100 the
    check `oos_trades` is red and every other row is a diagnostic, not a
    finding — `claim_note` says so in words.
-3. **Read the four rows that carry the answer**, under
+3. **Read the rows that carry the answer**, under
    `per_variant.<FAMILY>.checks[]` (each row is `name`, `status`, `value`,
    `threshold`):
    - `win_rate` — share of winning trades (threshold 0.55);
@@ -55,7 +55,9 @@ costs, and is the sample large enough to say so". Read it in this order.
      the row that separates "positive" from "indistinguishable from zero";
    - `psr_sr_star_zero` — probabilistic Sharpe against zero (threshold 0.95);
    - `min_trl_within_n` — trades needed for that Sharpe to be credible,
-     against the trades there are.
+     against the trades there are;
+   - `trading_days` and `day_clustered_mean_ci_low` — see "The day checks"
+     below. On 15m these two decide; the rows above overstate there.
 4. **Then the verdict.** `per_variant.<FAMILY>.status` and `.claimable`.
 5. **Check how fresh it is.** The last line of
    `ledger/returns_ledger_<plane>.jsonl` carries `first_recorded` (the run
@@ -84,16 +86,25 @@ The 30-day window verdicts (`track_record_gate_<date>.json` here for 1D,
 them for "how were the last 30 days", the ledger verdicts for "what has
 accumulated".
 
-## Before trusting `status`: count the days, not the trades
+## The day checks: count the days, not the trades
 
-`n_trades` counts every symbol separately. Setups that form on the same bar
+`n_trades` counts every symbol separately. Setups that form on the same day
 in several symbols move together, so they are closer to one observation of
-the market than to many. The gate does not correct for that: it resamples
-trades in sequence (stationary blocks of 5) and annualises with observed
-trades per year. How concurrent trades are to be weighted is listed as
-undecided in ADR-0031 (Nachtrag 2026-10-01, "Was dieser Nachtrag nicht
-entscheidet"). Until it is decided, a `green` on a plane with many trades
-per day says less than it looks, and `claimable` stays the binding field.
+the market than to many. Two checks in every verdict carry that (ADR-0031,
+Nachtrag 2026-10-02):
+
+- `trading_days` — distinct UTC days the trades are anchored on (threshold
+  30). Its `detail` names the largest number of trades on one day.
+- `day_clustered_mean_ci_low` — lower 95 % bound of the mean return per
+  trade when whole days are resampled (must be above 0). The interval, the
+  number of positive days and the mean sit in `summary.day_clustered`.
+
+Both must be green for `status` to be green. A 30-day window verdict holds
+at most 22 trading days, so only the cumulative verdicts under `ledger/` can
+turn green at all. `sharpe`, `bootstrap_sharpe_ci_low`, `psr_sr_star_zero`
+and `min_trl_within_n` still resample trades; on a plane with many trades
+per day they read stronger than the evidence is. A verdict with
+`schema_version` 1.0.0 was written before the day checks and carries neither.
 
 Measured on the ledgers of 2026-10-02:
 
@@ -138,6 +149,6 @@ for plane in ("1D", "15m"):
 PY
 ```
 
-An interval that contains zero means the family is not distinguishable from
-zero on the days there are, whatever `status` says.
+The gate computes the same interval with its own random draws; the bounds
+differ in the first decimal.
 
