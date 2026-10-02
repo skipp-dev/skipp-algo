@@ -1,4 +1,4 @@
-"""Grow a per-plane ledger of closed Variant-A trades (ADR-0031, Nachtrag 2026-10-01).
+"""Grow a per-plane ledger of closed trades (ADR-0031, Nachtrag 2026-10-01 and 2026-10-02 II).
 
 Why this exists
 ---------------
@@ -12,12 +12,12 @@ twelve committed reports of 2026-08-14..28, against pre-registered minimum sampl
 gate's own floor of 100.
 
 This script is the memory the window lacks. Each run takes the same
-plane-filtered pool the series is built from, computes the same Variant-A
-return (``governance.family_returns.realized_return``), and APPENDS every
+plane-filtered pool the series is built from, computes the same return
+(``governance.family_returns.realized_return``), and APPENDS every
 trade it has not recorded yet to a committed JSONL ledger. Nothing is ever
-rewritten: a trade's return is final the moment it exists (entry on first
-touch, exit a fixed horizon later — a longer forward window cannot change
-either), so the first observation is the record.
+rewritten: a trade's return is final the moment it exists (entry at the open
+after the decision bar, exit a fixed horizon later — a longer forward window
+cannot change either), so the first observation is the record.
 
 Identity
 --------
@@ -32,7 +32,9 @@ Every row records ``return_rule`` and ``cost_bps``. A run whose rule or cost
 differs from the rows already present REFUSES to append (rc 2): switching the
 trade definition is an explicit, reviewed change (ADR-0031), and a ledger that
 silently pooled two definitions would be a third one nobody chose. Start a new
-ledger file instead.
+ledger file instead. That is what happened on 2026-10-02: the Variant-A ledgers
+are frozen under ``docs/calibration/gates/variant_a_frozen/`` and these files
+began empty under ``next_open_then_horizon_close``.
 
 A re-observed trade whose return differs from its recorded one (same rule) is
 NOT overwritten. It is counted and reported, because it means the pool
@@ -40,10 +42,16 @@ revised history — which is worth knowing and not worth hiding.
 
 Evidence start
 --------------
-``--evidence-start YYYY-MM-DD`` marks the day a plane was pre-registered.
-Trades anchored before it stay in the ledger (they are facts) but are left
-out of the cumulative series, so the verdict built on it rests only on what
-arrived after the plane was fixed. See the ADR for why 15m carries one.
+The cumulative series counts only trades anchored on or after the evidence
+start. Earlier trades stay in the ledger (they are facts) but are left out, so
+the verdict rests only on what arrived after the measurement was fixed. Two
+dates bound it and the LATER one applies:
+
+* ``governance.family_returns.RETURN_RULE_EVIDENCE_START`` — the first trading
+  day after the return rule was fixed. It holds for every plane and cannot be
+  moved earlier from the command line.
+* ``--evidence-start YYYY-MM-DD`` — the day a plane was pre-registered (15m:
+  2026-10-01).
 
 Outputs
 -------
@@ -74,7 +82,12 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
-from governance.family_returns import DEFAULT_COST_BPS, RETURN_RULE, realized_return
+from governance.family_returns import (
+    DEFAULT_COST_BPS,
+    RETURN_RULE,
+    RETURN_RULE_EVIDENCE_START,
+    realized_return,
+)
 from scripts.build_returns_series import (
     SCHEMA_VERSION,
     _load_pool_events,
@@ -232,9 +245,10 @@ def build_cumulative_series(
             "regime_taxonomy": "point_in_time (TRENDING/RANGING/NEUTRAL)",
             "note": (
                 "CUMULATIVE ledger of net returns GIVEN a triggered setup "
-                "(untriggered events are not trades); same Variant-A rule as the "
-                "daily window series, every trade recorded once — see ADR-0031 "
-                "(Nachtrag 2026-10-01) and scripts/accumulate_returns_ledger.py"
+                "(untriggered events are not trades); same rule as the daily "
+                "window series (entry at the open after the decision bar), every "
+                "trade recorded once — see ADR-0031 (Nachtrag 2026-10-01 and "
+                "2026-10-02 II) and scripts/accumulate_returns_ledger.py"
             ),
         },
         "ledger": {
@@ -259,9 +273,22 @@ def build_cumulative_series(
     }
 
 
+def effective_evidence_start(requested: str | None) -> str:
+    """The later of the plane's own start and the return rule's start.
+
+    A caller can postpone the start of a plane's evidence, never advance it
+    before the day the rule was fixed: trades anchored earlier were on the
+    table when the rule was chosen.
+    """
+    if requested is None:
+        return RETURN_RULE_EVIDENCE_START
+    date.fromisoformat(requested)
+    return max(requested, RETURN_RULE_EVIDENCE_START)
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(
-        description="Append newly closed Variant-A trades to a per-plane ledger (ADR-0031)."
+        description="Append newly closed trades to a per-plane ledger (ADR-0031)."
     )
     p.add_argument("--events", type=Path, required=True, help="accumulated_family_events.json")
     p.add_argument("--plane", required=True, help="Measurement plane of this ledger (e.g. 1D, 15m)")
@@ -272,14 +299,14 @@ def main(argv: list[str] | None = None) -> int:
         "--evidence-start",
         default=None,
         help="YYYY-MM-DD the plane was pre-registered; earlier trades stay in "
-        "the ledger but are left out of the cumulative series.",
+        "the ledger but are left out of the cumulative series. Never earlier "
+        f"than the return rule's own start ({RETURN_RULE_EVIDENCE_START}).",
     )
     p.add_argument("--cost-bps", type=float, default=DEFAULT_COST_BPS)
     args = p.parse_args(argv)
 
     date.fromisoformat(args.date)  # a malformed run date must not reach the ledger
-    if args.evidence_start:
-        date.fromisoformat(args.evidence_start)
+    evidence_start = effective_evidence_start(args.evidence_start or None)
 
     pool = _load_pool_events(args.events)
     on_plane = [e for e in pool if event_measurement_plane(e) == args.plane]
@@ -309,7 +336,7 @@ def main(argv: list[str] | None = None) -> int:
             run_date=args.date,
             plane=args.plane,
             cost_bps=args.cost_bps,
-            evidence_start=args.evidence_start,
+            evidence_start=evidence_start,
         )
         atomic_write_json(payload, args.series_output)
 

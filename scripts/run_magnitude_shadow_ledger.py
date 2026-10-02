@@ -59,6 +59,8 @@ from typing import Any
 
 from governance.family_returns import (
     DEFAULT_COST_BPS,
+    LEGACY_RETURN_RULE,
+    RETURN_RULE,
     extract_family_calibration_samples,
 )
 from governance.magnitude_resolution_gate import (
@@ -102,7 +104,40 @@ LEDGER_COLUMNS = (
     "status",
     "fail_reasons",
     "plane",
+    "return_rule",
 )
+
+
+def row_return_rule(row: dict[str, Any]) -> str:
+    """The return rule a ledger row was graded under.
+
+    Rows written before 2026-10-02 carry no ``return_rule``; they were graded
+    under Variant A (``touch_then_horizon_close``), the only rule there was.
+    """
+    value = row.get("return_rule")
+    return str(value) if value else LEGACY_RETURN_RULE
+
+
+def rows_under_current_rule(
+    rows: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], dict[str, int]]:
+    """Rows graded under ``RETURN_RULE``, and a count of the others per rule.
+
+    The move-size target is the size of the realized return, so a row is an
+    observation of the rule it was graded under. Rows of different rules are
+    different experiments — a k-of-n over both, or a proof under one rule
+    presented as evidence for the other, would pool them (ADR-0031, Nachtrag
+    2026-10-02 II).
+    """
+    current: list[dict[str, Any]] = []
+    others: Counter[str] = Counter()
+    for row in rows:
+        rule = row_return_rule(row)
+        if rule == RETURN_RULE:
+            current.append(row)
+        else:
+            others[rule] += 1
+    return current, dict(others)
 
 
 def _today_utc() -> str:
@@ -243,6 +278,9 @@ def build_ledger_rows(
                 # on different planes are different experiments — the
                 # weekly k-of-n must never pool across plane values.
                 "plane": plane,
+                # The rule the realized returns behind this row were computed
+                # under; rows of another rule are another experiment too.
+                "return_rule": RETURN_RULE,
             }
         )
     return rows
@@ -296,6 +334,7 @@ def build_heartbeat_rows(
                 "status": "INCONCLUSIVE",
                 "fail_reasons": [fail_reason],
                 "plane": plane,
+                "return_rule": RETURN_RULE,
             }
         )
     return rows
@@ -558,6 +597,9 @@ def main(argv: list[str] | None = None) -> int:
             str(r.get("date"))
             for r in existing
             if r.get("events_hash") == events_hash
+            # Same events under ANOTHER return rule were a different
+            # measurement, not an earlier copy of this vote.
+            and row_return_rule(r) == RETURN_RULE
             and (parsed := _parse_row_date(r.get("date"))) is not None
             and parsed < obs_parsed
         }

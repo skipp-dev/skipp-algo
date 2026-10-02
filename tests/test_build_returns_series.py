@@ -35,6 +35,8 @@ def _sweep_event(
         "entry_mode": "immediate",
         "entry_price": 100.0,
         "anchor_ts": anchor_ts,
+        # the bar after the signal opens at the level, later bars at the prior close
+        "forward_opens": [100.0, *closes[:-1]],
         "forward_closes": list(closes),
         "forward_highs": [c + 0.5 for c in closes],
         "forward_lows": [c - 0.5 for c in closes],

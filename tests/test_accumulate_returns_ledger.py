@@ -16,11 +16,17 @@ from pathlib import Path
 
 import pytest
 
-from governance.family_returns import DEFAULT_COST_BPS, RETURN_RULE, realized_return
+from governance.family_returns import (
+    DEFAULT_COST_BPS,
+    RETURN_RULE,
+    RETURN_RULE_EVIDENCE_START,
+    realized_return,
+)
 from scripts.accumulate_returns_ledger import (
     RC_OK,
     RC_RULE_MISMATCH,
     build_cumulative_series,
+    effective_evidence_start,
     load_ledger,
     main,
     merge,
@@ -31,8 +37,9 @@ from scripts.build_track_record_gate import build_track_record_gate_payload
 
 _M15 = 900.0
 _DAY = 86_400.0
-# 2026-10-01 14:30:00 UTC — a 15m bar boundary after the 15m evidence start.
-_ANCHOR = 1_790_865_000.0
+# 2026-10-05 14:30:00 UTC — a 15m bar boundary on the first day that counts
+# as evidence under the return rule (RETURN_RULE_EVIDENCE_START).
+_ANCHOR = 1_791_210_600.0
 
 
 def _sweep(
@@ -53,6 +60,8 @@ def _sweep(
         "entry_mode": "immediate",
         "entry_price": 100.0,
         "anchor_ts": anchor_ts,
+        # the bar after the signal opens at the level, later bars at the prior close
+        "forward_opens": [100.0, *closes[:-1]],
         "forward_closes": list(closes),
         "forward_highs": [c + 0.5 for c in closes],
         "forward_lows": [c - 0.5 for c in closes],
@@ -70,7 +79,7 @@ def _write_pool(path: Path, events: list[dict]) -> Path:
     return path
 
 
-def _run(tmp_path: Path, pool: Path, *, plane: str = "15m", day: str = "2026-10-01", extra=()) -> int:
+def _run(tmp_path: Path, pool: Path, *, plane: str = "15m", day: str = "2026-10-05", extra=()) -> int:
     return main([
         "--events", str(pool),
         "--plane", plane,
@@ -100,7 +109,7 @@ def test_the_ledger_records_exactly_the_series_returns(tmp_path: Path) -> None:
     pool = _write_pool(tmp_path / "pool.json", events)
     assert _run(tmp_path, pool) == RC_OK
 
-    series = build_series_payload(events, date="2026-10-01", plane="15m")
+    series = build_series_payload(events, date="2026-10-05", plane="15m")
     cumulative = json.loads((tmp_path / "cumulative_15m.json").read_text(encoding="utf-8"))
     assert sorted(cumulative["returns_by_variant"]["SWEEP"]) == sorted(
         series["returns_by_variant"]["SWEEP"]
@@ -112,7 +121,7 @@ def test_the_ledger_records_exactly_the_series_returns(tmp_path: Path) -> None:
         assert row["return_rule"] == RETURN_RULE
         assert row["cost_bps"] == DEFAULT_COST_BPS
         assert row["plane"] == "15m"
-        assert row["first_recorded"] == "2026-10-01"
+        assert row["first_recorded"] == "2026-10-05"
 
 
 def test_same_bar_trades_of_different_symbols_are_separate_rows(tmp_path: Path) -> None:
@@ -154,9 +163,9 @@ def test_only_events_of_the_ledgers_own_plane_are_recorded(tmp_path: Path) -> No
 
 def test_a_second_run_over_the_same_pool_adds_nothing(tmp_path: Path) -> None:
     pool = _write_pool(tmp_path / "pool.json", [_sweep("AAPL", _ANCHOR)])
-    _run(tmp_path, pool, day="2026-10-01")
+    _run(tmp_path, pool, day="2026-10-05")
     before = (tmp_path / "ledger_15m.jsonl").read_text(encoding="utf-8")
-    _run(tmp_path, pool, day="2026-10-02")
+    _run(tmp_path, pool, day="2026-10-06")
     assert (tmp_path / "ledger_15m.jsonl").read_text(encoding="utf-8") == before
 
 
@@ -166,15 +175,15 @@ def test_a_trade_survives_ageing_out_of_the_pool(tmp_path: Path) -> None:
     Day 1 the pool holds AAPL. Day 2 the window has moved on: AAPL is gone,
     MSFT is new. The window series would now show one trade; the ledger two.
     """
-    _run(tmp_path, _write_pool(tmp_path / "day1.json", [_sweep("AAPL", _ANCHOR)]), day="2026-10-01")
+    _run(tmp_path, _write_pool(tmp_path / "day1.json", [_sweep("AAPL", _ANCHOR)]), day="2026-10-05")
     _run(
         tmp_path,
         _write_pool(tmp_path / "day2.json", [_sweep("MSFT", _ANCHOR + _DAY)]),
-        day="2026-10-02",
+        day="2026-10-06",
     )
     rows = _ledger_rows(tmp_path)
     assert [row["key"].split(":")[1] for row in rows] == ["AAPL", "MSFT"]
-    assert [row["first_recorded"] for row in rows] == ["2026-10-01", "2026-10-02"]
+    assert [row["first_recorded"] for row in rows] == ["2026-10-05", "2026-10-06"]
     cumulative = json.loads((tmp_path / "cumulative_15m.json").read_text(encoding="utf-8"))
     assert cumulative["n_trades"] == 2
     assert cumulative["ledger"]["n_trades_ledger"] == 2
@@ -184,7 +193,7 @@ def test_existing_lines_are_kept_verbatim_and_new_ones_appended(tmp_path: Path) 
     _run(tmp_path, _write_pool(tmp_path / "day1.json", [_sweep("MSFT", _ANCHOR + _DAY)]))
     first_line = (tmp_path / "ledger_15m.jsonl").read_text(encoding="utf-8")
     # Day 2 brings an EARLIER anchor: it is appended, not sorted in front.
-    _run(tmp_path, _write_pool(tmp_path / "day2.json", [_sweep("AAPL", _ANCHOR)]), day="2026-10-02")
+    _run(tmp_path, _write_pool(tmp_path / "day2.json", [_sweep("AAPL", _ANCHOR)]), day="2026-10-06")
     text = (tmp_path / "ledger_15m.jsonl").read_text(encoding="utf-8")
     assert text.startswith(first_line)
     assert len(text.splitlines()) == 2
@@ -195,7 +204,7 @@ def test_a_contradicted_return_is_reported_and_not_overwritten(tmp_path: Path, c
     recorded = _ledger_rows(tmp_path)[0]["pnl"]
     revised = _sweep("AAPL", _ANCHOR, closes=(101.0, 102.0, 90.0))  # same id, other outcome
     capsys.readouterr()
-    assert _run(tmp_path, _write_pool(tmp_path / "day2.json", [revised]), day="2026-10-02") == RC_OK
+    assert _run(tmp_path, _write_pool(tmp_path / "day2.json", [revised]), day="2026-10-06") == RC_OK
     captured = capsys.readouterr()
     assert _ledger_rows(tmp_path)[0]["pnl"] == recorded
     assert "re-observed sweep:AAPL:15m" in captured.err
@@ -281,21 +290,54 @@ def test_a_malformed_run_date_never_reaches_the_ledger(tmp_path: Path) -> None:
 def test_trades_before_the_evidence_start_stay_in_the_ledger_but_out_of_the_series(
     tmp_path: Path,
 ) -> None:
-    before = _sweep("AAPL", _ANCHOR - 5 * _DAY)  # 2026-09-26, seen before the plane was fixed
-    after = _sweep("MSFT", _ANCHOR)  # 2026-10-01
+    before = _sweep("AAPL", _ANCHOR - 5 * _DAY)  # 2026-09-30, on the table when the rule was chosen
+    after = _sweep("MSFT", _ANCHOR)  # 2026-10-05
     pool = _write_pool(tmp_path / "pool.json", [before, after])
-    _run(tmp_path, pool, extra=("--evidence-start", "2026-10-01"))
+    _run(tmp_path, pool)
     assert len(_ledger_rows(tmp_path)) == 2
     cumulative = json.loads((tmp_path / "cumulative_15m.json").read_text(encoding="utf-8"))
     assert cumulative["n_trades"] == 1
     assert cumulative["ledger"] == {
         "window": "cumulative",
-        "evidence_start": "2026-10-01",
+        "evidence_start": RETURN_RULE_EVIDENCE_START,
         "n_trades_ledger": 2,
         "n_trades_before_evidence_start": 1,
-        "first_anchor": "2026-10-01T14:30:00+00:00",
-        "last_anchor": "2026-10-01T14:30:00+00:00",
+        "first_anchor": "2026-10-05T14:30:00+00:00",
+        "last_anchor": "2026-10-05T14:30:00+00:00",
     }
+
+
+@pytest.mark.parametrize(
+    ("requested", "effective"),
+    [
+        (None, "2026-10-05"),  # no plane date: the rule's own start
+        ("2026-10-01", "2026-10-05"),  # the 15m flag in the workflow predates the rule: the rule wins
+        ("2026-10-05", "2026-10-05"),
+        ("2026-11-02", "2026-11-02"),  # a later plane date postpones the start
+    ],
+)
+def test_the_evidence_start_is_never_earlier_than_the_return_rule(requested, effective) -> None:
+    assert RETURN_RULE_EVIDENCE_START == "2026-10-05"
+    assert effective_evidence_start(requested) == effective
+
+
+def test_a_command_line_date_cannot_pull_pre_rule_trades_into_the_verdict(tmp_path: Path) -> None:
+    """``promotion-gate-daily`` passes ``--evidence-start 2026-10-01`` for 15m.
+    A trade of 2026-10-02 lies after that flag and before the rule's start."""
+    pool = _write_pool(
+        tmp_path / "pool.json",
+        [_sweep("AAPL", _ANCHOR - 3 * _DAY), _sweep("MSFT", _ANCHOR)],  # 2026-10-02, 2026-10-05
+    )
+    _run(tmp_path, pool, extra=("--evidence-start", "2026-10-01"))
+    cumulative = json.loads((tmp_path / "cumulative_15m.json").read_text(encoding="utf-8"))
+    assert cumulative["ledger"]["evidence_start"] == "2026-10-05"
+    assert cumulative["ledger"]["n_trades_before_evidence_start"] == 1
+    assert cumulative["anchor_ts_by_variant"] == {"SWEEP": [_ANCHOR]}
+
+
+def test_a_malformed_evidence_start_is_refused() -> None:
+    with pytest.raises(ValueError):
+        effective_evidence_start("05.10.2026")
 
 
 def test_the_evidence_start_boundary_is_utc_midnight_inclusive() -> None:

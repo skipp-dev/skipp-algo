@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
+from governance.family_returns import RETURN_RULE
 from scripts.eval_magnitude_shadow_weekly import (
     detect_all_pass_red_flag,
     evaluate_demotions,
@@ -31,6 +32,7 @@ def _row(
         "status": status,
         "magnitude_auc": auc,
         "auc_ci_low": ci_low,
+        "return_rule": RETURN_RULE,
     }
 
 

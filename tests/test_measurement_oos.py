@@ -37,6 +37,8 @@ def _bos_event(index: int, *, win: bool) -> dict[str, Any]:
         "anchor_ts": anchor_ts,
         "forward_lows": [100.5] + [102.0 + i for i in range(n - 1)],
         "forward_highs": [101.0] + [103.0 + i for i in range(n - 1)],
+        # every bar opens at the previous close; the entry is the open of bar 1
+        "forward_opens": [100.9] + [100.8 + step * i for i in range(n - 1)],
         "forward_closes": [100.8 + step * i for i in range(n)],
         "forward_timestamps": [anchor_ts + (j + 1) * _BAR for j in range(n)],
         "score": 2.0 if win else 0.5,

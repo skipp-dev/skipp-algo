@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 
+from governance.family_returns import RETURN_RULE
 from governance.promotion_gate import FamilyMetrics
 from scripts.magnitude_snapshot_wiring import (
     MagnitudeSnapshot,
@@ -27,6 +28,7 @@ def _row(
         "family": family,
         "status": status,
         "magnitude_auc": auc,
+        "return_rule": RETURN_RULE,
     }
 
 

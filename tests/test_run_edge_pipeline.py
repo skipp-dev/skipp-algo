@@ -17,6 +17,8 @@ def _bars(closes: list[float]) -> list[dict]:
     return [
         {
             "timestamp": _T0 + i * _STEP,
+            # opens at the previous close (the first bar half a point lower)
+            "open": closes[i - 1] if i else closes[0] - 0.5,
             "high": closes[i] + 1.0,
             "low": closes[i] - 1.0,
             "close": closes[i],
@@ -118,6 +120,16 @@ def test_run_pipeline_archiving_disabled(tmp_path: Path) -> None:
     result = run_pipeline(_payload_with_bos_events(), archive_dir=None)
     assert result["archived_path"] is None
     assert list(tmp_path.glob("*.json")) == []
+
+
+def test_run_pipeline_rejects_bars_without_an_open() -> None:
+    """The return rule enters at an open. Bars without one cannot produce a
+    trade, and the pipeline says so instead of reporting an empty result."""
+    payload = _payload_with_bos_events()
+    for bar in payload["bars"][10:13]:
+        del bar["open"]
+    with pytest.raises(ValueError, match="3 of 80 bars carry no 'open'"):
+        run_pipeline(payload)
 
 
 def test_run_pipeline_rejects_empty_bars() -> None:

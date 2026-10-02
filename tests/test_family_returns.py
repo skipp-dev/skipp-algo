@@ -1,9 +1,11 @@
 """EV-06b — per-family realized-return extractor tests.
 
-Verifies the variant-A trade definition (touch -> horizon-close exit,
-signed, minus cost), lookahead refusal, untriggered-setup exclusion, and
-that the produced spec flows into ``build_family_metrics`` to yield real
-PSR/MinTRL — all without fabricating market data inside the module.
+Verifies the trade definition ``next_open_then_horizon_close`` (decision
+bar -> entry at the next bar's open -> horizon-close exit, signed, minus
+cost; ADR-0031, Nachtrag 2026-10-02 II), lookahead refusal,
+untriggered-setup exclusion, and that the produced spec flows into
+``build_family_metrics`` to yield real PSR/MinTRL — all without
+fabricating market data inside the module.
 """
 from __future__ import annotations
 
@@ -11,6 +13,9 @@ import pytest
 
 from governance.family_returns import (
     DEFAULT_COST_BPS,
+    LEGACY_RETURN_RULE,
+    RETURN_RULE,
+    RETURN_RULE_EVIDENCE_START,
     FamilyEvent,
     _event_bar_interval,
     _guard_end_ts,
@@ -32,8 +37,10 @@ def _long_event(
 ) -> FamilyEvent:
     horizon = family_outcome_horizon(family)
     n = horizon + 3
-    zone_low, zone_high = 100.0, 101.0  # mid = 100.5 = entry
-    # First forward bar dips into the zone (touch at idx 0); later bars leave it.
+    zone_low, zone_high = 100.0, 101.0
+    # First forward bar dips into the zone (decision bar = idx 0); later bars
+    # leave it. Every bar opens at the previous close, so the entry — the open
+    # of idx 1 — is 100.8.
     forward_lows = [100.5] + [102.0 + i for i in range(n - 1)]
     forward_highs = [101.0] + [103.0 + i for i in range(n - 1)]
     if step is None:
@@ -45,6 +52,7 @@ def _long_event(
         "zone_low": zone_low,
         "zone_high": zone_high,
         "anchor_ts": anchor_ts,
+        "forward_opens": [100.9, *forward_closes[:-1]],
         "forward_highs": forward_highs,
         "forward_lows": forward_lows,
         "forward_closes": forward_closes,
@@ -59,8 +67,9 @@ def _short_event(
 ) -> FamilyEvent:
     horizon = family_outcome_horizon(family)
     n = horizon + 3
-    zone_low, zone_high = 100.0, 101.0  # mid = 100.5 = entry
-    # First forward bar pokes high into the zone (touch); price then falls.
+    zone_low, zone_high = 100.0, 101.0
+    # First forward bar pokes high into the zone (decision bar); price then
+    # falls. Entry is the open of idx 1 = the close of idx 0 = 100.2.
     forward_highs = [100.5] + [98.0 - i for i in range(n - 1)]
     forward_lows = [99.0] + [97.0 - i for i in range(n - 1)]
     forward_closes = [100.2 - step * i for i in range(n)]
@@ -70,6 +79,7 @@ def _short_event(
         "zone_low": zone_low,
         "zone_high": zone_high,
         "anchor_ts": anchor_ts,
+        "forward_opens": [100.4, *forward_closes[:-1]],
         "forward_highs": forward_highs,
         "forward_lows": forward_lows,
         "forward_closes": forward_closes,
@@ -113,12 +123,18 @@ def test_retest_requires_full_horizon_after_touch() -> None:
         "zone_low": 100.0,
         "zone_high": 101.0,
         "anchor_ts": 1.0,
-        # Touch happens at idx=1, leaving only horizon-1 bars after touch.
+        # The zone is reached at idx=1, leaving only horizon-1 bars after it.
+        "forward_opens": [103.5] * n,
         "forward_lows": [103.0, 100.5] + [103.0] * (n - 2),
         "forward_highs": [104.0] * n,
         "forward_closes": [102.0] * n,
     }
     assert realized_return(ev) is None
+    # Positive control: one more bar and the same setup IS a trade — the None
+    # above is the horizon, not a missing field.
+    for key, value in (("forward_opens", 103.5), ("forward_lows", 103.0), ("forward_highs", 104.0), ("forward_closes", 102.0)):
+        ev[key] = [*ev[key], value]  # type: ignore[literal-required]
+    assert realized_return(ev, cost_bps=0.0) == pytest.approx((102.0 - 103.5) / 103.5)
 
 
 def test_event_bar_interval_even_sample_uses_true_median() -> None:
@@ -230,7 +246,8 @@ def test_to_build_spec_declares_smc_direct_no_ml_pipeline_class() -> None:
 
     events: list[FamilyEvent] = []
     for i in range(60):
-        events.append(_long_event("BOS", anchor_ts=float(i + 1), step=0.3))
+        # Vary the slope: a constant return series has no variance and no PSR.
+        events.append(_long_event("BOS", anchor_ts=float(i + 1), step=0.3 + 0.02 * (i % 7)))
 
     spec = to_build_spec(events, periods_per_year=252, as_of=10_000.0)
     assert spec["families"]["BOS"]["provenance"][PIPELINE_CLASS_KEY] == SMC_DIRECT_NO_ML
@@ -260,6 +277,7 @@ def _invalidated_then_touched_long(family: str) -> FamilyEvent:
         "zone_low": zone_low,
         "zone_high": zone_high,
         "anchor_ts": 1.0,
+        "forward_opens": [98.5, *forward_closes[:-1]],
         "forward_highs": forward_highs,
         "forward_lows": forward_lows,
         "forward_closes": forward_closes,
@@ -294,6 +312,7 @@ def test_fvg_two_consecutive_close_breaches_invalidate_before_touch() -> None:
         "zone_low": 100.0,
         "zone_high": 101.0,
         "anchor_ts": 1.0,
+        "forward_opens": [98.5, *forward_closes[:-1]],
         "forward_highs": forward_highs,
         "forward_lows": forward_lows,
         "forward_closes": forward_closes,
@@ -325,6 +344,9 @@ def _scored_immediate_bos(idx: int) -> FamilyEvent:
         "zone_low": 0.0,
         "zone_high": 0.0,
         "anchor_ts": anchor,
+        # The bar after the signal opens AT the level, so the return under the
+        # next-open rule equals the move from 100 to the exit close.
+        "forward_opens": [entry] * n,
         "forward_highs": [close + 1.0] * n,
         "forward_lows": [close - 1.0] * n,
         "forward_closes": [close] * n,
@@ -521,6 +543,9 @@ def _regime_bos(idx: int, *, regime: str, win: bool) -> FamilyEvent:
         "zone_low": 0.0,
         "zone_high": 0.0,
         "anchor_ts": anchor,
+        # The bar after the signal opens AT the level, so the return under the
+        # next-open rule equals the move from 100 to the exit close.
+        "forward_opens": [entry] * n,
         "forward_highs": [close + 1.0] * n,
         "forward_lows": [close - 1.0] * n,
         "forward_closes": [close] * n,
@@ -623,6 +648,7 @@ def _short_window_immediate_bos() -> FamilyEvent:
         "zone_low": 0.0,
         "zone_high": 0.0,
         "anchor_ts": 1.0,
+        "forward_opens": [100.0] * n,
         "forward_highs": [102.0] * n,
         "forward_lows": [100.0] * n,
         "forward_closes": [101.0] * n,
@@ -638,6 +664,7 @@ def test_immediate_mode_refuses_horizon_truncated_window() -> None:
 def test_immediate_mode_exact_horizon_window_still_measures() -> None:
     ev = _short_window_immediate_bos()
     horizon = family_outcome_horizon("BOS")
+    ev["forward_opens"] = [100.0] * horizon
     ev["forward_highs"] = [102.0] * horizon
     ev["forward_lows"] = [100.0] * horizon
     ev["forward_closes"] = [101.0] * horizon
@@ -668,3 +695,145 @@ def test_calibration_samples_exclude_degenerate_embargo_window() -> None:
     # BOS embargo_bars > 0, so the degenerate event must be excluded.
     assert len(samples["BOS"]["returns"]) == 1
     assert samples["BOS"]["anchor_ts"] == [good["anchor_ts"]]
+
+
+# --- ADR-0031, Nachtrag 2026-10-02 II: the entry is a price that traded ---
+
+
+def _level_event(*, level: float, opens: list[float], closes: list[float], direction: str = "UP") -> FamilyEvent:
+    return {
+        "family": "SWEEP",  # type: ignore[typeddict-item]  # horizon 3
+        "direction": direction,
+        "entry_mode": "immediate",
+        "entry_price": level,
+        "anchor_ts": 1.0,
+        "forward_opens": opens,
+        "forward_highs": [max(o, c) + 0.1 for o, c in zip(opens, closes, strict=True)],
+        "forward_lows": [min(o, c) - 0.1 for o, c in zip(opens, closes, strict=True)],
+        "forward_closes": closes,
+    }
+
+
+def test_the_rule_names_itself_and_its_predecessor() -> None:
+    assert RETURN_RULE == "next_open_then_horizon_close"
+    assert LEGACY_RETURN_RULE == "touch_then_horizon_close"
+    assert RETURN_RULE != LEGACY_RETURN_RULE
+    assert RETURN_RULE_EVIDENCE_START == "2026-10-05"
+
+
+def test_level_family_enters_at_the_next_open_not_at_the_level() -> None:
+    """Break level 100, the signal bar has already run to ~102: the bar after
+    it opens at 102. Variant A booked the 2 % in between; no trade could."""
+    assert family_outcome_horizon("SWEEP") == 3
+    ev = _level_event(level=100.0, opens=[102.0, 102.5, 103.0], closes=[102.5, 103.0, 103.02])
+    ret = realized_return(ev, cost_bps=0.0)
+    assert ret == pytest.approx((103.02 - 102.0) / 102.0)
+    # The level is not part of the return: move it and nothing changes.
+    ev["entry_price"] = 50.0
+    assert realized_return(ev, cost_bps=0.0) == ret
+
+
+def test_short_level_family_is_signed_from_the_next_open() -> None:
+    ev = _level_event(level=100.0, opens=[98.0, 97.5, 97.0], closes=[97.5, 97.0, 96.04], direction="DOWN")
+    assert realized_return(ev, cost_bps=0.0) == pytest.approx((98.0 - 96.04) / 98.0)
+
+
+@pytest.mark.parametrize("opens", [None, [], [102.0, 102.5]])
+def test_an_event_without_aligned_opens_is_not_a_trade(opens) -> None:
+    """Pool events recorded before 2026-10-02 carry no opens. No price is
+    substituted — not the level, not a close."""
+    ev = _level_event(level=100.0, opens=[102.0, 102.5, 103.0], closes=[102.5, 103.0, 103.02])
+    assert realized_return(ev) is not None
+    if opens is None:
+        del ev["forward_opens"]
+    else:
+        ev["forward_opens"] = opens
+    assert realized_return(ev) is None
+    assert extract_family_returns([ev]) == {}
+
+
+def _zone_event(family: str, *, lows: list[float], highs: list[float], closes: list[float], opens: list[float]) -> FamilyEvent:
+    return {
+        "family": family,  # type: ignore[typeddict-item]
+        "direction": "BULL",
+        "zone_low": 100.0,
+        "zone_high": 101.0,
+        "anchor_ts": 1.0,
+        "forward_opens": opens,
+        "forward_highs": highs,
+        "forward_lows": lows,
+        "forward_closes": closes,
+    }
+
+
+def test_zone_family_enters_at_the_open_after_the_bar_that_reached_the_zone() -> None:
+    """Zone [100, 101], midpoint 100.5. Bar 1 dips to 100.9 — the midpoint
+    never trades. Variant A bought at 100.5 anyway; the rule buys the open of
+    bar 2 (101.6) and exits at the close ``horizon`` bars after bar 1."""
+    h = family_outcome_horizon("FVG")
+    n = h + 3
+    lows = [102.0, 100.9] + [101.5] * (n - 2)
+    highs = [103.0, 102.0] + [103.0] * (n - 2)
+    closes = [102.5, 101.5] + [102.0 + 0.1 * i for i in range(n - 2)]
+    opens = [102.8, 102.4, 101.6] + [102.0] * (n - 3)
+    ev = _zone_event("FVG", lows=lows, highs=highs, closes=closes, opens=opens)
+    assert realized_return(ev, cost_bps=0.0) == pytest.approx((closes[1 + h] - 101.6) / 101.6)
+
+
+def test_a_bar_that_trades_through_the_zone_is_the_decision_bar() -> None:
+    """Bar 0 falls from above the zone to 99.5 — through it — and closes back
+    inside at 100.4. Variant A did not count that bar (its low did not come
+    to rest in the zone) and waited for a tidier one; whether the low holds
+    is not known when the zone is reached."""
+    h = family_outcome_horizon("FVG")
+    n = h + 2
+    lows = [99.5] + [100.6] * (n - 1)
+    highs = [102.0] + [101.5] * (n - 1)
+    closes = [100.4] + [101.0 + 0.1 * i for i in range(n - 1)]
+    opens = [101.8, 100.45] + [101.0] * (n - 2)
+    ev = _zone_event("FVG", lows=lows, highs=highs, closes=closes, opens=opens)
+    assert realized_return(ev, cost_bps=0.0) == pytest.approx((closes[h] - 100.45) / 100.45)
+
+
+def test_an_orderblock_invalidated_by_the_decision_bars_own_close_is_no_trade() -> None:
+    """Bar 0 reaches the zone and CLOSES below it. At that close the order
+    block is void, so there is nothing to enter on at the next open."""
+    h = family_outcome_horizon("OB")
+    n = h + 2
+    lows = [99.0] + [99.0] * (n - 1)
+    highs = [101.5] + [100.5] * (n - 1)
+    closes = [99.5] + [100.2] * (n - 1)
+    opens = [101.4] + [99.6] * (n - 1)
+    assert realized_return(_zone_event("OB", lows=lows, highs=highs, closes=closes, opens=opens)) is None
+    # Same bars as an FVG: one close below is not yet an invalidation there.
+    fvg_n = family_outcome_horizon("FVG") + 2
+    fvg = _zone_event("FVG", lows=lows[:fvg_n], highs=highs[:fvg_n], closes=closes[:fvg_n], opens=opens[:fvg_n])
+    assert realized_return(fvg) is not None
+
+
+def test_an_fvg_whose_second_breach_is_the_decision_bars_close_is_no_trade() -> None:
+    """Bar 0 closes below the zone without reaching it (gap), bar 1 reaches
+    the zone and closes below again: two consecutive breaches stand at bar
+    1's close."""
+    h = family_outcome_horizon("FVG")
+    n = h + 3
+    lows = [98.0, 99.0] + [100.5] * (n - 2)
+    highs = [99.5, 100.6] + [101.5] * (n - 2)
+    closes = [99.0, 99.8] + [101.0] * (n - 2)
+    opens = [99.4, 99.1] + [100.0] * (n - 2)
+    assert realized_return(_zone_event("FVG", lows=lows, highs=highs, closes=closes, opens=opens)) is None
+    # Positive control: let bar 1 close back inside the zone and it is a trade.
+    closes[1] = 100.3
+    assert realized_return(_zone_event("FVG", lows=lows, highs=highs, closes=closes, opens=opens)) is not None
+
+
+def test_exit_bar_is_the_one_the_previous_rule_used() -> None:
+    """The label window (walk-forward purge) keys on the exit index; it must
+    stay ``horizon - 1`` for level families and ``decision + horizon`` for
+    zones, so the purge guards are unchanged by the entry fix."""
+    from governance.family_returns import _realized_return_and_exit
+
+    level = _level_event(level=100.0, opens=[102.0, 102.5, 103.0], closes=[102.5, 103.0, 103.02])
+    assert _realized_return_and_exit(level)[1] == family_outcome_horizon("SWEEP") - 1  # type: ignore[index]
+    zone = _long_event("OB")
+    assert _realized_return_and_exit(zone)[1] == 0 + family_outcome_horizon("OB")  # type: ignore[index]

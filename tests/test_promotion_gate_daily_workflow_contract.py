@@ -459,6 +459,7 @@ def _sweep(symbol: str, anchor_ts: float, *, step: float, timeframe: str, exit_c
         "entry_price": 100.0,
         "anchor_ts": anchor_ts,
         "regime": "RANGING",
+        "forward_opens": [100.0, *closes[:-1]],
         "forward_closes": closes,
         "forward_highs": [c + 0.5 for c in closes],
         "forward_lows": [c - 0.5 for c in closes],
