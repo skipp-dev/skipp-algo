@@ -1,0 +1,1194 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-02",
+  "measurement": {
+    "return_rule": "touch_then_horizon_close",
+    "cost_bps": 5.0,
+    "regime_taxonomy": "point_in_time (TRENDING/RANGING/NEUTRAL)",
+    "note": "net returns GIVEN a triggered setup (untriggered events are not trades); entry zone-midpoint on first touch, exit at the family-horizon close, fixed round-turn cost \u2014 see ADR-0031 and governance/family_returns.py"
+  },
+  "plane": "1D",
+  "n_trades": 167,
+  "n_trades_with_regime": 167,
+  "returns_by_variant": {
+    "BOS": [
+      -0.0882880363100317,
+      -0.027539834973378433,
+      -0.06362891808739508,
+      -0.026061790138516186,
+      0.04799148186922994,
+      0.011831223242709226,
+      0.012089724749901205,
+      -0.0025249883563169514,
+      0.01196407177586157,
+      -0.04407410881801122,
+      -0.07129566275192982,
+      0.1957610787336746,
+      -0.014510160342911577,
+      0.01872669971885473,
+      0.0870651041666666,
+      -0.010016764049452107,
+      -0.008945553749709848,
+      0.08753453419339544,
+      0.0766221532091098,
+      -0.03194422448321893,
+      -0.0021426282051281915,
+      -0.08965921288014307,
+      -0.08633828966404121,
+      -0.04186157844726402,
+      -0.0023883480943641573,
+      -0.042019804050421106,
+      0.06382336129463295,
+      0.043432573193572785,
+      -0.03574390243902434,
+      0.06767804351436645,
+      0.008795663039834235,
+      -0.019297775200023775,
+      0.03228067266698242,
+      -0.004301086024578406,
+      0.021840526666032953,
+      -0.01801881264685758,
+      -0.035012209324896106,
+      0.012433676596787978,
+      0.028241782602048546,
+      0.057934640475182736,
+      0.02662405265257284,
+      0.010952991452991482,
+      -0.05014311492501402,
+      -0.015456801783668239
+    ],
+    "OB": [
+      -0.05864892026125659,
+      -0.027272428499455204,
+      -0.00040950681212605517,
+      0.00042819171377954303,
+      0.004737196273065061,
+      -0.024025275531573374,
+      0.03316890229970021,
+      0.035102282487831704,
+      -0.010368549362249768,
+      -0.011233854838518858,
+      0.006475840907325425,
+      0.01595083646635233,
+      0.01929420552932415,
+      -0.00017370911167304416,
+      -0.0013045003260663812,
+      0.12442326580724367,
+      -0.042117285388393745,
+      0.013442298211362972,
+      0.05515735411638387,
+      0.020013691028034842
+    ],
+    "SWEEP": [
+      -0.01800632172729041,
+      -0.062053788113863986,
+      0.008748820890371522,
+      -0.003279594506213239,
+      -0.004682736704872672,
+      -0.005763443485810402,
+      -0.00762215993717333,
+      -0.02906010568031705,
+      -0.004288110221787772,
+      -0.011171299168631337,
+      0.0039058911632550834,
+      -0.000388148737323484,
+      -0.018829743957884722,
+      0.054474617086822524,
+      0.061838556914069184,
+      0.007412687585265967,
+      0.013893754574286417,
+      -0.0037363977485928603,
+      -0.04558984065996168,
+      0.009815463965107355,
+      -0.0016413663786075377,
+      3.959988668399313e-05,
+      0.005256998309133315,
+      0.06136687118524914,
+      -0.003030744592510636,
+      0.005731147801238264,
+      -0.03719204600680372,
+      -0.04084535624949568,
+      0.006691631556007622,
+      0.010724442270970129,
+      0.04102281014818832,
+      0.00697075042849689,
+      -0.0016414873580276072,
+      -0.006873043021588874,
+      -0.011351749279376114,
+      -0.013709475434341537,
+      0.060466649629440254,
+      0.025669841343405872,
+      0.043706435494691095,
+      0.001833252876337648,
+      0.05255059431971056,
+      0.055231288539884515,
+      -0.001242419506095572,
+      -0.011113602950658875,
+      -0.022292936915182523,
+      0.0832949042570026,
+      0.0884850511408339,
+      -0.045446469839173706,
+      -0.04764850367024285,
+      -0.007243211226535415,
+      -0.008009452920489634,
+      0.04651252236135952,
+      0.024250425541703063,
+      0.0069192901544013734,
+      -0.014730355921716592,
+      0.003131470284618838,
+      0.0007901376146788664,
+      0.04659853721266677,
+      0.020544100385668854,
+      -0.008773564885701196,
+      0.02411317880399054,
+      0.03134297912713459,
+      -0.016085094032969597,
+      0.04157893104465166,
+      -0.03433589743589745,
+      0.022699393479909038,
+      0.01708685038924816,
+      0.01553710488819095,
+      -0.0029137336518805404,
+      -0.02381806124909577,
+      -0.034559687351965886,
+      0.0011178704455125684,
+      0.008392836670298867,
+      0.015844961200578083,
+      0.021060946706606572,
+      0.05658441799925623,
+      0.037258013089444535,
+      -0.03436689132266214,
+      0.006704226479534782,
+      0.023097756410256468,
+      -0.029034482758620708,
+      0.012853562203776727,
+      -0.05461516430509501,
+      0.027398040913518756,
+      -0.0015978591746095058,
+      0.05097092675291183,
+      -0.0032958716278516337,
+      0.03630423220228106,
+      0.00826353192429485,
+      -0.07024504166605852,
+      -0.06312684836184408,
+      -0.060514461315979755,
+      0.015272357723577216,
+      -0.007592768053102021,
+      -0.013851418920715928,
+      0.024766343825665865,
+      -0.00872291504286811,
+      -0.04390053763440856,
+      -0.012531386224934573,
+      -0.009891304347826072,
+      0.014540223854494569,
+      -0.006589841824020962,
+      -0.0012469477000802197
+    ]
+  },
+  "trades": [
+    {
+      "pnl": -0.0882880363100317,
+      "regime_at_entry": "RANGING",
+      "family": "BOS",
+      "anchor_ts": 1788393600.0
+    },
+    {
+      "pnl": -0.027539834973378433,
+      "regime_at_entry": "RANGING",
+      "family": "BOS",
+      "anchor_ts": 1788393600.0
+    },
+    {
+      "pnl": -0.06362891808739508,
+      "regime_at_entry": "RANGING",
+      "family": "BOS",
+      "anchor_ts": 1788393600.0
+    },
+    {
+      "pnl": -0.026061790138516186,
+      "regime_at_entry": "RANGING",
+      "family": "BOS",
+      "anchor_ts": 1788393600.0
+    },
+    {
+      "pnl": 0.04799148186922994,
+      "regime_at_entry": "NEUTRAL",
+      "family": "BOS",
+      "anchor_ts": 1788825600.0
+    },
+    {
+      "pnl": 0.011831223242709226,
+      "regime_at_entry": "RANGING",
+      "family": "BOS",
+      "anchor_ts": 1788825600.0
+    },
+    {
+      "pnl": 0.012089724749901205,
+      "regime_at_entry": "RANGING",
+      "family": "BOS",
+      "anchor_ts": 1788825600.0
+    },
+    {
+      "pnl": -0.0025249883563169514,
+      "regime_at_entry": "RANGING",
+      "family": "BOS",
+      "anchor_ts": 1788825600.0
+    },
+    {
+      "pnl": 0.01196407177586157,
+      "regime_at_entry": "RANGING",
+      "family": "BOS",
+      "anchor_ts": 1788825600.0
+    },
+    {
+      "pnl": -0.04407410881801122,
+      "regime_at_entry": "RANGING",
+      "family": "BOS",
+      "anchor_ts": 1788912000.0
+    },
+    {
+      "pnl": -0.07129566275192982,
+      "regime_at_entry": "RANGING",
+      "family": "BOS",
+      "anchor_ts": 1788912000.0
+    },
+    {
+      "pnl": 0.1957610787336746,
+      "regime_at_entry": "TRENDING",
+      "family": "BOS",
+      "anchor_ts": 1788912000.0
+    },
+    {
+      "pnl": -0.014510160342911577,
+      "regime_at_entry": "RANGING",
+      "family": "BOS",
+      "anchor_ts": 1788998400.0
+    },
+    {
+      "pnl": 0.01872669971885473,
+      "regime_at_entry": "NEUTRAL",
+      "family": "BOS",
+      "anchor_ts": 1789084800.0
+    },
+    {
+      "pnl": 0.0870651041666666,
+      "regime_at_entry": "NEUTRAL",
+      "family": "BOS",
+      "anchor_ts": 1789344000.0
+    },
+    {
+      "pnl": -0.010016764049452107,
+      "regime_at_entry": "RANGING",
+      "family": "BOS",
+      "anchor_ts": 1789344000.0
+    },
+    {
+      "pnl": -0.008945553749709848,
+      "regime_at_entry": "RANGING",
+      "family": "BOS",
+      "anchor_ts": 1789344000.0
+    },
+    {
+      "pnl": 0.08753453419339544,
+      "regime_at_entry": "RANGING",
+      "family": "BOS",
+      "anchor_ts": 1789344000.0
+    },
+    {
+      "pnl": 0.0766221532091098,
+      "regime_at_entry": "RANGING",
+      "family": "BOS",
+      "anchor_ts": 1789344000.0
+    },
+    {
+      "pnl": -0.03194422448321893,
+      "regime_at_entry": "RANGING",
+      "family": "BOS",
+      "anchor_ts": 1789344000.0
+    },
+    {
+      "pnl": -0.0021426282051281915,
+      "regime_at_entry": "RANGING",
+      "family": "BOS",
+      "anchor_ts": 1789430400.0
+    },
+    {
+      "pnl": -0.08965921288014307,
+      "regime_at_entry": "NEUTRAL",
+      "family": "BOS",
+      "anchor_ts": 1789430400.0
+    },
+    {
+      "pnl": -0.08633828966404121,
+      "regime_at_entry": "TRENDING",
+      "family": "BOS",
+      "anchor_ts": 1789430400.0
+    },
+    {
+      "pnl": -0.04186157844726402,
+      "regime_at_entry": "RANGING",
+      "family": "BOS",
+      "anchor_ts": 1789430400.0
+    },
+    {
+      "pnl": -0.0023883480943641573,
+      "regime_at_entry": "NEUTRAL",
+      "family": "BOS",
+      "anchor_ts": 1789430400.0
+    },
+    {
+      "pnl": -0.042019804050421106,
+      "regime_at_entry": "NEUTRAL",
+      "family": "BOS",
+      "anchor_ts": 1789430400.0
+    },
+    {
+      "pnl": 0.06382336129463295,
+      "regime_at_entry": "RANGING",
+      "family": "BOS",
+      "anchor_ts": 1789516800.0
+    },
+    {
+      "pnl": 0.043432573193572785,
+      "regime_at_entry": "TRENDING",
+      "family": "BOS",
+      "anchor_ts": 1789516800.0
+    },
+    {
+      "pnl": -0.03574390243902434,
+      "regime_at_entry": "RANGING",
+      "family": "BOS",
+      "anchor_ts": 1789516800.0
+    },
+    {
+      "pnl": 0.06767804351436645,
+      "regime_at_entry": "RANGING",
+      "family": "BOS",
+      "anchor_ts": 1789516800.0
+    },
+    {
+      "pnl": 0.008795663039834235,
+      "regime_at_entry": "RANGING",
+      "family": "BOS",
+      "anchor_ts": 1789516800.0
+    },
+    {
+      "pnl": -0.019297775200023775,
+      "regime_at_entry": "NEUTRAL",
+      "family": "BOS",
+      "anchor_ts": 1789603200.0
+    },
+    {
+      "pnl": 0.03228067266698242,
+      "regime_at_entry": "RANGING",
+      "family": "BOS",
+      "anchor_ts": 1789689600.0
+    },
+    {
+      "pnl": -0.004301086024578406,
+      "regime_at_entry": "RANGING",
+      "family": "BOS",
+      "anchor_ts": 1789689600.0
+    },
+    {
+      "pnl": 0.021840526666032953,
+      "regime_at_entry": "NEUTRAL",
+      "family": "BOS",
+      "anchor_ts": 1789689600.0
+    },
+    {
+      "pnl": -0.01801881264685758,
+      "regime_at_entry": "NEUTRAL",
+      "family": "BOS",
+      "anchor_ts": 1789948800.0
+    },
+    {
+      "pnl": -0.035012209324896106,
+      "regime_at_entry": "RANGING",
+      "family": "BOS",
+      "anchor_ts": 1789948800.0
+    },
+    {
+      "pnl": 0.012433676596787978,
+      "regime_at_entry": "RANGING",
+      "family": "BOS",
+      "anchor_ts": 1789948800.0
+    },
+    {
+      "pnl": 0.028241782602048546,
+      "regime_at_entry": "RANGING",
+      "family": "BOS",
+      "anchor_ts": 1789948800.0
+    },
+    {
+      "pnl": 0.057934640475182736,
+      "regime_at_entry": "TRENDING",
+      "family": "BOS",
+      "anchor_ts": 1789948800.0
+    },
+    {
+      "pnl": 0.02662405265257284,
+      "regime_at_entry": "RANGING",
+      "family": "BOS",
+      "anchor_ts": 1789948800.0
+    },
+    {
+      "pnl": 0.010952991452991482,
+      "regime_at_entry": "RANGING",
+      "family": "BOS",
+      "anchor_ts": 1789948800.0
+    },
+    {
+      "pnl": -0.05014311492501402,
+      "regime_at_entry": "RANGING",
+      "family": "BOS",
+      "anchor_ts": 1789948800.0
+    },
+    {
+      "pnl": -0.015456801783668239,
+      "regime_at_entry": "RANGING",
+      "family": "BOS",
+      "anchor_ts": 1789948800.0
+    },
+    {
+      "pnl": -0.05864892026125659,
+      "regime_at_entry": "RANGING",
+      "family": "OB",
+      "anchor_ts": 1788393600.0
+    },
+    {
+      "pnl": -0.027272428499455204,
+      "regime_at_entry": "RANGING",
+      "family": "OB",
+      "anchor_ts": 1788393600.0
+    },
+    {
+      "pnl": -0.00040950681212605517,
+      "regime_at_entry": "RANGING",
+      "family": "OB",
+      "anchor_ts": 1788393600.0
+    },
+    {
+      "pnl": 0.00042819171377954303,
+      "regime_at_entry": "RANGING",
+      "family": "OB",
+      "anchor_ts": 1788393600.0
+    },
+    {
+      "pnl": 0.004737196273065061,
+      "regime_at_entry": "RANGING",
+      "family": "OB",
+      "anchor_ts": 1788393600.0
+    },
+    {
+      "pnl": -0.024025275531573374,
+      "regime_at_entry": "RANGING",
+      "family": "OB",
+      "anchor_ts": 1788480000.0
+    },
+    {
+      "pnl": 0.03316890229970021,
+      "regime_at_entry": "RANGING",
+      "family": "OB",
+      "anchor_ts": 1788480000.0
+    },
+    {
+      "pnl": 0.035102282487831704,
+      "regime_at_entry": "RANGING",
+      "family": "OB",
+      "anchor_ts": 1788825600.0
+    },
+    {
+      "pnl": -0.010368549362249768,
+      "regime_at_entry": "RANGING",
+      "family": "OB",
+      "anchor_ts": 1788912000.0
+    },
+    {
+      "pnl": -0.011233854838518858,
+      "regime_at_entry": "RANGING",
+      "family": "OB",
+      "anchor_ts": 1788912000.0
+    },
+    {
+      "pnl": 0.006475840907325425,
+      "regime_at_entry": "RANGING",
+      "family": "OB",
+      "anchor_ts": 1788912000.0
+    },
+    {
+      "pnl": 0.01595083646635233,
+      "regime_at_entry": "RANGING",
+      "family": "OB",
+      "anchor_ts": 1789084800.0
+    },
+    {
+      "pnl": 0.01929420552932415,
+      "regime_at_entry": "RANGING",
+      "family": "OB",
+      "anchor_ts": 1789084800.0
+    },
+    {
+      "pnl": -0.00017370911167304416,
+      "regime_at_entry": "RANGING",
+      "family": "OB",
+      "anchor_ts": 1789084800.0
+    },
+    {
+      "pnl": -0.0013045003260663812,
+      "regime_at_entry": "RANGING",
+      "family": "OB",
+      "anchor_ts": 1789344000.0
+    },
+    {
+      "pnl": 0.12442326580724367,
+      "regime_at_entry": "TRENDING",
+      "family": "OB",
+      "anchor_ts": 1789344000.0
+    },
+    {
+      "pnl": -0.042117285388393745,
+      "regime_at_entry": "RANGING",
+      "family": "OB",
+      "anchor_ts": 1789344000.0
+    },
+    {
+      "pnl": 0.013442298211362972,
+      "regime_at_entry": "RANGING",
+      "family": "OB",
+      "anchor_ts": 1789430400.0
+    },
+    {
+      "pnl": 0.05515735411638387,
+      "regime_at_entry": "TRENDING",
+      "family": "OB",
+      "anchor_ts": 1789430400.0
+    },
+    {
+      "pnl": 0.020013691028034842,
+      "regime_at_entry": "NEUTRAL",
+      "family": "OB",
+      "anchor_ts": 1789430400.0
+    },
+    {
+      "pnl": -0.01800632172729041,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1788393600.0
+    },
+    {
+      "pnl": -0.062053788113863986,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1788393600.0
+    },
+    {
+      "pnl": 0.008748820890371522,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1788393600.0
+    },
+    {
+      "pnl": -0.003279594506213239,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1788393600.0
+    },
+    {
+      "pnl": -0.004682736704872672,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1788393600.0
+    },
+    {
+      "pnl": -0.005763443485810402,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1788393600.0
+    },
+    {
+      "pnl": -0.00762215993717333,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1788393600.0
+    },
+    {
+      "pnl": -0.02906010568031705,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1788393600.0
+    },
+    {
+      "pnl": -0.004288110221787772,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1788393600.0
+    },
+    {
+      "pnl": -0.011171299168631337,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1788480000.0
+    },
+    {
+      "pnl": 0.0039058911632550834,
+      "regime_at_entry": "NEUTRAL",
+      "family": "SWEEP",
+      "anchor_ts": 1788480000.0
+    },
+    {
+      "pnl": -0.000388148737323484,
+      "regime_at_entry": "NEUTRAL",
+      "family": "SWEEP",
+      "anchor_ts": 1788480000.0
+    },
+    {
+      "pnl": -0.018829743957884722,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1788480000.0
+    },
+    {
+      "pnl": 0.054474617086822524,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1788480000.0
+    },
+    {
+      "pnl": 0.061838556914069184,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1788480000.0
+    },
+    {
+      "pnl": 0.007412687585265967,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1788480000.0
+    },
+    {
+      "pnl": 0.013893754574286417,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1788480000.0
+    },
+    {
+      "pnl": -0.0037363977485928603,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1788825600.0
+    },
+    {
+      "pnl": -0.04558984065996168,
+      "regime_at_entry": "TRENDING",
+      "family": "SWEEP",
+      "anchor_ts": 1788825600.0
+    },
+    {
+      "pnl": 0.009815463965107355,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1788825600.0
+    },
+    {
+      "pnl": -0.0016413663786075377,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1788825600.0
+    },
+    {
+      "pnl": 3.959988668399313e-05,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1788825600.0
+    },
+    {
+      "pnl": 0.005256998309133315,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1788825600.0
+    },
+    {
+      "pnl": 0.06136687118524914,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1788912000.0
+    },
+    {
+      "pnl": -0.003030744592510636,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1788912000.0
+    },
+    {
+      "pnl": 0.005731147801238264,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1788912000.0
+    },
+    {
+      "pnl": -0.03719204600680372,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1788912000.0
+    },
+    {
+      "pnl": -0.04084535624949568,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1788912000.0
+    },
+    {
+      "pnl": 0.006691631556007622,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1788912000.0
+    },
+    {
+      "pnl": 0.010724442270970129,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1788912000.0
+    },
+    {
+      "pnl": 0.04102281014818832,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1788912000.0
+    },
+    {
+      "pnl": 0.00697075042849689,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1788912000.0
+    },
+    {
+      "pnl": -0.0016414873580276072,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1788912000.0
+    },
+    {
+      "pnl": -0.006873043021588874,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1788912000.0
+    },
+    {
+      "pnl": -0.011351749279376114,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1788912000.0
+    },
+    {
+      "pnl": -0.013709475434341537,
+      "regime_at_entry": "TRENDING",
+      "family": "SWEEP",
+      "anchor_ts": 1788912000.0
+    },
+    {
+      "pnl": 0.060466649629440254,
+      "regime_at_entry": "TRENDING",
+      "family": "SWEEP",
+      "anchor_ts": 1788912000.0
+    },
+    {
+      "pnl": 0.025669841343405872,
+      "regime_at_entry": "TRENDING",
+      "family": "SWEEP",
+      "anchor_ts": 1788912000.0
+    },
+    {
+      "pnl": 0.043706435494691095,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1788912000.0
+    },
+    {
+      "pnl": 0.001833252876337648,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1788912000.0
+    },
+    {
+      "pnl": 0.05255059431971056,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1788912000.0
+    },
+    {
+      "pnl": 0.055231288539884515,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1788912000.0
+    },
+    {
+      "pnl": -0.001242419506095572,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1788912000.0
+    },
+    {
+      "pnl": -0.011113602950658875,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1788912000.0
+    },
+    {
+      "pnl": -0.022292936915182523,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1788998400.0
+    },
+    {
+      "pnl": 0.0832949042570026,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1789084800.0
+    },
+    {
+      "pnl": 0.0884850511408339,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1789084800.0
+    },
+    {
+      "pnl": -0.045446469839173706,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1789084800.0
+    },
+    {
+      "pnl": -0.04764850367024285,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1789084800.0
+    },
+    {
+      "pnl": -0.007243211226535415,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1789084800.0
+    },
+    {
+      "pnl": -0.008009452920489634,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1789084800.0
+    },
+    {
+      "pnl": 0.04651252236135952,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1789344000.0
+    },
+    {
+      "pnl": 0.024250425541703063,
+      "regime_at_entry": "NEUTRAL",
+      "family": "SWEEP",
+      "anchor_ts": 1789344000.0
+    },
+    {
+      "pnl": 0.0069192901544013734,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1789344000.0
+    },
+    {
+      "pnl": -0.014730355921716592,
+      "regime_at_entry": "TRENDING",
+      "family": "SWEEP",
+      "anchor_ts": 1789344000.0
+    },
+    {
+      "pnl": 0.003131470284618838,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1789344000.0
+    },
+    {
+      "pnl": 0.0007901376146788664,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1789344000.0
+    },
+    {
+      "pnl": 0.04659853721266677,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1789344000.0
+    },
+    {
+      "pnl": 0.020544100385668854,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1789344000.0
+    },
+    {
+      "pnl": -0.008773564885701196,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1789344000.0
+    },
+    {
+      "pnl": 0.02411317880399054,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1789344000.0
+    },
+    {
+      "pnl": 0.03134297912713459,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1789344000.0
+    },
+    {
+      "pnl": -0.016085094032969597,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1789430400.0
+    },
+    {
+      "pnl": 0.04157893104465166,
+      "regime_at_entry": "NEUTRAL",
+      "family": "SWEEP",
+      "anchor_ts": 1789430400.0
+    },
+    {
+      "pnl": -0.03433589743589745,
+      "regime_at_entry": "NEUTRAL",
+      "family": "SWEEP",
+      "anchor_ts": 1789430400.0
+    },
+    {
+      "pnl": 0.022699393479909038,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1789430400.0
+    },
+    {
+      "pnl": 0.01708685038924816,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1789430400.0
+    },
+    {
+      "pnl": 0.01553710488819095,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1789430400.0
+    },
+    {
+      "pnl": -0.0029137336518805404,
+      "regime_at_entry": "NEUTRAL",
+      "family": "SWEEP",
+      "anchor_ts": 1789430400.0
+    },
+    {
+      "pnl": -0.02381806124909577,
+      "regime_at_entry": "NEUTRAL",
+      "family": "SWEEP",
+      "anchor_ts": 1789430400.0
+    },
+    {
+      "pnl": -0.034559687351965886,
+      "regime_at_entry": "NEUTRAL",
+      "family": "SWEEP",
+      "anchor_ts": 1789516800.0
+    },
+    {
+      "pnl": 0.0011178704455125684,
+      "regime_at_entry": "TRENDING",
+      "family": "SWEEP",
+      "anchor_ts": 1789516800.0
+    },
+    {
+      "pnl": 0.008392836670298867,
+      "regime_at_entry": "TRENDING",
+      "family": "SWEEP",
+      "anchor_ts": 1789516800.0
+    },
+    {
+      "pnl": 0.015844961200578083,
+      "regime_at_entry": "TRENDING",
+      "family": "SWEEP",
+      "anchor_ts": 1789516800.0
+    },
+    {
+      "pnl": 0.021060946706606572,
+      "regime_at_entry": "TRENDING",
+      "family": "SWEEP",
+      "anchor_ts": 1789516800.0
+    },
+    {
+      "pnl": 0.05658441799925623,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1789516800.0
+    },
+    {
+      "pnl": 0.037258013089444535,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1789516800.0
+    },
+    {
+      "pnl": -0.03436689132266214,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1789516800.0
+    },
+    {
+      "pnl": 0.006704226479534782,
+      "regime_at_entry": "NEUTRAL",
+      "family": "SWEEP",
+      "anchor_ts": 1789516800.0
+    },
+    {
+      "pnl": 0.023097756410256468,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1789603200.0
+    },
+    {
+      "pnl": -0.029034482758620708,
+      "regime_at_entry": "NEUTRAL",
+      "family": "SWEEP",
+      "anchor_ts": 1789603200.0
+    },
+    {
+      "pnl": 0.012853562203776727,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1789603200.0
+    },
+    {
+      "pnl": -0.05461516430509501,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1789603200.0
+    },
+    {
+      "pnl": 0.027398040913518756,
+      "regime_at_entry": "NEUTRAL",
+      "family": "SWEEP",
+      "anchor_ts": 1789603200.0
+    },
+    {
+      "pnl": -0.0015978591746095058,
+      "regime_at_entry": "NEUTRAL",
+      "family": "SWEEP",
+      "anchor_ts": 1789603200.0
+    },
+    {
+      "pnl": 0.05097092675291183,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1789603200.0
+    },
+    {
+      "pnl": -0.0032958716278516337,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1789689600.0
+    },
+    {
+      "pnl": 0.03630423220228106,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1789689600.0
+    },
+    {
+      "pnl": 0.00826353192429485,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1789689600.0
+    },
+    {
+      "pnl": -0.07024504166605852,
+      "regime_at_entry": "TRENDING",
+      "family": "SWEEP",
+      "anchor_ts": 1789689600.0
+    },
+    {
+      "pnl": -0.06312684836184408,
+      "regime_at_entry": "TRENDING",
+      "family": "SWEEP",
+      "anchor_ts": 1789689600.0
+    },
+    {
+      "pnl": -0.060514461315979755,
+      "regime_at_entry": "TRENDING",
+      "family": "SWEEP",
+      "anchor_ts": 1789689600.0
+    },
+    {
+      "pnl": 0.015272357723577216,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1789689600.0
+    },
+    {
+      "pnl": -0.007592768053102021,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1789689600.0
+    },
+    {
+      "pnl": -0.013851418920715928,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1789689600.0
+    },
+    {
+      "pnl": 0.024766343825665865,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1789948800.0
+    },
+    {
+      "pnl": -0.00872291504286811,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1789948800.0
+    },
+    {
+      "pnl": -0.04390053763440856,
+      "regime_at_entry": "TRENDING",
+      "family": "SWEEP",
+      "anchor_ts": 1789948800.0
+    },
+    {
+      "pnl": -0.012531386224934573,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1789948800.0
+    },
+    {
+      "pnl": -0.009891304347826072,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1789948800.0
+    },
+    {
+      "pnl": 0.014540223854494569,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1789948800.0
+    },
+    {
+      "pnl": -0.006589841824020962,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1789948800.0
+    },
+    {
+      "pnl": -0.0012469477000802197,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1789948800.0
+    }
+  ],
+  "trades_per_year": 3388.7083,
+  "rr_target": 1.0
+}
