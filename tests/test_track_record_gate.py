@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import numpy as np
-
 import pytest
 
 from scripts.track_record_gate import (
@@ -524,7 +523,7 @@ def test_a_dropped_non_finite_return_takes_its_anchor_with_it() -> None:
     """The NaN trade sits alone on day 41. Dropping the return must drop
     that day too, or the count would credit a day without a trade."""
     returns = np.append(_profitable_returns(), np.nan)
-    anchors = _anchors(200, days=40) + [_FIRST_DAY + 40 * _DAY]
+    anchors = [*_anchors(200, days=40), _FIRST_DAY + 40 * _DAY]
     verdict = evaluate_track_record_gate(returns, anchor_ts=anchors, bootstrap_B=50)
     assert verdict.n_trades == 200
     assert _check_named(verdict, "trading_days").value == 40.0
