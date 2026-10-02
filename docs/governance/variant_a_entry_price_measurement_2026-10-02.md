@@ -23,7 +23,8 @@
 > die Börsenuhr versetzt. Das Raster ist seither korrigiert (ADR-0031,
 > Nachtrag 2026-10-02 III). Die Befunde über den Einstiegspreis hängen nicht
 > am Raster; die einzelnen Events und Zahlen sind auf dem neuen Raster nicht
-> neu gerechnet.
+> neu gerechnet. Die erste Pipeline-Ablesung auf dem Börsenraster steht im
+> Abschnitt „Dieselbe Ablesung auf dem Börsenraster".
 
 ## Befund
 
@@ -151,6 +152,31 @@ Trades. Auf 15m tragen nur die Events der letzten vier Tage Eröffnungskurse.
 Damit ist auch 1D gemessen: der Einstiegsvorteil war dort rund 90 bis 130 bps
 je Trade. Alle diese Trades liegen vor dem Evidenz-Start (2026-10-05) und
 zählen nicht für die kumulativen Urteile; es ist eine Rückschau.
+
+### Dieselbe Ablesung auf dem Börsenraster (2026-10-02, nach #5630)
+
+Die Tabelle oben steht auf dem alten, versetzten Raster; ihre 15m-Urteile und
+beide Ledger liegen seit der Raster-Korrektur eingefroren unter
+`docs/calibration/gates/offset_grid_frozen/`. Der erste Benchmark auf dem
+Börsenraster (Lauf 37066414016) baute den Pool neu: 13 822 Events, alle mit
+`bar_grid = exchange_aligned`; 19 787 Events des alten Rasters wurden
+verworfen. Von den 2 369 15m-Events fand ein Kerzen-für-Kerzen-Spiegel auf
+börsengerechten 15m-Kerzen jedes einzelne; nur 32 bis 64 % davon existierten
+auch auf dem alten Raster. Das Gate (Lauf 37071929491, #5631) las daraus:
+
+| Ebene | Familie | n | Tage | neue Regel, Börsenraster |
+|---|---|---|---|---|
+| 15m | BOS | 381 | 4 | −10,6 [−15,5; −5,0] |
+| 15m | OB | 208 | 4 | −6,3 [−16,9; 4,3] |
+| 15m | FVG | 591 | 4 | −7,0 [−15,0; 3,2] |
+| 15m | SWEEP | 946 | 4 | −4,4 [−6,1; −2,7] |
+| 15m | alle | 2 126 | 4 | −6,4 [−9,5; −3,1] |
+
+1D ist unverändert (168 Trades, dieselben Zahlen wie oben): Tageskerzen waren
+nie versetzt; der 1D-Ledger beginnt nur deshalb neu, weil seine Zeilen jetzt
+`bar_grid` tragen. Andere Kerzen, andere Events, dasselbe Bild: auf 15m
+verliert jede Familie nach Kosten, gepoolt wie unter dem alten Raster.
+Auch diese Trades liegen vor dem Evidenz-Start.
 
 ## Daten und Abdeckung
 
