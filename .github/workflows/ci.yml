@@ -36,10 +36,25 @@ on:
     # design (no code review happens on a data-only branch). Nothing consumes
     # a `validate` status on those refs. The gate below keeps non-main pushes
     # status-only; heavy validation runs on main pushes and manual dispatches.
-    paths-ignore:
-      - '**/*.md'
-      - 'docs/**'
-      - 'CHANGELOG.md'
+    #
+    # 2026-10-03: the push lane does NOT cover a branch pushed with
+    # GITHUB_TOKEN — such a push starts no workflow at all. The one producer
+    # of doc-only bot PRs is `promotion-gate-daily` (gate artifacts under
+    # docs/calibration/gates/). Until 2026-10-02 every one of its PRs happened
+    # to carry a file outside docs/ (cache/live/*) and got its shards from
+    # this trigger; #5647 was the first purely documentary one and sat green
+    # and BLOCKED with auto-merge armed — nothing went red. A manual
+    # `workflow_dispatch` on the branch did not help either: its check runs
+    # land on the commit but are not counted in the PR's required contexts
+    # (measured on #5647, run 37150754425). Hence `paths` with negations
+    # instead of `paths-ignore`: same doc-only skip, minus the gates
+    # directory. Order matters — the last matching pattern wins.
+    paths:
+      - '**'
+      - '!**/*.md'
+      - '!docs/**'
+      - '!CHANGELOG.md'
+      - 'docs/calibration/gates/**'
   # Die vier `validate (N)` Shards sind seit 2026-08-27 required (ADR-0012
   # Operator-Punkt 1). Eine Merge Queue validiert ihren Batch auf einem
   # eigenen Ref (`gh-readonly-queue/main/...`) und mergt erst, wenn dort
