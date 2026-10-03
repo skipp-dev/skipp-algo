@@ -95,8 +95,83 @@ stehen OB, FVG und SWEEP über dieselbe Zeit?
   abweichen.
 - **Kosten.** 5 bps rund um die Uhr; die §5-Kostenkalibrierung ist nicht
   eingerechnet.
-- **Pine-Engine.** Gemessen ist ihre Pivot-Körnung, nicht HH/LH/HL/LL,
-  Strong/Weak-Levels oder Trend-Stack.
+- **Pine-Engine.** Oben gemessen ist nur ihre Pivot-Körnung; HH/LH/HL/LL,
+  Strong/Weak und Trend-Stack misst der Nachtrag unten.
+- **NVDA-Split (10.6.2024, 10:1).** Die 1m-Historie ist nicht
+  split-bereinigt; die Rückschau oben enthält dadurch einen einzelnen
+  Pivot-1-Trade mit −9 011 bps (NVDA, 7.6.2024). Wirkung auf die
+  Mittel: etwa −0,1 bps; keine Aussage ändert sich. Der Nachtrag rechnet
+  bereinigt.
+
+## Nachtrag 2026-10-03: die Engine selbst
+
+**Frage.** Trägt die Struktur-Engine der Suite
+(`SMC++/smc_engine_private.pine`, `detect_structure`) über ihre
+Pivot-Körnung hinaus etwas: Strukturbrüche, Swing-Labels HH/LH/HL/LL,
+Strong/Weak-Levels, Trend-Stack 4H/1D/1W?
+
+**Weg.** Python-Nachbau von `detect_swings` / `detect_pivot` /
+`detect_structure`, verdrahtet wie `SMC_Long_Dip_Suite.pine`: Swing-Struktur
+Länge 50, Internal-Struktur Länge 5 mit den Swing-Levels als `super`-Level,
+beide mit `filter_insignificant_internal_breaks = true`. Labels wie
+`plot_pivot_points`, Strong/Weak wie `plot_swing_levels`, Trend-Stack wie
+`get_confirmed_structure_trend` (Anzeige-Trend der VORHERIGEN Kerze der
+höheren Zeitebene, Länge 50; 4H auf NY-Uhr ab 04:00, 1D aus RTH, 1W aus 1D;
+Vorlauf vor 2023-03-28 aus Tageskursen). Dieselben Kerzen wie oben,
+börsengerechte 15m, NVDA bereinigt. Ertrag wie im Track Record: Entscheidung
+mit dem Schluss der Signalkerze, Einstieg zur nächsten Eröffnung, Ausstieg
+nach 8 Kerzen (BOS-Haltedauer), 5 bps; Intervall über gezogene UTC-Tage.
+Positivkontrolle: dieselbe Ertragsrechnung gegen
+`family_events_from_structure` + `realized_return` auf den groben
+BOS-Events von AAPL — 0 von 317 Trades weichen ab.
+
+**Ergebnis (bps je Trade, netto, 95 %-Intervall über Tage):**
+
+| Baustein | Trades | Mittel |
+|---|---|---|
+| Swing-Brüche (BOS + CHoCH, beide Seiten) | 3 547 | +0,2 [−3,9; +4,5] |
+| Internal-Brüche | 27 375 | −4,2 [−5,8; −2,8] |
+| Swing HH (long) / HL (long) | 2 664 / 2 857 | −2,3 / −2,6 |
+| Swing LH (short) / LL (short) | 2 483 / 2 280 | −12,4 / −9,3 |
+| Internal-Labels, alle vier | 95 544 | −4,9 [−5,6; −4,1] |
+| Handel Richtung schwaches Level (Swing) | 13 190 | −6,0 [−7,9; −4,2] |
+
+- **Strukturbrüche:** Swing-Brüche verdienen vor Kosten etwa die Kosten
+  (besser als Pivot 1 mit −4,8), sind aber in keinem Jahr positiv; auf
+  einem reinen RTH-Chart −4 bis −11 je Signal.
+- **HH/LH/HL/LL:** keine Richtungsinformation. Long-Labels liegen brutto
+  bei +2 bis +3 bps — das ist die Marktdrift (jede Kerze long: +1,7
+  brutto); Short-Labels verlieren entsprechend.
+- **Strong/Weak:** Das schwache Level wird in 66,5 % der Fälle zuerst
+  erreicht; ein richtungsloser Zufallslauf ergäbe bei denselben Abständen
+  67,1 % (Differenz −0,6 pp [−1,3; +0,2]; Internal −0,7 [−1,1; −0,3]). Die
+  Namen beschreiben den Abstand zum Kurs, keine Haltekraft.
+- **Trend-Zustand:** jede Kerze in Richtung des Engine-Trends: brutto
+  −0,4 [−1,1; +0,4].
+- **Trend-Stack:** „≥ 2 von 3 bullisch" verbessert nichts — jede Kerze
+  long brutto +1,3 bei Stack ≥ 2, +2,7 bei Stack < 2; bullische
+  Swing-Brüche mit Stack ≥ 2 netto −1,1 [−7,0; +5,1].
+- Zwei von rund 80 abgelesenen Zellen sind positiv (bullische Swing-Brüche
+  bei Stack 0: +22,6 [+3,0; +41,9], 117 Trades; bullische Internal-CHoCH
+  über 32 Kerzen: +7,4 [+1,0; +14,1]) — im Rahmen des Zufalls bei so vielen
+  Zellen, und nicht vorab benannt.
+
+**Ablesung.** Kein Baustein der Engine ist nach Kosten positiv; keiner
+trägt Richtungsinformation über die Marktdrift hinaus. „Die Engine ist
+besser als der Track Record" bleibt unbelegt.
+
+**Was der Nachtrag nicht trägt.**
+
+- Der Nachbau ist nicht gegen TradingView geprüft (kein Compiler); die
+  Logik ist zeilenweise aus dem Pine-Quelltext übertragen.
+- Die Long-Dip-Einstiege (Zustandsmaschine Armed → Confirmed → Ready →
+  Entry Best/Strict mit allen Gates) sind NICHT gemessen; das Urteil gilt
+  für die Struktur-Bausteine, auf denen sie aufsetzt.
+- Rückschau, kein Track Record; Kosten wie oben 5 bps.
+- Skript und Rohdaten außerhalb des Repos:
+  `~/.claude/scripts/family-fill-analysis/engine_retro.py`,
+  `results_engine_2026-10-03.txt`, je Signal in
+  `results_engine_2026-10-03.parquet`.
 
 Verwandt: ADR-0031 (Nachträge II–IV),
 `docs/governance/variant_a_entry_price_measurement_2026-10-02.md`,
