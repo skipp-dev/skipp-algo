@@ -595,3 +595,14 @@ Pivots davor; mit 50er-Pivots sind die ersten rund 100 Kerzen eines Fensters
 ereignislos und die Richtung initialisiert spät. Der Pool über die Tage
 mildert das: jede Kerze liegt an anderen Tagen in der Fenstermitte. Dieselbe
 Eigenschaft hat das feine Korn in kleinerem Maß.
+
+### Rückschau auf der Historie (2026-10-03, nachgetragen)
+
+Dieselben Definitionen auf Databento `EQUS.MINI` 2023-03-28 bis 2026-10-02
+(24 Symbole, Pipeline-Codepfad): keine Familie, keine Körnung, kein Jahr nach
+Kosten positiv. Pivot 1: BOS −4,8 [−5,7; −4,0], OB −5,2 [−5,8; −4,5], FVG −4,5
+[−5,0; −4,0], SWEEP −4,8 [−5,2; −4,4] bps je Trade; Pivot 50 BOS −3,2
+[−5,4; −0,9] — weniger Verlust je Trade, in zwei von vier Jahren mit Null im
+Intervall, in keinem positiv. Die vorwärts zu trennende Spanne der groben
+Bilanz ist damit „−3 bps oder null". Beleg und Vorbehalte:
+`docs/governance/structure_grain_history_2026-10-03.md`.
