@@ -59,7 +59,7 @@ import sys
 from pathlib import Path
 from typing import Any, get_args
 
-from governance.family_returns import DEFAULT_COST_BPS, RETURN_RULE, extract_family_returns
+from governance.family_returns import DEFAULT_COST_BPS, RETURN_RULE, extract_family_returns, record_grain_events
 from governance.family_significance import family_fdr_qvalues
 from governance.types import EventFamily
 from scripts.build_family_metrics import build_family_metrics_from_returns
@@ -161,7 +161,9 @@ def _load_pool_events(events_path: str | None) -> list[dict[str, Any]]:
             file=sys.stderr,
         )
         return []
-    return [e for e in data if isinstance(e, dict)]
+    # The pool also carries coarse BOS events (ADR-0031, Nachtrag 2026-10-03
+    # IV); the Tier-1 direction metrics measure the record's grain.
+    return record_grain_events([e for e in data if isinstance(e, dict)])
 
 
 def _tier1_metrics_from_events(

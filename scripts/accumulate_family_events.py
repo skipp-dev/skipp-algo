@@ -12,8 +12,10 @@ out-of-sample folds.
 
 Deduplication rule (Score-Persistenz):
     Events are keyed by their ``event_id`` (``<family>:<symbol>:<tf>:<anchor>:
-    <direction>:<levels>``, stable across daily runs).  Only an event WITHOUT an
-    id falls back to the legacy ``(family, anchor_ts)`` key.  When the same
+    <direction>:<levels>``, stable across daily runs; a BOS on the coarse
+    structure grain ends in ``:p50`` — ADR-0031, Nachtrag 2026-10-03 IV — and
+    is a different event from the fine one on the same bar).  Only an event
+    WITHOUT an id falls back to the legacy ``(family, anchor_ts)`` key.  When the same
     event appears
     in multiple daily snapshots (re-detected as *open* structure), the version
     with the *longest* ``forward_closes`` list wins: each successive day

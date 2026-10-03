@@ -244,3 +244,33 @@ def test_main_emits_inconclusive_report_when_selected_plane_is_empty(
     assert payload["events_total"] == 1
     assert payload["events_on_plane"] == 0
     assert payload["candidates_measured"] == []
+
+
+def test_main_keeps_to_the_records_structure_grain(tmp_path, monkeypatch):
+    """ADR-0031, Nachtrag 2026-10-03 IV: coarse BOS events in the pool never
+    reach the §5 samples."""
+    import scripts.run_epnl_after_cost_gate as gate
+
+    seen = []
+
+    def fake_samples(events, *, cost_bps):
+        seen.extend(events)
+        return {}
+
+    monkeypatch.setattr(gate, "event_measurement_plane", lambda event: event["plane"])
+    monkeypatch.setattr(gate, "extract_family_calibration_samples", fake_samples)
+
+    events_path = tmp_path / "events.json"
+    events_path.write_text(
+        json.dumps([
+            {"family": "BOS", "plane": "1D"},
+            {"family": "BOS", "plane": "1D", "pivot_lookup": 50},
+            {"family": "BOS", "plane": "1D", "pivot_lookup": 1},
+        ])
+    )
+    out_path = tmp_path / "report.json"
+    rc = main([str(events_path), "--plane", "1D", "--out", str(out_path)])
+    assert rc == 3
+    assert seen == [{"family": "BOS", "plane": "1D"}, {"family": "BOS", "plane": "1D", "pivot_lookup": 1}]
+    payload = json.loads(out_path.read_text())
+    assert payload["events_total"] == 2  # after the grain filter

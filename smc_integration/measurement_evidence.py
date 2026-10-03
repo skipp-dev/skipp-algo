@@ -17,7 +17,7 @@ from databento_reference import get_reference_event_risk_snapshot
 # so the magnitude shadow workflow can consume them without re-running
 # the detection pipeline.
 from governance.family_event_adapter import family_events_from_structure as _family_events_from_structure
-from governance.family_returns import BAR_GRID
+from governance.family_returns import BAR_GRID, COARSE_EVENT_ID_SUFFIX, COARSE_PIVOT_LOOKUP, PIVOT_LOOKUP
 from scripts.explicit_structure_from_bars import build_explicit_structure_from_bars, resample_bars_to_timeframe
 from scripts.load_databento_export_bundle import load_export_bundle
 from scripts.smc_event_risk_builder import build_event_risk
@@ -1792,6 +1792,49 @@ def _evaluate_sweep_event(
     }, scored_event
 
 
+def _coarse_bos_family_events(
+    raw_bars: pd.DataFrame,
+    resampled_bars: pd.DataFrame,
+    *,
+    symbol: str,
+    timeframe: str,
+    structure_profile: str,
+    warnings: list[str],
+) -> list[dict[str, Any]]:
+    """BOS/CHoCH FamilyEvents on the coarse grain (``COARSE_PIVOT_LOOKUP``).
+
+    Runs the explicit structure build once more with the coarse pivot and
+    keeps only its BOS list; OB, FVG and SWEEP do not depend on the grain and
+    are already emitted on the fine pass. Each event is stamped with its grain
+    and its ``event_id`` gets ``COARSE_EVENT_ID_SUFFIX``, so a coarse break on
+    the same bar and level as a fine one stays a distinct pool entry. Empty on
+    daily timeframes and on any failure (reported in ``warnings``).
+    """
+    if is_daily_timeframe(timeframe):
+        return []
+    try:
+        payload = build_explicit_structure_from_bars(
+            raw_bars,
+            symbol=symbol,
+            timeframe=timeframe,
+            pivot_lookup=COARSE_PIVOT_LOOKUP,
+            structure_profile=structure_profile,
+        )
+        events = _family_events_from_structure(
+            {"bos": payload.get("bos", [])},
+            resampled_bars.to_dict("records"),
+        )
+    except Exception as exc:
+        warnings.append(f"coarse BOS pass (pivot_lookup={COARSE_PIVOT_LOOKUP}) unavailable: {exc}")
+        return []
+    for event in events:
+        event["bar_grid"] = BAR_GRID
+        event["pivot_lookup"] = COARSE_PIVOT_LOOKUP
+        if event.get("event_id"):
+            event["event_id"] = f"{event['event_id']}{COARSE_EVENT_ID_SUFFIX}"
+    return list(events)
+
+
 def build_measurement_evidence(
     symbol: str,
     timeframe: str,
@@ -2349,8 +2392,24 @@ def build_measurement_evidence(
         # lets the pool and the ledgers refuse events of the previous grid.
         for family_event in family_events:
             family_event["bar_grid"] = BAR_GRID
+            family_event["pivot_lookup"] = PIVOT_LOOKUP
     except Exception as exc:
         logger.warning("family_events_from_structure failed: %s", exc)
         family_events = []
+
+    # ADR-0031, Nachtrag 2026-10-03 IV: the same BOS/CHoCH detector on the Pine
+    # engine's swing size, as a second record. Intraday only — a 50-bar pivot
+    # needs 101 bars to confirm, more than the 22-day daily window holds.
+    coarse_events = _coarse_bos_family_events(
+        raw_bars,
+        resampled_bars,
+        symbol=str(symbol).strip().upper(),
+        timeframe=timeframe,
+        structure_profile=str(contract.get("structure_profile_used", "hybrid_default")),
+        warnings=warnings,
+    )
+    details["coarse_bos_event_count"] = len(coarse_events)
+    details["warnings"] = list(warnings)
+    family_events = list(family_events) + coarse_events
 
     return MeasurementEvidence(events_by_family, stratified_events, scored_events, details, warnings, family_events)

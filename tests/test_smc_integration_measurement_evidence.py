@@ -1705,3 +1705,118 @@ def test_family_events_carry_the_bar_grid_they_were_measured_on(monkeypatch) -> 
     assert evidence.family_events, "the fixture must yield family events, or the loop below proves nothing"
     assert {event_bar_grid(event) for event in evidence.family_events} == {BAR_GRID}
     assert BAR_GRID == "exchange_aligned"
+
+
+# ---------------------------------------------------------------------------
+# Structure grain (ADR-0031, Nachtrag 2026-10-03 IV): BOS on the Pine engine's
+# swing size as a second record, side by side with the fine-grain events.
+# ---------------------------------------------------------------------------
+
+
+def _m15_bars(n: int = 40) -> pd.DataFrame:
+    start = pd.Timestamp("2024-01-02T14:30:00Z")
+    rows = []
+    price = 100.0
+    for i in range(n):
+        price += 0.2 if i % 3 else -0.1
+        rows.append({
+            "symbol": "AAPL",
+            "timestamp": (start + pd.Timedelta(minutes=15 * i)).isoformat(),
+            "open": price, "high": price + 0.5, "low": price - 0.5, "close": price + 0.1, "volume": 1000.0 + i,
+        })
+    return pd.DataFrame(rows)
+
+
+def _grain_aware_explicit(fine: dict, coarse_bos: list[dict], calls: list[dict]):
+    def explicit_fn(raw_bars, symbol, timeframe, structure_profile="hybrid_default", pivot_lookup=1):
+        calls.append({"pivot_lookup": pivot_lookup, "structure_profile": structure_profile, "timeframe": timeframe})
+        if pivot_lookup == 1:
+            return fine
+        return {"bos": coarse_bos, "orderblocks": [], "fvg": [], "liquidity_sweeps": [], "diagnostics": {}}
+    return explicit_fn
+
+
+def test_fine_grain_events_are_stamped_and_daily_skips_the_coarse_pass(monkeypatch) -> None:
+    from governance.family_returns import PIVOT_LOOKUP, event_pivot_lookup
+
+    contract, explicit = _contract_payload()
+    calls: list[dict] = []
+    _monkeypatch_full_evidence(
+        monkeypatch, contract=contract, explicit_payload=explicit, bars=_daily_bars(),
+        overrides={"explicit_fn": _grain_aware_explicit(explicit, [], calls)},
+    )
+    evidence = measurement_evidence.build_measurement_evidence("AAPL", "1D")
+
+    assert evidence.family_events
+    assert {event_pivot_lookup(event) for event in evidence.family_events} == {PIVOT_LOOKUP}
+    assert {event["pivot_lookup"] for event in evidence.family_events} == {1}, "the stamp is explicit, not inferred"
+    assert evidence.details["coarse_bos_event_count"] == 0
+    assert [call["pivot_lookup"] for call in calls] == [1], "a 50-bar pivot cannot confirm inside the daily window"
+    assert not [w for w in evidence.warnings if "coarse" in w]
+
+
+def test_intraday_runs_the_coarse_bos_pass_as_a_second_record(monkeypatch) -> None:
+    from governance.family_returns import COARSE_EVENT_ID_SUFFIX, COARSE_PIVOT_LOOKUP, event_pivot_lookup
+
+    bars = _m15_bars()
+    ts = pd.to_datetime(bars["timestamp"]).map(lambda t: t.timestamp()).tolist()
+    fine = {
+        "bos": [{"id": "bos:AAPL:15m:fine", "time": ts[10], "price": 101.0, "kind": "BOS", "dir": "UP", "source": "synthetic"}],
+        "orderblocks": [], "fvg": [], "liquidity_sweeps": [], "diagnostics": {},
+    }
+    coarse = [
+        {"id": "bos:AAPL:15m:fine", "time": ts[10], "price": 101.0, "kind": "BOS", "dir": "UP", "source": "synthetic"},
+        {"id": "bos:AAPL:15m:other", "time": ts[20], "price": 102.0, "kind": "CHOCH", "dir": "DOWN", "source": "synthetic"},
+    ]
+    contract = {
+        "symbol": "AAPL", "timeframe": "15m", "structure_profile_used": "hybrid_default",
+        "canonical_structure": {"bos": list(fine["bos"]), "orderblocks": [], "fvg": [], "liquidity_sweeps": []},
+    }
+    calls: list[dict] = []
+    _monkeypatch_full_evidence(
+        monkeypatch, contract=contract, explicit_payload=fine, bars=bars,
+        overrides={"explicit_fn": _grain_aware_explicit(fine, coarse, calls)},
+    )
+    evidence = measurement_evidence.build_measurement_evidence("AAPL", "15m")
+
+    by_grain: dict[int, list[dict]] = {}
+    for event in evidence.family_events:
+        by_grain.setdefault(event_pivot_lookup(event), []).append(event)
+    assert set(by_grain) == {1, COARSE_PIVOT_LOOKUP}
+    assert [e["event_id"] for e in by_grain[1]] == ["bos:AAPL:15m:fine"]
+    # Same bar, same level as the fine BOS — still a distinct pool entry.
+    assert sorted(e["event_id"] for e in by_grain[COARSE_PIVOT_LOOKUP]) == [
+        f"bos:AAPL:15m:fine{COARSE_EVENT_ID_SUFFIX}",
+        f"bos:AAPL:15m:other{COARSE_EVENT_ID_SUFFIX}",
+    ]
+    assert {e["family"] for e in by_grain[COARSE_PIVOT_LOOKUP]} == {"BOS"}
+    assert {e["bar_grid"] for e in evidence.family_events} == {"exchange_aligned"}
+    assert evidence.details["coarse_bos_event_count"] == 2
+    coarse_calls = [c for c in calls if c["pivot_lookup"] == COARSE_PIVOT_LOOKUP]
+    assert coarse_calls == [{"pivot_lookup": 50, "structure_profile": "hybrid_default", "timeframe": "15m"}]
+
+
+def test_a_failing_coarse_pass_leaves_the_record_intact_and_says_so(monkeypatch) -> None:
+    bars = _m15_bars()
+    ts = pd.to_datetime(bars["timestamp"]).map(lambda t: t.timestamp()).tolist()
+    fine = {
+        "bos": [{"id": "bos:AAPL:15m:fine", "time": ts[10], "price": 101.0, "kind": "BOS", "dir": "UP", "source": "synthetic"}],
+        "orderblocks": [], "fvg": [], "liquidity_sweeps": [], "diagnostics": {},
+    }
+    contract = {
+        "symbol": "AAPL", "timeframe": "15m", "structure_profile_used": "hybrid_default",
+        "canonical_structure": {"bos": list(fine["bos"]), "orderblocks": [], "fvg": [], "liquidity_sweeps": []},
+    }
+
+    def explicit_fn(raw_bars, symbol, timeframe, structure_profile="hybrid_default", pivot_lookup=1):
+        if pivot_lookup != 1:
+            raise RuntimeError("coarse boom")
+        return fine
+
+    _monkeypatch_full_evidence(monkeypatch, contract=contract, explicit_payload=fine, bars=bars, overrides={"explicit_fn": explicit_fn})
+    evidence = measurement_evidence.build_measurement_evidence("AAPL", "15m")
+
+    assert [e["event_id"] for e in evidence.family_events] == ["bos:AAPL:15m:fine"]
+    assert evidence.details["coarse_bos_event_count"] == 0
+    assert any("coarse BOS pass (pivot_lookup=50) unavailable: coarse boom" in w for w in evidence.warnings)
+    assert any("coarse boom" in w for w in evidence.details["warnings"])

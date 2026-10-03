@@ -445,6 +445,16 @@ jobs:
       #     war. Aeltere 15m-Trades bleiben im Ledger, zaehlen aber nicht ins
       #     kumulative Urteil.
       #
+      # (3) ZWEITE MESS-DEFINITION (ADR-0031, Nachtrag 2026-10-03 IV): BOS auf
+      #     dem groben Korn der Pine-Engine (pivot_lookup 50). Der Benchmark
+      #     legt diese Events mit Stempel `pivot_lookup` und Id-Suffix `:p50`
+      #     in denselben Pool; jeder Leser oben haelt sich an das feine Korn.
+      #     Hier bekommen sie ihre EIGENE Fenster-Serie, ihr eigenes Urteil
+      #     (docs/calibration/gates/15m_p50/) und ihr eigenes Ledger
+      #     (ledger/returns_ledger_15m_p50.jsonl). Nie mit der 15m-Bilanz
+      #     poolen: andere Definition, andere Bilanz. Nur 15m — ein 50er-Pivot
+      #     braucht 101 Kerzen, mehr als das 22-Tage-Fenster auf 1D hat.
+      #
       # Haengt an `produced == 'true'`: dann existiert der Pool, und die
       # 1D-Artefakte des Tages liegen schon vor. `find` statt `ls` in der
       # Retention: `ls` auf einen Glob ohne Treffer endet unter pipefail rot
@@ -490,9 +500,37 @@ jobs:
             --date "${DATE}" \
             --output "${OBS_DIR}/regime_stratified_${DATE}.json"
 
+          # (3) coarse grain, 15m only — own series, own verdict.
+          P50_DIR="${GATES_DIR}/15m_p50"
+          mkdir -p "${P50_DIR}"
+          P50_SERIES="artifacts/ledger/returns_series_window_15m_p50_${DATE}.json"
+          python -m scripts.build_returns_series \
+            --events "${EVENTS_POOL}" \
+            --plane 15m \
+            --pivot-lookup 50 \
+            --date "${DATE}" \
+            --output "${P50_SERIES}"
+          P50_TRADES="$(python -c "import json, sys; print(json.load(open(sys.argv[1]))['n_trades'])" "${P50_SERIES}")"
+          if [ "${P50_TRADES}" -gt 0 ]; then
+            python -m scripts.build_track_record_gate \
+              --returns "${P50_SERIES}" \
+              --output "${P50_DIR}/track_record_gate_${DATE}.json"
+          else
+            echo "::warning title=promotion-gate-daily::15m coarse-grain (pivot_lookup 50) series empty (n_trades=0) — no 15m_p50/track_record_gate_${DATE}.json emitted"
+          fi
+
           LEDGER_DIR="${GATES_DIR}/ledger"
           mkdir -p "${LEDGER_DIR}" artifacts/ledger
-          for PLANE in 1D 15m; do
+          # <plane>[:<pivot_lookup>]; the ledger file name carries the grain
+          # suffix so the two 15m definitions never share a file.
+          for RECORD in 1D 15m 15m:50; do
+            PLANE="${RECORD%%:*}"
+            GRAIN_ARGS=()
+            SUFFIX=""
+            if [ "${RECORD}" != "${PLANE}" ]; then
+              GRAIN_ARGS=(--pivot-lookup "${RECORD#*:}")
+              SUFFIX="_p${RECORD#*:}"
+            fi
             # The script never starts earlier than the return rule's own
             # evidence start (RETURN_RULE_EVIDENCE_START, 2026-10-05, both
             # planes); the 15m date below is older and no longer binding.
@@ -500,29 +538,32 @@ jobs:
             if [ "${PLANE}" = "15m" ]; then
               START_ARGS=(--evidence-start 2026-10-01)
             fi
-            CUMULATIVE="artifacts/ledger/returns_series_cumulative_${PLANE}.json"
+            CUMULATIVE="artifacts/ledger/returns_series_cumulative_${PLANE}${SUFFIX}.json"
             python -m scripts.accumulate_returns_ledger \
               --events "${EVENTS_POOL}" \
               --plane "${PLANE}" \
               --date "${DATE}" \
-              --ledger "${LEDGER_DIR}/returns_ledger_${PLANE}.jsonl" \
+              --ledger "${LEDGER_DIR}/returns_ledger_${PLANE}${SUFFIX}.jsonl" \
               --series-output "${CUMULATIVE}" \
+              ${GRAIN_ARGS[@]+"${GRAIN_ARGS[@]}"} \
               ${START_ARGS[@]+"${START_ARGS[@]}"}
             CUM_TRADES="$(python -c "import json, sys; print(json.load(open(sys.argv[1]))['n_trades'])" "${CUMULATIVE}")"
             if [ "${CUM_TRADES}" -gt 0 ]; then
               python -m scripts.build_track_record_gate \
                 --returns "${CUMULATIVE}" \
-                --output "${LEDGER_DIR}/track_record_gate_${PLANE}.json"
+                --output "${LEDGER_DIR}/track_record_gate_${PLANE}${SUFFIX}.json"
             else
-              echo "::notice title=promotion-gate-daily::cumulative ${PLANE} series still empty — no ledger/track_record_gate_${PLANE}.json yet"
+              echo "::notice title=promotion-gate-daily::cumulative ${PLANE}${SUFFIX} series still empty — no ledger/track_record_gate_${PLANE}${SUFFIX}.json yet"
             fi
-            echo "ledger_trades_${PLANE}=${CUM_TRADES}" >> "$GITHUB_OUTPUT"
+            echo "ledger_trades_${PLANE}${SUFFIX}=${CUM_TRADES}" >> "$GITHUB_OUTPUT"
           done
 
-          for prefix in track_record_gate regime_stratified; do
-            find "${OBS_DIR}" -maxdepth 1 -name "${prefix}_*.json" | sort | head -n -90 | while read -r old; do
-              rm -f "${old}"
-              echo "pruned ${old} (retention 90)"
+          for dir in "${OBS_DIR}" "${P50_DIR}"; do
+            for prefix in track_record_gate regime_stratified; do
+              find "${dir}" -maxdepth 1 -name "${prefix}_*.json" | sort | head -n -90 | while read -r old; do
+                rm -f "${old}"
+                echo "pruned ${old} (retention 90)"
+              done
             done
           done
 
@@ -581,7 +622,10 @@ jobs:
             artifacts/ledger/returns_series_window_15m_${{ steps.date.outputs.value }}.json
             docs/calibration/gates/15m/track_record_gate_${{ steps.date.outputs.value }}.json
             docs/calibration/gates/15m/regime_stratified_${{ steps.date.outputs.value }}.json
+            artifacts/ledger/returns_series_window_15m_p50_${{ steps.date.outputs.value }}.json
+            docs/calibration/gates/15m_p50/track_record_gate_${{ steps.date.outputs.value }}.json
             artifacts/ledger/returns_series_cumulative_1D.json
             artifacts/ledger/returns_series_cumulative_15m.json
+            artifacts/ledger/returns_series_cumulative_15m_p50.json
           retention-days: 45
           if-no-files-found: warn

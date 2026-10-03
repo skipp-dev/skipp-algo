@@ -445,3 +445,60 @@ def test_a_ledger_written_on_the_previous_grid_is_refused(tmp_path: Path, capsys
     err = capsys.readouterr().err
     assert "offset_one_minute" in err and "exchange_aligned" in err
     assert ledger.read_text(encoding="utf-8") == before
+
+
+# ---------------------------------------------------------------------------
+# Structure grain (ADR-0031, Nachtrag 2026-10-03 IV): part of the definition.
+# ---------------------------------------------------------------------------
+
+
+def _coarse(symbol: str, anchor_ts: float) -> dict:
+    event = _sweep(symbol, anchor_ts)
+    event["pivot_lookup"] = 50
+    event["event_id"] = f"{event['event_id']}:p50"
+    return event
+
+
+def test_every_row_and_the_series_name_the_grain_and_coarse_events_are_not_recorded(tmp_path: Path) -> None:
+    pool = _write_pool(tmp_path / "pool.json", [_sweep("AAPL", _ANCHOR), _coarse("MSFT", _ANCHOR)])
+    assert _run(tmp_path, pool) == RC_OK
+    rows = _ledger_rows(tmp_path)
+    assert [(row["key"], row["pivot_lookup"]) for row in rows] == [("sweep:AAPL:15m:1791210600:SELL_SIDE:100.00", 1)]
+    cumulative = json.loads((tmp_path / "cumulative_15m.json").read_text(encoding="utf-8"))
+    assert cumulative["measurement"]["pivot_lookup"] == 1
+
+
+def test_a_coarse_ledger_records_only_coarse_events(tmp_path: Path) -> None:
+    pool = _write_pool(tmp_path / "pool.json", [_sweep("AAPL", _ANCHOR), _coarse("MSFT", _ANCHOR)])
+    assert _run(tmp_path, pool, extra=("--pivot-lookup", "50")) == RC_OK
+    rows = _ledger_rows(tmp_path)
+    assert [(row["key"], row["pivot_lookup"]) for row in rows] == [("sweep:MSFT:15m:1791210600:SELL_SIDE:100.00:p50", 50)]
+    cumulative = json.loads((tmp_path / "cumulative_15m.json").read_text(encoding="utf-8"))
+    assert cumulative["measurement"]["pivot_lookup"] == 50
+
+
+def test_a_ledger_of_one_grain_refuses_the_other(tmp_path: Path, capsys) -> None:
+    pool = _write_pool(tmp_path / "pool.json", [_sweep("AAPL", _ANCHOR), _coarse("MSFT", _ANCHOR)])
+    assert _run(tmp_path, pool) == RC_OK
+    ledger = tmp_path / "ledger_15m.jsonl"
+    before = ledger.read_text(encoding="utf-8")
+    assert _run(tmp_path, pool, extra=("--pivot-lookup", "50")) == RC_RULE_MISMATCH
+    assert "structure grain" in capsys.readouterr().err
+    assert ledger.read_text(encoding="utf-8") == before
+
+
+def test_rows_written_before_the_second_grain_count_as_the_record(tmp_path: Path) -> None:
+    """A row without ``pivot_lookup`` predates 2026-10-03 IV and is a fine-grain
+    row: the record's ledger keeps growing on it, the coarse one refuses it."""
+    pool = _write_pool(tmp_path / "pool.json", [_sweep("AAPL", _ANCHOR)])
+    assert _run(tmp_path, pool) == RC_OK
+    ledger = tmp_path / "ledger_15m.jsonl"
+    rows = _ledger_rows(tmp_path)
+    for row in rows:
+        del row["pivot_lookup"]
+    ledger.write_text("".join(json.dumps(row, sort_keys=True) + "\n" for row in rows), encoding="utf-8")
+
+    more = _write_pool(tmp_path / "pool2.json", [_sweep("MSFT", _ANCHOR)])
+    assert _run(tmp_path, more) == RC_OK
+    assert len(_ledger_rows(tmp_path)) == 2
+    assert _run(tmp_path, more, extra=("--pivot-lookup", "50")) == RC_RULE_MISMATCH

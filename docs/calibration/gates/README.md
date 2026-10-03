@@ -37,7 +37,8 @@ Returns under the two rules are different quantities. They are kept apart:
 |---|---|---|
 | `variant_a_frozen/` | `touch_then_horizon_close` | everything written up to 2026-10-02: the dated 1D files, `15m/`, `ledger/`. Frozen; nothing appends to it. Not a track record. |
 | `offset_grid_frozen/` | `next_open_then_horizon_close`, on bars shifted by one minute | the 15m verdicts of 2026-10-02 and both ledgers as written in the hours before the intraday bar grid was corrected. Frozen. |
-| this directory, `15m/`, `ledger/` | `next_open_then_horizon_close`, bar grid `exchange_aligned` | the record that began on 2026-10-02 |
+| this directory, `15m/`, `ledger/` | `next_open_then_horizon_close`, bar grid `exchange_aligned`, `pivot_lookup` 1 | the record that began on 2026-10-02 |
+| `15m_p50/`, `ledger/*_15m_p50.*` | same rule and grid, `pivot_lookup` 50 (BOS only) | the second definition (ADR-0031, Nachtrag 2026-10-03 IV): BOS on the Pine engine's swing size. An observation, never pooled with the record. |
 
 The bar grid is part of the definition as well (ADR-0031, Nachtrag 2026-10-02
 III). Until 2026-10-02 the pipeline's intraday bars were shifted by one minute
@@ -55,6 +56,10 @@ These things keep the records apart, none of them a convention:
 - every event, ledger row and series names its `bar_grid`. The event pool
   takes only events of the current grid, and the ledger producer neither
   records events of another grid nor appends to a ledger that holds its rows;
+- every event, ledger row and series names its `pivot_lookup` (structure
+  grain). The pool holds the record's events (1) and the coarse BOS events
+  (50, id suffix `:p50`) side by side; every reader keeps to one grain, and
+  the ledger producer refuses a ledger of the other;
 - the cumulative verdicts count only trades anchored on or after
   **2026-10-05**, the first trading day after the rule was fixed
   (`governance.family_returns.RETURN_RULE_EVIDENCE_START`). The rule was
@@ -74,6 +79,8 @@ directories: every reader of this directory globs it non-recursively.
 | `15m/regime_stratified_<date>.json` | `scripts/build_regime_stratified_report.py` | regime report of the same window (retention 90) |
 | `ledger/returns_ledger_<plane>.jsonl` | `scripts/accumulate_returns_ledger.py` | append-only record of every closed trade, one line each (`1D`, `15m`) |
 | `ledger/track_record_gate_<plane>.json` | `scripts/build_track_record_gate.py` | CUMULATIVE verdict over the ledger (overwritten daily) |
+| `15m_p50/track_record_gate_<date>.json` | `scripts/build_returns_series.py --pivot-lookup 50` → `build_track_record_gate.py` | 30-day WINDOW verdict of the coarse-grain BOS definition on 15m (retention 90) |
+| `ledger/returns_ledger_15m_p50.jsonl`, `ledger/track_record_gate_15m_p50.json` | `scripts/accumulate_returns_ledger.py --pivot-lookup 50` | the coarse-grain ledger and its CUMULATIVE verdict |
 
 The 15m plane is an observation, not a gate: no §5 verdict, no effect on
 arming or claim tier, not embedded in the public report.
@@ -144,8 +151,11 @@ repository's GitHub Actions tab.
    newest run's `[bench-gate]` line.
 2. **The ledgers grew.** Same run → job `promotion-gate` → step "Build 15m
    observation series + cumulative returns ledger (ADR-0031 Nachtrag)". One
-   line per plane: `returns ledger 15m: … N new, … ledger now M`. On `main`
-   the rows are in `docs/calibration/gates/ledger/returns_ledger_<plane>.jsonl`.
+   line per record: `returns ledger 15m [pivot_lookup=1]: … N new, … ledger
+   now M`; the coarse-grain record is the line `returns ledger 15m
+   [pivot_lookup=50]`. On `main` the rows are in
+   `docs/calibration/gates/ledger/returns_ledger_<plane>.jsonl` and
+   `…/returns_ledger_15m_p50.jsonl`.
 3. **The cumulative verdict exists.** `docs/calibration/gates/ledger/track_record_gate_<plane>.json`
    on `main`. Until a trade anchored on or after 2026-10-05 has closed, the
    run says `cumulative <plane> series still empty` instead — that is the

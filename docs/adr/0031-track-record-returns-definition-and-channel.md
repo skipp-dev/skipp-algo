@@ -527,3 +527,71 @@ Kerzen. Deshalb:
   um die Eröffnung.
 - **Die Kursquelle.** TradingView und Databento liefern nicht dieselben Kurse;
   einzelne Kerzen und damit einzelne Events können abweichen.
+
+## Nachtrag 2026-10-03 IV: eine zweite Mess-Definition — BOS auf dem groben Korn der Pine-Engine
+
+Owner-Entscheidung vom 2026-10-03.
+
+### Anlass (gemessen 2026-10-02)
+
+Der Track Record misst Struktur mit 1-Kerzen-Pivots (`pivot_lookup = 1`). Die
+Pine-Engine der Suite und des Context Bus arbeitet mit `swing_length` 50
+(Minimum 10). Eine Rückschau mit dem Repo-Detektor auf börsengerechten
+15m-Kerzen (24 Symbole, 10.8.–2.10.2026, Regel `next_open_then_horizon_close`,
+5 bps, Tages-Bootstrap) ergab für BOS/CHoCH:
+
+| `pivot_lookup` | Trades | Tage | bps je Trade |
+|---|---|---|---|
+| 1 | 4 461 | 40 | −8,2 [−11,1; −5,4] |
+| 5 | 1 772 | 39 | −9,1 [−13,8; −4,0] |
+| 10 | 1 227 | 39 | −11,5 [−17,5; −5,2] |
+| 20 | 865 | 38 | −7,8 [−14,0; −1,7] |
+| 50 | 433 | 36 | −11,0 [−18,3; −3,4] |
+
+Keine Körnung positiv; gröbere Pivots senken die Trade-Zahl, nicht den Verlust
+je Trade. Das ist eine Rückschau über eine Periode. Die Engine-Annahme — grobe
+Struktur trägt mehr Edge — soll vorwärts gemessen werden, als eigene Bilanz.
+
+### Entscheidung 11: der Benchmark misst BOS zusätzlich auf `pivot_lookup = 50`
+
+- `governance.family_returns.PIVOT_LOOKUP = 1` ist das Korn des Track Records;
+  `COARSE_PIVOT_LOOKUP = 50` das der zweiten Definition. Der Benchmark
+  stempelt jedes FamilyEvent mit `pivot_lookup` und läuft für Intraday-Paare
+  den Struktur-Aufbau ein zweites Mal mit dem groben Pivot; nur dessen
+  BOS/CHoCH-Liste wird übernommen (OB, FVG, SWEEP hängen nicht am Pivot).
+  1D bekommt keinen groben Durchlauf: ein 50er-Pivot braucht 101 Kerzen, das
+  22-Tage-Fenster hat sie nicht.
+- Ein grobes Event ist ein anderes Event als das feine auf derselben Kerze
+  (anderes Niveau, oft andere Art). Seine `event_id` endet auf `:p50`
+  (`COARSE_EVENT_ID_SUFFIX`), damit der Pool die beiden nie zusammenlegt.
+- Beide Körner liegen im selben Pool. **Jeder Pool-Leser hält sich an ein
+  Korn:** `build_returns_series`, `accumulate_returns_ledger`,
+  `run_magnitude_shadow_ledger`, `run_epnl_after_cost_gate` und
+  `build_promotion_gate_bundle` lesen `PIVOT_LOOKUP`, die ersten beiden auf
+  Wunsch (`--pivot-lookup 50`) das grobe. Ein Event ohne Stempel ist ein
+  feines (vor diesem Nachtrag aufgezeichnet).
+
+### Entscheidung 12: eigene Bilanz, nie gepoolt
+
+- Fenster-Urteil unter `docs/calibration/gates/15m_p50/`, Ledger
+  `ledger/returns_ledger_15m_p50.jsonl`, kumulatives Urteil
+  `ledger/track_record_gate_15m_p50.json`. Jede Zeile und jede Serie nennt
+  ihr `pivot_lookup`; der Ledger-Produzent verweigert (rc 2) einen Ledger mit
+  Zeilen eines anderen Korns. Der Evidenz-Start ist derselbe wie für den
+  Track Record (2026-10-05): kein Trade dieser Bilanz lag vor der Entscheidung
+  auf dem Tisch.
+- Die grobe Bilanz ist eine Beobachtung wie die 15m-Ebene: kein Gate, keine
+  Wirkung auf Arming, Stage oder Claim-Tier, nicht im Public-Report.
+- Was sie misst, ist die Pivot-Körnung der Engine, nicht die Engine: deren
+  HH/LH/HL/LL-Klassifikation, Strong/Weak-Levels und Trend-Stack sind nicht
+  nachgebaut. Ein positives Ergebnis wäre ein Grund für den vollen Nachbau,
+  ein negatives widerlegt die Körnungs-Annahme.
+
+### Bekannte Eigenschaft
+
+Der Detektor ist zustandsbehaftet (Strukturrichtung aus den letzten Pivots)
+und sieht je Lauf nur das Kerzenfenster des Tages. Am Fensteranfang fehlen die
+Pivots davor; mit 50er-Pivots sind die ersten rund 100 Kerzen eines Fensters
+ereignislos und die Richtung initialisiert spät. Der Pool über die Tage
+mildert das: jede Kerze liegt an anderen Tagen in der Fenstermitte. Dieselbe
+Eigenschaft hat das feine Korn in kleinerem Maß.
