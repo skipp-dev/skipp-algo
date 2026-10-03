@@ -32,37 +32,37 @@ stehen OB, FVG und SWEEP über dieselbe Zeit?
   (`pull_history.py`, `history_retro.py`, `history_sweeps.py`,
   `results_history_2026-10-03.txt`, `results_history_sweeps_2026-10-03.txt`,
   je Trade in `results_history_2026-10-03.json`). Nicht im Repo: 476 MB
-  Kerzen und 390 821 Einzeltrades.
+  Kerzen und 390 824 Einzeltrades.
 
 ## Ergebnis: bps je Trade, 95 %-Intervall über Tage
 
 | Definition | Familie | Jahr | Trades | Tage | Mittel |
 |---|---|---|---|---|---|
 | Pivot 1 | BOS | 2023 | 23 102 | 208 | −4,0 [−5,5; −2,5] |
-| Pivot 1 | BOS | 2024 | 31 970 | 286 | −4,7 [−6,3; −3,2] |
+| Pivot 1 | BOS | 2024 | 31 969 | 286 | −4,4 [−5,8; −3,1] |
 | Pivot 1 | BOS | 2025 | 33 818 | 283 | −4,1 [−6,0; −2,2] |
 | Pivot 1 | BOS | 2026 | 23 202 | 207 | −6,9 [−8,7; −5,1] |
-| Pivot 1 | BOS | alle | 112 092 | 984 | **−4,8 [−5,7; −4,0]** |
+| Pivot 1 | BOS | alle | 112 091 | 984 | **−4,7 [−5,6; −3,9]** |
 | Pivot 1 | OB | 2023 | 14 073 | 192 | −3,8 [−4,9; −2,7] |
 | Pivot 1 | OB | 2024 | 19 080 | 256 | −5,2 [−6,4; −4,1] |
 | Pivot 1 | OB | 2025 | 20 096 | 252 | −5,6 [−7,0; −4,3] |
 | Pivot 1 | OB | 2026 | 13 534 | 187 | −5,8 [−7,2; −4,4] |
 | Pivot 1 | OB | alle | 66 783 | 887 | **−5,2 [−5,8; −4,5]** |
 | Pivot 1 | FVG | 2023 | 38 183 | 214 | −4,5 [−5,5; −3,6] |
-| Pivot 1 | FVG | 2024 | 54 441 | 291 | −5,1 [−6,0; −4,3] |
+| Pivot 1 | FVG | 2024 | 54 444 | 291 | −5,1 [−6,0; −4,3] |
 | Pivot 1 | FVG | 2025 | 58 767 | 283 | −3,8 [−4,8; −2,8] |
 | Pivot 1 | FVG | 2026 | 39 269 | 203 | −4,8 [−6,0; −3,7] |
-| Pivot 1 | FVG | alle | 190 660 | 991 | **−4,5 [−5,0; −4,0]** |
-| Pivot 1 | SWEEP | 2023 | 44 247 | 178 | −5,3 [−5,9; −4,7] |
-| Pivot 1 | SWEEP | 2024 | 66 388 | 264 | −4,5 [−5,2; −3,7] |
+| Pivot 1 | FVG | alle | 190 663 | 991 | **−4,5 [−5,0; −4,0]** |
+| Pivot 1 | SWEEP | 2023 | 44 231 | 178 | −5,3 [−5,9; −4,7] |
+| Pivot 1 | SWEEP | 2024 | 66 381 | 264 | −4,5 [−5,2; −3,7] |
 | Pivot 1 | SWEEP | 2025 | 68 027 | 264 | −5,0 [−5,8; −4,2] |
 | Pivot 1 | SWEEP | 2026 | 49 153 | 190 | −4,7 [−5,5; −3,9] |
-| Pivot 1 | SWEEP | alle | 227 815 | 896 | **−4,8 [−5,2; −4,4]** |
+| Pivot 1 | SWEEP | alle | 227 792 | 896 | **−4,8 [−5,2; −4,4]** |
 | Pivot 50 | BOS | 2023 | 2 347 | 189 | −1,8 [−6,2; +2,6] |
-| Pivot 50 | BOS | 2024 | 3 335 | 253 | −3,7 [−7,1; −0,3] |
+| Pivot 50 | BOS | 2024 | 3 336 | 253 | −3,6 [−7,1; −0,2] |
 | Pivot 50 | BOS | 2025 | 3 746 | 255 | −1,9 [−6,4; +2,8] |
 | Pivot 50 | BOS | 2026 | 2 594 | 189 | −5,7 [−10,7; −0,5] |
-| Pivot 50 | BOS | alle | 12 022 | 886 | **−3,2 [−5,4; −0,9]** |
+| Pivot 50 | BOS | alle | 12 023 | 886 | **−3,2 [−5,4; −0,9]** |
 
 ## Ablesung
 
@@ -70,7 +70,7 @@ stehen OB, FVG und SWEEP über dieselbe Zeit?
   Pivot 1 liegt die obere Intervallgrenze in allen 20 Zellen unter null; die
   Mittel liegen eng beieinander (−4 bis −7 bps) und nahe den Kosten (5 bps):
   vor Kosten liegen die Trades um null.
-- **Das grobe Korn verliert weniger je Trade** (−3,2 gegen −4,8 bps über alles,
+- **Das grobe Korn verliert weniger je Trade** (−3,2 gegen −4,7 bps über alles,
   Intervalle überlappen nicht ganz) **und ist trotzdem nicht positiv**; in
   2023 und 2025 schließt sein Intervall die Null ein, 2026 ist es das
   schlechteste Jahr. Das ist die vorwärts zu prüfende Spanne: nicht „Edge
@@ -97,11 +97,14 @@ stehen OB, FVG und SWEEP über dieselbe Zeit?
   eingerechnet.
 - **Pine-Engine.** Oben gemessen ist nur ihre Pivot-Körnung; HH/LH/HL/LL,
   Strong/Weak und Trend-Stack misst der Nachtrag unten.
-- **NVDA-Split (10.6.2024, 10:1).** Die 1m-Historie ist nicht
-  split-bereinigt; die Rückschau oben enthält dadurch einen einzelnen
-  Pivot-1-Trade mit −9 011 bps (NVDA, 7.6.2024). Wirkung auf die
-  Mittel: etwa −0,1 bps; keine Aussage ändert sich. Der Nachtrag rechnet
-  bereinigt.
+- **NVDA-Split (10.6.2024, 10:1).** Die 1m-Historie von EQUS.MINI ist
+  nicht split-bereinigt. Die erste Fassung dieser Tabelle enthielt dadurch
+  einen Pivot-1-Trade mit −9 011 bps (NVDA, 7.6.2024). Die Tabelle oben ist
+  bereinigt neu gerechnet (Kurse vor dem Split ÷ 10, Volumen × 10; über alle
+  24 Symbole der einzige Sprung außerhalb 0,7–1,4 von Tag zu Tag).
+  Geändert: Pivot 1 BOS 2024 −4,7 → −4,4, alle −4,8 → −4,7; Pivot 50 BOS
+  2024 −3,7 → −3,6; sonst nur Trade-Zahlen um wenige Trades. Keine Aussage
+  ändert sich.
 
 ## Nachtrag 2026-10-03: die Engine selbst
 
@@ -137,7 +140,7 @@ BOS-Events von AAPL — 0 von 317 Trades weichen ab.
 | Handel Richtung schwaches Level (Swing) | 13 190 | −6,0 [−7,9; −4,2] |
 
 - **Strukturbrüche:** Swing-Brüche verdienen vor Kosten etwa die Kosten
-  (besser als Pivot 1 mit −4,8), sind aber in keinem Jahr positiv; auf
+  (besser als Pivot 1 mit −4,7), sind aber in keinem Jahr positiv; auf
   einem reinen RTH-Chart −4 bis −11 je Signal.
 - **HH/LH/HL/LL:** keine Richtungsinformation. Long-Labels liegen brutto
   bei +2 bis +3 bps — das ist die Marktdrift (jede Kerze long: +1,7
