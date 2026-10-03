@@ -172,3 +172,28 @@ def test_the_series_names_its_bar_grid_and_ignores_events_of_another(tmp_path: P
     assert payload["measurement"]["bar_grid"] == "exchange_aligned"
     assert payload["n_trades"] == 2
     assert "bar grid filter: kept 2/3 pool events on grid exchange_aligned" in capsys.readouterr().err
+
+
+def test_the_series_keeps_to_one_structure_grain(tmp_path: Path, capsys) -> None:
+    """ADR-0031, Nachtrag 2026-10-03 IV: the pool carries coarse BOS events
+    (pivot_lookup 50) next to the record; a series is one grain, the record's
+    unless asked otherwise, and names it."""
+    fine = [_sweep_event(), _sweep_event(anchor_ts=_ANCHOR + _DAY, closes=(101.0, 102.0, 99.0))]
+    coarse = _sweep_event(anchor_ts=_ANCHOR + 2 * _DAY)
+    coarse["pivot_lookup"] = 50
+    pool = tmp_path / "pool.json"
+    pool.write_text(json.dumps([*fine, coarse]), encoding="utf-8")
+    out = tmp_path / "series.json"
+
+    assert main(["--events", str(pool), "--date", "2026-10-05", "--output", str(out)]) == 0
+    payload = json.loads(out.read_text(encoding="utf-8"))
+    assert payload["measurement"]["pivot_lookup"] == 1
+    assert payload["n_trades"] == 2
+    assert "grain filter: kept 2/3 pool events on pivot_lookup 1" in capsys.readouterr().err
+
+    out50 = tmp_path / "series50.json"
+    assert main(["--events", str(pool), "--date", "2026-10-05", "--output", str(out50), "--pivot-lookup", "50"]) == 0
+    payload50 = json.loads(out50.read_text(encoding="utf-8"))
+    assert payload50["measurement"]["pivot_lookup"] == 50
+    assert payload50["n_trades"] == 1
+    assert "grain filter: kept 1/3 pool events on pivot_lookup 50" in capsys.readouterr().err

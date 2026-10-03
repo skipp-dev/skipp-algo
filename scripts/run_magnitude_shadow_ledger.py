@@ -60,8 +60,10 @@ from typing import Any
 from governance.family_returns import (
     DEFAULT_COST_BPS,
     LEGACY_RETURN_RULE,
+    PIVOT_LOOKUP,
     RETURN_RULE,
     extract_family_calibration_samples,
+    record_grain_events,
 )
 from governance.magnitude_resolution_gate import (
     DEFAULT_N_BOOTSTRAP,
@@ -561,6 +563,15 @@ def main(argv: list[str] | None = None) -> int:
     if not events:
         print("error: event list is empty", file=sys.stderr)
         return 1
+
+    # One grain: the pool also carries coarse BOS events (ADR-0031, Nachtrag
+    # 2026-10-03 IV); the shadow ledger measures the record's grain.
+    grain_total = len(events)
+    events = record_grain_events(events)
+    print(
+        f"grain filter: kept {len(events)}/{grain_total} events on pivot_lookup {PIVOT_LOOKUP}",
+        file=sys.stderr,
+    )
 
     plane_starved = False
     if args.plane:

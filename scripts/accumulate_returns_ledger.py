@@ -37,7 +37,10 @@ are frozen under ``docs/calibration/gates/variant_a_frozen/`` and these files
 began empty under ``next_open_then_horizon_close``. The bar grid is part of
 the definition too (``bar_grid`` on every row): the rows written in the few
 hours before the one-minute offset of the intraday bars was corrected are
-frozen under ``docs/calibration/gates/offset_grid_frozen/``.
+frozen under ``docs/calibration/gates/offset_grid_frozen/``. So is the
+structure grain (``pivot_lookup`` on every row, ADR-0031 Nachtrag 2026-10-03
+IV): the pool holds fine-grain events (the record) and coarse BOS events side
+by side, and a ledger records exactly one grain — ``--pivot-lookup`` names it.
 
 A re-observed trade whose return differs from its recorded one (same rule) is
 NOT overwritten. It is counted and reported, because it means the pool
@@ -88,9 +91,11 @@ from typing import Any
 from governance.family_returns import (
     BAR_GRID,
     DEFAULT_COST_BPS,
+    PIVOT_LOOKUP,
     RETURN_RULE,
     RETURN_RULE_EVIDENCE_START,
     event_bar_grid,
+    event_pivot_lookup,
     realized_return,
 )
 from scripts.build_returns_series import (
@@ -146,19 +151,24 @@ def load_ledger(path: Path) -> tuple[list[str], dict[str, dict[str, Any]]]:
 
 
 def pool_trades(
-    events: list[dict[str, Any]], *, plane: str, cost_bps: float
+    events: list[dict[str, Any]],
+    *,
+    plane: str,
+    cost_bps: float,
+    pivot_lookup: int = PIVOT_LOOKUP,
 ) -> tuple[dict[str, dict[str, Any]], int]:
     """Closed trades of the plane-filtered pool, keyed by event id.
 
     Returns ``(trades_by_key, n_without_id)``. The return is computed by the
     one function the daily series uses, so ledger and series cannot disagree
-    about what a trade earned. Events measured on another bar grid are not
-    trades of this ledger and are skipped (ADR-0031, Nachtrag 2026-10-02 III).
+    about what a trade earned. Events measured on another bar grid or another
+    structure grain are not trades of this ledger and are skipped (ADR-0031,
+    Nachträge 2026-10-02 III and 2026-10-03 IV).
     """
     trades: dict[str, dict[str, Any]] = {}
     n_without_id = 0
     for event in events:
-        if event_bar_grid(event) != BAR_GRID:
+        if event_bar_grid(event) != BAR_GRID or event_pivot_lookup(event) != pivot_lookup:
             continue
         ret = realized_return(event, cost_bps=cost_bps)
         if ret is None:
@@ -179,17 +189,22 @@ def pool_trades(
             "return_rule": RETURN_RULE,
             "cost_bps": cost_bps,
             "bar_grid": BAR_GRID,
+            "pivot_lookup": pivot_lookup,
         }
     return trades, n_without_id
 
 
-def _existing_rules(rows: dict[str, dict[str, Any]]) -> set[tuple[Any, Any, Any]]:
-    """The trade definitions present in a ledger: rule, cost and bar grid.
+def _existing_rules(rows: dict[str, dict[str, Any]]) -> set[tuple[Any, Any, Any, Any]]:
+    """The trade definitions present in a ledger: rule, cost, bar grid, grain.
 
     A row without ``bar_grid`` was written before 2026-10-02 III and sits on
-    the previous grid.
+    the previous grid; a row without ``pivot_lookup`` predates the second
+    grain and is a fine-grain row.
     """
-    return {(row.get("return_rule"), row.get("cost_bps"), event_bar_grid(row)) for row in rows.values()}
+    return {
+        (row.get("return_rule"), row.get("cost_bps"), event_bar_grid(row), event_pivot_lookup(row))
+        for row in rows.values()
+    }
 
 
 def merge(
@@ -228,6 +243,7 @@ def build_cumulative_series(
     plane: str,
     cost_bps: float,
     evidence_start: str | None,
+    pivot_lookup: int = PIVOT_LOOKUP,
 ) -> dict[str, Any]:
     """The whole ledger as a Shape-B returns series (see module docstring)."""
     ordered = sorted(rows, key=lambda row: (float(row["anchor_ts"]), str(row["key"])))
@@ -256,6 +272,7 @@ def build_cumulative_series(
         "measurement": {
             "return_rule": RETURN_RULE,
             "bar_grid": BAR_GRID,
+            "pivot_lookup": pivot_lookup,
             "cost_bps": cost_bps,
             "regime_taxonomy": "point_in_time (TRENDING/RANGING/NEUTRAL)",
             "note": (
@@ -318,6 +335,13 @@ def main(argv: list[str] | None = None) -> int:
         f"than the return rule's own start ({RETURN_RULE_EVIDENCE_START}).",
     )
     p.add_argument("--cost-bps", type=float, default=DEFAULT_COST_BPS)
+    p.add_argument(
+        "--pivot-lookup",
+        type=int,
+        default=PIVOT_LOOKUP,
+        help="Structure grain of this ledger (ADR-0031, Nachtrag 2026-10-03 IV); "
+        "one grain per ledger file.",
+    )
     args = p.parse_args(argv)
 
     date.fromisoformat(args.date)  # a malformed run date must not reach the ledger
@@ -325,15 +349,18 @@ def main(argv: list[str] | None = None) -> int:
 
     pool = _load_pool_events(args.events)
     on_plane = [e for e in pool if event_measurement_plane(e) == args.plane]
-    observed, n_without_id = pool_trades(on_plane, plane=args.plane, cost_bps=args.cost_bps)
+    observed, n_without_id = pool_trades(
+        on_plane, plane=args.plane, cost_bps=args.cost_bps, pivot_lookup=args.pivot_lookup
+    )
 
     raw_lines, existing = load_ledger(args.ledger)
-    foreign = _existing_rules(existing) - {(RETURN_RULE, args.cost_bps, BAR_GRID)}
+    this_run = (RETURN_RULE, args.cost_bps, BAR_GRID, args.pivot_lookup)
+    foreign = _existing_rules(existing) - {this_run}
     if foreign:
         print(
             f"error: {args.ledger} holds rows under {sorted(map(str, foreign))}, this run "
-            f"uses ({RETURN_RULE!r}, {args.cost_bps}, {BAR_GRID!r}). A ledger carries ONE trade "
-            "definition; start a new file for a new rule, cost or bar grid.",
+            f"uses {this_run!r}. A ledger carries ONE trade definition; start a new file "
+            "for a new rule, cost, bar grid or structure grain.",
             file=sys.stderr,
         )
         return RC_RULE_MISMATCH
@@ -352,6 +379,7 @@ def main(argv: list[str] | None = None) -> int:
             plane=args.plane,
             cost_bps=args.cost_bps,
             evidence_start=evidence_start,
+            pivot_lookup=args.pivot_lookup,
         )
         atomic_write_json(payload, args.series_output)
 
@@ -371,7 +399,8 @@ def main(argv: list[str] | None = None) -> int:
     for row in all_rows:
         per_family[str(row["family"])] = per_family.get(str(row["family"]), 0) + 1
     print(
-        f"returns ledger {args.plane}: pool {len(on_plane)}/{len(pool)} events on plane, "
+        f"returns ledger {args.plane} [pivot_lookup={args.pivot_lookup}]: "
+        f"pool {len(on_plane)}/{len(pool)} events on plane, "
         f"{len(observed)} closed trades observed, {len(new_rows)} new, "
         f"{len(conflicts)} contradicted, ledger now {len(all_rows)} "
         f"({', '.join(f'{f}:{n}' for f, n in sorted(per_family.items())) or 'empty'})"

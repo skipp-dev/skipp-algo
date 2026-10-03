@@ -53,7 +53,7 @@ Roadmap pointer: Edge-Validation Roadmap, Phase 2 / story EV-06b.
 """
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from typing import Any, Literal, TypedDict
 
@@ -110,6 +110,41 @@ def event_bar_grid(event: Mapping[str, Any]) -> str:
     value = event.get("bar_grid")
     return str(value) if value else LEGACY_BAR_GRID
 
+
+# The structure grain: how many bars on each side a pivot needs
+# (``detect_pivots(pivot_lookup=...)``). The record measures 1-bar pivots. The
+# Pine engine's default swing size is 50; since 2026-10-03 the benchmark also
+# emits BOS events on that grain (ADR-0031, Nachtrag 2026-10-03 IV) so the
+# engine's central assumption — coarser structure, more edge — gets its own
+# record. A coarse event is a different event from the fine one on the same
+# bar (another level, often another kind); its ``event_id`` carries
+# ``COARSE_EVENT_ID_SUFFIX`` so the pool never folds the two together, and
+# every pool reader keeps to ONE grain: the gates, the shadow ledger and the
+# cumulative ledgers read ``PIVOT_LOOKUP`` unless told otherwise. An event
+# without the stamp predates the second grain and is a fine-grain event.
+# Only BOS/CHoCH depend on the grain; OB, FVG and SWEEP are emitted once.
+PIVOT_LOOKUP = 1
+COARSE_PIVOT_LOOKUP = 50
+COARSE_EVENT_ID_SUFFIX = f":p{COARSE_PIVOT_LOOKUP}"
+
+
+def event_pivot_lookup(event: Mapping[str, Any]) -> int:
+    """The structure grain an event (or a ledger row) was detected on."""
+    value = event.get("pivot_lookup")
+    if value is None or value == "":
+        return PIVOT_LOOKUP
+    return int(value)
+
+
+def record_grain_events(events: Sequence[Mapping[str, Any]]) -> list[Any]:
+    """The pool events of the record's grain (``PIVOT_LOOKUP``).
+
+    Every reader of the pool that is not explicitly asked for another grain
+    goes through here, so the coarse BOS events never leak into the gates,
+    the shadow ledger or the record's own series.
+    """
+    return [event for event in events if event_pivot_lookup(event) == PIVOT_LOOKUP]
+
 # Entry conventions. Two SMC event geometries locate the DECISION BAR
 # differently; the entry price is the same for both (next bar's open):
 #   - "retest_touch" (zone families OB/FVG): the decision bar is the first
@@ -150,6 +185,9 @@ class FamilyEvent(TypedDict, total=False):
     # The bar grid the event was detected on (see ``BAR_GRID``). Stamped by the
     # measurement benchmark; absent on events recorded before 2026-10-02.
     bar_grid: str
+    # The structure grain (see ``PIVOT_LOOKUP``). Stamped by the measurement
+    # benchmark; absent on events recorded before 2026-10-03 (fine grain).
+    pivot_lookup: int
     forward_opens: list[float]
     forward_highs: list[float]
     forward_lows: list[float]

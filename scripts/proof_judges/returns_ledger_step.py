@@ -29,7 +29,15 @@ import re
 from scripts.proof_judges import Verdict
 
 _PLANES = ("1D", "15m")
-_LINE = re.compile(r"returns ledger (?P<plane>1D|15m): .*?ledger now (?P<rows>\d+)")
+#: Seit ADR-0031 Nachtrag 2026-10-03 IV nennt die Zeile ihr Korn
+#: (``returns ledger 15m [pivot_lookup=1]: …``); davor stand kein eckiger
+#: Block. Dieser Urteiler liest den Track Record: Zeilen des feinen Korns, mit
+#: oder ohne Klammer. Die grobe Bilanz hat ihren eigenen Urteiler
+#: (``coarse_grain_ledger``).
+_LINE = re.compile(
+    r"returns ledger (?P<plane>1D|15m)(?: \[pivot_lookup=(?P<grain>\d+)\])?: .*?ledger now (?P<rows>\d+)"
+)
+_RECORD_GRAIN = 1
 #: Die beiden Arten, wie der Schritt laut scheitert — in ihrer AUSGEGEBENEN Form.
 #:
 #: 2026-10-01, am ersten echten Lauf gemessen (36909606203, Job 110528686974):
@@ -56,7 +64,11 @@ def judge(evidence: dict, entry) -> Verdict:
             detail="Job-Log leer oder nicht abrufbar",
         )
 
-    rows = {m.group("plane"): int(m.group("rows")) for m in _LINE.finditer(log)}
+    rows = {
+        m.group("plane"): int(m.group("rows"))
+        for m in _LINE.finditer(log)
+        if int(m.group("grain") or _RECORD_GRAIN) == _RECORD_GRAIN
+    }
     refused = [m.group(0)[-120:] for m in (pattern.search(log) for pattern in _REFUSALS) if m]
 
     if not rows and not refused:

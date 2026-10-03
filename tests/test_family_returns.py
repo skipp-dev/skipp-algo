@@ -837,3 +837,29 @@ def test_exit_bar_is_the_one_the_previous_rule_used() -> None:
     assert _realized_return_and_exit(level)[1] == family_outcome_horizon("SWEEP") - 1  # type: ignore[index]
     zone = _long_event("OB")
     assert _realized_return_and_exit(zone)[1] == 0 + family_outcome_horizon("OB")  # type: ignore[index]
+
+
+# ---------------------------------------------------------------------------
+# Structure grain (ADR-0031, Nachtrag 2026-10-03 IV)
+# ---------------------------------------------------------------------------
+
+
+def test_the_structure_grain_is_part_of_the_definition() -> None:
+    from governance.family_returns import (
+        COARSE_EVENT_ID_SUFFIX,
+        COARSE_PIVOT_LOOKUP,
+        PIVOT_LOOKUP,
+        event_pivot_lookup,
+        record_grain_events,
+    )
+
+    assert PIVOT_LOOKUP == 1
+    assert COARSE_PIVOT_LOOKUP == 50  # the Pine engine's default swing size
+    assert COARSE_EVENT_ID_SUFFIX == ":p50"
+    # An event (or ledger row) without the stamp predates the second grain.
+    assert event_pivot_lookup({}) == PIVOT_LOOKUP
+    assert event_pivot_lookup({"pivot_lookup": None}) == PIVOT_LOOKUP
+    assert event_pivot_lookup({"pivot_lookup": 50}) == 50
+    assert event_pivot_lookup({"pivot_lookup": "50"}) == 50
+    pool = [{"pivot_lookup": 50, "n": 0}, {"n": 1}, {"pivot_lookup": 1, "n": 2}]
+    assert [e["n"] for e in record_grain_events(pool)] == [1, 2]

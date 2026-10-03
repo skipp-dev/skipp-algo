@@ -720,3 +720,22 @@ def test_the_same_events_graded_under_the_old_rule_are_not_a_stale_feed(
     assert graded == [1]
     rows = [json.loads(line) for line in ledger.read_text(encoding="utf-8").splitlines()]
     assert [shadow.row_return_rule(row) for row in rows] == ["touch_then_horizon_close", shadow.RETURN_RULE]
+
+
+def test_main_grades_only_the_records_structure_grain(tmp_path) -> None:
+    """ADR-0031, Nachtrag 2026-10-03 IV: coarse BOS events (``pivot_lookup``
+    50) share the pool; the shadow ledger's evidence hash is the fine subset."""
+    fine = [_triggered_event("BOS", 1_780_000_000.0 + i * 90_000) for i in range(3)]
+    coarse = []
+    for i in range(6):
+        event = _triggered_event("BOS", 1_780_500_000.0 + i * 90_000)
+        event["pivot_lookup"] = 50
+        coarse.append(event)
+    events_path = tmp_path / "events.json"
+    events_path.write_text(json.dumps(fine + coarse))
+    ledger = tmp_path / "shadow_1d.jsonl"
+    rc = shadow.main([str(events_path), "--ledger", str(ledger), "--date", "2026-10-06", "--plane", "1D"])
+    assert rc == 3
+    rows = [json.loads(ln) for ln in ledger.read_text().splitlines() if ln.strip()]
+    assert rows
+    assert {r["events_hash"] for r in rows} == {shadow.events_content_hash(fine)}
