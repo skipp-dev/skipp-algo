@@ -3297,3 +3297,70 @@ Aufzeichnungen entstanden aus einem erfolgreich geholten Log. Der Zweig ist die
 fail-closed-Kante — KANN_NICHT_BEZEUGEN statt PASS, damit ein Abrufproblem nie
 wie ein bestandener Beweis aussieht.
 """
+
+# ---------------------------------------------------------------------------
+# coarse-grain-ledger (3.10.): Zweite Mess-Definition (ADR-0031, Nachtrag
+# 2026-10-03 IV). Der Benchmark legt BOS auf dem Korn der Pine-Engine
+# (pivot_lookup 50, Id-Suffix :p50) in den Pool; promotion-gate-daily fuehrt
+# dafuer ein drittes Ledger (ledger/returns_ledger_15m_p50.jsonl) und ein
+# eigenes Fenster-Urteil (15m_p50/). Die Suite fuehrt Skript und Schritt mit
+# den echten Producern aus (tests/test_promotion_gate_daily_workflow_contract.py)
+# und prueft die fuenf Pool-Leser gegen grobe Events im Pool. Nicht
+# suite-sichtbar: ob der Schritt im echten Lauf erreicht wird und ob der
+# Benchmark auf dem neuen Stand grobe Events liefert. Der Zeuge ist die Zeile
+# "returns ledger 15m [pivot_lookup=50]: … ledger now N" im Job-Log; vor dem
+# Merge druckt sie niemand (Korpus: Job 111053132530, Lauf 37071929491 vom
+# 2.10. 22:22Z, der letzte Gate-Lauf vor der Aenderung: zwei Zeilen ohne
+# eckigen Block). Der erste Zeuge ist der Lauf Montag 2026-10-05 14:00 UTC;
+# "ledger now 0" ist dort moeglich, wenn der Benchmark des Tages noch nicht
+# auf dem neuen Stand lief — die Bilanz ist eroeffnet, sobald die Zeile da ist.
+# ---------------------------------------------------------------------------
+[[proof]]
+id              = "coarse-grain-ledger"
+kind            = "fix"
+merged_at       = "<wird beim Merge nachgetragen>"
+merge_sha       = "<dito>"
+claim           = "promotion-gate-daily schreibt bei jedem produzierenden Lauf das Ledger der groben BOS-Definition (pivot_lookup 50) getrennt vom Track Record und druckt dafuer die Zeile 'returns ledger 15m [pivot_lookup=50]: … ledger now N'; die Zeilen des Track Records tragen weiter das feine Korn."
+witness         = "promotion-gate-daily"
+witness_job     = "promotion-gate"
+evidence_source = "job_log"
+artifact        = ""
+version_probe   = "returns ledger 15m [pivot_lookup=50]:"
+judge           = "coarse_grain_ledger"
+state           = "OFFEN"
+due_by          = "2026-10-09"
+owner           = "operator"
+
+[[unreachable_branch]]
+judge  = "coarse_grain_ledger"
+branch = "kein_log"
+reason = """
+Feuert, wenn der Monitor den Zeugen-Job nicht auffindet und ein leeres Log
+durchreicht. Die Aufzeichnung im Korpus entstand aus einem erfolgreich
+geholten Log, der Zweig ist dort strukturell unerreichbar. Er ist die
+fail-closed-Kante: KANN_NICHT_BEZEUGEN statt PASS.
+"""
+
+[[unreachable_branch]]
+judge  = "coarse_grain_ledger"
+branch = "verweigert"
+reason = """
+Feuert, wenn der Ledger-Produzent laut verweigert, weil die Datei Zeilen eines
+anderen Korns haelt. Vor dem Merge nicht beobachtbar; die Verweigerung selbst
+ist ausgefuehrt geprueft (test_a_ledger_of_one_grain_refuses_the_other), und
+test_the_runner_prints_exactly_the_lines_the_judge_reads haelt die gelesene
+Form an der ausgegebenen fest.
+"""
+
+[[unreachable_branch]]
+judge  = "coarse_grain_ledger"
+branch = "korn_geschrieben"
+reason = """
+Der PASS-Zweig. Vor dem Merge druckt kein Lauf die Zeile mit eckigem Block; der
+letzte echte Lauf (37071929491, Job 111053132530, 2026-10-02 22:22 UTC) steht
+im Korpus und urteilt STEHT_AUS/nicht_gestempelt. Dass das Skript genau die
+Zeile druckt, die dieser Zweig liest, prueft
+test_the_runner_prints_exactly_the_lines_the_judge_reads am echten Runner.
+Diese Erklaerung entfaellt, sobald der erste Lauf nach dem Merge als Korpus
+aufgezeichnet ist.
+"""

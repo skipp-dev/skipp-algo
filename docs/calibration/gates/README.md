@@ -64,8 +64,8 @@ These things keep the records apart, none of them a convention:
   **2026-10-05**, the first trading day after the rule was fixed
   (`governance.family_returns.RETURN_RULE_EVIDENCE_START`). The rule was
   chosen with September's data on the table; trades anchored earlier stay in
-  the ledger and out of the verdict. The workflow's `--evidence-start
-  2026-10-01` for 15m is older and no longer the binding date.
+  the ledger and out of the verdict. The workflow's
+  `--evidence-start 2026-10-01` for 15m is older and no longer the binding date.
 
 ## Subdirectories (ADR-0031, Nachtrag 2026-10-01)
 
@@ -143,17 +143,17 @@ What is expected when, and where to read it. Dates are UTC; "Actions" is the
 repository's GitHub Actions tab.
 
 1. **The daily run produced.** Actions → `promotion-gate-daily` → newest run
-   (weekdays 14:00) → "Annotations". Good: `artifact
-   smc-measurement-benchmark-rolling-<date> fetched from run …`. Bad:
-   `artifact … not found in the last 8 completed rolling-bench runs` or `no
-   recent completed rolling-bench run on main` — the benchmark did not
+   (weekdays 14:00) → "Annotations". Good:
+   `artifact smc-measurement-benchmark-rolling-<date> fetched from run …`.
+   Bad: `artifact … not found in the last 8 completed rolling-bench runs` or
+   `no recent completed rolling-bench run on main` — the benchmark did not
    deliver; open Actions → `smc-measurement-benchmark-rolling` and read the
    newest run's `[bench-gate]` line.
 2. **The ledgers grew.** Same run → job `promotion-gate` → step "Build 15m
    observation series + cumulative returns ledger (ADR-0031 Nachtrag)". One
-   line per record: `returns ledger 15m [pivot_lookup=1]: … N new, … ledger
-   now M`; the coarse-grain record is the line `returns ledger 15m
-   [pivot_lookup=50]`. On `main` the rows are in
+   line per record: `returns ledger 15m [pivot_lookup=1]: … ledger now M`;
+   the coarse-grain record is the line `returns ledger 15m [pivot_lookup=50]`.
+   On `main` the rows are in
    `docs/calibration/gates/ledger/returns_ledger_<plane>.jsonl` and
    `…/returns_ledger_15m_p50.jsonl`.
 3. **The cumulative verdict exists.** `docs/calibration/gates/ledger/track_record_gate_<plane>.json`
@@ -171,8 +171,8 @@ repository's GitHub Actions tab.
 5. **The move-size ledger stamps the rule.** Actions →
    `adr0023-magnitude-shadow-daily` → newest run (weekdays 13:30) → job
    `magnitude-shadow` → step "Append magnitude-shadow ledger row". Good:
-   `shadow ledger artifacts/governance/magnitude_resolution_shadow.jsonl
-   [next_open_then_horizon_close]: …`. The proof entry
+   `shadow ledger … [next_open_then_horizon_close]: …` (the ledger path stands
+   between `shadow ledger` and the bracket). The proof entry
    `shadow-ledger-return-rule` in `proof_ledger.toml` is open until that line
    has been recorded; the proof-ledger monitor turns it red after its `due_by`.
 6. **The freshness row sees the series.** Actions →
