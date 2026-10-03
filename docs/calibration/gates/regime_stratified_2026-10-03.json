@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-03",
+  "n_trades_with_regime": 165,
+  "n_trades_total": 165,
+  "measurement": {
+    "return_rule": "next_open_then_horizon_close",
+    "bar_grid": "exchange_aligned",
+    "pivot_lookup": 1,
+    "cost_bps": 5.0,
+    "regime_taxonomy": "point_in_time (TRENDING/RANGING/NEUTRAL)",
+    "note": "net returns GIVEN a triggered setup (untriggered events are not trades); entry at the open of the bar after the decision bar, exit at the family-horizon close, fixed round-turn cost \u2014 see ADR-0031 (Nachtrag 2026-10-02 II) and governance/family_returns.py"
+  },
+  "status": "ok",
+  "per_regime": {
+    "NEUTRAL": {
+      "skipped_reason": "insufficient_n",
+      "n": 27,
+      "regime_frequency_pct": 0.16363636363636364
+    },
+    "RANGING": {
+      "n": 118,
+      "regime_frequency_pct": 0.7151515151515152,
+      "sharpe": -0.06901603043272096,
+      "max_dd": -0.40716774928888255,
+      "win_rate": 0.4576271186440678,
+      "profit_factor": 0.8376816824088994
+    },
+    "TRENDING": {
+      "skipped_reason": "insufficient_n",
+      "n": 20,
+      "regime_frequency_pct": 0.12121212121212122
+    }
+  },
+  "aggregate": {
+    "value": -0.06901603043272096,
+    "method": "frequency_weighted",
+    "regimes_used": [
+      "RANGING"
+    ],
+    "regimes_skipped": [
+      "NEUTRAL",
+      "TRENDING"
+    ],
+    "unknown_share": 0.0
+  },
+  "concentration": {
+    "concentrated": false,
+    "dominant_regime": null,
+    "share_of_total_pnl": 0.0,
+    "threshold": 0.8,
+    "per_regime_pnl": {
+      "NEUTRAL": -0.23517886445832742,
+      "RANGING": -0.2435354190440375,
+      "TRENDING": -0.09536563221266328
+    }
+  },
+  "stratified_bootstrap": {
+    "statistic": "mean_net_return",
+    "observed": -0.002063859483424047,
+    "ci_lower": -0.006374782550130025,
+    "ci_upper": 0.002034255749902721,
+    "n_resamples": 1000,
+    "per_regime_n": {
+      "NEUTRAL": 27,
+      "RANGING": 118,
+      "TRENDING": 20
+    },
+    "skipped_regimes": [
+      "NEUTRAL",
+      "TRENDING"
+    ],
+    "seed": 0
+  }
+}
