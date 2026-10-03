@@ -3318,8 +3318,11 @@ wie ein bestandener Beweis aussieht.
 [[proof]]
 id              = "coarse-grain-ledger"
 kind            = "fix"
-merged_at       = "<wird beim Merge nachgetragen>"
-merge_sha       = "<dito>"
+# 2026-10-03 nachgetragen (#5645): `gh pr view 5645 --json mergedAt,mergeCommit`
+# und `git log -1 origin/main` stimmen ueberein (SHA identisch, 18:18:24Z
+# Merge-Event vs. 18:18:23Z Commit).
+merged_at       = "2026-10-03T18:18:24Z"
+merge_sha       = "b9ea379764451e2e3ccb572b6445c34eb4ae1740"
 claim           = "promotion-gate-daily schreibt bei jedem produzierenden Lauf das Ledger der groben BOS-Definition (pivot_lookup 50) getrennt vom Track Record und druckt dafuer die Zeile 'returns ledger 15m [pivot_lookup=50]: … ledger now N'; die Zeilen des Track Records tragen weiter das feine Korn."
 witness         = "promotion-gate-daily"
 witness_job     = "promotion-gate"
