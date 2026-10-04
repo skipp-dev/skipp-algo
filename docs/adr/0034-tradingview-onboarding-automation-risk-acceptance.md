@@ -69,3 +69,8 @@ Status: accepted (operator decision, 2026-08-31)
 - **Bounds:** operator account only; run on request, no schedule, no workflow;
   first run 5 symbols × 5 stages × 2 session modes on 15m. Not part of any
   customer package.
+- **Extension, same day:** `scripts/tv_long_engine_log_readout.ts` reads the
+  Suite's Pine logs (lifecycle events with blocker texts). It switches two
+  Suite inputs in the session ("Focus View" off, "Show long engine debug" on),
+  saves nothing. Operator approval in the same conversation ("1. und 2. JA",
+  asked as "Blocker-Codes auslesen?"). Same bounds as above.

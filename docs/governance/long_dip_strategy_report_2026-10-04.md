@@ -65,6 +65,40 @@ bps je Trade, 95 %-Intervall über Tage:
 - **Confirmed** hat zu wenige Trades für eine Aussage; im erweiterten Layout
   öffnen und schließen die meisten in derselben Kerze.
 
+## Nachtrag: woran die Kette scheitert (Pine-Logs der Suite)
+
+Gelesen mit `scripts/tv_long_engine_log_readout.ts`: dieselben fünf Symbole und
+Sitzungen, „Show long engine debug" in der Sitzung an. Die Suite schreibt je
+Ereignis eine Zeile (LONG ARMED / CONFIRMED / READY / INVALID) mit den
+Blocker-Texten und dem Grund des Ablaufs.
+
+| | erweitert | regulär |
+|---|---|---|
+| Armed | 315 | 221 |
+| Confirmed | 9 | 1 |
+| Ready | 0 | 0 |
+| Armed abgelaufen ohne Confirm (6 Kerzen) | 228 | 169 |
+| unter das Invalidierungsniveau gefallen | 74 | 40 |
+| Quellzone ungültig | 5 | 11 |
+| Confirmed abgelaufen ohne Ready | 8 | 1 |
+| Strict-Blocker auf jedem Ereignis | „Trust Insufficient" (639/639) | (443/443) |
+
+- **Der Engpass ist Armed → Confirmed:** 3 % (erweitert) bzw. 0,5 %
+  (regulär) der Setups werden bestätigt; drei Viertel laufen ungenutzt ab.
+  Welche der Confirm-Bedingungen (Ausbruch über den Trigger, interner
+  Strukturwechsel, höchstens 2 Kerzen Abstand, Handelsfenster,
+  Beschleunigung, zweite Ableitung) dabei fehlt, schreibt der Log nicht.
+- **Kein Confirmed wird zu Ready.** Die Ablaufzeile trägt den Ready-Blocker
+  erst NACH dem Rücksetzen („Awaiting Confirm") und nennt das fehlende Gate
+  deshalb nicht.
+- **Entry Strict ist strukturell gesperrt, auch live.** Der Trust-Tier
+  (`resolve_trust_tier`) ist „Insufficient", solange die generierte
+  Bibliothek `SIGNAL_QUALITY_TIER = "low"` liefert. Das tat sie in allen 243
+  Ständen seit 2026-08-14 (git-Historie von
+  `pine/generated/smc_micro_profiles_generated.pine`); `SIGNAL_QUALITY_SCORE`
+  war dort nur 1 oder 15 von 100. Der Wert ist eine Konstante für das ganze
+  Universum, nicht je Symbol.
+
 ## Was die Ablesung nicht trägt
 
 - Fünf Symbole, eine Zeitebene. Andere Zeitebenen und kleinere Werte sind
