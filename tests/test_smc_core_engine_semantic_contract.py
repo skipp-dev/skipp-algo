@@ -499,11 +499,21 @@ def test_alertcondition_uses_only_existing_variables() -> None:
     assert "lib_has_earnings" in source
 
 
-def test_trust_enforcement_suppresses_entry_at_insufficient() -> None:
-    """WP-3C: Trust Insufficient must suppress entry best/strict states."""
+def test_trust_enforcement_suppresses_entry_on_a_bad_feed_live_only() -> None:
+    """Entry best/strict are suppressed when the event provider is not ok, on live bars.
+
+    2026-10-04 (operator decision): the gate used to be
+    ``core_trust_tier_early != 'Insufficient'``. The tier rests on
+    SIGNAL_QUALITY_TIER, one universe-wide value with no structure, OB or FVG
+    input; it was "low" in all 243 library refreshes since 2026-08-14, so Entry
+    Best/Strict never fired (Pine logs: 'Blocked: Trust Insufficient' on every
+    lifecycle event, docs/governance/long_dip_strategy_report_2026-10-04.md).
+    The tier stays a displayed warning; it must not gate entries again.
+    """
     source = _read(CORE_PATH)
     assert "core_trust_tier_early = eng.resolve_trust_tier(" in source
-    assert "trust_allows_entry = core_trust_tier_early != 'Insufficient'" in source
+    assert "trust_allows_entry = not barstate.isrealtime or lib_erl_provider_status == 'ok'" in source
+    assert "trust_allows_entry = core_trust_tier_early" not in source
     assert "long_entry_best_state := false" in source
     assert "long_entry_strict_state := false" in source
     assert "'Blocked: Trust Insufficient'" in source
