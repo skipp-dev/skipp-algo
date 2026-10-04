@@ -2552,11 +2552,11 @@ if long_should_confirm
 [long_ready_blocker_text, long_strict_blocker_text] = ll.resolve_long_execution_blocker_state(long_ready_state, long_state.confirmed, close_safe_mode, ready_bar_gap_ok, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready_eff, bull_bos_sig, main_bos_recent, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok, market_regime_gate_ok, vola_regime_gate_safe, quality_gate_ok, scoring_accel_ready, scoring_sd_ready, scoring_vol_ready, scoring_stretch_ready, scoring_ddvi_ready, long_entry_strict_state, strict_signal_quality_gate_ok, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe)
 
 // ── Trust enforcement (WP-3C) ──────────────────────────────────
-// Suppress entry signals when measurement trust is Insufficient.
-// Degraded trust is surfaced as a warning but does NOT suppress entry —
-// the operator retains full discretion at that level.
+// Entry suppression on the data feed only: provider not ok, live bars only (mp.* is a one-day snapshot broadcast onto history).
+// The trust tier stays a displayed warning. Its SIGNAL_QUALITY_TIER is one universe-wide value without structure/OB/FVG input;
+// it read "low" in every library refresh since 2026-08-14 and so blocked Entry Best/Strict on every bar (measured 2026-10-04).
 string core_trust_tier_early = eng.resolve_trust_tier(lib_sq_tier, lib_sq_freshness, lib_erl_provider_status)
-bool trust_allows_entry = core_trust_tier_early != 'Insufficient'
+bool trust_allows_entry = not barstate.isrealtime or lib_erl_provider_status == 'ok'
 if not trust_allows_entry
     long_entry_best_state := false
     long_entry_strict_state := false
