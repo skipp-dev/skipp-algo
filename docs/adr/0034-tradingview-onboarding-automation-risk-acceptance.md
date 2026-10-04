@@ -50,3 +50,22 @@ Status: accepted (operator decision, 2026-08-31)
   UNGESICHERT — verlässt sich auf menschliches Gedächtnis. A rule change
   there is noticed by humans, not by a tripwire; extending the weekly
   watcher to it is the known mechanization, decided separately.
+
+## Addendum 2026-10-04: strategy-report readout on the operator account
+
+- **What:** `scripts/tv_strategy_report_readout.ts` loads the operator's chart,
+  shows the (hidden) `SMC Long-Dip Strategy` in the session, switches its
+  execution stage and downloads the strategy report through TradingView's own
+  "Download data as XLSX". It saves nothing and adds no instance.
+- **Why this is a new use:** it extracts backtest results by script. §3 of the
+  Terms of Use ("automated data collection … scripts … data gathering and
+  extraction tools", quoted in `docs/tv_house_rules_snapshot.md`) is contract
+  rank, not house-rule prose; the 2026-08-31 decision above covered the
+  one-time customer onboarding only.
+- **Decision (operator, 2026-10-04):** asked before the build, the operator
+  chose "Ja, bauen und fahren" over a local Python rebuild and over leaving the
+  Long-Dip signals unmeasured; a manual readout was ruled out ("Ich mache
+  nichts manuell"). The risk is accepted for this use, dated here.
+- **Bounds:** operator account only; run on request, no schedule, no workflow;
+  first run 5 symbols × 5 stages × 2 session modes on 15m. Not part of any
+  customer package.
