@@ -113,6 +113,51 @@ def test_fresh_capture_is_written(tmp_path: Path) -> None:
     assert "--repo skipp-dev/skipp-algo" in args
 
 
+def test_rotation_writes_a_pruned_copy_and_keeps_the_local_capture(tmp_path: Path) -> None:
+    """A local capture carries the whole browser profile's cookies (2026-10-05:
+    3 106 cookies, 903 KiB). Only TradingView's may reach the secret, and the
+    local file must stay as it is."""
+    state = tmp_path / "storage-state.json"
+    _write_state(state, age_hours=0.2)
+    data = json.loads(state.read_text())
+    data["cookies"] += [{"name": f"ad{i}", "domain": f".ads{i % 30}.example"} for i in range(1500)]
+    state.write_text(json.dumps(data))
+    original = state.read_text()
+
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    stdin_copy = tmp_path / "secret-stdin.json"
+    gh = bin_dir / "gh"
+    gh.write_text(f'#!/usr/bin/env bash\ncat > {stdin_copy}\nexit 0\n')
+    gh.chmod(0o755)
+    env = dict(os.environ)
+    env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+    env["PYTHON"] = sys.executable
+    env["TV_SECRET_REPO"] = "skipp-dev/skipp-algo"
+    proc = subprocess.run(
+        ["bash", str(_SCRIPT), str(state)],
+        cwd=_REPO_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
+    )
+
+    assert proc.returncode == 0, f"{proc.stdout}\n{proc.stderr}"
+    written = json.loads(stdin_copy.read_text())
+    assert sorted(c["name"] for c in written["cookies"]) == ["sessionid", "sessionid_sign"]
+    assert written["meta"] == data["meta"]
+    assert state.read_text() == original, "the local capture must not be rewritten"
+
+
+def test_rotation_never_passes_the_capture_through_the_environment() -> None:
+    script = _SCRIPT.read_text()
+    code = "\n".join(line.split("#", 1)[0] for line in script.splitlines())
+    assert '$(cat "${STATE_PATH}")' not in code
+    assert "--tv-storage-state-file" in code
+
+
 def test_capture_just_past_ttl_is_refused(tmp_path: Path) -> None:
     """Boundary: the gate is the 72 h refresh TTL, same as CI."""
     state = tmp_path / "storage-state.json"
