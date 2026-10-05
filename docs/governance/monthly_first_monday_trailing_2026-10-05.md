@@ -96,6 +96,48 @@ innerhalb des Monatsfensters.
   (TQQQ 15,46 gegen 13,68; UPRO 10,69 gegen 6,98; TNA 3,72 gegen 0,88). Fünf
   stark gleichlaufende Werte und vier Weiten: ein Hinweis, kein Beleg.
 
+## Nachtrag (explorativ, nicht Teil der Urteile): Kalenderjahre
+
+Nach Sicht der Ergebnisse gerechnet, um zu sehen, woher der Abstand zum
+Halten kommt (`opaw_monthly_years.py`, Basisfassung; 2018 ab Mai bzw. ab
+Fondsstart, 2026 bis 2. Oktober). Gezählt wird je ETF, Jahr und Stop-Weite.
+
+| Jahr des Haltens | Gruppe | Regel vor dem Halten | Median Regel − Halten |
+|---|---|---|---|
+| im Minus | Themen-ETFs | 105 von 160 (66 %) | +4,5 Punkte |
+| im Minus | TQQQ, QQQ, UPRO, SOXL, TNA | 45 von 48 (94 %) | +40,4 Punkte |
+| im Plus | Themen-ETFs | 59 von 300 (20 %) | −14,8 Punkte |
+| im Plus | TQQQ, QQQ, UPRO, SOXL, TNA | 33 von 132 (25 %) | −21,9 Punkte |
+
+| Jahr | Halten (Median) | Regel (Median) | Regel vorn |
+|---|---|---|---|
+| 2018 | −12,8 % | −8,0 % | 37 von 56 |
+| 2019 | +38,4 % | +33,1 % | 18 von 60 |
+| 2020 | +47,5 % | +36,1 % | 32 von 60 |
+| 2021 | +41,5 % | −0,5 % | 0 von 60 |
+| 2022 | −32,5 % | −4,2 % | 49 von 64 |
+| 2023 | +37,8 % | +1,3 % | 5 von 76 |
+| 2024 | +13,5 % | +17,8 % | 50 von 88 |
+| 2025 | +45,5 % | +33,4 % | 23 von 88 |
+| 2026 | +26,1 % | +16,1 % | 28 von 88 |
+
+- **Die Regel wirkt wie eine Absturzversicherung.** In Verlustjahren liegt
+  sie meist vorn, in Gewinnjahren meist hinten. Beispiel TQQQ: 2022 Halten
+  −79,2 %, Regel +2,6 bis −3,6 %; 2023 Halten +193,4 %, Regel −6,1 bis
+  +42,4 %.
+- **Bei den gehebelten ETFs hängt das Ergebnis an einem Jahr.** In 18 von 20
+  Kombinationen ist 2022 das Jahr mit dem größten Vorsprung (sonst 2020, TNA
+  bei T 7 und 8 %). Setzt man Regel und Halten für 2022 gleich, fällt der
+  Median Konto/Halten von 0,83 auf 0,45, und über dem Halten bleiben 4 von 20
+  statt 7 (alle vier TNA). TQQQ bei T 8 %: 1,13 → 0,24; UPRO bei T 8 %:
+  1,53 → 0,78; SOXL bei T 8 %: 0,91 → 0,09.
+- **Bei den Themen-ETFs nicht.** Mit 2022 im Zeitraum (44 Kombinationen)
+  liegt der Median bei 0,67, ohne 2022 bei 0,69; das beste Jahr verteilt sich
+  (2022 nur bei 17 von 68).
+
+Der Hinweis bei T 8 % ist damit im Wesentlichen das Jahr 2022: eine einzige
+Episode, kein Beleg.
+
 ## Was das nicht trägt
 
 Gleichlauf der ETFs; dünner Handel bei DMAT und NATO; pauschale Kosten; ein
@@ -104,5 +146,6 @@ anderen Wochentagen.
 
 Skripte und Ergebnisse: `~/.claude/scripts/family-fill-analysis/`
 (`opaw_monthly_prereg_2026-10-05.md`, `opaw_monthly.py`,
-`results_opaw_monthly_{base,cost10,pess}_2026-10-05.{txt,csv}`); nicht im
-Repo.
+`results_opaw_monthly_{base,cost10,pess}_2026-10-05.{txt,csv}`,
+`opaw_monthly_years.py`, `results_opaw_monthly_years_2026-10-05.{txt,csv}`,
+`results_opaw_monthly_years_dependence_2026-10-05.csv`); nicht im Repo.
