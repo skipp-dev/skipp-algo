@@ -413,7 +413,7 @@ jobs:
           cache-dependency-path: package-lock.json
 
       - name: Install uv
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           # Mirrors ci.yml: GHA cache backend returns HTTP 400 on the
           # Windows self-hosted runner. Disable the GHA cache layer there;
@@ -1385,7 +1385,7 @@ jobs:
         # first run) and transient download failures are observability-only and
         # must not fail the refresh job.
         continue-on-error: true
-        uses: dawidd6/action-download-artifact@d63b86af1b34672e53c440b1b83979861906bad7 # v24
+        uses: dawidd6/action-download-artifact@eab87c9830c39eff17e5a6eadb20bfb4bc880477 # v27
         with:
           name: best-effort-failure-history
           path: artifacts/ci
