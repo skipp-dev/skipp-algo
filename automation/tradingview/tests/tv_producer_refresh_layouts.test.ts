@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { resolveProducerRefreshChartUrls } from "../lib/tv_shared.js";
+import { staleAppliedInstances, resolveProducerRefreshChartUrls } from "../lib/tv_shared.js";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 
@@ -76,7 +76,10 @@ test("a failed producer refresh is non-fatal but stays visible as evidence", () 
   const okExpression = source.split("report.ok = ", 2)[1]?.split(";", 1)[0] ?? "";
   assert.notEqual(okExpression, "");
   // Best-effort: a cosmetic refresh timeout must not turn a fully verified run red.
-  assert.doesNotMatch(okExpression, /producerRefresh/);
+  assert.doesNotMatch(okExpression, /producerRefresh\.(ok|error|removedInstances)/);
+  // ...but an applied instance proven to run stale source is not cosmetic
+  // (2026-10-05: a green refresh left both chart panes on old Suite code).
+  assert.match(okExpression, /report\.producerRefresh\.staleInstances \?\? \[\]\)\.length === 0/);
   // Non-fatal must never mean silent — the failure keeps a warning and its report field.
   assert.match(source, /report\.producerRefresh\.error/);
   assert.match(source, /console\.warn\([^)]*producer refresh/i);
@@ -99,4 +102,18 @@ test("refresh-path add-to-chart carries the same 90s floor as its wrapper", () =
     refreshBlock,
     /addCurrentScriptToChart\(page, scriptName, \{[^}]*stepTimeoutMs: Math\.max\(stepTimeoutMs\(\), 90_000\)/s,
   );
+});
+
+// 2026-10-05: a green producer refresh left both Suite instances on vWgAWyfC
+// (one per chart pane) on old source. The run now reads every pane's applied
+// instance and fails on any whose source hash is not the repository's.
+test("staleAppliedInstances flags every pane whose instance is not the expected source", () => {
+  const expected = "a".repeat(64);
+  const instances = [
+    { pane: 0, entityId: "6JF3ll", sha256: "b".repeat(64), length: 220105, error: "" },
+    { pane: 1, entityId: "ns2P4I", sha256: expected, length: 222198, error: "" },
+    { pane: 1, entityId: "x", sha256: null, length: 0, error: "unreadable" },
+  ];
+  assert.deepEqual(staleAppliedInstances(instances, expected).map((i) => i.entityId), ["6JF3ll", "x"]);
+  assert.deepEqual(staleAppliedInstances([instances[1]], expected), []);
 });
