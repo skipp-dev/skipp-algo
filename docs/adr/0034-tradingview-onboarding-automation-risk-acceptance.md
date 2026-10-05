@@ -74,3 +74,20 @@ Status: accepted (operator decision, 2026-08-31)
   Suite inputs in the session ("Focus View" off, "Show long engine debug" on),
   saves nothing. Operator approval in the same conversation ("1. und 2. JA",
   asked as "Blocker-Codes auslesen?"). Same bounds as above.
+
+## Addendum 2026-10-05: Suite private publication and layout migration
+
+- **Why:** chart instances of the saved, unpublished `SMC Long-Dip Suite` stay on
+  the version they were added with; no save reaches them, and the producer
+  refresh cannot persist (removing the Suite removes every dependant with it;
+  measured 2026-10-05, run 37303972544).
+- **What:** `scripts/tv_suite_publication_migration.ts` publishes the Suite
+  privately and moves the operator layouts onto the publication: remove Suite,
+  re-add Suite and dependants from "My scripts", rebind, restore visibility,
+  compare every input by position, and save only when all checks pass.
+- **Decisions (operator, 2026-10-05):** private publication; `vWgAWyfC` keeps
+  only its left pane; `twh98JLB` (Hold Manager with the live webhook shadow
+  alert, whose message carries a secret token the repo never reads) is NOT
+  migrated. Local runs authorised: `--dry-run` any time, real steps outside US
+  regular market hours, each after its dry-run passed.
+
