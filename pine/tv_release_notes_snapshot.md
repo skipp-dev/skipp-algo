@@ -8,6 +8,20 @@
      hits) from that delta. -->
 
 
+## September 2026
+
+### Tables in the bottom panel
+
+Users can now move tables drawn by a script into a separate tab in the chart’s bottom panel. To move a script’s tables to the panel, open the “More” menu in the script’s status line and select the “Move tables to bottom” option. To move the tables back to the chart, select “Move tables to chart” from the “More” menu or from the context menu opened at the top of the panel’s tab.
+Tables in the bottom panel have different positioning and cell-sizing rules from those on the chart. All tables stack vertically in order from first to last, regardless of the `position` and `force_overlay` arguments of each `table.new()` call. The cells of each table also stretch as necessary to fit the allocated width and height within the pane, without truncating the displayed text. Additionally, users can select and copy the text from tables in the bottom panel, unlike tables displayed on the chart.
+See the Displaying tables in the bottom panel section of the Tables page to learn more about this feature and how it works.
+
+### Improved line wrapping in square brackets
+
+We’ve improved the line wrapping behaviors for code within square brackets (`[ ]`). Previously, all line-wrapped history-referencing operations or tuples required indenting each line after the first by any number of spaces that was not a multiple of four. The only exception was for square brackets enclosed in a set of parentheses, because code within parentheses can contain any amount of indentation, whether zero or a multiple of four spaces.
+We’ve extended the indentation flexibility for code in parentheses to all code between square brackets. Now, wrapped code within square brackets can use any amount of indentation without restriction. For example:
+
+
 ## August 2026
 
 ### Pine Screener improvements
@@ -131,7 +145,7 @@ The vertical editor view includes a word wrap feature, which enables users to re
 
 All `input*()` functions feature a new parameter: `active`. This parameter specifies whether users can change the value of the input in the “Settings/Inputs” tab. If `true`, users can change the input’s value. If `false`, the input is grayed out, and users cannot change the value. Programmers can use this parameter to define inputs whose states depend on the values of other inputs. For example:
 We’ve added a new `syminfo.*` variable:
-- `syminfo.current_contract` — The ticker identifier of the underlying contract, if the current symbol is a continuous futures contract; `na` otherwise.
+- `syminfo.current_contract` – The ticker identifier of the underlying contract, if the current symbol is a continuous futures contract; `na` otherwise.
 
 
 ## June 2025
@@ -225,19 +239,19 @@ The Sharpe and Sortino ratios in the Strategy Tester module have updated calcula
 
 ### —
 
-We’ve added a new parameter to the `box.new()`, `label.new()`, `line.new()`, `polyline.new()`, and `table.new()` functions:
+We've added a new parameter to the `box.new()`, `label.new()`, `line.new()`, `polyline.new()`, and `table.new()` functions:
 - `force_overlay` - If true, the drawing will display on the main chart pane, even when the script occupies a separate pane. Optional. The default is false.
 
 ### Pine Script Enums
 
-Enums, also known as enumerations, enumerated types, or enum types, are unique data types with all possible values declared by the programmer. They can help programmers maintain more strict control over the values allowed by variables, conditional expressions, and collections, and they enable convenient dropdown input creation with the new input.enum() function. See our User Manual’s Enums page to learn more about these new types and how to use them.
+Enums, also known as enumerations, enumerated types, or enum types, are unique data types with all possible values declared by the programmer. They can help programmers maintain more strict control over the values allowed by variables, conditional expressions, and collections, and they enable convenient dropdown input creation with the new input.enum() function. See our User Manual's Enums page to learn more about these new types and how to use them.
 
 
 ## May 2024
 
 ### —
 
-We’ve added an optional `calc_bars_count` parameter to the `indicator()`, `strategy()`, `request.security()`, `request.security_lower_tf()`, and `request.seed()` functions that allows users to limit the number of recent historical bars a script or data request can execute across. When a script’s `indicator()` or `strategy()` declaration statement includes a `calc_bars_count` argument, its “Settings/Inputs” tab will include a “Calculated bars” input in the “Calculation” section. The default value in all these functions is 0, which signifies that the script or request executes across all the available data.
+We've added an optional `calc_bars_count` parameter to the `indicator()`, `strategy()`, `request.security()`, `request.security_lower_tf()`, and `request.seed()` functions that allows users to limit the number of recent historical bars a script or data request can execute across. When a script's `indicator()` or `strategy()` declaration statement includes a `calc_bars_count` argument, its “Settings/Inputs” tab will include a “Calculated bars” input in the “Calculation” section. The default value in all these functions is 0, which signifies that the script or request executes across all the available data.
 The `strategy.*` namespace features several new built-in variables:
 - `strategy.avg_trade` - Returns the average amount of money gained or lost per trade. Calculated as the sum of all profits and losses divided by the number of closed trades.
 - `strategy.avg_trade_percent` - Returns the average percentage gain or loss per trade. Calculated as the sum of all profit and loss percentages divided by the number of closed trades.
@@ -248,8 +262,8 @@ The `strategy.*` namespace features several new built-in variables:
 
 ### Pine Profiler
 
-Our new Pine Profiler is a powerful utility that analyzes the executions of all significant code in a script and displays helpful performance information next to the code lines inside the Pine Editor. The Profiler’s information provides insight into a script’s runtime, the distribution of runtime across significant code regions, and the number of times each code region executes. With these insights, programmers can effectively pinpoint performance bottlenecks and ensure they focus on optimizing their code where it truly matters when they need to improve execution times.
-See the new Profiling and optimization page to learn more about the Profiler, how it works, and how to use it to analyze a script’s performance and identify optimization opportunities.
+Our new Pine Profiler is a powerful utility that analyzes the executions of all significant code in a script and displays helpful performance information next to the code lines inside the Pine Editor. The Profiler's information provides insight into a script's runtime, the distribution of runtime across significant code regions, and the number of times each code region executes. With these insights, programmers can effectively pinpoint performance bottlenecks and ensure they focus on optimizing their code where it truly matters when they need to improve execution times.
+See the new Profiling and optimization page to learn more about the Profiler, how it works, and how to use it to analyze a script's performance and identify optimization opportunities.
 
 ### Pine Editor improvements
 
@@ -261,7 +275,7 @@ The detached Pine Editor now includes the Pine console.
 
 ### —
 
-We’ve added a new parameter to the `plot()`, `plotchar()`, `plotcandle()`, `plotbar()`, `plotarrow()`, `plotshape()`, and `bgcolor()` functions:
+We've added a new parameter to the `plot()`, `plotchar()`, `plotcandle()`, `plotbar()`, `plotarrow()`, `plotshape()`, and `bgcolor()` functions:
 - `force_overlay` - If true, the output will display on the main chart pane, even when the script occupies a separate pane.
 
 
@@ -279,12 +293,12 @@ The `time()` and `time_close()` functions have a new parameter:
 
 ### —
 
-We’ve added two new functions for working with strings:
+We've added two new functions for working with strings:
 - `str.repeat()` - Constructs a new string containing the source string repeated a specified number of times with a separator injected between each repeated instance.
 - `str.trim()` - Constructs a new string with all consecutive whitespaces and other control characters removed from the left and right of the source string.
 The `request.financial()` function now accepts “D” as a `period` argument, allowing scripts to request available daily financial data.
 For example:
-The `strategy.*` namespace features a new variable for monitoring available capital in a strategy’s simulation:
+The `strategy.*` namespace features a new variable for monitoring available capital in a strategy's simulation:
 - `strategy.opentrades.capital_held` - Returns the capital amount currently held by open trades.
 
 
@@ -319,7 +333,7 @@ Recommendations:
 
 ### —
 
-We’ve added `format` and `precision` parameters to all `plot*()` functions, allowing indicators and strategies to selectively apply formatting and decimal precision settings to plotted results in the chart pane’s y-axis, the script’s status line, and the Data Window. The arguments passed to these parameters supersede the values in the `indicator()` and `strategy()` functions. Both are optional. The defaults for these parameters are the same as the values specified in the script’s declaration statement.
+We've added `format` and `precision` parameters to all `plot*()` functions, allowing indicators and strategies to selectively apply formatting and decimal precision settings to plotted results in the chart pane's y-axis, the script's status line, and the Data Window. The arguments passed to these parameters supersede the values in the `indicator()` and `strategy()` functions. Both are optional. The defaults for these parameters are the same as the values specified in the script's declaration statement.
 For example:
 
 
@@ -327,7 +341,7 @@ For example:
 
 ### —
 
-We’ve added the following variables and functions to the `strategy.*` namespace:
+We've added the following variables and functions to the `strategy.*` namespace:
 - `strategy.grossloss_percent` - The total gross loss value of all completed losing trades, expressed as a percentage of the initial capital.
 - `strategy.grossprofit_percent` - The total gross profit value of all completed winning trades, expressed as a percentage of the initial capital.
 - `strategy.max_runup_percent` - The maximum rise from a trough in the equity curve, expressed as a percentage of the trough value.
@@ -346,7 +360,7 @@ We’ve added the following variables and functions to the `strategy.*` namespac
 
 ### Pine Script Polylines
 
-Polylines are drawings that sequentially connect the coordinates from an `array` of up to 10,000 chart points using straight or curved line segments, allowing scripts to draw custom formations that are difficult or impossible to achieve using `line` or `box` objects. To learn more about this new drawing type, see the Polylines section of our User Manual’s page on Lines and boxes.
+Polylines are drawings that sequentially connect the coordinates from an `array` of up to 10,000 chart points using straight or curved line segments, allowing scripts to draw custom formations that are difficult or impossible to achieve using `line` or `box` objects. To learn more about this new drawing type, see the Polylines section of our User Manual's page on Lines and boxes.
 
 
 ## September 2023
@@ -357,14 +371,14 @@ New functions were added:
 - `strategy.default_entry_qty()` - Calculates the default quantity, in units, of an entry order from `strategy.entry()` or `strategy.order()` if it were to fill at the specified `fill_price` value.
 - `chart.point.new()` - Creates a new `chart.point` object with the specified `time`, `index`, and `price`.
 - `request.seed()` - Requests data from a user-maintained GitHub repository and returns it as a series. An in-depth tutorial on how to add new data can be found here.
-- `ticker.inherit()` - Constructs a ticker ID for the specified `symbol` with additional parameters inherited from the ticker ID passed into the function call, allowing the script to request a symbol’s data using the same modifiers that the `from_tickerid` has, including extended session, dividend adjustment, currency conversion, non-standard chart types, back-adjustment, settlement-as-close, etc.
+- `ticker.inherit()` - Constructs a ticker ID for the specified `symbol` with additional parameters inherited from the ticker ID passed into the function call, allowing the script to request a symbol's data using the same modifiers that the `from_tickerid` has, including extended session, dividend adjustment, currency conversion, non-standard chart types, back-adjustment, settlement-as-close, etc.
 - `timeframe.from_seconds()` - Converts a specified number of `seconds` into a valid timeframe string based on our timeframe specification format.
 The `dividends.*` namespace now includes variables for retrieving future dividend information:
-- `dividends.future_amount` - Returns the payment amount of the upcoming dividend in the currency of the current instrument, or `na` if this data isn’t available.
-- `dividends.future_ex_date` - Returns the Ex-dividend date (Ex-date) of the current instrument’s next dividend payment, or `na` if this data isn’t available.
-- `dividends.future_pay_date` - Returns the Payment date (Pay date) of the current instrument’s next dividend payment, or `na` if this data isn’t available.
+- `dividends.future_amount` - Returns the payment amount of the upcoming dividend in the currency of the current instrument, or `na` if this data isn't available.
+- `dividends.future_ex_date` - Returns the Ex-dividend date (Ex-date) of the current instrument's next dividend payment, or `na` if this data isn't available.
+- `dividends.future_pay_date` - Returns the Payment date (Pay date) of the current instrument's next dividend payment, or `na` if this data isn't available.
 The `request.security_lower_tf()` function has a new parameter:
-- `ignore_invalid_timeframe` - Determines how the function behaves when the chart’s timeframe is smaller than the `timeframe` value in the function call. If `false`, the function will raise a runtime error and halt the script’s execution. If `true`, the function will return `na` without raising an error.
+- `ignore_invalid_timeframe` - Determines how the function behaves when the chart's timeframe is smaller than the `timeframe` value in the function call. If `false`, the function will raise a runtime error and halt the script's execution. If `true`, the function will return `na` without raising an error.
 Users can now explicitly declare variables with the `const`, `simple`, and `series` type qualifiers, allowing more precise control over the types of variables in their scripts. For example:
 
 
@@ -398,7 +412,7 @@ New `syminfo.*` built-in variables were added:
 - `syminfo.sector` - Returns the sector of the symbol.
 - `syminfo.industry` - Returns the industry of the symbol.
 - `syminfo.country` - Returns the two-letter code of the country where the symbol is traded.
-A new display parameter for all `input.*()` functions was added. It provides you with more control over the display of input values next to a script’s name. Four arguments can be used: `display.status_line`, `display.data_window`, `display.all`, and `display.none`. Combinations of these arguments using plus or minus signs are allowed, and regardless of the argument used, input values will always continue to appear in the `Inputs` tab of the script’s settings.
+A new display parameter for all `input.*()` functions was added. It provides you with more control over the display of input values next to a script's name. Four arguments can be used: `display.status_line`, `display.data_window`, `display.all`, and `display.none`. Combinations of these arguments using plus or minus signs are allowed, and regardless of the argument used, input values will always continue to appear in the `Inputs` tab of the script’s settings.
 
 
 ## May 2023
@@ -407,8 +421,8 @@ A new display parameter for all `input.*()` functions was added. It provides you
 
 New parameter added to the `strategy.entry()`, `strategy.order()`, `strategy.close()`, `strategy.close_all()`, and `strategy.exit()` functions:
 - `disable_alert` - Disables order fill alerts for any orders placed by the function.
-Our “Indicator on indicator” feature, which allows a script to pass another indicator’s plot as a source value via the `input.source()` function, now supports multiple external inputs. Scripts can use a multitude of external inputs originating from up to 10 different indicators.
-We’ve added the following array functions:
+Our “Indicator on indicator” feature, which allows a script to pass another indicator's plot as a source value via the `input.source()` function, now supports multiple external inputs. Scripts can use a multitude of external inputs originating from up to 10 different indicators.
+We've added the following array functions:
 - `array.every()` - Returns `true` if all elements of the `id` array are `true`, `false` otherwise.
 - `array.some()` - Returns `true` if at least one element of the `id` array is `true`, `false` otherwise. These functions also work with arrays of `int` and `float` types, in which case zero values are considered `false`, and all others `true`.
 
@@ -442,28 +456,28 @@ Pine Script methods are specialized functions associated with specific instances
 ### —
 
 New array functions were added:
-- `array.first()` - Returns the array’s first element.
-- `array.last()` - Returns the array’s last element.
+- `array.first()` - Returns the array's first element.
+- `array.last()` - Returns the array's last element.
 
 
 ## December 2022
 
 ### Pine Objects
 
-Pine objects are instantiations of the new user-defined composite types (UDTs) declared using the `type` keyword. Experienced programmers can think of UDTs as method-less classes. They allow users to create custom types that organize different values under one logical entity. A detailed rundown of the new functionality can be found in our User Manual’s page on objects.
+Pine objects are instantiations of the new user-defined composite types (UDTs) declared using the `type` keyword. Experienced programmers can think of UDTs as method-less classes. They allow users to create custom types that organize different values under one logical entity. A detailed rundown of the new functionality can be found in our User Manual's page on objects.
 A new function was added:
 - `ticker.standard()` - Creates a ticker to request data from a standard chart that is unaffected by modifiers like extended session, dividend adjustment, currency conversion, and the calculations of non-standard chart types: Heikin Ashi, Renko, etc.
 New `strategy.*` functions were added:
-- `strategy.opentrades.entry_comment()` - The function returns the comment message of the open trade’s entry.
-- `strategy.closedtrades.entry_comment()` - The function returns the comment message of the closed trade’s entry.
-- `strategy.closedtrades.exit_comment()` - The function returns the comment message of the closed trade’s exit.
+- `strategy.opentrades.entry_comment()` - The function returns the comment message of the open trade's entry.
+- `strategy.closedtrades.entry_comment()` - The function returns the comment message of the closed trade's entry.
+- `strategy.closedtrades.exit_comment()` - The function returns the comment message of the closed trade's exit.
 
 
 ## November 2022
 
 ### —
 
-Fixed behaviour of `math.round_to_mintick()` function. For ‘na’ values it returns ‘na’.
+Fixed behaviour of `math.round_to_mintick()` function. For 'na' values it returns 'na'.
 
 
 ## October 2022
@@ -511,14 +525,14 @@ A new annotation `//@strategy_alert_message` was added. If the annotation is add
 
 ### —
 
-It is now possible to fine-tune where a script’s plot values are displayed through the introduction of new arguments for the `display` parameter of the `plot()`, `plotchar()`, `plotshape()`, `plotarrow()`, `plotcandle()`, and `plotbar()` functions.
+It is now possible to fine-tune where a script's plot values are displayed through the introduction of new arguments for the `display` parameter of the `plot()`, `plotchar()`, `plotshape()`, `plotarrow()`, `plotcandle()`, and `plotbar()` functions.
 Four new arguments were added, complementing the previously available `display.all` and `display.none`:
-- `display.data_window` displays the plot values in the Data Window, one of the items available from the chart’s right sidebar.
-- `display.pane` displays the plot in the pane where the script resides, as defined in with the `overlay` parameter of the script’s `indicator()`, `strategy()`, or `library()` declaration statement.
-- `display.price_scale` controls the display of the plot’s label and price in the price scale, if the chart’s settings allow them.
-- `display.status_line` displays the plot values in the script’s status line, next to the script’s name on the chart, if the chart’s settings allow them.
+- `display.data_window` displays the plot values in the Data Window, one of the items available from the chart's right sidebar.
+- `display.pane` displays the plot in the pane where the script resides, as defined in with the `overlay` parameter of the script's `indicator()`, `strategy()`, or `library()` declaration statement.
+- `display.price_scale` controls the display of the plot's label and price in the price scale, if the chart's settings allow them.
+- `display.status_line` displays the plot values in the script's status line, next to the script's name on the chart, if the chart's settings allow them.
 The `display` parameter supports the addition and subtraction of its arguments:
-- `display.all - display.status_line` will display the plot’s information everywhere except in the script’s status line.
+- `display.all - display.status_line` will display the plot's information everywhere except in the script's status line.
 - `display.price_scale + display.status_line` will display the plot in the price scale and status line only.
 
 
@@ -536,8 +550,8 @@ New built-in functions were added:
 - `timeframe.change()` - Returns `true` on the first bar of a new `timeframe`, `false` otherwise.
 - `ta.pivot_point_levels()` - Returns a float array with numerical values representing 11 pivot point levels: `[P, R1, S1, R2, S2, R3, S3, R4, S4, R5, S5]`. Levels absent from the specified `type` return na values.
 New built-in variables were added:
-- `session.isfirstbar` - returns `true` if the current bar is the first bar of the day’s session, `false` otherwise.
-- `session.islastbar` - returns `true` if the current bar is the last bar of the day’s session, `false` otherwise.
+- `session.isfirstbar` - returns `true` if the current bar is the first bar of the day's session, `false` otherwise.
+- `session.islastbar` - returns `true` if the current bar is the last bar of the day's session, `false` otherwise.
 - `session.isfirstbar_regular` - returns `true` on the first regular session bar of the day, `false` otherwise.
 - `session.islastbar_regular` - returns `true` on the last regular session bar of the day, `false` otherwise.
 - `chart.left_visible_bar_time` - returns the `time` of the leftmost bar currently visible on the chart.
@@ -552,14 +566,14 @@ Support for matrices has been added to the `request.security()` function.
 The historical states of arrays and matrices can now be referenced with the `[]` operator. In the example below, we reference the historical state of a matrix 10 bars ago:
 The `ta.change()` function now can take values of `int` and `bool` types as its `source` parameter and return the difference in the respective type.
 New built-in variables were added:
-- `chart.bg_color` - Returns the color of the chart’s background from the `"Chart settings/Appearance/Background"` field.
+- `chart.bg_color` - Returns the color of the chart's background from the `"Chart settings/Appearance/Background"` field.
 - `chart.fg_color` - Returns a color providing optimal contrast with `chart.bg_color`.
 - `chart.is_standard` - Returns true if the chart type is bars, candles, hollow candles, line, area or baseline, false otherwise.
 - `currency.USDT` - A constant for the Tether currency code.
 New functions were added:
 - `syminfo.prefix()` - returns the exchange prefix of the `symbol` passed to it, e.g. “NASDAQ” for “NASDAQ:AAPL”.
 - `syminfo.ticker()` - returns the ticker of the `symbol` passed to it without the exchange prefix, e.g. “AAPL” for “NASDAQ:AAPL”.
-- `request.security_lower_tf()` - requests data from a lower timeframe than the chart’s.
+- `request.security_lower_tf()` - requests data from a lower timeframe than the chart's.
 Added `use_bar_magnifier` parameter for the `strategy()` function. When `true`, the Broker Emulator uses lower timeframe data during history backtesting to achieve more realistic results.
 Fixed behaviour of `strategy.exit()` function when stop loss triggered at prices outside the bars price range.
 Added new `comment` and `alert` message parameters for the `strategy.exit()` function:
@@ -577,7 +591,7 @@ Added new `comment` and `alert` message parameters for the `strategy.exit()` fun
 
 Added the `display` parameter to the following functions: `barcolor`, `bgcolor`, `fill`, `hline`.
 A new function was added:
-- `request.economic()` - Economic data includes information such as the state of a country’s economy or of a particular industry.
+- `request.economic()` - Economic data includes information such as the state of a country's economy or of a particular industry.
 New built-in variables were added:
 - `strategy.max_runup` - Returns the maximum equity run-up value for the whole trading interval.
 - `syminfo.volumetype` - Returns the volume type of the current symbol.
@@ -598,8 +612,8 @@ New matrix functions were added:
 - `matrix.elements_count()` - Returns the total number of matrix elements.
 - `matrix.add_row()` - Adds a row to the matrix. The row can consist of `na` values, or an array can be used to provide values.
 - `matrix.add_col()` - Adds a column to the matrix. The column can consist of `na` values, or an array can be used to provide values.
-- `matrix.remove_row()` - Removes the row of the matrix and returns an array containing the removed row’s values.
-- `matrix.remove_col()` - Removes the column of the matrix and returns an array containing the removed column’s values.
+- `matrix.remove_row()` - Removes the row of the matrix and returns an array containing the removed row's values.
+- `matrix.remove_col()` - Removes the column of the matrix and returns an array containing the removed column's values.
 - `matrix.swap_rows()` - Swaps the rows in the matrix.
 - `matrix.swap_columns()` - Swaps the columns in the matrix.
 - `matrix.fill()` - Fills a rectangular area of the matrix defined by the indices `from_column` to `to_column`.
@@ -623,7 +637,7 @@ New matrix functions were added:
 - `matrix.pinv()` - Returns the pseudoinverse of a matrix.
 - `matrix.inv()` - Returns the inverse of a square matrix.
 - `matrix.rank()` - Calculates the rank of the matrix.
-- `matrix.trace()` - Calculates the trace of a matrix (the sum of the main diagonal’s elements).
+- `matrix.trace()` - Calculates the trace of a matrix (the sum of the main diagonal's elements).
 - `matrix.eigenvalues()` - Returns an array containing the eigenvalues of a square matrix.
 - `matrix.eigenvectors()` - Returns a matrix of eigenvectors, in which each column is an eigenvector of the matrix.
 - `matrix.kron()` - Returns the Kronecker product for the two matrices.
@@ -655,12 +669,12 @@ New array functions were added:
 - `array.binary_search_leftmost()` - returns the index of the value if it is found or the index of the next smallest element to the left of where the value would lie if it was in the array.
 - `array.binary_search_rightmost()` - returns the index of the value if it is found or the index of the element to the right of where the value would lie if it was in the array.
 Added a new optional `nth` parameter for the `array.min()` and `array.max()` functions.
-Added `index` in `for…in` operator. It tracks the current iteration’s index.
+Added `index` in `for…in` operator. It tracks the current iteration's index.
 
 ### Table merging and cell tooltips
 
-- It is now possible to merge several cells in a table. A merged cell doesn’t have to be a header: you can merge cells in any direction, as long as the resulting cell doesn’t affect any already merged cells and doesn’t go outside of the table’s bounds. Cells can be merged with the new `table.merge_cells()` function.
-- Tables now support tooltips, floating labels that appear when you hover over a table’s cell. To add a tooltip, pass a string to the `tooltip` argument of the `table.cell()` function or use the new `table.cell_set_tooltip()` function.
+- It is now possible to merge several cells in a table. A merged cell doesn't have to be a header: you can merge cells in any direction, as long as the resulting cell doesn't affect any already merged cells and doesn't go outside of the table's bounds. Cells can be merged with the new `table.merge_cells()` function.
+- Tables now support tooltips, floating labels that appear when you hover over a table's cell. To add a tooltip, pass a string to the `tooltip` argument of the `table.cell()` function or use the new `table.cell_set_tooltip()` function.
 
 
 ## February 2022
@@ -671,9 +685,9 @@ Added templates and the ability to create arrays via templates. Instead of using
 New functions were added:
 - `timeframe.in_seconds(timeframe)` - converts the timeframe passed to the `timeframe` argument into seconds.
 - `input.text_area()` - adds multiline text input area to the Script settings.
-- `strategy.closedtrades.entry_id()` - returns the id of the closed trade’s entry.
-- `strategy.closedtrades.exit_id()` - returns the id of the closed trade’s exit.
-- `strategy.opentrades.entry_id()` - returns the id of the open trade’s entry.
+- `strategy.closedtrades.entry_id()` - returns the id of the closed trade's entry.
+- `strategy.closedtrades.exit_id()` - returns the id of the closed trade's exit.
+- `strategy.opentrades.entry_id()` - returns the id of the open trade's entry.
 
 
 ## January 2022
@@ -690,7 +704,7 @@ Added new functions to clone drawings:
 
 ### Linefills
 
-The space between lines drawn in Pine Script can now be filled! We’ve added a new `linefill` drawing type, along with a number of functions dedicated to manipulating it. Linefills are created by passing two lines and a color to the `linefill.new()` function, and their behavior is based on the lines they’re tied to: they extend in the same direction as the lines, move when their lines move, and are deleted when one of the two lines is deleted.
+The space between lines drawn in Pine Script can now be filled! We've added a new `linefill` drawing type, along with a number of functions dedicated to manipulating it. Linefills are created by passing two lines and a color to the `linefill.new()` function, and their behavior is based on the lines they're tied to: they extend in the same direction as the lines, move when their lines move, and are deleted when one of the two lines is deleted.
 New linefill-related functions:
 - `array.new_linefill()`
 - `linefill()`
@@ -723,7 +737,7 @@ Box drawings now supports text. The `box.new()` function has five new parameters
 
 ### New built-in variables
 
-Added new built-in variables that return the `bar_index` and `time` values of the last bar in the dataset. Their values are known at the beginning of the script’s calculation:
+Added new built-in variables that return the `bar_index` and `time` values of the last bar in the dataset. Their values are known at the beginning of the script's calculation:
 - `last_bar_index` - Bar index of the last chart bar.
 - `last_bar_time` - UNIX time of the last chart bar.
 New built-in `source` variable:
@@ -759,7 +773,7 @@ Pine Script v5 is here! This is a list of the new features added to the language
 
 ### New features
 
-Libraries are a new type of publication. They allow you to create custom functions for reuse in other scripts. See this manual’s page on Libraries.
+Libraries are a new type of publication. They allow you to create custom functions for reuse in other scripts. See this manual's page on Libraries.
 Pine Script now supports `switch` structures! They provide a more convenient and readable alternative to long ternary operators and `if` statements.
 `while` loops are here! They allow you to create a loop that will only stop when its controlling condition is false, or a `break` command is used in the loop.
 New built-in array variables are maintained by the Pine Script runtime to hold the IDs of all the active objects of the same type drawn by your script. They are `label.all`, `line.all`, `box.all` and `table.all`.
@@ -808,7 +822,7 @@ New argument for `time` and `time_close` functions was added:
 - `timezone` - timezone of the `session` argument, can only be used when a session is specified. Can be written out in GMT notation (e.g. “GMT-5”) or as an IANA time zone database name (e.g. “America/New_York”).
 It is now possible to place a drawing object in the future with `xloc = xloc.bar_index`.
 New argument for `study` and `strategy` functions was added:
-- `explicit_plot_zorder` - specifies the order in which the indicator’s plots, fills, and hlines are rendered. If true, the plots will be drawn based on the order in which they appear in the indicator’s code, each newer plot being drawn above the previous ones.
+- `explicit_plot_zorder` - specifies the order in which the indicator's plots, fills, and hlines are rendered. If true, the plots will be drawn based on the order in which they appear in the indicator's code, each newer plot being drawn above the previous ones.
 
 
 ## June 2021
@@ -816,9 +830,9 @@ New argument for `study` and `strategy` functions was added:
 ### —
 
 New variable was added:
-- `barstate.islastconfirmedhistory` - returns `true` if script is executing on the dataset’s last bar when market is closed, or script is executing on the bar immediately preceding the real-time bar, if market is open. Returns `false` otherwise.
+- `barstate.islastconfirmedhistory` - returns `true` if script is executing on the dataset's last bar when market is closed, or script is executing on the bar immediately preceding the real-time bar, if market is open. Returns `false` otherwise.
 New function was added:
-- `round_to_mintick(x)` - returns the value rounded to the symbol’s mintick, i.e. the nearest value that can be divided by `syminfo.mintick`, without the remainder, with ties rounding up.
+- `round_to_mintick(x)` - returns the value rounded to the symbol's mintick, i.e. the nearest value that can be divided by `syminfo.mintick`, without the remainder, with ties rounding up.
 Expanded `tostring()` functionality. The function now accepts three new formatting arguments:
 - `format.mintick` to format to tick precision.
 - `format.volume` to abbreviate large values.
@@ -845,10 +859,10 @@ The `color.new` function can now accept series and input arguments, in which cas
 ### —
 
 New math constants were added:
-- `math.pi` - is a named constant for Archimedes’ constant. It is equal to 3.1415926535897932.
+- `math.pi` - is a named constant for Archimedes' constant. It is equal to 3.1415926535897932.
 - `math.phi` - is a named constant for the golden ratio. It is equal to 1.6180339887498948.
 - `math.rphi` - is a named constant for the golden ratio conjugate. It is equal to 0.6180339887498948.
-- `math.e` - is a named constant for Euler’s number. It is equal to 2.7182818284590452.
+- `math.e` - is a named constant for Euler's number. It is equal to 2.7182818284590452.
 New math functions were added:
 - `round(x, precision)` - returns the value of `x` rounded to the nearest integer, with ties rounding up. If the precision parameter is used, returns a float value rounded to that number of decimal places.
 - `median(source, length)` - returns the median of the series.
@@ -961,7 +975,7 @@ The behavior of `rising()` and `falling()` functions have changed. For example, 
 
 ### —
 
-Added support for `input.color` to the `input()` function. Now you can provide script users with color selection through the script’s “Settings/Inputs” tab with the same color widget used throughout the TradingView user interface. Learn more about this feature in our blog
+Added support for `input.color` to the `input()` function. Now you can provide script users with color selection through the script's “Settings/Inputs” tab with the same color widget used throughout the TradingView user interface. Learn more about this feature in our blog
 Added support for arrays and functions for working with them. You can now use the powerful new array feature to build custom datasets. See our User Manual page on arrays and our blog
 The following functions now accept a series length parameter. Learn more about this feature in our blog:
 - `alma()`
@@ -1051,7 +1065,7 @@ Added a detailed description of all the fields in the Strategy Tester Report.
 - Fixed a problem with calculating `percentrank` function. Now it can return a zero value, which did not happen before due to an incorrect calculation.
 - The default `transparency` parameter for the `plot()`, `plotshape()`, and `plotchar()` functions is now 0%.
 - For the functions `plot()`, `plotshape()`, `plotchar()`, `plotbar()`, `plotcandle()`, `plotarrow()`, you can set the `display` parameter, which controls the display of the plot. The following values can be assigned to it: `display.none` - the plot is not displayed `display.all` - the plot is displayed (Default)
-- The `textalign` argument was added to the `label.new` function along with the `label.set_textalign` function. Using those, you can control the alignment of the label’s text:
+- The `textalign` argument was added to the `label.new` function along with the `label.set_textalign` function. Using those, you can control the alignment of the label's text:
 
 
 ## January 2020
@@ -1078,7 +1092,7 @@ New parameter was added for `strategy.close_all`:
 
 ### —
 
-- Warning messages were added. For example, if you don’t specify exit parameters for `strategy.exit` - `profit`, `limit`, `loss`, `stop` or one of the following pairs: `trail_offset` and `trail_price` / `trail_points` - you will see a warning message in the console in the Pine Script editor.
+- Warning messages were added. For example, if you don't specify exit parameters for `strategy.exit` - `profit`, `limit`, `loss`, `stop` or one of the following pairs: `trail_offset` and `trail_price` / `trail_points` - you will see a warning message in the console in the Pine Script editor.
 - Increased the maximum number of arguments in `max`, `min`, `avg` functions. Now you can use up to ten arguments in these functions.
 
 
@@ -1087,7 +1101,7 @@ New parameter was added for `strategy.close_all`:
 ### —
 
 - `plotchar()` function now supports most of the Unicode symbols:
-- New `bordercolor` argument of the `plotcandle()` function allows you to change the color of candles’ borders:
+- New `bordercolor` argument of the `plotcandle()` function allows you to change the color of candles' borders:
 - New variables added: `syminfo.description` - returns a description of the current symbol `syminfo.currency` - returns the currency code of the current symbol (EUR, USD, etc.) `syminfo.type` - returns the type of the current symbol (stock, futures, index, etc.)
 
 
@@ -1096,7 +1110,7 @@ New parameter was added for `strategy.close_all`:
 ### —
 
 New parameters to the `strategy` function were added:
-- `process_orders_on_close` allows the broker emulator to try to execute orders after calculating the strategy at the bar’s close
+- `process_orders_on_close` allows the broker emulator to try to execute orders after calculating the strategy at the bar's close
 - `close_entries_rule` allows to define the sequence used for closing positions
 Some fixes were made:
 - `fill()` function now works correctly with `na` as the `color` parameter value
@@ -1111,7 +1125,7 @@ Some fixes were made:
 New variables added:
 - `timeframe.isseconds` returns true when current resolution is in seconds
 - `timeframe.isminutes` returns true when current resolution is in minutes
-- `time_close` returns the current bar’s close time
+- `time_close` returns the current bar's close time
 The behavior of some functions, variables and operators has changed:
 - The `time` variable returns the correct open time of the bar for more special cases than before
 - An optional seconds parameter of the `timestamp()` function allows you to set the time to within seconds
@@ -1172,7 +1186,7 @@ The behavior of some functions, variables and operators has changed:
 
 - Expanded the keyword argument functionality: it is now possible to use keyword arguments in all built-in functions.
 - A new `barstate.isconfirmed` variable has been added to the list of variables that return bar status. It lets you create indicators that are calculated based on the closed bars only.
-- The `options` argument for the `input()` function creates an input with a set of options defined by the script’s author.
+- The `options` argument for the `input()` function creates an input with a set of options defined by the script's author.
 
 
 ## March 2017
@@ -1186,7 +1200,7 @@ The behavior of some functions, variables and operators has changed:
 
 ### —
 
-- Several improvements to the strategy tester and the strategy report: New Buy & Hold equity graph — a new graph that lets you compare performance of your strategy versus a “buy and hold”, i.e if you just bought a security and held onto it without trading. Added percentage values to the absolute currency values. Added Buy & Hold Return to display the final value of Buy & Hold Equity based on last price. Added Sharpe Ratio — it shows the relative effectiveness of the investment portfolio (security), a measure that indicates the average return minus the risk-free return divided by the standard deviation of return on an investment. Slippage lets you simulate a situation when orders are filled at a worse price than expected. It can be set through the Properties dialog or through the `slippage` argument in the `strategy()` function. Commission allows yot to add commission for placed orders in percent of order value, fixed price or per contract. The amount of commission paid is shown in the Commission Paid field. The commission size and its type can be set through the Properties dialog or through the `commission_type` and `commission_value` arguments in the `strategy()` function.
+- Several improvements to the strategy tester and the strategy report: New Buy & Hold equity graph – a new graph that lets you compare performance of your strategy versus a “buy and hold”, i.e if you just bought a security and held onto it without trading. Added percentage values to the absolute currency values. Added Buy & Hold Return to display the final value of Buy & Hold Equity based on last price. Added Sharpe Ratio – it shows the relative effectiveness of the investment portfolio (security), a measure that indicates the average return minus the risk-free return divided by the standard deviation of return on an investment. Slippage lets you simulate a situation when orders are filled at a worse price than expected. It can be set through the Properties dialog or through the `slippage` argument in the `strategy()` function. Commission allows yot to add commission for placed orders in percent of order value, fixed price or per contract. The amount of commission paid is shown in the Commission Paid field. The commission size and its type can be set through the Properties dialog or through the `commission_type` and `commission_value` arguments in the `strategy()` function.
 
 
 ## December 2016
@@ -1251,7 +1265,7 @@ The behavior of some functions, variables and operators has changed:
 
 ### —
 
-- Added backtesting functionality to Pine Script. It is now possible to create trading strategies, i.e. scripts that can send, modify and cancel orders to buy or sell. Strategies allow you to perform backtesting (emulation of strategy trading on historical data) and forward testing (emulation of strategy trading on real-time data) according to your algorithms. Detailed information about the strategy’s calculations and the order fills can be seen in the newly added Strategy Tester tab.
+- Added backtesting functionality to Pine Script. It is now possible to create trading strategies, i.e. scripts that can send, modify and cancel orders to buy or sell. Strategies allow you to perform backtesting (emulation of strategy trading on historical data) and forward testing (emulation of strategy trading on real-time data) according to your algorithms. Detailed information about the strategy's calculations and the order fills can be seen in the newly added Strategy Tester tab.
 
 
 ## July 2015
@@ -1274,14 +1288,14 @@ The behavior of some functions, variables and operators has changed:
 
 - Added two new shapes to the `plotshape()` function: shape.labelup and shape.labeldown.
 - PineScipt Editor has been improved and moved to a new panel at the bottom of the page.
-- Added a new `step` argument for the `input()` function, allowing to specify the step size for the indicator’s inputs.
+- Added a new `step` argument for the `input()` function, allowing to specify the step size for the indicator's inputs.
 
 
 ## March 2015
 
 ### —
 
-- Added support for inputs with the `source` type to the `input()` function, allowing to select the data source for the indicator’s calculations from its settings.
+- Added support for inputs with the `source` type to the `input()` function, allowing to select the data source for the indicator's calculations from its settings.
 
 
 ## February 2015
@@ -1340,10 +1354,13 @@ Previous
 
 Next
 
-### To Pine Script® version 5
+### Overview
 
 - Overview
 - 2026
+- September 2026
+- Tables in the bottom panel
+- Improved line wrapping in square brackets
 - August 2026
 - Pine Screener improvements
 - `once` conditional structure
