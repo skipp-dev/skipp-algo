@@ -11,7 +11,10 @@
 # Secret handling: the Slack webhook is NEVER committed. ``${SLACK_WEBHOOK_URL}``
 # is substituted from the environment at apply time (CI injects the
 # SLACK_WEBHOOK_URL secret; local runs read it from the env). The placeholder is
-# the only representation that lives in git.
+# the only representation that lives in git. Dasselbe gilt fuer
+# ``${WEBEX_WEBHOOK_URL}``: die Incoming-Webhook-URL von Webex traegt die
+# Zustellberechtigung IM PFAD (…/incoming/<ID>) -- wer sie hat, kann in den
+# Raum schreiben. Sie ist ein Secret und steht nur als Platzhalter in git.
 #
 # Before this file, routing was configured live-only via the Grafana UI, so a
 # Grafana rebuild would have silently dropped every route and delivered alerts
@@ -25,6 +28,75 @@ contactPoints:
     type: slack
     settings:
       url: ${SLACK_WEBHOOK_URL}
+    disableResolveMessage: false
+
+  # Webex-Raum fuer die Host-Telemetrie der Arbeitsmaschine (Ordner
+  # "Host Telemetry" in alert-rules.yaml). type=webhook, NICHT der eingebaute
+  # Webex-Typ: der spricht die Messages-API und will ein Bot-Token plus Raum-ID.
+  # Hier liegt eine Incoming-Webhook-URL vor, die den Raum bereits im Pfad
+  # traegt -- das bedient der generische Webhook.
+  #
+  # Webex nimmt an einem Incoming Webhook NUR ein JSON-Objekt mit `markdown`
+  # oder `text` an. Grafanas Standard-Webhook-Rumpf ist ein voellig anderes
+  # Schema und wuerde mit HTTP 400 abgelehnt, ohne dass in Grafana etwas rot
+  # wird. Deshalb ist `payload.template` PFLICHT, nicht Kosmetik.
+  - name: webex-macbook-alerts
+    type: webhook
+    settings:
+      url: ${WEBEX_WEBHOOK_URL}
+      httpMethod: POST
+      payload:
+        # Der Rumpf wird als Go-Template gerendert und muss GUELTIGES JSON
+        # ergeben. Genau daran scheitert die naheliegende Fassung: schreibt man
+        # den Markdown-Text direkt zwischen die Anfuehrungszeichen von
+        # "markdown", zerlegt der erste echte Zeilenumbruch -- und jedes
+        # Anfuehrungszeichen aus einer Annotation -- das JSON.
+        #
+        # Deshalb wird der Text erst in $md gesammelt und am Ende EINMAL mit
+        # printf "%q" ausgegeben. %q liefert ein fertig gequotetes, escaptes
+        # String-Literal und setzt die umschliessenden Anfuehrungszeichen
+        # selbst -- darum steht nach `"markdown":` kein eigenes mehr.
+        #
+        # ABER: %q ist Go-Quoting, nicht JSON-Quoting. Die beiden decken sich
+        # bei " \ \n \r \t und bei Unicode/Emoji, NICHT bei den uebrigen
+        # Steuerzeichen: Go schreibt fuer BEL `\a`, fuer Vertikaltab `\v` --
+        # beides kennt JSON nicht. Gemessen am gerenderten Ergebnis (Go
+        # text/template, dieselbe Engine, die Grafana benutzt): ein \a im
+        # Annotationstext ergibt `invalid character 'a' in string escape code`,
+        # Webex antwortet mit 400 und die Meldung faellt lautlos aus.
+        # Deshalb laeuft JEDER interpolierte Wert vorher durch
+        # reReplaceAll "[[:cntrl:]]" " " (Funktion gegen die Instanz geprueft,
+        # 2026-09-01: vorhanden; toJson/jsonEscape gibt es dort NICHT).
+        # Die Zeilenumbrueche der Nachricht stammen aus den Formatstrings, die
+        # nie durch diesen Filter gehen -- die Struktur bleibt also erhalten.
+        #
+        # `index .Labels "..."` statt `.Labels.alertname`: bei fehlendem
+        # Schluessel liefert die Feldschreibweise ueber printf `%!s(<nil>)` in
+        # den Text. index gibt den Leerstring.
+        template: |
+          {{- $sym := "🚨" -}}
+          {{- $head := "ALARM AUSGELOEST" -}}
+          {{- if eq .Status "resolved" -}}
+          {{- $sym = "✅" -}}
+          {{- $head = "BEHOBEN" -}}
+          {{- end -}}
+          {{- $md := printf "### %s **%s**\n\n" $sym $head -}}
+          {{- range .Alerts -}}
+          {{- $name := reReplaceAll "[[:cntrl:]]" " " (index .Labels "alertname") -}}
+          {{- $host := reReplaceAll "[[:cntrl:]]" " " (index .Labels "instance") -}}
+          {{- $desc := reReplaceAll "[[:cntrl:]]" " " (index .Annotations "description") -}}
+          {{- $book := reReplaceAll "[[:cntrl:]]" " " (index .Annotations "runbook") -}}
+          {{- $link := reReplaceAll "[[:cntrl:]]" " " .GeneratorURL -}}
+          {{- $md = printf "%s**%s** — `%s`\n\n" $md $name $host -}}
+          {{- if $desc -}}
+          {{- $md = printf "%s%s\n\n" $md $desc -}}
+          {{- end -}}
+          {{- if $book -}}
+          {{- $md = printf "%s> %s\n\n" $md $book -}}
+          {{- end -}}
+          {{- $md = printf "%s[Dashboard](https://bronzeporridge977.grafana.net/d/darwin-overview/macos-overview?var-instance=%s) · [Regel](%s)\n\n" $md $host $link -}}
+          {{- end -}}
+          {"markdown": {{ printf "%q" $md }}}
     disableResolveMessage: false
 
 # Notification policy tree (single tree per org; the PUT replaces it wholesale,
@@ -66,6 +138,40 @@ policy:
         - alertname
       group_wait: 30s
       repeat_interval: 30m
+      continue: false
+    # 2026-09-01: Host-Telemetrie der Arbeitsmaschine -> Webex, NICHT Slack.
+    #
+    # Der Kommentar an der required-Check-Route oben sagt, ein eigener Kanal sei
+    # "eine Operator-Entscheidung ueber ein Ziel, das dieses Repo nicht erfinden
+    # kann". Das Ziel liegt jetzt vor (Webex-Raum, Operator-Entscheid vom
+    # 2026-09-01), also wird die Naht hier benutzt statt verbreitert.
+    #
+    # Gematcht wird das LABEL alert_channel, nicht der Ordnername: ein Ordner
+    # laesst sich in der Grafana-UI umbenennen, ohne dass diese Datei es
+    # merkt -- die Route liefe danach ins Leere und niemand wuerde es sehen.
+    # Das Label steht in alert-rules.yaml an jeder Regel und reist mit ihr.
+    #
+    # `continue: false` -- die Host-Alarme landen NUR in Webex. Sie haben im
+    # Trading-Kanal nichts verloren; dort waeren sie das, was die entfernte
+    # Severity-Route war: Rauschen, das aussieht wie Abdeckung.
+    #
+    # Zustellfelder explizit, nicht geerbt (die Wurzel gruppiert nach
+    # grafana_folder+alertname und wiederholt nach Grafana-Vorgabe erst nach 4h):
+    #   * group_by [alertname, instance] -- CPU- und Speicheralarm sind
+    #     verschiedene Vorfaelle und sollen nicht in eine Nachricht fallen.
+    #   * repeat_interval 4h -- deckelt die Lautstaerke. Gemessen ueber 30 Tage
+    #     lagen 222 Fuenf-Minuten-Fenster ueber der CPU-Schwelle; ohne Deckel
+    #     waere das ein Dauerpiepen, mit ihm bleiben es hoechstens 6 Meldungen
+    #     pro Tag und Regel.
+    - receiver: webex-macbook-alerts
+      object_matchers:
+        - [alert_channel, "=", "webex"]
+      group_by:
+        - alertname
+        - instance
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
       continue: false
     # 2026-08-31 (Wirkungs-Sweep Befund E): die generische Severity-Route ist
     # ENTFERNT, weil sie an der Instanz nachweislich nichts tat. Gemessen an der

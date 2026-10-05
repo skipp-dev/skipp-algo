@@ -65,11 +65,32 @@ def test_repo_routing_pins_slack_contact_point_and_severity_route() -> None:
 
 
 def test_repo_routing_commits_no_secret_only_a_placeholder() -> None:
-    """The webhook must never be committed — only the ${SLACK_WEBHOOK_URL} ref."""
+    """Kein Webhook darf im Repo landen — nur die ${...}-Referenz.
+
+    2026-09-01: zweiter Kanal (Webex) dazugekommen, erwartete Menge
+    {SLACK_WEBHOOK_URL} -> {SLACK_WEBHOOK_URL, WEBEX_WEBHOOK_URL}. Die Menge
+    bleibt bewusst EXAKT gepinnt: ein dritter Platzhalter soll eine bewusste
+    Entscheidung sein, kein Nebeneffekt. Wichtiger als die Namensmenge sind
+    aber die Negativ-Zusicherungen darunter — sie sind es, die einen echten,
+    versehentlich einkopierten Webhook fangen.
+    """
     text = ROUTING.read_text(encoding="utf-8")
     assert "hooks.slack.com" not in text
+    # Die Webex-Incoming-URL traegt die Raum-Berechtigung im Pfad
+    # (…/v1/webhooks/incoming/<ID>) — der Host darf im Repo nur in Prosa
+    # vorkommen, nie als Wert einer settings.url.
+    for cp in mod.load_routing(ROUTING)["contactPoints"]:
+        url = str(cp.get("settings", {}).get("url", ""))
+        assert url.startswith("${") and url.endswith("}"), (
+            f"contact point {cp['name']!r} traegt eine woertliche URL statt "
+            f"eines Platzhalters"
+        )
     assert "${SLACK_WEBHOOK_URL}" in text
-    assert mod.find_placeholders(mod.load_routing(ROUTING)) == {"SLACK_WEBHOOK_URL"}
+    assert "${WEBEX_WEBHOOK_URL}" in text
+    assert mod.find_placeholders(mod.load_routing(ROUTING)) == {
+        "SLACK_WEBHOOK_URL",
+        "WEBEX_WEBHOOK_URL",
+    }
 
 
 # --------------------------------------------------------------------------- #

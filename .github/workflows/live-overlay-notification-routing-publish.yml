@@ -81,6 +81,10 @@ jobs:
           # placeholder. Token reuses the existing GRAFANA_API_TOKEN secret
           # under the GRAFANA_API_KEY name the upsert reads.
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          # Webex incoming webhook (secret) → ${WEBEX_WEBHOOK_URL}. Die URL
+          # traegt die Raum-Berechtigung im Pfad; sie steht nur als Platzhalter
+          # in notification-routing.yaml.
+          WEBEX_WEBHOOK_URL: ${{ secrets.WEBEX_WEBHOOK_URL }}
           GRAFANA_API_KEY: ${{ secrets.GRAFANA_API_TOKEN }}
         run: |
           set -euo pipefail
@@ -110,6 +114,15 @@ jobs:
 
           test -n "${SLACK_WEBHOOK_URL:-}" || {
             echo "::error::SLACK_WEBHOOK_URL secret is required to upsert the Slack contact point."
+            exit 1
+          }
+          # Diese beiden Pruefungen sind eine Bequemlichkeit, keine Zusicherung:
+          # sie melden den fehlenden Namen frueh und in Klartext. Die eigentliche
+          # Absicherung ist resolve_placeholders() im Upsert, das JEDEN in der
+          # YAML referenzierten ${VAR} aufloest und bei einem unbesetzten
+          # abbricht -- auch einen, der hier nie eingetragen wurde.
+          test -n "${WEBEX_WEBHOOK_URL:-}" || {
+            echo "::error::WEBEX_WEBHOOK_URL secret is required to upsert the Webex contact point."
             exit 1
           }
           test -n "${GRAFANA_API_KEY:-}" || {

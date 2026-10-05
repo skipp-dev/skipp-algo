@@ -6273,3 +6273,154 @@ groups:
       runbook: Check the snapshot flush path and the a0-fast-shadow volume (/app/data/pre-a0-snapshots,
         partitioned by session_date). Lost snapshot days cannot be reconstructed -- they have to be
         re-accumulated over live market days.
+- orgId: 1
+  name: darwin-host-telemetry
+  folder: Host Telemetry
+  interval: 1m
+  # Ressourcendruck der Entwickler-/Betriebsmaschine (macOS node_exporter,
+  # job=integrations/macos-node). Eigener ORDNER, nicht "Integration - MacOS
+  # Node": jenen Ordner befuellt die Grafana-Cloud-Integration selbst, und
+  # reconcile_orphan_groups() prueft JEDEN Ordner, der in dieser Datei
+  # vorkommt. Traegt diese Datei dort eine Gruppe ein, gelten die beiden
+  # Integrations-Gruppen (darwin-alerts, darwin-filesystem-alerts) als
+  # verwaist -- heute nur eine Warnung, mit --prune ein Loeschbefehl gegen
+  # fremden Bestand. Ein eigener Ordner nimmt dem Reconciler die Gelegenheit.
+  #
+  # KEIN instance="SPREUSS-M-WF39" in den Ausdruecken, obwohl genau dieser
+  # Host gemeint ist: ein hartkodierter Hostname macht die Regel bei einer
+  # Umbenennung still vakuum -- sie bleibt gruen und misst nichts mehr. Der
+  # job-Selektor kann das nicht; er traegt heute (gemessen 2026-09-01) genau
+  # eine Instanz, und `by (instance)` haengt den Hostnamen an jeden Alarm.
+  #
+  # noDataState: OK bei allen dreien. Ein Laptop, der zugeklappt ist, liefert
+  # keine Metriken -- das ist der Normalfall, kein Vorfall. NoData=Alerting
+  # haette hier jede Nacht gemeldet.
+  rules:
+  - uid: darwin-cpu-high
+    title: MacBook CPU sustained high
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        # Auslastung = 100% - Leerlauf. Das Ratenfenster ist [5m], NICHT [1m]:
+        # die Integration schrottet im 60s-Takt (gemessen 2026-09-01:
+        # count_over_time(...[1m]) = 1 Sample, [5m] = 5). rate() braucht
+        # mindestens zwei Punkte im Fenster, also liefert [1m] hier dauerhaft
+        # ein LEERES Ergebnis -- die Regel waere von Geburt an vakuum gewesen
+        # und haette nie gefeuert, ohne dass irgendetwas rot geworden waere.
+        #
+        # Der Vergleich steht NICHT im PromQL (kein `>= 90`): der Schwellwert
+        # gehoert in den threshold-Knoten C, sonst gaebe es zwei Tore und der
+        # Ausdruck lieferte statt eines Messwerts eine gefilterte Menge.
+        expr: (1 - avg by (instance) (rate(node_cpu_seconds_total{job="integrations/macos-node",mode="idle"}[5m]))) * 100
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params: [90]
+          operator: {type: and}
+          query: {params: [A]}
+    for: 2m
+    labels: {severity: warning, alert_channel: webex}
+    annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/docs/host_telemetry_runbook.md
+      summary: CPU-Auslastung ueber 90% seit 2 Minuten
+      description: Host {{ $labels.instance }} -- CPU {{ humanize $values.A.Value }}% (Schwelle 90%).
+      runbook: Verursacher finden (`top -o cpu`, Activity Monitor). Erwartbar bei Backtests,
+        Builds und TradingView-Automation -- gemessen ueber 30 Tage lagen 222 Fuenf-Minuten-Fenster
+        ueber 90%, also mehrmals taeglich. Bleibt es dauerhaft rot, ist ein Prozess haengengeblieben.
+  - uid: darwin-memory-high
+    title: MacBook memory pressure high
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        # ACHTUNG: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes
+        # existieren auf macOS NICHT -- das sind Linux-Metriken. Der darwin-
+        # node_exporter dieser Instanz liefert (gemessen 2026-09-01, volle
+        # Metrikliste des Jobs) nur active/compressed/free/inactive/internal/
+        # purgeable/swap_*/total/wired. Eine Regel auf MemAvailable liefert
+        # 0 Serien und ist damit dauerhaft still.
+        #
+        # Benutzt wird die Formel des Panels "Memory usage" aus dem Dashboard
+        # darwin-overview, damit Alarm und Anzeige dieselbe Zahl meinen:
+        # (internal - purgeable + wired + compressed) / total.
+        #
+        # Schwelle 85%, nicht 90%: gemessen betraegt der 7-Tage-Median 79,6%,
+        # p99 85,5%, das 30-Tage-Maximum 90,7%. Bei 90% waere in 30 Tagen
+        # GENAU EIN Fuenf-Minuten-Fenster ueber der Schwelle gewesen -- eine
+        # Regel, die formal korrekt ist und praktisch nie spricht. Bei 85%
+        # sind es 24 Fenster in 30 Tagen (16 in den letzten 7), die zudem
+        # 2 Minuten am Stueck halten -- selten genug fuer ein Signal, haeufig
+        # genug, um erwiesenermassen zu funktionieren.
+        expr: (node_memory_internal_bytes{job="integrations/macos-node"} - node_memory_purgeable_bytes{job="integrations/macos-node"} + node_memory_wired_bytes{job="integrations/macos-node"} + node_memory_compressed_bytes{job="integrations/macos-node"}) / node_memory_total_bytes{job="integrations/macos-node"} * 100
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params: [85]
+          operator: {type: and}
+          query: {params: [A]}
+    for: 2m
+    labels: {severity: warning, alert_channel: webex}
+    annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/docs/host_telemetry_runbook.md
+      summary: Speicherdruck ueber 85% seit 2 Minuten
+      description: Host {{ $labels.instance }} -- Speicher {{ humanize $values.A.Value }}% belegt (Schwelle 85%).
+      runbook: Speicherfresser identifizieren (Activity Monitor, Spalte "Memory"). Auf 16 GB
+        ist der Ruhewert dieser Maschine ~79%; anhaltend >85% bedeutet, dass der Kompressor
+        arbeitet und der naechste Schritt Auslagern ist -- siehe darwin-swap-thrashing.
+  - uid: darwin-swap-thrashing
+    title: MacBook sustained swap-out
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        # Warum DURCHSATZ und nicht Fuellstand: macOS legt die Swap-Datei
+        # dynamisch an. Gemessen ueber 7 Tage schwankt node_memory_swap_total
+        # zwischen 0 und 34 GB, und die Auslastung in Prozent hat den Median
+        # 91,5% (Max 98,7%) -- weil das System die Datei genau so gross macht,
+        # wie sie gebraucht wird. Eine Prozentregel darauf waere ein Dauerton
+        # gewesen, kein Alarm. Auch der Absolutwert taugt nicht: Median 12 GB,
+        # p95 28,7 GB.
+        #
+        # Was wirklich Druck anzeigt, ist anhaltendes Auslagern. Gemessen:
+        # Median 0,12 MB/s, p95 0,65, p99 1,11, Max 4,14. Die Schwelle 2 MB/s
+        # liegt klar ueber p99; mit `for: 10m` blieben in 30 Tagen 35 Fenster
+        # uebrig (3 in den letzten 7) -- nachweislich feuerbar und trotzdem
+        # selten. Bei 5 MB/s waeren es 0 gewesen: vakuum.
+        expr: rate(node_memory_swapped_out_bytes_total{job="integrations/macos-node"}[15m]) / 1024 / 1024
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params: [2]
+          operator: {type: and}
+          query: {params: [A]}
+    for: 10m
+    labels: {severity: warning, alert_channel: webex}
+    annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/docs/host_telemetry_runbook.md
+      summary: Anhaltendes Auslagern -- mehr als 2 MB/s seit 10 Minuten
+      description: Host {{ $labels.instance }} -- Swap-Out {{ humanize $values.A.Value }} MB/s (Schwelle 2 MB/s).
+      runbook: Die Maschine schreibt seit 10 Minuten dauerhaft Speicher auf die SSD. Das kostet
+        Latenz in jedem laufenden Dienst und Schreibzyklen. Groessten Speicherverbraucher beenden;
+        wenn es der Backtest ist, Parallelitaet senken.
