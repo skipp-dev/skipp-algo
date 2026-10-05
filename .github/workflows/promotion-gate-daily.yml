@@ -170,7 +170,7 @@ jobs:
       # Fail-soft: a miss leaves the Tier-1 fields None ("not measured").
       - name: Download accumulated family events (Tier-1 direction input)
         if: steps.download.outputs.status == 'ready'
-        uses: dawidd6/action-download-artifact@d63b86af1b34672e53c440b1b83979861906bad7 # v24
+        uses: dawidd6/action-download-artifact@eab87c9830c39eff17e5a6eadb20bfb4bc880477 # v27
         with:
           workflow: smc-measurement-benchmark-rolling.yml
           name: scored-family-events-accumulated
