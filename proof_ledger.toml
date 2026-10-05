@@ -3421,3 +3421,63 @@ reason = """
 2026-10-05: braucht appliedInstances als Schluessel (erst seit #5674); erreichbar,
 wenn der Refresh vor dem Lesen abbricht und das Feld leer bleibt.
 """
+
+[[proof]]
+id              = "5682"
+kind            = "fix"
+merged_at       = "<wird beim Merge nachgetragen>"
+merge_sha       = "<dito>"
+claim           = "tradingview-storage-refresh rotiert TV_STORAGE_STATE wieder: der Mitschnitt wird auf TradingViews Cookies beschnitten ('Pruned storage state: cookies <n> -> <m>'), als Datei geprueft, und der Lauf endet mit 'TV_STORAGE_STATE secret updated successfully.' statt mit 'Argument list too long' (exit 126, jeder Lauf seit 2026-09-08)."
+witness         = "tradingview-storage-refresh"
+witness_job     = "refresh"
+evidence_source = "job_log"
+artifact        = ""
+version_probe   = "Pruned storage state:"
+judge           = "tv_storage_refresh_pruned"
+state           = "OFFEN"
+due_by          = "2026-10-09"
+owner           = "operator"
+
+[[unreachable_branch]]
+judge  = "tv_storage_refresh_pruned"
+branch = "rotiert"
+reason = """
+2026-10-05: noch nicht geboren -- braucht den ersten Lauf nach dem Merge von
+#5682 (Cron taeglich 03:00 UTC). Der Korpus ist der letzte Lauf davor
+(Job 111603532773, 'Argument list too long'); sobald ein Lauf danach als
+Korpus aufgezeichnet ist, faellt diese Deklaration im Widerspruchs-Test auf.
+"""
+
+[[unreachable_branch]]
+judge  = "tv_storage_refresh_pruned"
+branch = "trockenlauf"
+reason = """
+2026-10-05: braucht einen Lauf nach #5682 mit dry_run=true (workflow_dispatch);
+der Cron schreibt immer. Erreichbar, sobald jemand einen Trockenlauf startet.
+"""
+
+[[unreachable_branch]]
+judge  = "tv_storage_refresh_pruned"
+branch = "nach_prune_gescheitert"
+reason = """
+2026-10-05: braucht einen Lauf nach #5682, der nach dem Beschneiden scheitert
+(Mitschnitt zu alt, 48-KB-Grenze, erneut zu gross fuer eine Umgebungsvariable).
+Vor #5682 gibt es keine Prune-Zeile, also auch kein 'danach'.
+"""
+
+[[unreachable_branch]]
+judge  = "tv_storage_refresh_pruned"
+branch = "prune_verweigert"
+reason = """
+2026-10-05: braucht einen Lauf nach #5682, dessen Mitschnitt kein sessionid-
+Cookie auf tradingview.com traegt; die Verweigerung druckt erst das neue
+scripts/tv_prune_storage_state.py.
+"""
+
+[[unreachable_branch]]
+judge  = "tv_storage_refresh_pruned"
+branch = "no_log"
+reason = """
+2026-10-05: nur erreichbar, wenn die Log-Abfrage leer zurueckkommt (Log
+abgelaufen oder API-Fehler); ein echter Lauf hat immer ein Log.
+"""
