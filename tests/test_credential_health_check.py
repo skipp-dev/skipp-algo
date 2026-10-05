@@ -135,6 +135,66 @@ def test_tv_storage_state_handles_trailing_z_iso_format() -> None:
     assert r.details["age_hours"] == pytest.approx(1.0, abs=0.05)
 
 
+# -- --tv-storage-state-file (2026-10-05) -------------------------------------
+# A capture above 128 KiB cannot be handed over as an environment string on
+# Linux; the refresh failed that way from 2026-09-08. The file option reads it
+# directly and must behave exactly like the env path otherwise.
+
+_ONLY_TV = [
+    "--skip-gh-pat",
+    "--skip-databento",
+    "--skip-fmp",
+    "--skip-benzinga",
+    "--skip-finnhub",
+    "--skip-newsapi",
+    "--skip-composio",
+]
+
+
+def _tv_probe_from_main(tmp_path, *extra: str) -> dict[str, Any]:
+    out = tmp_path / "report.json"
+    chc.main([*extra, *_ONLY_TV, "--output", str(out)])
+    probes = {p["name"]: p for p in json.loads(out.read_text())["probes"]}
+    return probes["tv_storage_state_age"]
+
+
+def test_tv_storage_state_file_reads_a_capture_larger_than_an_env_string(tmp_path, monkeypatch) -> None:
+    monkeypatch.delenv("TV_STORAGE_STATE", raising=False)
+    state = json.loads(_make_cookie(1.0))
+    state["cookies"] = [{"name": f"c{i}", "value": "v" * 100, "domain": ".example"} for i in range(2000)]
+    path = tmp_path / "storage-state.json"
+    path.write_text(json.dumps(state))
+    assert path.stat().st_size > 128 * 1024
+    probe = _tv_probe_from_main(tmp_path, "--tv-storage-state-file", str(path))
+    assert probe["severity"] == "ok"
+
+
+def test_tv_storage_state_file_wins_over_the_env(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("TV_STORAGE_STATE", _make_cookie(500.0))
+    path = tmp_path / "storage-state.json"
+    path.write_text(_make_cookie(1.0))
+    assert _tv_probe_from_main(tmp_path, "--tv-storage-state-file", str(path))["severity"] == "ok"
+
+
+def test_tv_storage_state_file_missing_or_empty_is_error(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("TV_STORAGE_STATE", _make_cookie(1.0))
+    missing = _tv_probe_from_main(tmp_path, "--tv-storage-state-file", str(tmp_path / "nope.json"))
+    assert missing["severity"] == "error"
+    assert "cannot read file" in missing["message"]
+    empty = tmp_path / "empty.json"
+    empty.write_text("  \n")
+    probe = _tv_probe_from_main(tmp_path, "--tv-storage-state-file", str(empty))
+    assert probe["severity"] == "error"
+    assert "is empty" in probe["message"]
+
+
+def test_tv_storage_state_env_path_unchanged(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("TV_STORAGE_STATE", "")
+    probe = _tv_probe_from_main(tmp_path)
+    assert probe["severity"] == "error"
+    assert probe["message"] == "env TV_STORAGE_STATE is empty — cannot probe TV cookie age"
+
+
 # -- GitHub PAT probe -------------------------------------------------------
 
 

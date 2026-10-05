@@ -46,6 +46,15 @@ fi
 REPORT_DIR="$(mktemp -d)"
 trap 'rm -rf "${REPORT_DIR}"' EXIT
 REPORT="${REPORT_DIR}/cred-health.json"
+PRUNED="${REPORT_DIR}/storage-state.pruned.json"
+
+# Same prune as the CI refresh ("Prune captured storage state to TradingView
+# cookies"): a local capture carries every cookie the browser profile ever
+# collected (2026-10-05: 3 106 cookies, 903 KiB, 19 of them TradingView's) —
+# far above the 48 KB secret limit. The prune works on a COPY; the local
+# capture stays as it is.
+echo "==> Pruning a copy of ${STATE_PATH} to TradingView cookies..."
+"${PYTHON_BIN}" scripts/tv_prune_storage_state.py "${STATE_PATH}" --out "${PRUNED}"
 
 echo "==> Validating ${STATE_PATH} (TTL ${MAX_AGE_HOURS}h) with the same probe CI uses..."
 
@@ -57,8 +66,12 @@ echo "==> Validating ${STATE_PATH} (TTL ${MAX_AGE_HOURS}h) with the same probe C
 # 12 failed runs on 2026-08-03 could veto a rotation. The skip set is now
 # MACHINE-ENFORCED by tests/test_credential_probe_consumers.py
 # (test_shell_consumers_skip_every_probe_except_tv).
-TV_STORAGE_STATE="$(cat "${STATE_PATH}")" \
-  "${PYTHON_BIN}" scripts/credential_health_check.py \
+#
+# The capture goes in as a FILE, never as TV_STORAGE_STATE="$(cat ...)": that
+# form broke the CI refresh from 2026-09-08 ("Argument list too long" once the
+# capture outgrew 128 KiB) and fails on macOS too above ~1 MB.
+"${PYTHON_BIN}" scripts/credential_health_check.py \
+    --tv-storage-state-file "${PRUNED}" \
     --tv-max-age-hours "${MAX_AGE_HOURS}" \
     --skip-gh-pat \
     --skip-databento \
@@ -105,7 +118,7 @@ echo "==> Writing ${SECRET_NAME} to ${SECRET_REPO}..."
 # Raw JSON. Both formats work — credential_health_check._loads_tv_storage_state
 # falls back to gzip+base64, and the publish workflows auto-detect — but raw
 # keeps the hand path inspectable. CI writes gzip+base64 for size.
-gh secret set "${SECRET_NAME}" --repo "${SECRET_REPO}" < "${STATE_PATH}"
+gh secret set "${SECRET_NAME}" --repo "${SECRET_REPO}" < "${PRUNED}"
 
 echo "==> Done. Confirm end-to-end with:"
 echo "    gh workflow run credential-health-check.yml"

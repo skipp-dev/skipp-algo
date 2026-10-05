@@ -922,6 +922,17 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     parser.add_argument(
+        "--tv-storage-state-file",
+        default=None,
+        help=(
+            "Read the TV storage_state (raw JSON or gzip+base64 JSON) from this file instead "
+            "of the env var. Use it for a fresh capture: Linux caps one environment string at "
+            "128 KiB, and a larger capture passed as TV_STORAGE_STATE=\"$(cat ...)\" fails "
+            "before Python starts ('Argument list too long', exit 126 — the refresh broke "
+            "this way from 2026-09-08)."
+        ),
+    )
+    parser.add_argument(
         "--tv-max-age-hours",
         type=float,
         default=72.0,
@@ -1014,17 +1025,34 @@ def main(argv: list[str] | None = None) -> int:
     results: list[ProbeResult] = []
 
     if not args.skip_tv:
-        tv_secret = os.environ.get(args.tv_storage_state_secret_env, "")
-        if not tv_secret.strip():
-            results.append(
-                ProbeResult(
-                    "tv_storage_state_age",
-                    "error",
-                    f"env {args.tv_storage_state_secret_env} is empty — cannot probe TV cookie age",
+        tv_secret: str | None
+        if args.tv_storage_state_file:
+            source = f"file {args.tv_storage_state_file}"
+            try:
+                tv_secret = Path(args.tv_storage_state_file).read_text(encoding="utf-8")
+            except OSError as exc:
+                tv_secret = None
+                results.append(
+                    ProbeResult(
+                        "tv_storage_state_age",
+                        "error",
+                        f"cannot read {source} ({type(exc).__name__}) — cannot probe TV cookie age",
+                    )
                 )
-            )
         else:
-            results.append(probe_tv_storage_state(tv_secret, args.tv_max_age_hours))
+            source = f"env {args.tv_storage_state_secret_env}"
+            tv_secret = os.environ.get(args.tv_storage_state_secret_env, "")
+        if tv_secret is not None:
+            if not tv_secret.strip():
+                results.append(
+                    ProbeResult(
+                        "tv_storage_state_age",
+                        "error",
+                        f"{source} is empty — cannot probe TV cookie age",
+                    )
+                )
+            else:
+                results.append(probe_tv_storage_state(tv_secret, args.tv_max_age_hours))
 
     if not args.skip_gh_pat:
         token = os.environ.get(args.gh_pat_env, "")

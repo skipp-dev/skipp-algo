@@ -254,11 +254,25 @@ jobs:
             npx tsx scripts/create_tradingview_storage_state.ts "${capture_args[@]}"
           fi
 
+      # Drop every cookie that is not TradingView's own BEFORE validating and
+      # writing back. The capture bootstraps from the previous secret, so ad and
+      # tracking cookies from the chart page piled up run after run until the
+      # capture outgrew Linux's 128 KiB limit for one environment string: from
+      # 2026-09-08 every refresh died in the next step with
+      # "/usr/bin/python: Argument list too long" (exit 126) and the secret aged
+      # past its TTL. The prune also keeps the payload far below the 48 KB
+      # secret limit, and it refuses (fails the run, secret untouched) if no
+      # TradingView sessionid cookie survives.
+      - name: Prune captured storage state to TradingView cookies
+        run: python scripts/tv_prune_storage_state.py automation/tradingview/auth/storage-state.json
+
       - name: Validate captured storage state
         run: |
           set -euo pipefail
           mkdir -p artifacts/ci
-          # credential_health_check.py reads TV_STORAGE_STATE as raw JSON content.
+          # The capture is handed over as a FILE (--tv-storage-state-file), never
+          # as TV_STORAGE_STATE="$(cat ...)": an environment string above 128 KiB
+          # fails before Python even starts (see the prune step above).
           # This refresh mints ONLY the TV storage-state, so its exit code must
           # reflect ONLY the tv_storage_state_age probe. `overall_severity` is
           # computed from the probes that actually RUN, so EVERY non-TV probe must
@@ -283,8 +297,8 @@ jobs:
           # fix. The rule is now MACHINE-ENFORCED by
           # tests/test_credential_probe_consumers.py, which derives the consumer
           # set from .github/workflows/*.yml and runs on the required path.
-          TV_STORAGE_STATE="$(cat automation/tradingview/auth/storage-state.json)" \
-            python scripts/credential_health_check.py \
+          python scripts/credential_health_check.py \
+              --tv-storage-state-file automation/tradingview/auth/storage-state.json \
               --tv-max-age-hours 72 \
               --skip-gh-pat \
               --skip-databento \
@@ -324,7 +338,15 @@ jobs:
           # Validate it's parseable JSON before writing.
           json.loads(raw)
           compressed = gzip.compress(raw, compresslevel=9)
-          print(base64.b64encode(compressed).decode(), end="")
+          payload = base64.b64encode(compressed).decode()
+          # An Actions secret holds at most 48 KB. Fail with the reason instead
+          # of letting `gh secret set` reject an oversized payload.
+          if len(payload) > 48_000:
+              print(f"::error::Storage state payload is {len(payload)} bytes after gzip+base64; "
+                    "Actions secrets are limited to 48 KB. The existing TV_STORAGE_STATE is unchanged.",
+                    file=sys.stderr)
+              sys.exit(1)
+          print(payload, end="")
           PYEOF
           )
           printf '%s' "$PAYLOAD" | gh secret set TV_STORAGE_STATE \
