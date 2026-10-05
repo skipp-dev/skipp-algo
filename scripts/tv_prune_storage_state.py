@@ -28,7 +28,7 @@ Prints counts and sizes only — never cookie names or values.
 
 Usage::
 
-    python scripts/tv_prune_storage_state.py STATE_JSON [--out OUT_JSON]
+    python -m scripts.tv_prune_storage_state STATE_JSON [--out OUT_JSON]   # from the repo root
 
 Without ``--out`` the file is rewritten in place (atomically via
 ``scripts.smc_atomic_write``, mode preserved). Stdlib only at runtime, so it
@@ -43,9 +43,6 @@ import sys
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
-
-if __package__ in (None, ""):  # run as `python scripts/tv_prune_storage_state.py`
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts.smc_atomic_write import atomic_write_text
 

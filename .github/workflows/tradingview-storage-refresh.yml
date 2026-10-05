@@ -264,7 +264,7 @@ jobs:
       # secret limit, and it refuses (fails the run, secret untouched) if no
       # TradingView sessionid cookie survives.
       - name: Prune captured storage state to TradingView cookies
-        run: python scripts/tv_prune_storage_state.py automation/tradingview/auth/storage-state.json
+        run: python -m scripts.tv_prune_storage_state automation/tradingview/auth/storage-state.json
 
       - name: Validate captured storage state
         run: |

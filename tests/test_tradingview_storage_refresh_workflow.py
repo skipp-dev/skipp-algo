@@ -270,7 +270,6 @@ def test_failure_issue_body_renders_as_markdown(workflow_text: str) -> None:
 # capture bootstraps from the previous secret and so carries every ad/tracking
 # cookie forward. These pins hold the three parts of the fix.
 
-PRUNE_SCRIPT = REPO_ROOT / "scripts" / "tv_prune_storage_state.py"
 
 
 def _step_block(workflow_text: str, name: str) -> str:
@@ -287,7 +286,7 @@ def test_capture_reaches_the_probe_as_a_file_never_as_an_env_string(workflow_tex
 
 def test_capture_is_pruned_before_it_is_validated_and_written(workflow_text: str) -> None:
     prune = _step_block(workflow_text, "Prune captured storage state to TradingView cookies")
-    assert "python scripts/tv_prune_storage_state.py automation/tradingview/auth/storage-state.json" in prune
+    assert "python -m scripts.tv_prune_storage_state automation/tradingview/auth/storage-state.json" in prune
     assert "if:" not in prune, "the prune must run in dry-run too, or a dry run validates a different file"
     order = [
         workflow_text.index("- name: Capture TradingView storage state"),
@@ -361,7 +360,8 @@ def test_prune_keeps_only_tradingview_cookies_and_origins() -> None:
 
 def _run_prune(*args: str) -> _subprocess.CompletedProcess[str]:
     return _subprocess.run(
-        [_sys.executable, str(PRUNE_SCRIPT), *args],
+        [_sys.executable, "-m", "scripts.tv_prune_storage_state", *args],
+        cwd=REPO_ROOT,
         capture_output=True,
         text=True,
         timeout=60,

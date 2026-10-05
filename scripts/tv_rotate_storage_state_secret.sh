@@ -54,7 +54,7 @@ PRUNED="${REPORT_DIR}/storage-state.pruned.json"
 # far above the 48 KB secret limit. The prune works on a COPY; the local
 # capture stays as it is.
 echo "==> Pruning a copy of ${STATE_PATH} to TradingView cookies..."
-"${PYTHON_BIN}" scripts/tv_prune_storage_state.py "${STATE_PATH}" --out "${PRUNED}"
+"${PYTHON_BIN}" -m scripts.tv_prune_storage_state "${STATE_PATH}" --out "${PRUNED}"
 
 echo "==> Validating ${STATE_PATH} (TTL ${MAX_AGE_HOURS}h) with the same probe CI uses..."
 
