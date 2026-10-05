@@ -1,0 +1,43 @@
+{
+  "_herkunft": {
+    "geladen_am": "2026-10-05",
+    "lauf_conclusion": "success",
+    "run_id": "37282819540",
+    "warum": "Lauf VOR #5674 — producerRefresh traegt kein appliedInstances"
+  },
+  "executionMode": "verify-only",
+  "ok": true,
+  "repoCommitSha": "95af09177db6d752a28ca4071ec0232b45b7afd5",
+  "producerRefresh": {
+    "requested": false,
+    "ok": true,
+    "removedInstances": 0,
+    "error": ""
+  },
+  "mutations": {
+    "sourceSaveRequested": false,
+    "sourceSavesCompleted": 0,
+    "producerRefreshRequested": false,
+    "producerInstancesRemoved": 0,
+    "consumerInstancesRemoved": 0,
+    "bindingRepairRequested": false,
+    "bindingsRepaired": 0,
+    "layoutSaveRequested": false,
+    "layoutSaved": false,
+    "savedChartUrls": [],
+    "abandonedChartUrls": [],
+    "partiallyRepairedChartUrls": [],
+    "savedWithoutAttestation": []
+  },
+  "sources": {
+    "expected": 12,
+    "checked": 12,
+    "drifted": 0
+  },
+  "bindings": {
+    "expectedConsumers": 10,
+    "checkedConsumers": 10,
+    "checkedBindings": 131,
+    "mismatches": 0
+  }
+}
