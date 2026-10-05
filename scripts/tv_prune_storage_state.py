@@ -38,6 +38,8 @@ runs on a bare CI runner without the repo's venv.
 from __future__ import annotations
 
 import argparse
+import base64
+import gzip
 import json
 import sys
 from pathlib import Path
@@ -104,10 +106,14 @@ def main(argv: list[str] | None = None) -> int:
     text = json.dumps(pruned, indent=2)
     target = Path(args.out) if args.out else source
     atomic_write_text(text, target)
+    # Same encoding the write-back step uses (gzip -9 + base64). Printed so
+    # every run shows how close the secret is to GitHub's 48 KiB limit.
+    secret_bytes = len(base64.b64encode(gzip.compress(text.encode("utf-8"), compresslevel=9)))
     print(
         f"Pruned storage state: cookies {stats['cookies_before']} -> {stats['cookies_after']}, "
         f"origins {stats['origins_before']} -> {stats['origins_after']}, "
-        f"size {len(raw.encode('utf-8')) / 1024:.1f} KiB -> {len(text.encode('utf-8')) / 1024:.1f} KiB"
+        f"size {len(raw.encode('utf-8')) / 1024:.1f} KiB -> {len(text.encode('utf-8')) / 1024:.1f} KiB, "
+        f"secret payload {secret_bytes} bytes (limit 48000)"
     )
     return 0
 

@@ -3425,8 +3425,11 @@ wenn der Refresh vor dem Lesen abbricht und das Feld leer bleibt.
 [[proof]]
 id              = "5682"
 kind            = "fix"
-merged_at       = "<wird beim Merge nachgetragen>"
-merge_sha       = "<dito>"
+# 2026-10-05 nachgetragen: `gh pr view 5682 --json mergedAt,mergeCommit` und
+# `git log -1 origin/main -- .github/workflows/tradingview-storage-refresh.yml`
+# stimmen ueberein (SHA identisch).
+merged_at       = "2026-10-05T17:02:06Z"
+merge_sha       = "b089f2a3f7ab2b80ef8a9b5279806d624f745fda"
 claim           = "tradingview-storage-refresh rotiert TV_STORAGE_STATE wieder: der Mitschnitt wird auf TradingViews Cookies beschnitten ('Pruned storage state: cookies <n> -> <m>'), als Datei geprueft, und der Lauf endet mit 'TV_STORAGE_STATE secret updated successfully.' statt mit 'Argument list too long' (exit 126, jeder Lauf seit 2026-09-08)."
 witness         = "tradingview-storage-refresh"
 witness_job     = "refresh"
@@ -3446,14 +3449,6 @@ reason = """
 #5682 (Cron taeglich 03:00 UTC). Der Korpus ist der letzte Lauf davor
 (Job 111603532773, 'Argument list too long'); sobald ein Lauf danach als
 Korpus aufgezeichnet ist, faellt diese Deklaration im Widerspruchs-Test auf.
-"""
-
-[[unreachable_branch]]
-judge  = "tv_storage_refresh_pruned"
-branch = "trockenlauf"
-reason = """
-2026-10-05: braucht einen Lauf nach #5682 mit dry_run=true (workflow_dispatch);
-der Cron schreibt immer. Erreichbar, sobald jemand einen Trockenlauf startet.
 """
 
 [[unreachable_branch]]

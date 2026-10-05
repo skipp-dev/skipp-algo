@@ -376,6 +376,7 @@ def test_prune_cli_rewrites_in_place_keeps_mode_and_prints_no_cookie_values(tmp_
     proc = _run_prune(str(path))
     assert proc.returncode == 0, proc.stderr
     assert "cookies 7 -> 3" in proc.stdout
+    assert "secret payload" in proc.stdout and "(limit 48000)" in proc.stdout
     assert "x" * 40 not in proc.stdout + proc.stderr
     assert "sessionid" not in proc.stdout
     written = _json.loads(path.read_text(encoding="utf-8"))
