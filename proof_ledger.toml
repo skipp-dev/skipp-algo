@@ -3367,3 +3367,57 @@ test_the_runner_prints_exactly_the_lines_the_judge_reads am echten Runner.
 Diese Erklaerung entfaellt, sobald der erste Lauf nach dem Merge als Korpus
 aufgezeichnet ist.
 """
+
+[[proof]]
+id              = "5674"
+kind            = "fix"
+merged_at       = "<wird beim Merge nachgetragen>"
+merge_sha       = "<dito>"
+claim           = "Ein Producer-Refresh meldet je Chart-Pane, welchen Quelltext die angewandte Instanz rechnet, und der Bericht faellt durch, wenn eine davon nicht der Repo-Stand ist."
+witness         = "tv-save-consumer-source"
+witness_job     = "save"
+evidence_source = "artifact"
+artifact        = "tradingview-consumer-bindings"
+version_probe   = "producerRefresh.appliedInstances"
+judge           = "tv_producer_refresh_applied_source"
+# Zeuge ist ein Lauf mit refresh_producer=true nach dem Merge (Dispatch oder
+# Ketten-Save nach einem Library-Refresh). Zeitplan-Verifies urteilen
+# STEHT_AUS/not_a_refresh_run — kein Befund ueber den Fix.
+state           = "OFFEN"
+due_by          = "2026-10-19"
+owner           = "operator"
+
+[[unreachable_branch]]
+judge  = "tv_producer_refresh_applied_source"
+branch = "stale_detected_red"
+reason = """
+2026-10-05: vor dem Merge von #5674 KONSTRUKTIONSBEDINGT unerreichbar — das Feld
+producerRefresh.appliedInstances entsteht erst mit dieser Aenderung. "Noch nicht
+geboren": der erste Refresh-Lauf nach dem Merge wird als Korpus aufgezeichnet,
+dann faellt diese Deklaration im Widerspruchs-Test auf und muss weg.
+"""
+
+[[unreachable_branch]]
+judge  = "tv_producer_refresh_applied_source"
+branch = "stale_but_green"
+reason = """
+2026-10-05: wie stale_detected_red — braucht appliedInstances, das es vor #5674
+nicht gibt. Nach dem Fix nur erreichbar, wenn report.ok die staleInstances-
+Klausel verliert; der Test in tv_producer_refresh_layouts.test.ts pinnt sie.
+"""
+
+[[unreachable_branch]]
+judge  = "tv_producer_refresh_applied_source"
+branch = "all_current"
+reason = """
+2026-10-05: braucht appliedInstances (erst seit #5674). Erreichbar, sobald ein
+Refresh nach dem Merge alle Panes auf den Repo-Stand bringt.
+"""
+
+[[unreachable_branch]]
+judge  = "tv_producer_refresh_applied_source"
+branch = "no_instance_read"
+reason = """
+2026-10-05: braucht appliedInstances als Schluessel (erst seit #5674); erreichbar,
+wenn der Refresh vor dem Lesen abbricht und das Feld leer bleibt.
+"""

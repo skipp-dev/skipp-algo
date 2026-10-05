@@ -13,6 +13,7 @@ import {
 
 import { tvSelectors, type PineDraftKind } from "../selectors.js";
 import { saveChartLayout } from "./tv_layout_save.js";
+import { normalizedPineSha256 } from "./tv_consumer_rollout_evidence.js";
 import {
   chartIntervalDisplayLabel,
   clipboardReadbackProvesWrite,
@@ -6352,6 +6353,69 @@ export async function refreshChartScriptInstance(page: Page, scriptName: string)
   // otherwise healthy session. Keep operator overrides, but provide enough
   // floor for the whole refresh transaction.
   }, Math.max(stepTimeoutMs(), 90_000));
+}
+
+export type AppliedInstanceSource = {
+  pane: number;
+  entityId: string | null;
+  sha256: string | null;
+  length: number;
+  error: string;
+};
+
+/**
+ * Which applied instances of `expectedSha256` are stale (or unreadable).
+ *
+ * 2026-10-05: a green producer refresh (save v435 + remove/re-add, 131 bindings
+ * repaired) left BOTH Suite instances on vWgAWyfC — one per chart pane — on old
+ * source (220 105 / 220 030 chars, neither carrying the new code). The refresh
+ * counted one instance per layout and never looked at what the panes actually
+ * run. Pure, so the verdict is provable without a browser.
+ */
+export function staleAppliedInstances(instances: AppliedInstanceSource[], expectedSha256: string): AppliedInstanceSource[] {
+  return instances.filter((instance) => instance.sha256 !== expectedSha256);
+}
+
+/**
+ * Read the source each chart pane's applied instance of `scriptName` carries.
+ *
+ * The legend's "Source code" action opens the source OF THAT INSTANCE (measured
+ * 2026-10-05: it showed the old code while the saved slot held v435), so this is
+ * the ground truth for "what does the chart compute". A docked Pine editor is
+ * closed first and after each read; its title-bar Close button sits outside the
+ * scope closePineEditorIfVisible searches.
+ */
+export async function readAppliedInstanceSources(page: Page, scriptName: string): Promise<AppliedInstanceSource[]> {
+  const closeEditor = async () => {
+    if (await page.locator("#pine-editor-dialog").first().isVisible().catch(() => false)) {
+      await page.locator('button[aria-label="Close"][title="Close"]').first().click().catch(() => undefined);
+      await page.waitForTimeout(1_500);
+    }
+  };
+  await closeEditor();
+  const panes = page.locator('[data-qa-id="chart-container"]');
+  const paneCount = await panes.count();
+  const out: AppliedInstanceSource[] = [];
+  for (let pane = 0; pane < paneCount; pane += 1) {
+    const rows = panes.nth(pane).locator('[data-qa-id="legend-source-item"]').filter({ hasText: scriptName });
+    const rowCount = await rows.count();
+    for (let r = 0; r < rowCount; r += 1) {
+      const row = rows.nth(r);
+      const entityId = await row.getAttribute("data-entity-id").catch(() => null);
+      try {
+        await row.locator('[data-qa-id*="legend-source-title"]').first().hover({ force: true });
+        await page.waitForTimeout(400);
+        await row.locator('[data-qa-id="legend-pine-action"]').click({ force: true });
+        const source = await readEditorContent(page, { expectedDeclarationTitle: scriptName });
+        out.push({ pane, entityId, sha256: normalizedPineSha256(source), length: source.length, error: "" });
+      } catch (error) {
+        out.push({ pane, entityId, sha256: null, length: 0, error: String((error as Error)?.message ?? error).slice(0, 300) });
+      }
+      tracePageEvent(page, "applied-instance-source", `${scriptName}:pane=${pane}:${entityId}:${out.at(-1)?.sha256?.slice(0, 12) ?? "unreadable"}`);
+      await closeEditor();
+    }
+  }
+  return out;
 }
 
 /**
