@@ -1,7 +1,20 @@
 # „One Percent A Week" (TASC 2026.03) nachgerechnet: TQQQ und QQQ 2018–2026
 
 Stand 2026-10-05. Auftrag des Operators vom selben Tag, dazu Varianten mit
-Stop-Loss 1–4 %. Eine Rückschau, kein Track Record.
+Stop-Loss 1–4 % und (Nachtrag unten) mit Trailing Stops 1–5 %. Eine
+Rückschau, kein Track Record.
+
+> **Korrektur, gleicher Tag.** Das vorregistrierte Placebo V2 war fehlerhaft:
+> Es kauft zur Montagseröffnung nur in den Wochen, in denen der Kurs danach
+> nachweislich 1 % darunter fiel, und ist damit gegenüber dem Rücksetzer-Kauf
+> um mindestens 1 % benachteiligt. Punkt 2 des Urteils war deshalb leicht zu
+> bestehen. Gegen einen fairen Vergleich (Kauf zur Montagseröffnung in **jeder**
+> Woche, gleiche Ausstiege) trägt der Rücksetzer-Einstieg **nichts Belegtes**
+> bei: TQQQ +0,28 % je Woche [−0,06; +0,64], QQQ −0,06 % [−0,20; +0,08].
+> Das Urteil „belegt vorteilhaft" unten ist damit **zurückgezogen**. Was bleibt:
+> Long Nasdaq in einer Hausse verdient Geld, auch mit dieser Regel; einen
+> eigenen Beitrag der Regel zeigen die Daten nicht. Einzelheiten im Abschnitt
+> „Fairer Vergleich".
 
 ## Die Regel (veröffentlichter Pine-Code, PineCoders)
 
@@ -88,3 +101,55 @@ Stop-Varianten: keine mit Intervall über null.
 Skripte und Einzeltrades: `~/.claude/scripts/family-fill-analysis/`
 (`opaw_prereg_2026-10-05.md`, `opaw.py`, `opaw_posthoc.py`,
 `results_opaw_*_2026-10-05.txt`); nicht im Repo.
+
+## Fairer Vergleich (nachträglich, nicht vorregistriert)
+
+Je Woche über **alle** 397 Wochen (Wochen ohne Kauf = 0): die Regel (DIP)
+gegen „Kauf zur Montagseröffnung jede Woche, identische Ausstiege" (OPEN).
+Dieses Vergleichsmaß weiß nichts über den späteren Verlauf der Woche.
+
+| Wert | Variante | DIP je Woche | OPEN je Woche | DIP minus OPEN [95 %] |
+|---|---|---|---|---|
+| TQQQ | Original | +0,34 % | +0,05 % | +0,28 % [−0,06; +0,64] |
+| QQQ | Original | +0,13 % | +0,19 % | −0,06 % [−0,20; +0,08] |
+
+Zum Vergleich dauerhaftes Halten je Woche: TQQQ +1,07 %, QQQ +0,42 %.
+
+## Nachtrag: Trailing Stops statt festem Stop
+
+Vorregistriert in `opaw_trailing_prereg_2026-10-05.md`: Trailing Stop 1–5 %
+unter dem Höchstkurs seit dem Kauf; **T** = alle Originalregeln plus Trailing
+Stop, **T-frei** = nur Trailing Stop und Freitagsschluss (kein +1-%-Ziel, kein
+Break-even).
+
+Je Trade (TQQQ):
+
+| Variante | 1 % | 2 % | 3 % | 4 % | 5 % |
+|---|---|---|---|---|---|
+| T | +0,02 % | +0,11 % | +0,22 % | +0,17 % | +0,19 % |
+| T-frei | −0,01 % | +0,42 % | +0,63 % | +0,91 % | +1,17 % |
+
+Schlechtester Trade mit Trailing Stop −4 bis −10 % (Original −17 %).
+
+Fairer Vergleich je Woche (DIP minus OPEN, 95 %):
+
+| Variante | TQQQ | QQQ |
+|---|---|---|
+| T 1 % … 5 % | −0,13 bis +0,13 %, alle Intervalle über null hinweg | −0,06 bis +0,04 %, alle über null hinweg |
+| T-frei 1 % | −0,19 % [−0,37; −0,00] | −0,04 % |
+| T-frei 5 % | +0,27 % [−0,17; +0,70] | −0,19 % [−0,39; −0,00] |
+
+Ablesung:
+- Mit den Originalregeln macht ein Trailing Stop die Regel schlechter: er
+  verkauft am Kauftag Gewinne zu früh, bevor das Ziel am Folgetag greift.
+- Ohne Ziel steigt der Ertrag mit der Weite des Trailing Stops — weil die
+  Position länger im steigenden Markt bleibt. Dieselben Ausstiege mit Kauf zur
+  Montagseröffnung verdienen ähnlich viel; auf QQQ sogar mehr.
+- Was ein weiter Trailing Stop auf TQQQ verändert, ist das Risiko, nicht der
+  Ertrag des Einstiegs: T-frei 5 % hatte bei vollem Einsatz einen größten
+  Rückgang von −31 % gegenüber −78 % beim dauerhaften Halten (Sharpe 1,32
+  gegen 0,90; mit Kauf zur Eröffnung 0,98). Das ist eine Suche über fünf
+  Weiten auf einer Hausse-Geschichte, kein Beleg.
+
+Ergebnisdateien: `results_opaw_trailing_{TQQQ,QQQ}_2026-10-05.txt`,
+`results_opaw_fair_{TQQQ,QQQ}_2026-10-05.txt`.
