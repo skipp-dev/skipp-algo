@@ -24,6 +24,11 @@ test("a report with trades yields the trade count", () => {
   assert.deepEqual(classifyReportText(WITH_TRADES), { state: "trades", totalTrades: 27, range: "Jul 1, 2025 — Oct 3, 2026" });
 });
 
+test("the List-of-trades tab reads as trades without a count", () => {
+  const text = "SMC Long-Dip Strategy\nJul 1, 2025 — Oct 3, 2026\n1 M USD\nDefault detalization\nScript execution\n1\n\nList of trades\n\nTrade number\nType";
+  assert.deepEqual(classifyReportText(text), { state: "trades", totalTrades: null, range: "Jul 1, 2025 — Oct 3, 2026" });
+});
+
 test("a panel that is still loading is neither", () => {
   assert.equal(classifyReportText("SMC Long-Dip Strategy").state, "unknown");
   assert.equal(classifyReportText("").state, "unknown");

@@ -529,3 +529,20 @@ def test_alertcondition_count_is_16() -> None:
     code = "\n".join(line.split("//", 1)[0] for line in source.splitlines())
     assert len(re.findall(r"\balertcondition\(", code)) == 0
     assert len(re.findall(r"\balert\(", code)) == 16
+
+
+def test_ready_diagnosis_log_names_every_failing_ready_gate() -> None:
+    """2026-10-05: Confirmed never became Ready (5 symbols x 3 years) and the expiry
+    log line is written after the reset, so it cannot name the gate. While debug logs
+    are on, every confirmed, not-yet-Ready bar logs ALL failing Ready gates;
+    scripts/tv_long_engine_log_readout.ts parses the line as event "LONG PENDING".
+    """
+    source = _read(CORE_PATH)
+    assert "if show_long_engine_debug_eff and barstate.isconfirmed and long_state.confirmed and not long_ready_state" in source
+    assert "log.info('LONG PENDING | ready={0} | failing={1}'" in source
+    # every gate the Ready blocker chain evaluates is named in the diagnosis
+    for gate in ("bar_gap", "confirm_expired", "not_fresh", "bearish_guard", "main_break", "setup_hard",
+                 "trade_hard", "environment_hard", "session_structure", "micro_session", "micro_freshness",
+                 "overhead_zone", "market_regime", "vola_regime", "quality", "accel", "second_derivative",
+                 "vol_regime_context", "stretch", "ddvi"):
+        assert f"' {gate}'" in source, gate

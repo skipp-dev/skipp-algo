@@ -20,6 +20,7 @@ import path from "node:path";
 import type { Locator, Page } from "playwright";
 import {
   closeTradingViewSession,
+  closePineEditorIfVisible,
   dismissPromotionOverlay,
   gotoChartAndAwaitScript,
   newTradingViewSession,
@@ -163,6 +164,14 @@ async function main(): Promise<void> {
       await gotoChartAndAwaitScript(page, `${base}?symbol=${encodeURIComponent(symbol)}&interval=${args.interval}`, SUITE_NAME);
       await page.waitForTimeout(4_000);
       await dismissPromotionOverlay(page).catch(() => undefined);
+      // A docked Pine editor squeezes the chart until the legend rows have no height.
+      if (!(await closePineEditorIfVisible(page).catch(() => false))) {
+        // closePineEditorIfVisible cannot reach the X of a DOCKED editor (title bar outside its scope);
+        // its own Close button (aria-label/title "Close") above the dialog closes it. Measured 2026-10-05.
+        const editorOpen = await page.locator('#pine-editor-dialog').first().isVisible().catch(() => false);
+        if (editorOpen) await page.locator('button[aria-label="Close"][title="Close"]').first().click().catch(() => undefined);
+        await page.waitForTimeout(2_000);
+      }
       if (args.session !== "keep") await setChartSessionMode(page, args.session as "Regular" | "Extended");
       await enableDebugLogs(page);
       await page.waitForTimeout(5_000);
