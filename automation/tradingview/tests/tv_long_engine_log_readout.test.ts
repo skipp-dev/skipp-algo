@@ -26,6 +26,12 @@ test("a LONG line parses into event and fields; a value may contain a colon", ()
   assert.equal(ev?.fields.reason, "OB setup expired");
 });
 
+test("the Ready diagnosis line parses as LONG PENDING with its failing gates", () => {
+  const ev = parseLongEvent("[2026-10-05T15:00:00.000+02:00]: LONG PENDING | ready=Awaiting Next Bar | failing=accel second_derivative");
+  assert.equal(ev?.event, "LONG PENDING");
+  assert.equal(ev?.fields.failing, "accel second_derivative");
+});
+
 test("other log lines are not lifecycle events", () => {
   assert.equal(parseLongEvent(splitLogLines(PANEL)[1]), null);
 });

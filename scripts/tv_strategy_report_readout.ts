@@ -22,6 +22,7 @@ import path from "node:path";
 import type { Page } from "playwright";
 import {
   closeTradingViewSession,
+  closePineEditorIfVisible,
   dismissPromotionOverlay,
   gotoChartAndAwaitScript,
   newTradingViewSession,
@@ -66,6 +67,9 @@ export function classifyReportText(text: string): { state: "no_trades" | "trades
   if (/This report requires trade data/i.test(text)) return { state: "no_trades", totalTrades: 0, range };
   const total = text.match(/\n(\d[\d,]*)\nTotal trades/);
   if (total) return { state: "trades", totalTrades: Number(total[1].replace(/,/g, "")), range };
+  // TradingView remembers the last report tab; on "List of trades" the count is not shown
+  // (seen 2026-10-05). The XLSX download carries the trades either way.
+  if (/\nList of trades\n/.test(text) && /\nTrade number\n/.test(text)) return { state: "trades", totalTrades: null, range };
   return { state: "unknown", totalTrades: null, range };
 }
 
@@ -190,6 +194,14 @@ async function main(): Promise<void> {
       await gotoChartAndAwaitScript(page, `${base}?symbol=${encodeURIComponent(symbol)}&interval=${args.interval}`, STRATEGY_NAME);
       await page.waitForTimeout(4_000);
       await dismissPromotionOverlay(page).catch(() => undefined);
+      // A docked Pine editor squeezes the chart until the legend rows have no height.
+      if (!(await closePineEditorIfVisible(page).catch(() => false))) {
+        // closePineEditorIfVisible cannot reach the X of a DOCKED editor (title bar outside its scope);
+        // its own Close button (aria-label/title "Close") above the dialog closes it. Measured 2026-10-05.
+        const editorOpen = await page.locator('#pine-editor-dialog').first().isVisible().catch(() => false);
+        if (editorOpen) await page.locator('button[aria-label="Close"][title="Close"]').first().click().catch(() => undefined);
+        await page.waitForTimeout(2_000);
+      }
       if (args.session !== "keep") await setChartSessionMode(page, args.session as "Regular" | "Extended");
       await showStrategy(page);
       for (const stage of args.stages) {
