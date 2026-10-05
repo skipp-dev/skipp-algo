@@ -53,13 +53,13 @@
     "tsc:check": "tsc --noEmit"
   },
   "dependencies": {
-    "otplib": "^13.4.1"
+    "otplib": "^13.5.0"
   },
   "devDependencies": {
-    "@types/node": "^26.2.0",
+    "@types/node": "^26.6.4",
     "esbuild": "~0.28.2",
-    "playwright": "^1.62.1",
-    "tsx": "^4.23.12",
+    "playwright": "^1.63.0",
+    "tsx": "^4.23.15",
     "typescript": "^6.0.3"
   }
 }
