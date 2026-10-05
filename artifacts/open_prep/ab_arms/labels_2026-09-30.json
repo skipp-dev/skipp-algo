@@ -1,0 +1,60 @@
+{
+  "day": "2026-09-30",
+  "labels": {
+    "AMAT": {
+      "pnl_30m_pct": -0.1841,
+      "profitable_30m": false,
+      "source": "outcomes"
+    },
+    "CCL": {
+      "pnl_30m_pct": 0.0789,
+      "profitable_30m": true,
+      "source": "outcomes"
+    },
+    "DNA": {
+      "pnl_30m_pct": 3.8075,
+      "profitable_30m": true,
+      "source": "outcomes"
+    },
+    "EEIQ": {
+      "pnl_30m_pct": null,
+      "profitable_30m": null,
+      "source": "pending"
+    },
+    "IOVA": {
+      "pnl_30m_pct": -2.5204,
+      "profitable_30m": false,
+      "source": "outcomes"
+    },
+    "ITG": {
+      "pnl_30m_pct": -4.1771,
+      "profitable_30m": false,
+      "source": "outcomes"
+    },
+    "RCL": {
+      "pnl_30m_pct": 2.4337,
+      "profitable_30m": true,
+      "source": "outcomes"
+    },
+    "SSTI": {
+      "pnl_30m_pct": 1.8585,
+      "profitable_30m": true,
+      "source": "outcomes"
+    },
+    "WYY": {
+      "pnl_30m_pct": null,
+      "profitable_30m": null,
+      "source": "pending"
+    },
+    "XRPN": {
+      "pnl_30m_pct": -0.3431,
+      "profitable_30m": false,
+      "source": "outcomes"
+    }
+  },
+  "pending": [
+    "WYY",
+    "EEIQ"
+  ],
+  "schema_version": 1
+}

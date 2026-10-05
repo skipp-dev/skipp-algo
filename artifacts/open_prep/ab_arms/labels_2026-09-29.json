@@ -1,0 +1,66 @@
+{
+  "day": "2026-09-29",
+  "labels": {
+    "BBUL": {
+      "pnl_30m_pct": null,
+      "profitable_30m": null,
+      "source": "pending"
+    },
+    "CD": {
+      "pnl_30m_pct": null,
+      "profitable_30m": null,
+      "source": "pending"
+    },
+    "CLRO": {
+      "pnl_30m_pct": null,
+      "profitable_30m": null,
+      "source": "pending"
+    },
+    "DULL": {
+      "pnl_30m_pct": null,
+      "profitable_30m": null,
+      "source": "pending"
+    },
+    "GDXD": {
+      "pnl_30m_pct": null,
+      "profitable_30m": null,
+      "source": "pending"
+    },
+    "HBR": {
+      "pnl_30m_pct": null,
+      "profitable_30m": null,
+      "source": "pending"
+    },
+    "KOD": {
+      "pnl_30m_pct": 1.5539,
+      "profitable_30m": true,
+      "source": "outcomes"
+    },
+    "LFCR": {
+      "pnl_30m_pct": null,
+      "profitable_30m": null,
+      "source": "pending"
+    },
+    "MAAS": {
+      "pnl_30m_pct": -11.2327,
+      "profitable_30m": false,
+      "source": "outcomes"
+    },
+    "TANH": {
+      "pnl_30m_pct": null,
+      "profitable_30m": null,
+      "source": "pending"
+    }
+  },
+  "pending": [
+    "LFCR",
+    "HBR",
+    "CLRO",
+    "BBUL",
+    "CD",
+    "DULL",
+    "TANH",
+    "GDXD"
+  ],
+  "schema_version": 1
+}
