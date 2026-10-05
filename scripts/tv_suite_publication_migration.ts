@@ -19,6 +19,9 @@
 //              Without it the layout is saved ONLY if every check passed (all scripts
 //              back, inputs identical by position, visibility restored, every binding
 //              repaired, the Suite instance on the repository source).
+//   publish    privately publish "SMC Long-Dip Suite" from the repository source
+//              (saved slot is brought to the repository source first). Run BEFORE
+//              migrate, so the re-added Suite comes from the publication.
 //
 // Usage: tsx scripts/tv_suite_publication_migration.ts --phase inventory --out <dir>
 //          [--charts vWgAWyfC,hKHTmKhu,twh98JLB]
@@ -33,8 +36,15 @@ import {
   dismissPromotionOverlay,
   gotoChartAndAwaitScript,
   newTradingViewSession,
+  ensurePineEditor,
+  openExistingScript,
+  publishPrivateScript,
   readAppliedInstanceSources,
+  readEditorContent,
   saveChangedChartLayout,
+  saveScript,
+  setEditorContent,
+  waitForPostSaveCompileSettlement,
 } from "../automation/tradingview/lib/tv_shared.js";
 import { normalizedPineSha256 } from "../automation/tradingview/lib/tv_consumer_rollout_evidence.js";
 
@@ -43,7 +53,7 @@ const expectedSuiteSha = () => normalizedPineSha256(fs.readFileSync("SMC_Long_Di
 export const SUITE = "SMC Long-Dip Suite";
 export const DEFAULT_CHARTS = ["vWgAWyfC", "hKHTmKhu", "twh98JLB"];
 
-export type MigrationArgs = { phase: "inventory" | "migrate"; out: string; charts: string[]; dryRun: boolean };
+export type MigrationArgs = { phase: "inventory" | "migrate" | "publish"; out: string; charts: string[]; dryRun: boolean };
 
 export function parseMigrationArgs(argv: string[]): MigrationArgs {
   const get = (flag: string): string | undefined => {
@@ -51,7 +61,7 @@ export function parseMigrationArgs(argv: string[]): MigrationArgs {
     return i >= 0 ? argv[i + 1] : undefined;
   };
   const phase = get("--phase");
-  if (phase !== "inventory" && phase !== "migrate") throw new Error(`unknown --phase: ${phase ?? "(missing)"}`);
+  if (phase !== "inventory" && phase !== "migrate" && phase !== "publish") throw new Error(`unknown --phase: ${phase ?? "(missing)"}`);
   const out = get("--out");
   if (!out) throw new Error("--out <dir> is required");
   const charts = (get("--charts") ?? DEFAULT_CHARTS.join(",")).split(",").map((c) => c.trim()).filter(Boolean);
@@ -111,6 +121,16 @@ const READ_INPUTS_SOURCE = `
 `;
 
 async function readInstanceInputs(page: Page, row: Locator): Promise<{ inputs: InputValue[]; error: string }> {
+  // The settings dialog occasionally is not up yet on the first read ("no dialog",
+  // 2026-10-05 dry run); one retry, and an empty read is reported, never silent.
+  const first = await readInstanceInputsOnce(page, row);
+  if (first.inputs.length > 0) return first;
+  await page.waitForTimeout(1_500);
+  const second = await readInstanceInputsOnce(page, row);
+  return second.inputs.length > 0 ? second : { inputs: [], error: second.error || first.error || "no inputs read" };
+}
+
+async function readInstanceInputsOnce(page: Page, row: Locator): Promise<{ inputs: InputValue[]; error: string }> {
   try {
     await row.locator('[data-qa-id*="legend-source-title"]').first().hover({ force: true });
     await page.waitForTimeout(400);
@@ -381,11 +401,45 @@ async function migrateChart(session: TradingViewSession, chartId: string, out: s
   return result;
 }
 
+async function publishSuite(page: Page, out: string) {
+  await gotoChartAndAwaitScript(page, "https://www.tradingview.com/chart/hKHTmKhu/", SUITE);
+  await page.waitForTimeout(4_000);
+  await dismissPromotionOverlay(page).catch(() => undefined);
+  await ensurePineEditor(page);
+  await openExistingScript(page, SUITE);
+  const repoSource = fs.readFileSync("SMC_Long_Dip_Suite.pine", "utf-8");
+  let editorSha = normalizedPineSha256(await readEditorContent(page, { expectedDeclarationTitle: SUITE }));
+  let savedNow = false;
+  if (editorSha !== expectedSuiteSha()) {
+    await setEditorContent(page, repoSource);
+    await saveScript(page, SUITE);
+    await waitForPostSaveCompileSettlement(page, SUITE);
+    editorSha = normalizedPineSha256(await readEditorContent(page, { expectedDeclarationTitle: SUITE }));
+    savedNow = true;
+  }
+  if (editorSha !== expectedSuiteSha()) throw new Error(`editor holds ${editorSha.slice(0, 12)}, repository ${expectedSuiteSha().slice(0, 12)}`);
+  await page.screenshot({ path: path.join(out, "publish-before.png") });
+  const result = await publishPrivateScript(page, {
+    scriptName: SUITE,
+    title: SUITE,
+    description: "SMC Long-Dip Suite — private publication of the repository source (skipp-algo).",
+  });
+  await page.screenshot({ path: path.join(out, "publish-after.png") });
+  return { savedNow, editorSha: editorSha.slice(0, 12), publishConfirmed: result.publishConfirmed, noChangeDetected: result.noChangeDetected, versionContext: result.versionContextTexts.slice(0, 5) };
+}
+
 async function main(): Promise<void> {
   const args = parseMigrationArgs(process.argv.slice(2));
   fs.mkdirSync(args.out, { recursive: true });
   const session = await newTradingViewSession();
   try {
+    if (args.phase === "publish") {
+      if (args.dryRun) throw new Error("publish has no dry run");
+      const res = await publishSuite(session.page, args.out);
+      console.log(JSON.stringify(res));
+      if (!res.publishConfirmed) process.exitCode = 1;
+      return;
+    }
     if (args.phase === "migrate") {
       const res = await migrateChart(session, args.charts[0], args.out, args.dryRun);
       console.log(JSON.stringify({ ...res, diffs: res.diffs.length, diffSample: res.diffs.slice(0, 40) }));
