@@ -164,6 +164,9 @@ jobs:
           GATE_WORKFLOW: ${{ github.workflow }}
           GATE_EVENT_NAME: ${{ github.event_name }}
           GATE_PRODUCER_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          # Der Job, der die Arbeit macht. Muss der Job-Id unten entsprechen —
+          # tests/test_decide_rolling_benchmark_run.py haelt beide zusammen.
+          GATE_WORKER_JOB: rolling-benchmark
         run: |
           # Die heutigen Laeufe DIESES Workflows. Schlaegt die Abfrage fehl,
           # bleibt RUNS leer — und die Entscheidung faellt fail-open auf
@@ -174,12 +177,32 @@ jobs:
             --workflow "${GATE_WORKFLOW}" \
             --created "$(date -u +%Y-%m-%d)" \
             --limit 50 \
-            --json conclusion,createdAt \
-            --jq '[.[] | {conclusion, created_at: .createdAt}]' 2>/dev/null || true)"
+            --json databaseId,conclusion,createdAt \
+            --jq '[.[] | {id: .databaseId, conclusion, created_at: .createdAt}]' 2>/dev/null || true)"
+          # Welche davon haben den Worker wirklich gefahren? `conclusion=success`
+          # sagt es NICHT: ein Fire, den dieses Gate ueberspringt, endet ebenfalls
+          # gruen (Gate-Job success, Worker skipped). Gemessen 2026-10-01: die
+          # uebersprungenen 09:xx/10:xx-Fires "bedienten" seit dem 31.8. jeden
+          # Tag Fenster A, das Tagesartefakt entstand erst nach 20:00 UTC und
+          # promotion-gate-daily (14:00 UTC) fand in 17 von 18 Laeufen nichts.
+          # Nur der Job-Befund unterscheidet beide Faelle. Faellt eine Abfrage
+          # aus, fehlt die Id — und ein Lauf ohne Befund bedient kein Fenster.
+          WORKED=""
+          for run_id in $(gh run list \
+            --repo "${GATE_REPOSITORY}" \
+            --workflow "${GATE_WORKFLOW}" \
+            --created "$(date -u +%Y-%m-%d)" \
+            --limit 50 \
+            --json databaseId,conclusion \
+            --jq '.[] | select(.conclusion == "success") | .databaseId' 2>/dev/null || true); do
+            WORKED="${WORKED} $(gh api "repos/${GATE_REPOSITORY}/actions/runs/${run_id}/jobs" \
+              --jq ".jobs[] | select(.name == \"${GATE_WORKER_JOB}\" and .conclusion == \"success\") | .run_id" 2>/dev/null || true)"
+          done
           python scripts/decide_rolling_benchmark_run.py \
             --event-name "${GATE_EVENT_NAME}" \
             --producer-conclusion "${GATE_PRODUCER_CONCLUSION}" \
-            --todays-runs "${RUNS}"
+            --todays-runs "${RUNS}" \
+            --worked-run-ids "${WORKED}"
 
   select-runner:
     # Kein Runner wird aufgeloest, wenn ohnehin nichts laeuft. Dieser Job
@@ -803,7 +826,8 @@ jobs:
       # re-uploading, the pool grows across successive days until the walk-
       # forward calibration has enough out-of-sample folds.
       #
-      # Deduplication key: (family, anchor_ts).  Tie-break: longest
+      # Deduplication key: the event_id (id-less events: (family, anchor_ts)).
+      # Tie-break: longest
       # forward_closes (newest daily run extends the outcome window the most).
       # Events older than 30 days are pruned from the pool each run.
       #

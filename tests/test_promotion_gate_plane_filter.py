@@ -35,6 +35,7 @@ def _triggered_event(family: str, anchor_ts: float, bar_seconds: float, drift: f
         "entry_mode": "immediate",
         "entry_price": 100.0,
         "score": 1.5,
+        "forward_opens": [100.0, *closes[:-1]],
         "forward_closes": closes,
         "forward_highs": [c + 1 for c in closes],
         "forward_lows": [c - 1 for c in closes],
@@ -130,3 +131,23 @@ def test_workflow_passes_the_governed_plane() -> None:
     )
     assert "build_promotion_gate_bundle.py" in runs
     assert "--plane            1D" in runs
+
+
+def test_coarse_grain_events_are_invisible_to_the_bundle(tmp_path: Path) -> None:
+    """ADR-0031, Nachtrag 2026-10-03 IV: the pool also carries BOS events on
+    the coarse grain (``pivot_lookup`` 50). Tier-1 measures the record."""
+    one_d = _one_d_events(40)
+    coarse = []
+    for i in range(10):
+        event = _triggered_event("BOS", 1_600_000_000.0 + 12 * 86_400.0 + i * 25 * 86_400.0, 86_400.0, drift=-2.0)
+        event["pivot_lookup"] = 50
+        coarse.append(event)
+    with_coarse = _run_bundle(tmp_path, one_d + coarse, ["--plane", "1D"])
+    reference_dir = tmp_path / "ref"
+    reference_dir.mkdir()
+    without = _run_bundle(reference_dir, one_d, ["--plane", "1D"])
+    bos_with = next(e for e in with_coarse if e["family"] == "BOS")
+    bos_without = next(e for e in without if e["family"] == "BOS")
+    assert bos_with["extras"]["n_triggered_returns"] == bos_without["extras"]["n_triggered_returns"]
+    assert bos_with["extras"] == bos_without["extras"]
+    assert bos_with["provenance"]["plane_filter_total"] == len(one_d)  # the grain filter runs first

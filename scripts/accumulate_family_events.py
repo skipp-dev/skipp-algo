@@ -11,7 +11,12 @@ event pool grows large enough for the walk-forward to assemble sufficient
 out-of-sample folds.
 
 Deduplication rule (Score-Persistenz):
-    Events are keyed by ``(family, anchor_ts)``.  When the same event appears
+    Events are keyed by their ``event_id`` (``<family>:<symbol>:<tf>:<anchor>:
+    <direction>:<levels>``, stable across daily runs; a BOS on the coarse
+    structure grain ends in ``:p50`` — ADR-0031, Nachtrag 2026-10-03 IV — and
+    is a different event from the fine one on the same bar).  Only an event
+    WITHOUT an id falls back to the legacy ``(family, anchor_ts)`` key.  When the same
+    event appears
     in multiple daily snapshots (re-detected as *open* structure), the version
     with the *longest* ``forward_closes`` list wins: each successive day
     the benchmark appends one more day of realized bars, so the newest version
@@ -19,6 +24,9 @@ Deduplication rule (Score-Persistenz):
     return calculation.  This is NOT lookahead: the forward bars were already
     generated at event-formation time in each separate daily run; we merely
     keep the most informative copy.
+
+    ``forward_opens`` missing from the winner are taken from the loser when
+    both copies carry the same forward bars (see ``_opens_of_the_same_bars``).
 
     Anchor-time fields missing from the winner are backfilled from the loser
     (the actual Score-Persistenz half of the fix).  ``score``, ``regime``,
@@ -33,6 +41,32 @@ Deduplication rule (Score-Persistenz):
     never grew past its 2026-06-11 seed).  Backfilling anchor-time fields
     from the older copy is not lookahead either: they were measured when
     the event formed, strictly from bars at or before the anchor.
+
+Event identity (2026-10-01):
+    Until this date the key was ``(family, anchor_ts)`` alone — written when
+    the pool held one instrument on one timeframe.  The pool has been
+    multi-symbol and multi-timeframe since #2667, and bars of different
+    symbols share their timestamps, so the key declared DIFFERENT events to be
+    the same one and kept a single survivor per family and bar.  Measured on
+    the daily file of 2026-09-24 (run 36055941993): 11 586 events, 11 586
+    distinct ``event_id``s, 1 570 distinct ``(family, anchor_ts)`` — 86 % of a
+    day's events were discarded before any gate saw them; on the governed 1D
+    plane 293 events became 62 (at most one per family and trading day).  The
+    ids are stable across runs (2026-09-23 vs 2026-09-24: 7 414 shared ids,
+    none with changed levels), which is what makes them the identity the
+    "same event, re-detected" rule above was always meant to use.
+
+Bar grid (2026-10-02):
+    Only events measured on the current bar grid
+    (``governance.family_returns.BAR_GRID``) are pooled. Until that date the
+    intraday bars were shifted by one minute against the exchange clock; the
+    same structure detected on both grids can carry the SAME ``event_id``
+    (same label, same level) while describing different bars, so the two
+    cannot be told apart once merged. Events of another grid — every event
+    without the stamp — are dropped on read and counted. The pool-continuity
+    guard compares like with like: it counts only the previous events that are
+    eligible under this rule, so the one-time transition is not mistaken for a
+    wiped input.
 
 Age filter:
     Events whose ``anchor_ts`` is older than a rolling N × 86 400-second
@@ -62,6 +96,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from governance.family_returns import BAR_GRID, event_bar_grid
 from scripts.smc_atomic_write import atomic_write_json
 
 
@@ -92,7 +127,7 @@ def _forward_len(event: dict[str, Any]) -> int:
 
 
 # Fields computed strictly from bars at or before the anchor. They are
-# immutable per (family, anchor_ts) but disappear from later re-detections
+# immutable per event but disappear from later re-detections
 # once the anchor drifts below the trailing-window requirement (ATR period,
 # regime/relative-volume lookbacks) in the sliding benchmark bar window.
 _ANCHOR_TIME_FIELDS: tuple[str, ...] = (
@@ -122,7 +157,52 @@ def _merge_event(
     for field in _ANCHOR_TIME_FIELDS:
         if merged.get(field) is None and loser.get(field) is not None:
             merged[field] = loser[field]
+    opens = _opens_of_the_same_bars(merged, loser)
+    if opens is not None:
+        merged["forward_opens"] = opens
     return merged
+
+
+def _opens_of_the_same_bars(
+    winner: dict[str, Any], loser: dict[str, Any]
+) -> list[Any] | None:
+    """The loser's ``forward_opens`` when they belong to the winner's bars.
+
+    Events recorded before 2026-10-02 carry no ``forward_opens``; the return
+    rule enters at one (ADR-0031, Nachtrag 2026-10-02 II), so such an event is
+    not a trade. A later re-detection of the same event does carry them. They
+    are taken over only when both copies describe the SAME forward bars —
+    identical timestamps and identical closes — because an open is a property
+    of a bar, and opens of other bars would shift or falsify the entry. A
+    winner that already has opens keeps its own.
+    """
+    if winner.get("forward_opens") is not None:
+        return None
+    opens = loser.get("forward_opens")
+    if not isinstance(opens, list) or not opens:
+        return None
+    timestamps = winner.get("forward_timestamps")
+    closes = winner.get("forward_closes")
+    if not timestamps or timestamps != loser.get("forward_timestamps"):
+        return None
+    if closes != loser.get("forward_closes") or len(opens) != len(closes or []):
+        return None
+    return list(opens)
+
+
+def _event_key(event: dict[str, Any], family: str, anchor_ts: float) -> tuple[Any, ...]:
+    """Identity of one event across daily snapshots.
+
+    The ``event_id`` names symbol, timeframe, anchor, direction and levels and
+    is therefore the event itself; ``(family, anchor_ts)`` is shared by every
+    symbol that printed the same family on the same bar and stays only as the
+    fallback for id-less (legacy / hand-built) events.  The two key spaces are
+    tagged so an id-less event can never collide with an id-bearing one.
+    """
+    event_id = event.get("event_id")
+    if isinstance(event_id, str) and event_id.strip():
+        return ("id", event_id.strip())
+    return ("legacy", family, anchor_ts)
 
 
 def _cutoff_ts(max_age_days: int) -> float:
@@ -139,13 +219,14 @@ def accumulate(
 ) -> list[dict[str, Any]]:
     """Merge *input_files* into a single deduplicated event list.
 
-    Deduplication key: ``(family, anchor_ts)``.
+    Deduplication key: the ``event_id`` (see :func:`_event_key`; id-less
+    events fall back to ``(family, anchor_ts)``).
     Tie-break: the event with the longest ``forward_closes`` list wins;
     anchor-time fields the winner lacks are backfilled from the loser
     (Score-Persistenz — see module docstring).
     Age filter: drop events older than ``max_age_days`` calendar days.
     """
-    by_key: dict[tuple[str, float], dict[str, Any]] = {}
+    by_key: dict[tuple[Any, ...], dict[str, Any]] = {}
     cutoff = _cutoff_ts(max_age_days)
 
     for path in input_files:
@@ -162,8 +243,10 @@ def accumulate(
                 continue
             if anchor_ts < cutoff:
                 continue  # too old — skip
+            if event_bar_grid(event) != BAR_GRID:
+                continue  # measured on another bar grid — a different event
 
-            key = (family, anchor_ts)
+            key = _event_key(event, family, anchor_ts)
             existing = by_key.get(key)
             if existing is None:
                 by_key[key] = event
@@ -172,8 +255,13 @@ def accumulate(
             else:
                 by_key[key] = _merge_event(existing, event)
 
-    # Sort by anchor_ts ascending so consumers get a deterministic order.
-    return sorted(by_key.values(), key=lambda e: float(e.get("anchor_ts", 0)))
+    # Sort by anchor_ts ascending so consumers get a deterministic order; the
+    # event_id breaks ties, which are the rule now that same-bar events of
+    # different symbols all survive.
+    return sorted(
+        by_key.values(),
+        key=lambda e: (float(e.get("anchor_ts", 0)), str(e.get("event_id") or "")),
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -248,9 +336,25 @@ def main(argv: list[str] | None = None) -> int:
             input_files.append(Path(args.previous))
 
     merged = accumulate(input_files, max_age_days=args.max_age_days)
+    other_grid = sum(
+        1
+        for path in input_files
+        if path.exists()
+        for event in _load_events(path)
+        if event_bar_grid(event) != BAR_GRID
+    )
+    if other_grid:
+        print(
+            f"accumulate_family_events: dropped {other_grid} input event(s) of another bar grid "
+            f"(pool grid: {BAR_GRID})",
+            file=sys.stderr,
+        )
 
     if args.max_shrink_fraction is not None and args.previous is not None:
-        prev_count = len(_load_events(Path(args.previous)))
+        # Like with like: previous events of another bar grid are dropped by
+        # rule, not lost, and must not count as a shrink.
+        previous_events = _load_events(Path(args.previous))
+        prev_count = sum(1 for event in previous_events if event_bar_grid(event) == BAR_GRID)
         floor_count = int(prev_count * (1.0 - args.max_shrink_fraction))
         if prev_count > 0 and (not merged or len(merged) < floor_count):
             print(

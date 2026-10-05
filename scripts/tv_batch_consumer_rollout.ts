@@ -7,6 +7,7 @@ import {
   bindingsAreComplete,
   buildRolloutProvenance,
   groupTargetsByLayout,
+  normalizedPineSha256,
   resolveExecutionPlan,
   resolveExpectedLayoutSavePoints,
   resolveLibraryPublishObservation,
@@ -26,7 +27,11 @@ import {
   gotoChartAndAwaitScript,
   isTrackedStepTimeoutError,
   newTradingViewSession,
+  readAppliedInstanceSources,
   refreshChartScriptInstance,
+  staleAppliedInstances,
+  takeScreenshot,
+  type AppliedInstanceSource,
   resolveConsumerRefreshTargets,
   resolveProducerRefreshChartUrls,
   saveChangedChartLayout,
@@ -173,7 +178,17 @@ type RolloutReport = {
    */
   outOfBandDrift: OutOfBandVerdict;
   save: { expected: number; succeeded: SaveConsumerResult[]; failed: FailedTarget[] };
-  producerRefresh: { requested: boolean; ok: boolean; removedInstances: number; error: string };
+  producerRefresh: {
+    requested: boolean;
+    ok: boolean;
+    removedInstances: number;
+    error: string;
+    // What each chart pane's applied producer instance runs after the refresh
+    // (2026-10-05: a green refresh left every pane on old source).
+    expectedSha256?: string;
+    appliedInstances?: Array<AppliedInstanceSource & { chartUrl: string }>;
+    staleInstances?: Array<AppliedInstanceSource & { chartUrl: string }>;
+  };
   consumerRefresh: { requested: boolean; ok: boolean; removedInstances: number; errors: string[] };
   sources: {
     expected: number;
@@ -666,6 +681,11 @@ async function main(): Promise<void> {
       }
     }
 
+    const producerSourceTarget = sourceVerificationTargets.find((target) => target.scriptName === config.producerName);
+    const producerExpectedSha256 = producerSourceTarget
+      ? normalizedPineSha256(fs.readFileSync(path.resolve(producerSourceTarget.source), "utf-8"))
+      : undefined;
+    report.producerRefresh.expectedSha256 = producerExpectedSha256;
     if (report.save.failed.length === 0 && executionPlan.refreshProducer) {
       // The applied producer instance lives in EVERY layout that carries
       // consumers (desktop primary + e.g. the Mobile layout the operator
@@ -680,7 +700,18 @@ async function main(): Promise<void> {
             // and aborted the whole block before the second layout.
             await gotoChart(session.page, producerChartUrl);
           }
+          const shotSlug = new URL(producerChartUrl).pathname.split("/").filter(Boolean).pop() ?? "chart";
+          await takeScreenshot(session.page, "producer-refresh", `before-${shotSlug}`).catch(() => undefined);
           report.producerRefresh.removedInstances += await refreshChartScriptInstance(session.page, config.producerName);
+          await takeScreenshot(session.page, "producer-refresh", `after-${shotSlug}`).catch(() => undefined);
+          if (producerExpectedSha256) {
+            const applied = (await readAppliedInstanceSources(session.page, config.producerName))
+              .map((instance) => ({ ...instance, chartUrl: producerChartUrl }));
+            (report.producerRefresh.appliedInstances ??= []).push(...applied);
+            (report.producerRefresh.staleInstances ??= []).push(
+              ...staleAppliedInstances(applied, producerExpectedSha256).map((instance) => ({ ...instance, chartUrl: producerChartUrl })),
+            );
+          }
         }
         report.producerRefresh.ok = true;
         report.mutations.producerInstancesRemoved = report.producerRefresh.removedInstances;
@@ -1041,7 +1072,11 @@ async function main(): Promise<void> {
     // what the repository holds, so every other clause below stays satisfied
     // and the run would otherwise be green while the registered evidence has
     // just stopped describing what is deployed.
+    // ...but a refresh that leaves an applied instance on stale source is not
+    // cosmetic: the chart (and every consumer bound to it) keeps computing the
+    // old code while the run reads green (2026-10-05, PR comment in tv_shared).
     report.ok = report.mutations.savedWithoutAttestation.length === 0
+      && (report.producerRefresh.staleInstances ?? []).length === 0
       && report.save.failed.length === 0
       && report.inputsMatchCommit
       && report.repositoryExpected.libraryRelease.matches

@@ -2,11 +2,11 @@
 
 ADR-0031: this is the missing "persisted returns source" edge the C6/C7
 track-record gate and the C5 regime stratification were blocked on. The
-returns definition is deliberately NOT new: it is the same Variant-A rule
-(``touch_then_horizon_close`` + fixed round-turn cost, see
-``governance/family_returns.py``) the daily promotion gate has graded
-direction edge with since 2026-07-06 — one repo-wide trade definition,
-no second scale to drift against.
+returns definition is deliberately NOT its own: it is the repo-wide rule in
+``governance/family_returns.py`` (``next_open_then_horizon_close`` + fixed
+round-turn cost since 2026-10-02; Variant A before) that the daily promotion
+gate grades direction edge with — one trade definition, no second scale to
+drift against.
 
 Input: the accumulated FamilyEvent pool
 (``accumulated_family_events.json``, a CI-artifact chain maintained by
@@ -17,6 +17,9 @@ Output (one JSON, atomic):
 
 * ``returns_by_variant`` — per-family net-return lists in exactly the
   Shape-B contract ``scripts/build_track_record_gate.py`` reads.
+* ``anchor_ts_by_variant`` — the anchor of every return, parallel to
+  ``returns_by_variant``; the gate counts trading days from it and
+  resamples whole days (ADR-0031, Nachtrag 2026-10-02).
 * ``trades`` — per-trade records ``{"pnl", "regime_at_entry", "family",
   "anchor_ts"}`` for :mod:`scripts.regime_stratification` /
   :mod:`scripts.regime_stratified_inference` (only events that both
@@ -51,8 +54,12 @@ from pathlib import Path
 from typing import Any
 
 from governance.family_returns import (
+    BAR_GRID,
     DEFAULT_COST_BPS,
+    PIVOT_LOOKUP,
     RETURN_RULE,
+    event_bar_grid,
+    event_pivot_lookup,
     extract_family_regime_samples,
     extract_family_returns,
 )
@@ -99,11 +106,16 @@ def build_series_payload(
     date: str,
     plane: str | None,
     cost_bps: float = DEFAULT_COST_BPS,
+    pivot_lookup: int = PIVOT_LOOKUP,
 ) -> dict[str, Any]:
-    """Assemble the series payload from an (already plane-filtered) pool."""
+    """Assemble the series payload from an (already plane- and grain-filtered) pool."""
     grouped = extract_family_returns(events, cost_bps=cost_bps)
     returns_by_variant = {
         family: list(bundle["returns"]) for family, bundle in sorted(grouped.items())
+    }
+    anchor_ts_by_variant = {
+        family: [float(ts) for ts in bundle["timestamps"]]
+        for family, bundle in sorted(grouped.items())
     }
     all_ts = [t for bundle in grouped.values() for t in bundle["timestamps"]]
 
@@ -129,22 +141,26 @@ def build_series_payload(
         "date": date,
         "measurement": {
             "return_rule": RETURN_RULE,
+            "bar_grid": BAR_GRID,
+            "pivot_lookup": pivot_lookup,
             "cost_bps": cost_bps,
             "regime_taxonomy": "point_in_time (TRENDING/RANGING/NEUTRAL)",
             "note": (
                 "net returns GIVEN a triggered setup (untriggered events are "
-                "not trades); entry zone-midpoint on first touch, exit at the "
-                "family-horizon close, fixed round-turn cost — see ADR-0031 "
-                "and governance/family_returns.py"
+                "not trades); entry at the open of the bar after the decision "
+                "bar, exit at the family-horizon close, fixed round-turn cost — "
+                "see ADR-0031 (Nachtrag 2026-10-02 II) and "
+                "governance/family_returns.py"
             ),
         },
         "plane": plane,
         "n_trades": n_trades,
         "n_trades_with_regime": len(trades),
         "returns_by_variant": returns_by_variant,
+        "anchor_ts_by_variant": anchor_ts_by_variant,
         "trades": trades,
         "trades_per_year": _trades_per_year(all_ts),
-        # Variant A has no target/stop, so no realized-RR concept applies;
+        # The rule has no target/stop, so no realized-RR concept applies;
         # rr_target=1.0 keeps the gate on its stricter 0.55 win-rate branch.
         "rr_target": 1.0,
     }
@@ -152,7 +168,7 @@ def build_series_payload(
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(
-        description="Persist the Variant-A per-trade returns series (ADR-0031)."
+        description="Persist the per-trade returns series (ADR-0031)."
     )
     p.add_argument("--events", type=Path, required=True, help="accumulated_family_events.json")
     p.add_argument("--date", required=True, help="Run date (YYYY-MM-DD), recorded in the payload")
@@ -164,9 +180,33 @@ def main(argv: list[str] | None = None) -> int:
         "their own modal bar cadence, mirroring build_promotion_gate_bundle.",
     )
     p.add_argument("--cost-bps", type=float, default=DEFAULT_COST_BPS)
+    p.add_argument(
+        "--pivot-lookup",
+        type=int,
+        default=PIVOT_LOOKUP,
+        help="Structure grain of the record (ADR-0031, Nachtrag 2026-10-03 IV); "
+        f"the pool holds {PIVOT_LOOKUP} (the record) and the coarse BOS grain side by side.",
+    )
     args = p.parse_args(argv)
 
     events = _load_pool_events(args.events)
+    # Events measured on the previous bar grid are different events (ADR-0031,
+    # Nachtrag 2026-10-02 III); a pool read before its first run on the
+    # corrected grid may still hold them.
+    on_grid = [e for e in events if event_bar_grid(e) == BAR_GRID]
+    if len(on_grid) != len(events):
+        print(
+            f"bar grid filter: kept {len(on_grid)}/{len(events)} pool events on grid {BAR_GRID}",
+            file=sys.stderr,
+        )
+    events = on_grid
+    # One grain per series: the pool carries fine and coarse BOS side by side.
+    on_grain = [e for e in events if event_pivot_lookup(e) == args.pivot_lookup]
+    print(
+        f"grain filter: kept {len(on_grain)}/{len(events)} pool events on pivot_lookup {args.pivot_lookup}",
+        file=sys.stderr,
+    )
+    events = on_grain
     plane_total = len(events)
     plane = args.plane
     if plane:
@@ -178,7 +218,9 @@ def main(argv: list[str] | None = None) -> int:
     else:
         plane = derive_measurement_plane(events)
 
-    payload = build_series_payload(events, date=args.date, plane=plane, cost_bps=args.cost_bps)
+    payload = build_series_payload(
+        events, date=args.date, plane=plane, cost_bps=args.cost_bps, pivot_lookup=args.pivot_lookup
+    )
     atomic_write_json(payload, args.output)
     print(
         f"wrote {args.output} (n_trades={payload['n_trades']}, "

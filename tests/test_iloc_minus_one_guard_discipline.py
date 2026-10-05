@@ -78,7 +78,8 @@ _KNOWN_HOTSPOTS: Final[frozenset[tuple[str, int]]] = frozenset(
         # aggregated bucket exceeds the source frame's max timestamp).
         # 2026-06-10 silent-fallback audit: 88 -> 109 (logging import +
         # 1D multi-row-per-day aggregation guard added above the site).
-        ("scripts/explicit_structure_from_bars.py", 109),
+        # 2026-10-02 start-stamped source bars (ADR-0031 Nachtrag III): 109 -> 169.
+        ("scripts/explicit_structure_from_bars.py", 169),
         # scripts/smc_session_structure.py — previous-day row + opening
         # range break; both consume closed daily frames.
         ("scripts/smc_session_structure.py", 96),

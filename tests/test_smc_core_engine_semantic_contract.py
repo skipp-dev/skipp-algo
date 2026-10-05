@@ -499,11 +499,21 @@ def test_alertcondition_uses_only_existing_variables() -> None:
     assert "lib_has_earnings" in source
 
 
-def test_trust_enforcement_suppresses_entry_at_insufficient() -> None:
-    """WP-3C: Trust Insufficient must suppress entry best/strict states."""
+def test_trust_enforcement_suppresses_entry_on_a_bad_feed_live_only() -> None:
+    """Entry best/strict are suppressed when the event provider is not ok, on live bars.
+
+    2026-10-04 (operator decision): the gate used to be
+    ``core_trust_tier_early != 'Insufficient'``. The tier rests on
+    SIGNAL_QUALITY_TIER, one universe-wide value with no structure, OB or FVG
+    input; it was "low" in all 243 library refreshes since 2026-08-14, so Entry
+    Best/Strict never fired (Pine logs: 'Blocked: Trust Insufficient' on every
+    lifecycle event, docs/governance/long_dip_strategy_report_2026-10-04.md).
+    The tier stays a displayed warning; it must not gate entries again.
+    """
     source = _read(CORE_PATH)
     assert "core_trust_tier_early = eng.resolve_trust_tier(" in source
-    assert "trust_allows_entry = core_trust_tier_early != 'Insufficient'" in source
+    assert "trust_allows_entry = not barstate.isrealtime or lib_erl_provider_status == 'ok'" in source
+    assert "trust_allows_entry = core_trust_tier_early" not in source
     assert "long_entry_best_state := false" in source
     assert "long_entry_strict_state := false" in source
     assert "'Blocked: Trust Insufficient'" in source
@@ -519,3 +529,20 @@ def test_alertcondition_count_is_16() -> None:
     code = "\n".join(line.split("//", 1)[0] for line in source.splitlines())
     assert len(re.findall(r"\balertcondition\(", code)) == 0
     assert len(re.findall(r"\balert\(", code)) == 16
+
+
+def test_ready_diagnosis_log_names_every_failing_ready_gate() -> None:
+    """2026-10-05: Confirmed never became Ready (5 symbols x 3 years) and the expiry
+    log line is written after the reset, so it cannot name the gate. While debug logs
+    are on, every confirmed, not-yet-Ready bar logs ALL failing Ready gates;
+    scripts/tv_long_engine_log_readout.ts parses the line as event "LONG PENDING".
+    """
+    source = _read(CORE_PATH)
+    assert "if show_long_engine_debug_eff and barstate.isconfirmed and long_state.confirmed and not long_ready_state" in source
+    assert "log.info('LONG PENDING | ready={0} | failing={1}'" in source
+    # every gate the Ready blocker chain evaluates is named in the diagnosis
+    for gate in ("bar_gap", "confirm_expired", "not_fresh", "bearish_guard", "main_break", "setup_hard",
+                 "trade_hard", "environment_hard", "session_structure", "micro_session", "micro_freshness",
+                 "overhead_zone", "market_regime", "vola_regime", "quality", "accel", "second_derivative",
+                 "vol_regime_context", "stretch", "ddvi"):
+        assert f"' {gate}'" in source, gate

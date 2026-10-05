@@ -95,11 +95,96 @@ def test_triggers_pinned() -> None:
         "branches und branches-ignore schliessen sich in Actions aus; ein "
         "wieder eingefuegtes branches wuerde die data/**-Ausnahme still kippen"
     )
-    paths_ignore = on_block["pull_request"].get("paths-ignore", [])
-    assert "**/*.md" in paths_ignore and "docs/**" in paths_ignore, (
-        "doc-only PR short-circuit must keep ignoring **/*.md and docs/** "
-        "(F-V8-C5-A, 2026-05-07)"
+    assert "paths-ignore" not in on_block["pull_request"], (
+        "paths und paths-ignore schliessen sich in Actions aus; der Filter steht "
+        "seit 2026-10-03 in `paths` (siehe test_the_pull_request_path_filter_*)"
     )
+
+
+def _glob_to_regex(pattern: str) -> str:
+    """GitHub's path-filter glob: ``*`` stays inside a segment, ``**`` crosses them."""
+    import re
+
+    out = []
+    i = 0
+    while i < len(pattern):
+        if pattern.startswith("**/", i):
+            out.append("(?:.*/)?")
+            i += 3
+        elif pattern.startswith("**", i):
+            out.append(".*")
+            i += 2
+        elif pattern[i] == "*":
+            out.append("[^/]*")
+            i += 1
+        else:
+            out.append(re.escape(pattern[i]))
+            i += 1
+    return "^" + "".join(out) + "$"
+
+
+def _pull_request_runs_for(files: list[str]) -> bool:
+    """Evaluate ci.yml's own ``pull_request.paths`` the way Actions does.
+
+    A file is included by the LAST pattern that matches it (``!`` excludes);
+    the workflow runs when at least one changed file ends up included.
+    """
+    import re
+
+    on_block = _on(_load())
+    patterns = on_block["pull_request"]["paths"]
+    assert patterns and patterns[0] == "**", "the filter must start from everything"
+
+    def included(path: str) -> bool:
+        verdict = False
+        for pattern in patterns:
+            negated = pattern.startswith("!")
+            if re.match(_glob_to_regex(pattern.lstrip("!")), path):
+                verdict = not negated
+        return verdict
+
+    return any(included(f) for f in files)
+
+
+# The nine files of #5647 (2026-10-03), the first bot gate PR without a file
+# outside docs/: `gh pr view 5647 --json files`.
+_PR_5647 = [
+    "docs/calibration/gates/15m/regime_stratified_2026-10-03.json",
+    "docs/calibration/gates/15m/track_record_gate_2026-10-03.json",
+    "docs/calibration/gates/15m_p50/track_record_gate_2026-10-03.json",
+    "docs/calibration/gates/epnl_after_cost_2026-10-03.json",
+    "docs/calibration/gates/ledger/returns_ledger_15m_p50.jsonl",
+    "docs/calibration/gates/ledger/returns_ledger_1D.jsonl",
+    "docs/calibration/gates/regime_stratified_2026-10-03.json",
+    "docs/calibration/gates/returns_series_2026-10-03.json",
+    "docs/calibration/gates/track_record_gate_2026-10-03.json",
+]
+
+
+def test_the_pull_request_path_filter_runs_for_a_gate_artifact_only_pr() -> None:
+    """The four ``validate (N)`` shards are required. A bot PR pushed with
+    GITHUB_TOKEN gets no ``push`` run, and a ``workflow_dispatch`` run is not
+    counted in the PR's required contexts (measured on #5647) — so the
+    ``pull_request`` trigger is the only lane that can report them."""
+    assert _pull_request_runs_for(_PR_5647)
+    assert _pull_request_runs_for(["docs/calibration/gates/README.md"]), "re-included after the .md exclusion"
+    assert _pull_request_runs_for(["docs/calibration/gates/ledger/returns_ledger_15m.jsonl"])
+
+
+def test_the_pull_request_path_filter_still_skips_other_doc_only_prs() -> None:
+    """F-V8-C5-A (2026-05-07): doc-only PRs skip the heavy lane; their shards
+    come from the status-only ``push`` run of the author's own push."""
+    assert not _pull_request_runs_for(["docs/governance/structure_grain_history_2026-10-03.md"])
+    assert not _pull_request_runs_for(["README.md", "CHANGELOG.md", "docs/adr/0031-track-record-returns-definition-and-channel.md"])
+    assert not _pull_request_runs_for(["docs/calibration/public_report.json"]), "only the gates directory is re-included"
+    assert not _pull_request_runs_for(["scripts/README.md"])
+
+
+def test_the_pull_request_path_filter_runs_for_code_and_mixed_prs() -> None:
+    assert _pull_request_runs_for(["scripts/build_returns_series.py"])
+    assert _pull_request_runs_for(["README.md", "governance/family_returns.py"])
+    assert _pull_request_runs_for([".github/workflows/ci.yml"])
+    assert _pull_request_runs_for(["cache/live/c13_status_markers.json", "docs/calibration/gates/returns_series_2026-10-02.json"])
 
 
 def test_concurrency_cancel_only_for_pr() -> None:

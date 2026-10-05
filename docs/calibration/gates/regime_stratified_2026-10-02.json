@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-02",
+  "n_trades_with_regime": 168,
+  "n_trades_total": 168,
+  "measurement": {
+    "return_rule": "next_open_then_horizon_close",
+    "bar_grid": "exchange_aligned",
+    "cost_bps": 5.0,
+    "regime_taxonomy": "point_in_time (TRENDING/RANGING/NEUTRAL)",
+    "note": "net returns GIVEN a triggered setup (untriggered events are not trades); entry at the open of the bar after the decision bar, exit at the family-horizon close, fixed round-turn cost \u2014 see ADR-0031 (Nachtrag 2026-10-02 II) and governance/family_returns.py"
+  },
+  "status": "ok",
+  "per_regime": {
+    "NEUTRAL": {
+      "skipped_reason": "insufficient_n",
+      "n": 22,
+      "regime_frequency_pct": 0.13095238095238096
+    },
+    "RANGING": {
+      "n": 127,
+      "regime_frequency_pct": 0.7559523809523809,
+      "sharpe": -0.20894179640536925,
+      "max_dd": -0.9697385260440663,
+      "win_rate": 0.4015748031496063,
+      "profit_factor": 0.5838155458718819
+    },
+    "TRENDING": {
+      "skipped_reason": "insufficient_n",
+      "n": 19,
+      "regime_frequency_pct": 0.1130952380952381
+    }
+  },
+  "aggregate": {
+    "value": -0.20894179640536925,
+    "method": "frequency_weighted",
+    "regimes_used": [
+      "RANGING"
+    ],
+    "regimes_skipped": [
+      "NEUTRAL",
+      "TRENDING"
+    ],
+    "unknown_share": 0.0
+  },
+  "concentration": {
+    "concentrated": false,
+    "dominant_regime": null,
+    "share_of_total_pnl": 0.0,
+    "threshold": 0.8,
+    "per_regime_pnl": {
+      "NEUTRAL": -0.2088878733267922,
+      "RANGING": -0.8290202644273579,
+      "TRENDING": -0.1428387247954213
+    }
+  },
+  "stratified_bootstrap": {
+    "statistic": "mean_net_return",
+    "observed": -0.006527718617538252,
+    "ci_lower": -0.012391752153571595,
+    "ci_upper": 3.5235250384171435e-05,
+    "n_resamples": 1000,
+    "per_regime_n": {
+      "NEUTRAL": 22,
+      "RANGING": 127,
+      "TRENDING": 19
+    },
+    "skipped_regimes": [
+      "NEUTRAL",
+      "TRENDING"
+    ],
+    "seed": 0
+  }
+}

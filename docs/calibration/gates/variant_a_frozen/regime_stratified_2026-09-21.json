@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "date": "2026-09-21",
+  "n_trades_with_regime": 27,
+  "n_trades_total": 27,
+  "measurement": {
+    "return_rule": "touch_then_horizon_close",
+    "cost_bps": 5.0,
+    "regime_taxonomy": "point_in_time (TRENDING/RANGING/NEUTRAL)",
+    "note": "net returns GIVEN a triggered setup (untriggered events are not trades); entry zone-midpoint on first touch, exit at the family-horizon close, fixed round-turn cost \u2014 see ADR-0031 and governance/family_returns.py"
+  },
+  "status": "insufficient_data",
+  "per_regime": {
+    "NEUTRAL": {
+      "skipped_reason": "insufficient_n",
+      "n": 7,
+      "regime_frequency_pct": 0.25925925925925924
+    },
+    "RANGING": {
+      "skipped_reason": "insufficient_n",
+      "n": 18,
+      "regime_frequency_pct": 0.6666666666666666
+    },
+    "TRENDING": {
+      "skipped_reason": "insufficient_n",
+      "n": 2,
+      "regime_frequency_pct": 0.07407407407407407
+    }
+  },
+  "aggregate": {
+    "value": null,
+    "method": "frequency_weighted",
+    "regimes_used": [],
+    "regimes_skipped": [
+      "NEUTRAL",
+      "RANGING",
+      "TRENDING"
+    ],
+    "unknown_share": 0.0
+  },
+  "concentration": {
+    "concentrated": false,
+    "dominant_regime": "RANGING",
+    "share_of_total_pnl": 0.7365639895010121,
+    "threshold": 0.8,
+    "per_regime_pnl": {
+      "NEUTRAL": 0.07273122275920374,
+      "RANGING": 0.2033556441100589,
+      "TRENDING": -0.05794378620680067
+    }
+  },
+  "stratified_bootstrap": {
+    "statistic": "mean_net_return",
+    "observed": null,
+    "ci_lower": null,
+    "ci_upper": null,
+    "n_resamples": 0,
+    "per_regime_n": {
+      "NEUTRAL": 7,
+      "RANGING": 18,
+      "TRENDING": 2
+    },
+    "skipped_regimes": [
+      "NEUTRAL",
+      "RANGING",
+      "TRENDING"
+    ],
+    "seed": 0
+  }
+}

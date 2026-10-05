@@ -240,9 +240,19 @@ jobs:
       # agrees with itself: that run reported matches=true at version 180 while
       # main was already on 182.
       #
-      # So wait for the COMMIT instead of for the workflow. The refresh names its
-      # branch after its own run id, which is exactly what this event carries, so
-      # the PR is identifiable rather than guessed at.
+      # So wait for the COMMIT instead of for the workflow. The PR is opened by
+      # smc-library-publish, which names its branch
+      # bot/library-refresh-<refresh run id>-<publish run id>-<attempt>; the
+      # refresh run id is exactly what this event carries, so the PR is
+      # identifiable rather than guessed at.
+      #
+      # 2026-10-01: that sentence used to read "the refresh names its branch
+      # after its own run id" and had been false since 2026-08-13, when the
+      # commit phase moved into smc-library-publish and the branch carried the
+      # PUBLISH run id. This lookup then matched nothing and the "no PR"
+      # branch below let every chained save start on the pre-refresh tree
+      # (14 of 14 failed chained saves, 2026-09-24..10-01). Both steps are now
+      # run against each other in tests/test_refresh_closes_superseded_bot_prs.py.
       - name: Await the refresh commit on main
         id: refresh_commit
         if: github.event_name == 'workflow_run'
@@ -255,9 +265,12 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
           REPO: ${{ github.repository }}
           REFRESH_RUN_ID: ${{ github.event.workflow_run.id }}
-          # Auto-merge on a bot/* PR skips heavy CI and lands in seconds; the
-          # observed gap was 20s. This is the outer bound before we would rather
-          # fail loudly than write a tree we cannot vouch for.
+          # The outer bound before we would rather fail loudly than write a
+          # tree we cannot vouch for. "Lands in seconds" stopped being true
+          # when the validate shards became required (2026-08-27): measured
+          # over the 60 refresh PRs merged in September 2026, open -> merged
+          # took a median of 297 s and 324 s at p90. 600 s covers that; a PR
+          # that needs longer is stuck, and stuck must be loud.
           AWAIT_TIMEOUT_SECONDS: "600"
         run: |
           set -euo pipefail

@@ -34,7 +34,10 @@ def _sweep_event(
         "direction": direction,
         "entry_mode": "immediate",
         "entry_price": 100.0,
+        "bar_grid": "exchange_aligned",
         "anchor_ts": anchor_ts,
+        # the bar after the signal opens at the level, later bars at the prior close
+        "forward_opens": [100.0, *closes[:-1]],
         "forward_closes": list(closes),
         "forward_highs": [c + 0.5 for c in closes],
         "forward_lows": [c - 0.5 for c in closes],
@@ -128,3 +131,69 @@ def test_cli_roundtrip_gate_shape(tmp_path: Path) -> None:
     # 2 trades << MIN_OOS_TRADES → honest red, never a crash.
     assert verdict["status"] == "red"
     assert verdict["n_trades"] == 2
+
+
+def test_every_return_carries_its_anchor_for_the_gates_day_checks() -> None:
+    """``anchor_ts_by_variant`` is parallel to ``returns_by_variant`` — the
+    gate counts trading days from it (ADR-0031, Nachtrag 2026-10-02). An
+    untriggered event contributes to neither list."""
+    from scripts.build_track_record_gate import build_track_record_gate_payload
+
+    events = [
+        _sweep_event(anchor_ts=_ANCHOR + day * _DAY, closes=(101.0, 102.0, 100.0 + day))
+        for day in (0, 0, 1, 3)
+    ]
+    events.append(_sweep_event(direction="", anchor_ts=_ANCHOR + 2 * _DAY))  # no trade
+
+    payload = build_series_payload(events, date="2026-10-02", plane="1D")
+
+    assert payload["anchor_ts_by_variant"] == {
+        "SWEEP": [_ANCHOR, _ANCHOR, _ANCHOR + _DAY, _ANCHOR + 3 * _DAY]
+    }
+    assert len(payload["returns_by_variant"]["SWEEP"]) == 4
+    verdict = build_track_record_gate_payload(payload)
+    days = {c["name"]: c for c in verdict["per_variant"]["SWEEP"]["checks"]}["trading_days"]
+    assert (days["status"], days["value"]) == ("red", 3.0)
+
+
+def test_the_series_names_its_bar_grid_and_ignores_events_of_another(tmp_path: Path, capsys) -> None:
+    """ADR-0031, Nachtrag 2026-10-02 III: a pool read before its first run on
+    the corrected grid still holds events detected on shifted bars."""
+    stamped = [_sweep_event(), _sweep_event(anchor_ts=_ANCHOR + _DAY, closes=(101.0, 102.0, 99.0))]
+    unstamped = _sweep_event(anchor_ts=_ANCHOR + 2 * _DAY)
+    del unstamped["bar_grid"]
+    pool = tmp_path / "pool.json"
+    pool.write_text(json.dumps([*stamped, unstamped]), encoding="utf-8")
+    out = tmp_path / "series.json"
+
+    assert main(["--events", str(pool), "--date", "2026-10-05", "--output", str(out)]) == 0
+
+    payload = json.loads(out.read_text(encoding="utf-8"))
+    assert payload["measurement"]["bar_grid"] == "exchange_aligned"
+    assert payload["n_trades"] == 2
+    assert "bar grid filter: kept 2/3 pool events on grid exchange_aligned" in capsys.readouterr().err
+
+
+def test_the_series_keeps_to_one_structure_grain(tmp_path: Path, capsys) -> None:
+    """ADR-0031, Nachtrag 2026-10-03 IV: the pool carries coarse BOS events
+    (pivot_lookup 50) next to the record; a series is one grain, the record's
+    unless asked otherwise, and names it."""
+    fine = [_sweep_event(), _sweep_event(anchor_ts=_ANCHOR + _DAY, closes=(101.0, 102.0, 99.0))]
+    coarse = _sweep_event(anchor_ts=_ANCHOR + 2 * _DAY)
+    coarse["pivot_lookup"] = 50
+    pool = tmp_path / "pool.json"
+    pool.write_text(json.dumps([*fine, coarse]), encoding="utf-8")
+    out = tmp_path / "series.json"
+
+    assert main(["--events", str(pool), "--date", "2026-10-05", "--output", str(out)]) == 0
+    payload = json.loads(out.read_text(encoding="utf-8"))
+    assert payload["measurement"]["pivot_lookup"] == 1
+    assert payload["n_trades"] == 2
+    assert "grain filter: kept 2/3 pool events on pivot_lookup 1" in capsys.readouterr().err
+
+    out50 = tmp_path / "series50.json"
+    assert main(["--events", str(pool), "--date", "2026-10-05", "--output", str(out50), "--pivot-lookup", "50"]) == 0
+    payload50 = json.loads(out50.read_text(encoding="utf-8"))
+    assert payload50["measurement"]["pivot_lookup"] == 50
+    assert payload50["n_trades"] == 1
+    assert "grain filter: kept 1/3 pool events on pivot_lookup 50" in capsys.readouterr().err

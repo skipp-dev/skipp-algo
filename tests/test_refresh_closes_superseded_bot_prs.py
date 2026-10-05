@@ -20,7 +20,7 @@ from pathlib import Path
 
 import pytest
 
-from tests._workflow_step_shell import BASH, declares_bash_default, run_step, step_by_name
+from tests._workflow_step_shell import BASH, Stub, declares_bash_default, run_step, step_by_name
 
 # 2026-08-13: Der Schritt gehoert zur Commit-Phase und ist mit ihr nach
 # smc-library-publish gezogen; der Refresh committet nicht mehr.
@@ -169,3 +169,188 @@ def test_the_selection_picks_only_superseded_refresh_branches(head_ref: str, sel
     assert bool(out) is selected, f"{head_ref!r} -> {out!r}"
     if selected:
         assert out == "4242"
+
+
+# ---------------------------------------------------------------------------
+# 2026-10-01: the chained save never found the PR this step opens.
+#
+# tv-save-consumer-source waits for the refresh commit by looking for a PR
+# whose branch starts with ``bot/library-refresh-<id of the REFRESH run>-``
+# (the id its workflow_run event carries). Since the commit phase moved here on
+# 2026-08-13, this step named the branch after its OWN run id -- the id of the
+# PUBLISH run. Two different numbers, so the lookup matched nothing and the
+# save read "No ... PR exists -- the refresh reported no post-publish changes"
+# as a legitimate no-op, started on the pre-refresh tree and refused on
+# "Library publish drift".
+#
+# Measured: 14 of 14 failed chained saves between 2026-09-24 and 2026-10-01
+# carry exactly that notice; the last one (36919569655) started 26 s after
+# PR #5597 was opened and 5 min before it merged. Each side had a test pinning
+# its own text, and both were green: nothing ran the two against each other.
+# The tests below do.
+# ---------------------------------------------------------------------------
+
+SAVE_WORKFLOW = "tv-save-consumer-source.yml"
+AWAIT_STEP = "Await the refresh commit on main"
+REFRESH_RUN = "36908068669"
+PUBLISH_RUN = "36919569627"
+
+
+def _branch_the_publish_step_creates(tmp_path: Path, env: dict[str, str]) -> str:
+    """Run the publish step and read the branch name off its own git call."""
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    calls = tmp_path / "calls"
+    calls.write_text("", encoding="utf-8")
+    bin_dir = tmp_path / "bin"
+    _write_stub(
+        bin_dir,
+        "git",
+        "#!/bin/sh\n"
+        f'{{ printf "%s " "$@"; printf "\\n"; }} >> "{calls}"\n'
+        'case "$*" in *"--cached --quiet"*) exit 1 ;; esac\n'
+        "exit 0\n",
+    )
+    _write_stub(
+        bin_dir,
+        "gh",
+        "#!/bin/sh\n" f'{{ printf "%s " "$@"; printf "\\n"; }} >> "{calls}"\n' "exit 0\n",
+    )
+    result = run_step(WORKFLOW, STEP, tmp_path, env=env)
+    assert result.returncode == 0, result.stderr
+    created = result.called_with("checkout", "-b")
+    assert len(created) == 1, created
+    return created[0].split()[2]
+
+
+def _await_step_against(tmp_path: Path, pull_requests: list[dict], refresh_run: str):
+    """Run the save's await step; ``gh pr list`` answers from ``pull_requests``.
+
+    The step filters inside gh (``--jq``), so the stub hands that exact filter
+    to the real jq over the sample payload -- the selection is executed, not
+    assumed.
+    """
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    payload = tmp_path / "prs.json"
+    payload.write_text(json.dumps(pull_requests), encoding="utf-8")
+    gh = Stub(
+        script=(
+            'filter=""\n'
+            'while [ "$#" -gt 0 ]; do\n'
+            '  if [ "$1" = "--jq" ]; then filter="$2"; fi\n'
+            "  shift\n"
+            "done\n"
+            f'exec jq -c "$filter" "{payload}"\n'
+        )
+    )
+    return run_step(
+        SAVE_WORKFLOW,
+        AWAIT_STEP,
+        tmp_path,
+        env={
+            "GH_TOKEN": "x",
+            "REPO": "skipp-dev/skipp-algo",
+            "REFRESH_RUN_ID": refresh_run,
+            "AWAIT_TIMEOUT_SECONDS": "1",
+        },
+        stubs={"gh": gh},
+    )
+
+
+def test_the_chained_save_finds_the_pr_this_step_opens(tmp_path: Path) -> None:
+    """Both halves executed against each other, with the real ids of the incident."""
+    branch = _branch_the_publish_step_creates(
+        tmp_path / "publish",
+        {**_env(), "GITHUB_RUN_ID": PUBLISH_RUN, "REFRESH_SOURCE_RUN_ID": REFRESH_RUN},
+    )
+
+    result = _await_step_against(
+        tmp_path / "save",
+        [{"number": 5597, "headRefName": branch, "state": "MERGED", "mergeCommit": {"oid": "85b66551d"}}],
+        REFRESH_RUN,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert result.outputs.get("sha") == "85b66551d", (
+        f"the save did not resolve the refresh commit from branch {branch!r}: {result.stdout}"
+    )
+    assert "No bot/library-refresh-" not in result.stdout
+
+
+def test_an_open_refresh_pr_makes_the_save_wait_instead_of_starting(tmp_path: Path) -> None:
+    """The state the incident run met: PR open, merge five minutes away.
+
+    With the timeout cut to one second the step must end in the loud
+    "did not merge within" failure -- proof that it WAITED on this PR. Before
+    the fix it exited 0 at once with the no-op notice.
+    """
+    branch = _branch_the_publish_step_creates(
+        tmp_path / "publish",
+        {**_env(), "GITHUB_RUN_ID": PUBLISH_RUN, "REFRESH_SOURCE_RUN_ID": REFRESH_RUN},
+    )
+
+    result = _await_step_against(
+        tmp_path / "save",
+        [{"number": 5597, "headRefName": branch, "state": "OPEN", "mergeCommit": None}],
+        REFRESH_RUN,
+    )
+
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "did not merge within" in result.stdout
+    assert "sha" not in result.outputs
+
+
+def test_a_refresh_pr_of_another_refresh_run_is_not_this_ones(tmp_path: Path) -> None:
+    """Identity, not recency: the neighbour's PR must not satisfy the wait."""
+    branch = _branch_the_publish_step_creates(
+        tmp_path / "publish",
+        {**_env(), "GITHUB_RUN_ID": PUBLISH_RUN, "REFRESH_SOURCE_RUN_ID": "36147883683"},
+    )
+
+    result = _await_step_against(
+        tmp_path / "save",
+        [{"number": 5525, "headRefName": branch, "state": "MERGED", "mergeCommit": {"oid": "5db4e72e5"}}],
+        REFRESH_RUN,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "sha" not in result.outputs
+    assert f"No bot/library-refresh-{REFRESH_RUN}-" in result.stdout
+
+
+def test_both_sides_take_the_id_from_the_same_refresh_run() -> None:
+    """The env bindings the harness cannot execute, pinned structurally.
+
+    ``run_step`` feeds env values in by hand, so the executed tests above prove
+    the shell on both sides agrees GIVEN the same id. That both steps are
+    actually handed the id of the same run is an Actions-expression fact.
+    """
+    import yaml
+
+    from tests._workflow_step_shell import WORKFLOWS
+
+    publish_step = step_by_name(WORKFLOW, STEP)
+    await_step = step_by_name(SAVE_WORKFLOW, AWAIT_STEP)
+    publish_expr = publish_step["env"]["REFRESH_SOURCE_RUN_ID"]
+    await_expr = await_step["env"]["REFRESH_RUN_ID"]
+    assert "github.event.workflow_run.id" in publish_expr
+    assert "inputs.source_run_id" in publish_expr, "a manual publish names its refresh run through source_run_id"
+    assert "github.event.workflow_run.id" in await_expr
+
+    # ... and that event is the completion of the same workflow on both sides.
+    for workflow in (WORKFLOW, SAVE_WORKFLOW):
+        doc = yaml.safe_load((WORKFLOWS / workflow).read_text(encoding="utf-8"))
+        triggers = doc.get("on") or doc.get(True)
+        assert "smc-library-refresh" in triggers["workflow_run"]["workflows"], workflow
+
+
+@pytest.mark.parametrize("source", ["", "main; rm -rf x", "12a"])
+def test_a_publish_without_a_usable_refresh_run_keeps_the_plain_name(tmp_path: Path, source: str) -> None:
+    """Manual dispatch without ``source_run_id`` (or with junk in it).
+
+    The value arrives through ``env:`` and ends up in a branch name, so only
+    digits are accepted; anything else falls back to the run's own id.
+    """
+    branch = _branch_the_publish_step_creates(
+        tmp_path, {**_env(), "GITHUB_RUN_ID": PUBLISH_RUN, "REFRESH_SOURCE_RUN_ID": source}
+    )
+    assert branch == f"bot/library-refresh-{PUBLISH_RUN}-1"

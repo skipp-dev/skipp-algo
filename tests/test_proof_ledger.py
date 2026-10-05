@@ -957,6 +957,145 @@ def test_the_judge_never_reads_the_run_conclusion():
     )
 
 
+# --- 2026-10-01: der Urteiler fuer #5025 las das Speichern nicht --------------
+
+
+def test_a_repair_that_was_not_saved_is_a_failure_not_a_pass():
+    """Lauf 35590264660: 108 Bindungen repariert, layoutSaved: false.
+
+    Eintrag 5025 behauptet "...und der repariert UND SPEICHERT". Der Urteiler
+    pruefte bis 2026-10-01 nur die andere Haelfte seines Namens -- "nichts
+    deployt, nichts zerlegt" -- und gab fuer diesen Lauf PASS/contract_held
+    zurueck. 32 solcher Laeufe in Folge (2026-09-01..09-21) blieben so
+    unsichtbar, waehrend 108 Bindungen auf dem Operator-Chart auf Close
+    standen. Ein Name, der mehr verspricht als sein Ausdruck prueft.
+    """
+    from scripts.proof_judges import corpus_for, load_judge
+
+    entry = next(e for e in load_entries() if e.id == "5025")
+    corpus = dict(corpus_for("tv_repair_only_contract"))
+    evidence = corpus["35590264660"]
+    assert evidence["mutations"]["bindingsRepaired"] == 108  # Praemisse
+    assert evidence["mutations"]["layoutSaved"] is False  # Praemisse
+
+    verdict = load_judge("tv_repair_only_contract").judge(evidence, entry)
+
+    assert verdict.state == "FAIL", verdict
+    assert verdict.branch == "repaired_not_saved", verdict
+    assert "108" in verdict.detail, verdict
+
+
+def test_a_repair_run_that_repaired_nothing_cannot_witness_the_claim():
+    """Lauf 36820265832 erreichte den Browser nie (Publish-Drift 497 vs 544).
+
+    "Nichts deployt, nichts zerlegt" stimmt fuer ihn trivial -- er hat gar
+    nichts getan. Das als PASS zu fuehren hiesse, die leere Beobachtung als
+    Beweis fuer "repariert und speichert" zu zaehlen.
+    """
+    from scripts.proof_judges import corpus_for, load_judge
+
+    entry = next(e for e in load_entries() if e.id == "5025")
+    corpus = dict(corpus_for("tv_repair_only_contract"))
+
+    verdict = load_judge("tv_repair_only_contract").judge(corpus["36820265832"], entry)
+
+    assert verdict.state == "STEHT_AUS", verdict
+    assert verdict.branch == "nothing_repaired", verdict
+
+
+def test_the_repair_that_was_saved_still_passes():
+    """Gegenrichtung: der Zeuge vom 2026-08-23 darf nicht mit rot werden."""
+    from scripts.proof_judges import corpus_for, load_judge
+
+    entry = next(e for e in load_entries() if e.id == "5025")
+    corpus = dict(corpus_for("tv_repair_only_contract"))
+
+    verdict = load_judge("tv_repair_only_contract").judge(corpus["32620808573"], entry)
+
+    assert verdict.state == "PASS", verdict
+    assert verdict.branch == "contract_held", verdict
+
+
+# --- 2026-10-01: #5598, der Ketten-Save und der PR, den er nie fand ------------
+
+
+def _awaits_corpus() -> dict[str, dict]:
+    from scripts.proof_judges import corpus_for
+
+    return dict(corpus_for("tv_save_awaits_refresh_pr"))
+
+
+def test_the_incident_run_is_judged_a_failure():
+    """Job 110585304746 (Lauf 36919569655): kein PR gefunden, dann Drift-Verweigerung."""
+    from scripts.proof_judges import load_judge
+
+    verdict = load_judge("tv_save_awaits_refresh_pr").judge(_awaits_corpus()["110585304746"], None)
+    assert verdict.state == "FAIL", verdict
+    assert verdict.branch == "vor_dem_refresh_pr_gestartet", verdict
+    assert "36908068669" in verdict.detail, verdict
+
+
+def test_no_refresh_pr_without_a_refusal_is_not_a_failure():
+    """Job 101826138608 (7.9.): dieselbe Fehlsuche, aber die Queue hatte den Save
+    so lange aufgehalten, dass main schon stimmte. Der Lauf schrieb korrekt —
+    er kann nur nicht bezeugen, dass gewartet worden waere."""
+    from scripts.proof_judges import load_judge
+
+    verdict = load_judge("tv_save_awaits_refresh_pr").judge(_awaits_corpus()["101826138608"], None)
+    assert verdict.state == "STEHT_AUS", verdict
+    assert verdict.branch == "kein_refresh_pr", verdict
+
+
+def test_a_scheduled_or_dispatched_save_says_nothing_about_the_chain():
+    """Job 110420046513: verify-only per Dispatch, der Await-Schritt lief nicht."""
+    from scripts.proof_judges import load_judge
+
+    verdict = load_judge("tv_save_awaits_refresh_pr").judge(_awaits_corpus()["110420046513"], None)
+    assert verdict.state == "STEHT_AUS", verdict
+    assert verdict.branch == "kein_ketten_save", verdict
+
+
+def test_the_script_echo_alone_never_passes():
+    """Der Runner druckt den run-Block in JEDES Ketten-Save-Log — mit
+    ``Refresh commit ${sha} (PR #${number}) is on main`` als unaufgeloestem
+    Text. Das echte Vorfalls-Log traegt diese Zeile; ein Urteiler, der nach dem
+    Text sucht, saehe darin einen bestandenen Beweis."""
+    from scripts.proof_judges import load_judge
+
+    log = _awaits_corpus()["110585304746"]["log"]
+    assert "Refresh commit ${sha} (PR #${number}) is on main" in log  # Praemisse
+    verdict = load_judge("tv_save_awaits_refresh_pr").judge({"log": log}, None)
+    assert verdict.state != "PASS", verdict
+
+
+def test_the_rendered_lines_reach_pass_and_pruefen():
+    """Die zwei Zweige ohne echten Korpus, am echten Log mit der ausgegebenen
+    Zeile im Runner-Format — so wie sie nach dem Fix erscheinen wird."""
+    from scripts.proof_judges import load_judge
+
+    judge = load_judge("tv_save_awaits_refresh_pr")
+    log = _awaits_corpus()["110585304746"]["log"]
+    no_pr = next(line for line in log.splitlines() if "##[notice]No bot/library-refresh-" in line)
+    stamp = no_pr.split("##[notice]")[0]
+
+    awaited = log.replace(
+        no_pr, stamp + "##[notice]Refresh commit 85b66551d (PR #5597) is on main; checking that out."
+    )
+    verdict = judge.judge({"log": awaited}, None)
+    assert (verdict.state, verdict.branch) == ("PASS", "refresh_commit_abgewartet"), verdict
+
+    stuck = log.replace(
+        no_pr,
+        stamp
+        + "##[error]PR #5597 for refresh run 36908068669 did not merge within 600s (state OPEN). "
+        + "Merge it and re-dispatch this workflow.",
+    )
+    verdict = judge.judge({"log": stuck}, None)
+    assert (verdict.state, verdict.branch) == ("PRUEFEN", "refresh_pr_nicht_gemergt"), verdict
+
+    assert judge.judge({"log": ""}, None).branch == "kein_log"
+
+
 # --- Anti-Vakuitaet (Task 5) ------------------------------------------------
 
 

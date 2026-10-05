@@ -12,6 +12,8 @@ import {
 } from "playwright";
 
 import { tvSelectors, type PineDraftKind } from "../selectors.js";
+import { saveChartLayout } from "./tv_layout_save.js";
+import { normalizedPineSha256 } from "./tv_consumer_rollout_evidence.js";
 import {
   chartIntervalDisplayLabel,
   clipboardReadbackProvesWrite,
@@ -3974,6 +3976,62 @@ export async function dismissOverlapManagerOverlay(page: Page): Promise<void> {
   tracePageEvent(page, "dismiss-overlap-manager-overlay-done", `js-bypass:remaining=${remaining}`);
 }
 
+// What marks a TradingView promotion, as opposed to a tool dialog. Kept to
+// phrases a settings / indicator / alert dialog does not carry.
+const PROMOTION_OVERLAY_TEXT = /offer ends in|explore offers?|\b\d{1,3}\s?% off\b/i;
+
+/**
+ * Close a TradingView promotion overlay through its own close button.
+ *
+ * Measured 2026-10-01 (repair-only run 36859274386, layout vWgAWyfC): a
+ * full-size "Autumn sale — Up to 80% off — Offer ends in …" modal sat on the
+ * chart and intercepted every click on five of seven settings dialogs
+ * ("<div class=modalContent-…> from <div data-id=…> subtree intercepts pointer
+ * events"); the run repaired 0 of 108 bindings. dismissOverlapManagerOverlay
+ * does not help there: it runs once after navigation, the promotion appears
+ * later, and its last resort would also neutralise an open settings dialog.
+ *
+ * Deliberately narrow: only an overlay that reads like an offer is touched,
+ * only its close control is clicked (never the offer button), and the result
+ * says whether the overlay is actually gone. Returns false both when there was
+ * no promotion and when one would not close — the caller's next click then
+ * fails with the screenshot, which is the honest outcome.
+ */
+export async function dismissPromotionOverlay(page: Page): Promise<boolean> {
+  if (page.isClosed()) return false;
+  const promotion = page
+    .locator('#overlap-manager-root [data-id], [role="dialog"]')
+    .filter({ hasText: PROMOTION_OVERLAY_TEXT });
+  if ((await promotion.count().catch(() => 0)) === 0) return false;
+
+  const overlay = promotion.first();
+  const headline = ((await overlay.innerText().catch(() => "")) ?? "").replace(/\s+/g, " ").trim().slice(0, 120);
+  tracePageEvent(page, "promotion-overlay-found", headline);
+
+  const closeCandidates = [
+    overlay.getByRole("button", { name: /^close$/i }),
+    overlay.locator('button[aria-label*="close" i], [role="button"][aria-label*="close" i]'),
+    overlay.locator('[data-name="close"], button[class*="close" i]'),
+  ];
+  for (const candidate of closeCandidates) {
+    const control = candidate.first();
+    if (!(await control.isVisible().catch(() => false))) continue;
+    await control.click({ timeout: 3_000 }).catch(() => undefined);
+    break;
+  }
+
+  const deadline = Date.now() + 3_000;
+  while (Date.now() < deadline) {
+    if ((await promotion.count().catch(() => 0)) === 0) {
+      tracePageEvent(page, "promotion-overlay-dismissed", headline);
+      return true;
+    }
+    await page.waitForTimeout(150).catch(() => undefined);
+  }
+  tracePageEvent(page, "promotion-overlay-stuck", headline);
+  return false;
+}
+
 async function collectVisibleIndicatorMyScriptNames(page: Page, limit = 8): Promise<string[]> {
   return page
     .locator('[data-name="indicators-dialog"] [data-id^="USER;"]')
@@ -6297,6 +6355,69 @@ export async function refreshChartScriptInstance(page: Page, scriptName: string)
   }, Math.max(stepTimeoutMs(), 90_000));
 }
 
+export type AppliedInstanceSource = {
+  pane: number;
+  entityId: string | null;
+  sha256: string | null;
+  length: number;
+  error: string;
+};
+
+/**
+ * Which applied instances of `expectedSha256` are stale (or unreadable).
+ *
+ * 2026-10-05: a green producer refresh (save v435 + remove/re-add, 131 bindings
+ * repaired) left BOTH Suite instances on vWgAWyfC — one per chart pane — on old
+ * source (220 105 / 220 030 chars, neither carrying the new code). The refresh
+ * counted one instance per layout and never looked at what the panes actually
+ * run. Pure, so the verdict is provable without a browser.
+ */
+export function staleAppliedInstances(instances: AppliedInstanceSource[], expectedSha256: string): AppliedInstanceSource[] {
+  return instances.filter((instance) => instance.sha256 !== expectedSha256);
+}
+
+/**
+ * Read the source each chart pane's applied instance of `scriptName` carries.
+ *
+ * The legend's "Source code" action opens the source OF THAT INSTANCE (measured
+ * 2026-10-05: it showed the old code while the saved slot held v435), so this is
+ * the ground truth for "what does the chart compute". A docked Pine editor is
+ * closed first and after each read; its title-bar Close button sits outside the
+ * scope closePineEditorIfVisible searches.
+ */
+export async function readAppliedInstanceSources(page: Page, scriptName: string): Promise<AppliedInstanceSource[]> {
+  const closeEditor = async () => {
+    if (await page.locator("#pine-editor-dialog").first().isVisible().catch(() => false)) {
+      await page.locator('button[aria-label="Close"][title="Close"]').first().click().catch(() => undefined);
+      await page.waitForTimeout(1_500);
+    }
+  };
+  await closeEditor();
+  const panes = page.locator('[data-qa-id="chart-container"]');
+  const paneCount = await panes.count();
+  const out: AppliedInstanceSource[] = [];
+  for (let pane = 0; pane < paneCount; pane += 1) {
+    const rows = panes.nth(pane).locator('[data-qa-id="legend-source-item"]').filter({ hasText: scriptName });
+    const rowCount = await rows.count();
+    for (let r = 0; r < rowCount; r += 1) {
+      const row = rows.nth(r);
+      const entityId = await row.getAttribute("data-entity-id").catch(() => null);
+      try {
+        await row.locator('[data-qa-id*="legend-source-title"]').first().hover({ force: true });
+        await page.waitForTimeout(400);
+        await row.locator('[data-qa-id="legend-pine-action"]').click({ force: true });
+        const source = await readEditorContent(page, { expectedDeclarationTitle: scriptName });
+        out.push({ pane, entityId, sha256: normalizedPineSha256(source), length: source.length, error: "" });
+      } catch (error) {
+        out.push({ pane, entityId, sha256: null, length: 0, error: String((error as Error)?.message ?? error).slice(0, 300) });
+      }
+      tracePageEvent(page, "applied-instance-source", `${scriptName}:pane=${pane}:${entityId}:${out.at(-1)?.sha256?.slice(0, 12) ?? "unreadable"}`);
+      await closeEditor();
+    }
+  }
+  return out;
+}
+
 /**
  * Where to double-click inside a legend row, guaranteed to land INSIDE it.
  *
@@ -7745,39 +7866,19 @@ export async function closePineEditorIfVisible(page: Page): Promise<boolean> {
  * reloaded chart) reverts to the last SAVED layout, so a force-rebind that
  * reads back "bound" in its own session silently does not stick (2026-07-25:
  * consumers stayed on "Close" on the live chart while every rebind run
- * reported mismatches:0). Mirrors scripts/tv_onboard_consumers.ts. Idempotent:
- * a no-op when the header toolbar already reads "all changes saved".
+ * reported mismatches:0).
+ *
+ * The mechanics live in tv_layout_save.ts, shared with the onboarding package:
+ * the save counts when TradingView answered `POST /api/v1/charts/save/`, not
+ * when a header control changed its label. A button that reports nothing to
+ * save is believed (measured, see that file), so this is a no-op on a layout
+ * TradingView's autosave already persisted.
  */
 export async function saveChangedChartLayout(page: Page): Promise<void> {
   await runTrackedStep(page, "saveChangedChartLayout", async () => {
-    const buttons = page.locator('button[data-qa-id="header-toolbar-save-load"]');
-    let saveButton: Locator | null = null;
-    for (let index = 0; index < (await buttons.count()); index += 1) {
-      const candidate = buttons.nth(index);
-      if (await candidate.isVisible().catch(() => false)) {
-        saveButton = candidate;
-        break;
-      }
-    }
-    if (!saveButton) {
-      throw new Error("chart layout save control (header-toolbar-save-load) not found");
-    }
-    const alreadySaved = await saveButton.getAttribute("aria-label").catch(() => null);
-    if (/all changes saved/i.test(alreadySaved ?? "")) {
-      tracePageEvent(page, "chart-layout-already-saved");
-      return;
-    }
-    await saveButton.click();
-    const deadline = Date.now() + 20_000;
-    while (Date.now() < deadline) {
-      const ariaLabel = await saveButton.getAttribute("aria-label").catch(() => null);
-      if (/all changes saved/i.test(ariaLabel ?? "")) {
-        tracePageEvent(page, "chart-layout-saved");
-        return;
-      }
-      await page.waitForTimeout(250);
-    }
-    throw new Error("TradingView did not confirm the chart layout was saved within 20s");
+    await dismissPromotionOverlay(page);
+    const outcome = await saveChartLayout(page);
+    tracePageEvent(page, "chart-layout-saved", `${outcome.trigger} control=${outcome.control} http=${outcome.status}`);
   });
 }
 
@@ -9722,6 +9823,11 @@ export async function openSettingsForScript(
   options: { allowChartRefresh?: boolean } = {},
 ): Promise<boolean> {
   const allowChartRefresh = options.allowChartRefresh === true;
+  // A promotion overlay can appear at any point in the session and then sits
+  // above or below the dialog this function opens (both seen in run
+  // 36859274386). Closing it here covers every caller that is about to work
+  // inside a settings dialog.
+  await dismissPromotionOverlay(page);
   // Both modes retry the settings-menu open once. The open is inherently flaky:
   // the TradingView chart legend races with pointer-intercepting overlays (e.g.
   // the "publish" menu item), so a single attempt fails transiently. The

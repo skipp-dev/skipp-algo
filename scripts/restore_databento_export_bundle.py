@@ -45,7 +45,7 @@ from urllib.parse import urlparse
 
 _PREFIX = "smc-databento-production-export-"
 _CANONICAL_WORKFLOW_FILE = "smc-databento-production-export-sharded.yml"
-_CANONICAL_WORKFLOW_NAME = "smc-databento-production-export-sharded"
+# The producer is addressed by this FILE (see _list_producer_run_ids), not by name.
 _ROOT = Path("artifacts/smc_microstructure_exports")
 _USER_AGENT = "smc-measurement-benchmark-rolling"
 _API_VERSION = "2022-11-28"
@@ -118,32 +118,20 @@ def _download_zip(token: str, repo: str, artifact_id: int) -> bytes:
         return resp.read()
 
 
-def _is_canonical_producer_run(token: str, repo: str, run_id: int, cache: dict[int, bool]) -> bool:
-    """Return whether ``run_id`` belongs to the canonical sharded producer."""
-    if run_id <= 0:
-        return False
-    if run_id in cache:
-        return cache[run_id]
-    payload = _api_get_json(token, f"repos/{repo}/actions/runs/{run_id}")
-    workflow_path = str(payload.get("path") or "")
-    workflow_name = str(payload.get("name") or "")
-    ok = (
-        workflow_path.endswith(f"/{_CANONICAL_WORKFLOW_FILE}")
-        or workflow_path == _CANONICAL_WORKFLOW_FILE
-        or workflow_name == _CANONICAL_WORKFLOW_NAME
-    )
-    cache[run_id] = ok
-    return ok
-
-
-# Fallback search depth (2026-07-13): the previous 3-page window (300 newest
-# repo artifacts) did not reach back to the last good producer bundle after
-# one weekend plus a red producer morning — this repo pushes hundreds of
-# artifacts per day, so the 3-day-old good bundle fell outside the window and
-# the benchmark aborted despite a usable fallback existing. Page deeper, but
-# never restore a bundle older than the age horizon: a silently-stale bundle
-# feeding the benchmark would be worse than the honest missing-bundle abort.
-_MAX_PAGES = 30
+# Candidate discovery (2026-10-01): ask the PRODUCER for its runs, then each run
+# for its artifacts. The previous implementation paged the repo-wide artifact
+# index (``/actions/artifacts?per_page=100&page=N``, up to 30 pages) and
+# filtered by name prefix. Since 2026-09-25 ~16:00 UTC that index answers
+# HTTP 500 for this repo (reproduced 2026-10-01: per_page=30/50/100 -> 500,
+# per_page=1 -> 200, ``?name=<exact>`` -> 200). From then on the rolling
+# benchmark (every evening run) and smc-library-refresh (every run) died in
+# their restore step, before looking at a single bundle; the last good restore
+# is run 36055941993 (2026-09-24). The run-scoped route does not touch that index, needs no
+# depth heuristic ("hundreds of artifacts per day", see 2026-07-13), and makes
+# the canonical-producer filter structural: only runs of
+# ``_CANONICAL_WORKFLOW_FILE`` are ever listed, so a deprecated-monolith
+# artifact with the same legacy prefix cannot become a candidate.
+_MAX_RUN_PAGES = 5
 _MAX_CANDIDATE_AGE_DAYS = 14
 _MIN_TRADE_DAYS = 15
 
@@ -154,15 +142,38 @@ def _horizon_iso(run_date: str) -> str:
     return f"{day.isoformat()}T00:00:00Z"
 
 
+def _list_producer_run_ids(token: str, repo: str, horizon_iso: str) -> list[int]:
+    """Ids of canonical producer runs on ``main`` created since the horizon.
+
+    A failure here is NOT swallowed: without the run list there is nothing to
+    restore from, and the honest outcome is the red step with the traceback.
+    """
+    since = horizon_iso[:10]
+    run_ids: list[int] = []
+    for page in range(1, _MAX_RUN_PAGES + 1):
+        payload = _api_get_json(
+            token,
+            f"repos/{repo}/actions/workflows/{_CANONICAL_WORKFLOW_FILE}/runs"
+            f"?branch=main&created=%3E%3D{since}&per_page=100&page={page}",
+        )
+        batch = payload.get("workflow_runs") or []
+        run_ids.extend(int(run.get("id") or 0) for run in batch)
+        if len(batch) < 100:
+            break
+    return [run_id for run_id in run_ids if run_id > 0]
+
+
 def _list_candidates(token: str, repo: str, today_prefix: str, horizon_iso: str) -> list[dict]:
     artifacts: list[dict] = []
-    run_workflow_cache: dict[int, bool] = {}
-    for page in range(1, _MAX_PAGES + 1):
-        payload = _api_get_json(token, f"repos/{repo}/actions/artifacts?per_page=100&page={page}")
-        batch = payload.get("artifacts") or []
-        if not batch:
-            break
-        for item in batch:
+    for run_id in _list_producer_run_ids(token, repo, horizon_iso):
+        try:
+            payload = _api_get_json(token, f"repos/{repo}/actions/runs/{run_id}/artifacts?per_page=100")
+        except (urllib.error.URLError, TimeoutError, ValueError) as exc:
+            # One unreadable run must not cost the whole restore: the other
+            # producer runs of the horizon are independent fallbacks.
+            print(f"::warning::Could not list artifacts of producer run {run_id}: {exc}")
+            continue
+        for item in payload.get("artifacts") or []:
             name = str(item.get("name") or "")
             if not name.startswith(_PREFIX):
                 continue
@@ -175,16 +186,7 @@ def _list_candidates(token: str, repo: str, today_prefix: str, horizon_iso: str)
             workflow_run = item.get("workflow_run") or {}
             if str(workflow_run.get("head_branch") or "") != "main":
                 continue
-            run_id = int(workflow_run.get("id") or 0)
-            if not _is_canonical_producer_run(token, repo, run_id, run_workflow_cache):
-                continue
             artifacts.append(item)
-        # The listing is newest-first; once an entire page predates the
-        # horizon, deeper pages cannot contain an acceptable candidate.
-        if all(str(item.get("created_at") or "") < horizon_iso for item in batch):
-            break
-        if len(batch) < 100:
-            break
 
     artifacts.sort(key=lambda item: str(item.get("created_at") or ""), reverse=True)
     preferred = [item for item in artifacts if str(item.get("name") or "").startswith(today_prefix)]

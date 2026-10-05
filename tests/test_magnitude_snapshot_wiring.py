@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 
+from governance.family_returns import RETURN_RULE
 from governance.promotion_gate import FamilyMetrics
 from scripts.magnitude_snapshot_wiring import (
     MagnitudeSnapshot,
@@ -27,6 +28,7 @@ def _row(
         "family": family,
         "status": status,
         "magnitude_auc": auc,
+        "return_rule": RETURN_RULE,
     }
 
 
@@ -265,3 +267,36 @@ def test_main_json_format(tmp_path, capsys):
     payload = json.loads(capsys.readouterr().out)
     assert payload["BOS"]["magnitude_resolution_pass"] is True
     assert payload["BOS"]["magnitude_auc"] == 0.62
+
+
+# ---- return rule (ADR-0031, Nachtrag 2026-10-02 II) ------------------------
+
+
+def test_the_gate_takes_no_snapshot_from_rows_of_another_return_rule(tmp_path):
+    """A PASS measured under Variant A is not evidence about returns under the
+    current rule: the gate then has no move-size verdict for the family."""
+    ledger = tmp_path / "l.jsonl"
+    legacy_pass = {k: v for k, v in _row(date="2026-06-11", family="BOS", status="PASS").items() if k != "return_rule"}
+    _write_ledger(ledger, [legacy_pass])
+    assert set(load_magnitude_snapshots(str(ledger))) == {"BOS"}  # the row is there …
+    assert gate_snapshots(str(ledger)) == {}  # … and does not reach the gate
+
+    _write_ledger(ledger, [legacy_pass, _row(date="2026-10-05", family="BOS", status="INCONCLUSIVE")])
+    snaps = gate_snapshots(str(ledger))
+    assert snaps["BOS"].status == "INCONCLUSIVE"
+    assert snaps["BOS"].magnitude_resolution_pass is None
+
+
+def test_the_frozen_15m_seed_no_longer_feeds_the_gate():
+    """The real seed file promotion-gate-daily passes as --magnitude-ledger.
+
+    Its BOS/SWEEP PASS rows of 2026-06-11 were graded under Variant A. They
+    stay on disk and stay readable, but the gate reports the armed families'
+    move-size resolution as unmeasured under the current rule."""
+    from pathlib import Path
+
+    seed = str(Path(__file__).resolve().parents[1] / "artifacts/governance/magnitude_resolution_shadow_15m_seed.jsonl")
+    everything = load_magnitude_snapshots(seed)
+    assert {"BOS", "SWEEP"} <= set(everything)
+    assert everything["BOS"].status == "PASS"
+    assert gate_snapshots(seed) == {}

@@ -10,7 +10,7 @@ indicator("SMC Long-Dip Suite", overlay = true, max_bars_back = 500, max_lines_c
 import preuss_steffen/smc_core_types/5 as ct
 import preuss_steffen/smc_utils/4 as u
 import preuss_steffen/smc_draw/3 as d
-import preuss_steffen/smc_micro_profiles_generated/497 as mp
+import preuss_steffen/smc_micro_profiles_generated/562 as mp
 import preuss_steffen/smc_lifecycle_private/3 as ll
 import preuss_steffen/smc_bus_private/3 as bp
 import preuss_steffen/smc_observability_private/4 as obv
@@ -2552,15 +2552,42 @@ if long_should_confirm
 [long_ready_blocker_text, long_strict_blocker_text] = ll.resolve_long_execution_blocker_state(long_ready_state, long_state.confirmed, close_safe_mode, ready_bar_gap_ok, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready_eff, bull_bos_sig, main_bos_recent, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok, market_regime_gate_ok, vola_regime_gate_safe, quality_gate_ok, scoring_accel_ready, scoring_sd_ready, scoring_vol_ready, scoring_stretch_ready, scoring_ddvi_ready, long_entry_strict_state, strict_signal_quality_gate_ok, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe)
 
 // ── Trust enforcement (WP-3C) ──────────────────────────────────
-// Suppress entry signals when measurement trust is Insufficient.
-// Degraded trust is surfaced as a warning but does NOT suppress entry —
-// the operator retains full discretion at that level.
+// Entry suppression on the data feed only: provider not ok, live bars only (mp.* is a one-day snapshot broadcast onto history).
+// The trust tier stays a displayed warning. Its SIGNAL_QUALITY_TIER is one universe-wide value without structure/OB/FVG input;
+// it read "low" in every library refresh since 2026-08-14 and so blocked Entry Best/Strict on every bar (measured 2026-10-04).
 string core_trust_tier_early = eng.resolve_trust_tier(lib_sq_tier, lib_sq_freshness, lib_erl_provider_status)
-bool trust_allows_entry = core_trust_tier_early != 'Insufficient'
+bool trust_allows_entry = not barstate.isrealtime or lib_erl_provider_status == 'ok'
 if not trust_allows_entry
     long_entry_best_state := false
     long_entry_strict_state := false
     long_strict_blocker_text := 'Blocked: Trust Insufficient'
+
+// Ready diagnosis (debug logs only, 2026-10-05): Confirmed never became Ready in 5 symbols x 3 years, and the
+// expiry log line is written after the reset, so it cannot name the gate. One line per confirmed, not-yet-Ready bar
+// lists EVERY failing Ready gate (the blocker text names only the first).
+if show_long_engine_debug_eff and barstate.isconfirmed and long_state.confirmed and not long_ready_state
+    string _ready_failing = ''
+    _ready_failing += ready_bar_gap_ok ? '' : ' bar_gap'
+    _ready_failing += long_confirm_expired ? ' confirm_expired' : ''
+    _ready_failing += ready_is_fresh ? '' : ' not_fresh'
+    _ready_failing += long_confirm_bearish_guard_ok ? '' : ' bearish_guard'
+    _ready_failing += not require_main_break_for_ready_eff or bull_bos_sig or main_bos_recent ? '' : ' main_break'
+    _ready_failing += setup_hard_gate_ok ? '' : ' setup_hard'
+    _ready_failing += trade_hard_gate_ok ? '' : ' trade_hard'
+    _ready_failing += environment_hard_gate_ok ? '' : ' environment_hard'
+    _ready_failing += session_structure_gate_ok ? '' : ' session_structure'
+    _ready_failing += micro_session_gate_ok ? '' : ' micro_session'
+    _ready_failing += micro_freshness_gate_ok ? '' : ' micro_freshness'
+    _ready_failing += overhead_zone_ok ? '' : ' overhead_zone'
+    _ready_failing += market_regime_gate_ok ? '' : ' market_regime'
+    _ready_failing += vola_regime_gate_safe ? '' : ' vola_regime'
+    _ready_failing += quality_gate_ok ? '' : ' quality'
+    _ready_failing += scoring_accel_ready ? '' : ' accel'
+    _ready_failing += scoring_sd_ready ? '' : ' second_derivative'
+    _ready_failing += scoring_vol_ready ? '' : ' vol_regime_context'
+    _ready_failing += scoring_stretch_ready ? '' : ' stretch'
+    _ready_failing += scoring_ddvi_ready ? '' : ' ddvi'
+    log.info('LONG PENDING | ready={0} | failing={1}', long_ready_blocker_text, _ready_failing == '' ? 'none' : str.trim(_ready_failing))
 
 bool long_quality_clean_tier = ll.resolve_long_clean_tier(close_safe_mode, bullish_trend_safe, zone_recent, reclaim_recent, long_state.confirmed, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, quality_gate_ok, bull_close_strong, ema_support_ok, adx_strong, relvol_ok, vwap_filter_ok)
 [long_stop_level, long_risk_r, long_target_1, long_target_2] = ll.compute_long_risk_plan_state(long_plan_active, long_planned_stop_level, planned_risk, long_state.trigger, target1_r, target2_r)

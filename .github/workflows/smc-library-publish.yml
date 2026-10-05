@@ -1437,6 +1437,12 @@ jobs:
           # tests/_workflow_step_shell.py, which is how this step's
           # cleanup is tested. Same value, one substitution earlier.
           RUN_NUMBER: ${{ github.run_number }}
+          # The id of the REFRESH run this publish belongs to -- the same
+          # expression that selects the handoff artifact above. It goes into
+          # the branch name below because the chained save
+          # (tv-save-consumer-source, "Await the refresh commit on main") is
+          # triggered by that refresh run and knows no other id.
+          REFRESH_SOURCE_RUN_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.source_run_id || github.event.workflow_run.id }}
         run: |
           # The repo's `main-governance` ruleset only targets ~DEFAULT_BRANCH,
           # so direct `git push origin HEAD:main` is rejected with GH013
@@ -1513,7 +1519,32 @@ jobs:
             PR_BODY="${PR_BODY}"$'\n\n'"${SURFACE_HOLD_NOTICE}"
           fi
 
-          BRANCH="bot/library-refresh-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          # bot/library-refresh-<refresh run>-<this run>-<attempt>.
+          #
+          # Until 2026-10-01 this was <this run>-<attempt> only. The chained
+          # save looks for `bot/library-refresh-<REFRESH run id>-*`; since the
+          # commit phase moved into this workflow (2026-08-13) the two ids were
+          # different numbers, the lookup matched nothing, and the save took
+          # "no PR" for "nothing changed": 14 of 14 failed chained saves from
+          # 2026-09-24 to 2026-10-01 started on the pre-refresh tree and
+          # refused on "Library publish drift" (last: run 36919569655, 26 s
+          # after PR #5597 opened, 5 min before it merged). The refresh id
+          # leads so that prefix matches; this run's id and attempt stay in so
+          # a second publish for the same refresh cannot collide with the
+          # first one's branch. Executed against the save's step in
+          # tests/test_refresh_closes_superseded_bot_prs.py.
+          #
+          # Digits only: on a manual dispatch the value is typed by a human and
+          # ends up in a ref name. Empty or anything else keeps the plain name
+          # -- such a publish has no chained save waiting on it.
+          case "${REFRESH_SOURCE_RUN_ID:-}" in
+            ''|*[!0-9]*)
+              BRANCH="bot/library-refresh-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+              ;;
+            *)
+              BRANCH="bot/library-refresh-${REFRESH_SOURCE_RUN_ID}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+              ;;
+          esac
           git checkout -b "$BRANCH"
           COMMIT_MSG="chore(pine): library refresh ${REFRESH_DATE} (run ${RUN_NUMBER})"
           git commit -m "$COMMIT_MSG"

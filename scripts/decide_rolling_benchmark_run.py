@@ -77,8 +77,17 @@ def decide(
     """Entscheidet ueber EINEN Fire.
 
     ``todays_runs`` sind die heutigen Laeufe DIESES Workflows mit
-    ``conclusion`` und ``created_at``; ``None`` heisst "konnte nicht gelesen
-    werden" und fuehrt bewusst zu LAUFEN.
+    ``conclusion``, ``created_at`` und ``worked``; ``None`` heisst "konnte
+    nicht gelesen werden" und fuehrt bewusst zu LAUFEN.
+
+    Ein Fenster bedient nur ein Lauf, dessen WORKER gelaufen ist
+    (``worked is True``). ``conclusion == "success"`` allein genuegt nicht:
+    ein Fire, den dieses Gate uebersprungen hat, endet ebenfalls gruen (der
+    Gate-Job war erfolgreich, der Worker ``skipped``). Bis 2026-10-01 zaehlte
+    die Regel genau diese Laeufe mit — der uebersprungene 09:xx-Fire
+    "bediente" Fenster A, und vor 20:00 UTC lief der Benchmark gar nicht mehr.
+    Fehlt ``worked`` oder ist es ``None``, gilt der Lauf als nicht bedienend:
+    Blindheit faellt auch auf dieser Achse auf LAUFEN.
     """
     if event_name == "workflow_dispatch":
         # Ein Mensch hat ausdruecklich danach gefragt. Das Gate steht nicht
@@ -98,7 +107,10 @@ def decide(
             "sonst stoppt ein Gate-Fehler den Benchmark still",
         )
 
-    successes = [r for r in todays_runs if r.get("conclusion") == "success"]
+    successes = [
+        r for r in todays_runs
+        if r.get("conclusion") == "success" and r.get("worked") is True
+    ]
     now_min = _minutes(now)
 
     if now_min >= WINDOW_B_START_MIN:
@@ -140,7 +152,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--producer-conclusion", default=None)
     parser.add_argument(
         "--todays-runs", default=None,
-        help='JSON-Liste [{"conclusion":…,"created_at":…}]; fehlt/ungueltig ⇒ LAUFEN',
+        help='JSON-Liste [{"id":…,"conclusion":…,"created_at":…}]; fehlt/ungueltig ⇒ LAUFEN',
+    )
+    parser.add_argument(
+        "--worked-run-ids", default=None,
+        help="Run-Ids (durch Leerraum getrennt), deren Worker-Job mit success "
+        "endete. Fehlt die Angabe, gilt KEIN Lauf als bedienend ⇒ LAUFEN.",
     )
     args = parser.parse_args(argv)
 
@@ -155,6 +172,18 @@ def main(argv: list[str] | None = None) -> int:
             runs = parsed if isinstance(parsed, list) else None
         except json.JSONDecodeError:
             runs = None
+
+    if runs is not None:
+        # Der Worker-Befund kommt getrennt (eine Job-Abfrage je gruenem Lauf)
+        # und wird hier an die Run-Liste gehaengt. Nicht lesbare Eintraege
+        # fallen weg statt abzustuerzen — ein Lauf ohne Befund bedient nichts.
+        worked_ids = {
+            int(tok) for tok in (args.worked_run_ids or "").split() if tok.isdigit()
+        }
+        runs = [
+            {**r, "worked": r.get("id") in worked_ids}
+            for r in runs if isinstance(r, dict)
+        ]
 
     decision = decide(
         now=now,

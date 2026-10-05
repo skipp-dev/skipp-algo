@@ -86,6 +86,31 @@
       "path": "artifacts/governance/smc_r1_live_rollout_evidence_2026-09-01T130430Z.json",
       "capturedAt": "2026-09-01T13:04:30.303Z",
       "sha256": "a77ab17831bc777a64dc20b724af85636b1ecd1877e05da03e03c62a47bc4e0d"
+    },
+    {
+      "path": "artifacts/governance/smc_r1_live_rollout_evidence_2026-10-01T141933Z.json",
+      "capturedAt": "2026-10-01T14:19:33.687Z",
+      "sha256": "1201f93927f3d52f1a2d3a9aae108e24816ab3c2cf0c81da077ae7c1d0590d05"
+    },
+    {
+      "path": "artifacts/governance/smc_r1_live_rollout_evidence_2026-10-02T061339Z.json",
+      "capturedAt": "2026-10-02T06:13:39.006Z",
+      "sha256": "82b3aa9e3a3647c07e171b5e459ea5fd572121f3026a1996d238ebc9fad412a1"
+    },
+    {
+      "path": "artifacts/governance/smc_r1_live_rollout_evidence_2026-10-02T135713Z.json",
+      "capturedAt": "2026-10-02T13:57:13.931Z",
+      "sha256": "dcb0caccde55434d6337ed944894a39dd0320dc48ade9b489beaebfeab2c46ed"
+    },
+    {
+      "path": "artifacts/governance/smc_r1_live_rollout_evidence_2026-10-02T211307Z.json",
+      "capturedAt": "2026-10-02T21:13:07.946Z",
+      "sha256": "452b43d57bbdc359e9d922e36969c67631bd09e8421a601fb213fbb31cc25dbe"
+    },
+    {
+      "path": "artifacts/governance/smc_r1_live_rollout_evidence_2026-10-03T062646Z.json",
+      "capturedAt": "2026-10-03T06:26:46.466Z",
+      "sha256": "3aba731bab24506620ee30219260438d0b85c38ef4819b001ab09027d647ee35"
     }
   ]
 }

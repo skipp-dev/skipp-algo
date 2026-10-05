@@ -158,7 +158,14 @@ def test_refresh_commit_step_uses_bot_pr_auto_merge_pattern() -> None:
     fail at runtime with GH013)."""
     workflow_text = _read(PUBLISH_WORKFLOW_PATH)
 
-    # Bot/* branch naming pinned to run id + attempt for re-run safety.
+    # Bot/* branch naming: the refresh run id leads (the chained save finds
+    # the PR by it -- executed in tests/test_refresh_closes_superseded_bot_prs.py),
+    # this run's id + attempt follow for re-run safety. Without a usable
+    # refresh run id the plain run-id name remains.
+    assert (
+        'BRANCH="bot/library-refresh-${REFRESH_SOURCE_RUN_ID}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"'
+        in workflow_text
+    )
     assert 'BRANCH="bot/library-refresh-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"' in workflow_text
     assert 'git checkout -b "$BRANCH"' in workflow_text
     assert 'git push -u origin "$BRANCH"' in workflow_text

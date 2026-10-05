@@ -429,3 +429,249 @@ def test_epnl_gate_uses_the_same_1d_plane_as_the_returns_series() -> None:
     invocation = body.split("python -m scripts.run_epnl_after_cost_gate", 1)[1]
     invocation = invocation.split("case ", 1)[0]
     assert "--plane 1D" in invocation
+
+
+# --- ADR-0031 Nachtrag 2026-10-01: 15m observation + cumulative ledger --------
+#
+# Executed with the REAL producers (python is passed through, not stubbed):
+# the step's whole point is what lands in the committed drop-zone, and a stub
+# that writes `{}` cannot tell a ledger from an empty file.
+
+import json
+
+_LEDGER_STEP = "Build 15m observation series + cumulative returns ledger (ADR-0031 Nachtrag)"
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+_M15 = 900.0
+_DAY = 86_400.0
+# 2026-10-05T14:30:00Z: the first day that counts as evidence under the return
+# rule (governance.family_returns.RETURN_RULE_EVIDENCE_START). The workflow's
+# own 15m flag (2026-10-01) is earlier and therefore no longer the binding one.
+_OCT_5 = 1_791_210_600.0
+_SEP_28 = _OCT_5 - 7 * _DAY  # before it
+
+_REAL_PY = Stub(script='exec "$REAL_PYTHON" -B "$@"')
+
+
+def _sweep(symbol: str, anchor_ts: float, *, step: float, timeframe: str, exit_close: float) -> dict:
+    closes = [100.5, 101.0, exit_close]
+    return {
+        "family": "SWEEP",
+        "event_id": f"sweep:{symbol}:{timeframe}:{int(anchor_ts)}:SELL_SIDE:100.00",
+        "direction": "LONG",
+        "entry_mode": "immediate",
+        "entry_price": 100.0,
+        "bar_grid": "exchange_aligned",
+        "anchor_ts": anchor_ts,
+        "regime": "RANGING",
+        "forward_opens": [100.0, *closes[:-1]],
+        "forward_closes": closes,
+        "forward_highs": [c + 0.5 for c in closes],
+        "forward_lows": [c - 0.5 for c in closes],
+        "forward_timestamps": [anchor_ts + step * (i + 1) for i in range(3)],
+    }
+
+
+def _coarse_bos(symbol: str, anchor_ts: float, *, exit_close: float) -> dict:
+    """A BOS on the coarse grain, as the benchmark stamps it (ADR-0031, IV)."""
+    event = _sweep(symbol, anchor_ts, step=_M15, timeframe="15m", exit_close=exit_close)
+    event["family"] = "BOS"
+    event["event_id"] = f"bos:{symbol}:15m:{int(anchor_ts)}:BOS:UP:100.00:p50"
+    event["pivot_lookup"] = 50
+    closes = [100.5, 101.0, 101.5, 101.0, 100.5, 101.0, 101.5, exit_close]  # BOS horizon: 8 bars
+    event["forward_closes"] = closes
+    event["forward_opens"] = [100.0, *closes[:-1]]
+    event["forward_highs"] = [c + 0.5 for c in closes]
+    event["forward_lows"] = [c - 0.5 for c in closes]
+    event["forward_timestamps"] = [anchor_ts + _M15 * (i + 1) for i in range(8)]
+    return event
+
+
+def _pool_events(*, forward_15m: int, coarse_15m: int = 2) -> list[dict]:
+    # 1D: anchored 2026-10-03, -04, -05, -06 — two before the rule's start, two after.
+    events = [
+        _sweep(f"D{i}", _OCT_5 - 2 * _DAY + i * _DAY, step=_DAY, timeframe="1D", exit_close=101.0 + i)
+        for i in range(4)
+    ]
+    events += [
+        _sweep(f"OLD{i}", _SEP_28 + i * _M15, step=_M15, timeframe="15m", exit_close=99.0 + i)
+        for i in range(5)
+    ]
+    events += [
+        _sweep(f"NEW{i}", _OCT_5 + i * _M15, step=_M15, timeframe="15m", exit_close=100.0 + i)
+        for i in range(forward_15m)
+    ]
+    # Coarse-grain BOS after the evidence start: the second 15m record.
+    events += [
+        _coarse_bos(f"C{i}", _OCT_5 + i * _M15, exit_close=102.0 + i) for i in range(coarse_15m)
+    ]
+    return events
+
+
+def _ledger_step(tmp_path: Path, events: list[dict] | None, *, date: str = "2026-10-05"):
+    if events is not None:
+        pool = tmp_path / "artifacts/ci/scored_family_events_accumulated"
+        pool.mkdir(parents=True, exist_ok=True)
+        (pool / "accumulated_family_events.json").write_text(json.dumps(events), encoding="utf-8")
+    return run_step(
+        _WF, _LEDGER_STEP, tmp_path,
+        env={"DATE": date, "REAL_PYTHON": sys.executable, "PYTHONPATH": str(_REPO_ROOT)},
+        stubs={"python": _REAL_PY, "head": _GNU_HEAD},
+    )
+
+
+def _read(path: Path) -> dict:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def test_the_ledger_step_commits_verdicts_and_ledgers_not_the_window_series(tmp_path: Path) -> None:
+    result = _ledger_step(tmp_path, _pool_events(forward_15m=6))
+    assert result.returncode == 0, result.stderr
+    gates = tmp_path / "docs/calibration/gates"
+    # The three directories this step may write to, listed — not walked.
+    committed = sorted(
+        str(path.relative_to(gates))
+        for folder in (gates, gates / "15m", gates / "15m_p50", gates / "ledger")
+        for path in folder.iterdir()
+        if path.is_file()
+    )
+    assert committed == [
+        "15m/regime_stratified_2026-10-05.json",
+        "15m/track_record_gate_2026-10-05.json",
+        "15m_p50/track_record_gate_2026-10-05.json",
+        "ledger/returns_ledger_15m.jsonl",
+        "ledger/returns_ledger_15m_p50.jsonl",
+        "ledger/returns_ledger_1D.jsonl",
+        "ledger/track_record_gate_15m.json",
+        "ledger/track_record_gate_15m_p50.json",
+        "ledger/track_record_gate_1D.json",
+    ]
+    # The 30-day window series is a run artifact, not a committed file.
+    assert (tmp_path / "artifacts/ledger/returns_series_window_15m_2026-10-05.json").exists()
+
+
+def test_nothing_of_the_15m_observation_is_visible_to_the_1d_consumers(tmp_path: Path) -> None:
+    """The governed plane's consumers glob the gates dir NON-recursively.
+
+    c13 Step 5a (`returns_series_*.json`), the public-report emitter
+    (`<prefix>_*.json`) and the 1D retention loop must keep seeing 1D only.
+    """
+    _ledger_step(tmp_path, _pool_events(forward_15m=6))
+    gates = tmp_path / "docs/calibration/gates"
+    for prefix in ("returns_series", "track_record_gate", "regime_stratified", "epnl_after_cost"):
+        assert list(gates.glob(f"{prefix}_*.json")) == [], prefix
+
+
+def test_the_15m_window_verdict_counts_every_15m_trade_the_cumulative_one_only_forward(
+    tmp_path: Path,
+) -> None:
+    result = _ledger_step(tmp_path, _pool_events(forward_15m=6))
+    gates = tmp_path / "docs/calibration/gates"
+    window = _read(gates / "15m/track_record_gate_2026-10-05.json")
+    cumulative = _read(gates / "ledger/track_record_gate_15m.json")
+    assert window["n_trades"] == 11  # 5 before + 6 after the evidence start
+    assert cumulative["n_trades"] == 6  # only what arrived on or after 2026-10-05
+    ledger_rows = (gates / "ledger/returns_ledger_15m.jsonl").read_text(encoding="utf-8").splitlines()
+    assert len(ledger_rows) == 11  # …but the ledger keeps all of them
+    assert result.outputs == {
+        "ledger_trades_1D": "2",
+        "ledger_trades_15m": "6",
+        "ledger_trades_15m_p50": "2",
+    }
+
+
+def test_the_coarse_grain_has_its_own_record_and_never_enters_the_15m_one(tmp_path: Path) -> None:
+    """ADR-0031, Nachtrag 2026-10-03 IV: the pool holds fine-grain events and
+    coarse BOS (pivot_lookup 50, id suffix ``:p50``) side by side. The 15m
+    series and ledger see none of the coarse ones; the coarse record has its
+    own verdict directory and ledger file, and every row says which grain."""
+    result = _ledger_step(tmp_path, _pool_events(forward_15m=6, coarse_15m=3))
+    assert result.returncode == 0, result.stderr
+    gates = tmp_path / "docs/calibration/gates"
+    fine_rows = [json.loads(line) for line in (gates / "ledger/returns_ledger_15m.jsonl").read_text().splitlines()]
+    coarse_rows = [json.loads(line) for line in (gates / "ledger/returns_ledger_15m_p50.jsonl").read_text().splitlines()]
+    assert {row["family"] for row in fine_rows} == {"SWEEP"}
+    assert {row["pivot_lookup"] for row in fine_rows} == {1}
+    assert [row["family"] for row in coarse_rows] == ["BOS"] * 3
+    assert {row["pivot_lookup"] for row in coarse_rows} == {50}
+    assert all(row["key"].endswith(":p50") for row in coarse_rows)
+    window_fine = _read(gates / "15m/track_record_gate_2026-10-05.json")
+    window_coarse = _read(gates / "15m_p50/track_record_gate_2026-10-05.json")
+    assert window_fine["n_trades"] == 11
+    assert window_coarse["n_trades"] == 3
+    assert set(window_coarse["per_variant"]) == {"BOS"}
+    cumulative_coarse = _read(tmp_path / "artifacts/ledger/returns_series_cumulative_15m_p50.json")
+    assert cumulative_coarse["measurement"]["pivot_lookup"] == 50
+    assert _read(tmp_path / "artifacts/ledger/returns_series_cumulative_15m.json")["measurement"]["pivot_lookup"] == 1
+    assert result.outputs["ledger_trades_15m_p50"] == "3"
+
+
+def test_a_pool_without_coarse_events_still_opens_the_coarse_ledger_and_says_so(tmp_path: Path) -> None:
+    result = _ledger_step(tmp_path, _pool_events(forward_15m=6, coarse_15m=0))
+    assert result.returncode == 0, result.stderr
+    gates = tmp_path / "docs/calibration/gates"
+    assert (gates / "ledger/returns_ledger_15m_p50.jsonl").exists()
+    assert not (gates / "15m_p50/track_record_gate_2026-10-05.json").exists()
+    assert "15m coarse-grain (pivot_lookup 50) series empty" in result.stdout
+    assert result.outputs["ledger_trades_15m_p50"] == "0"
+
+
+def test_the_1d_ledger_starts_with_the_return_rule(tmp_path: Path) -> None:
+    """The workflow passes no evidence start for 1D; the return rule has one.
+
+    Four 1D trades are recorded, two of them anchored before 2026-10-05: they
+    were on the table when the rule was chosen and do not count."""
+    _ledger_step(tmp_path, _pool_events(forward_15m=6))
+    gates = tmp_path / "docs/calibration/gates"
+    assert len((gates / "ledger/returns_ledger_1D.jsonl").read_text(encoding="utf-8").splitlines()) == 4
+    assert _read(gates / "ledger/track_record_gate_1D.json")["n_trades"] == 2
+
+
+def test_an_empty_forward_series_emits_no_cumulative_15m_verdict(tmp_path: Path) -> None:
+    """Day one, as measured 2026-10-01 on the real pool: no 15m trade yet
+    anchored after the evidence start. No verdict over zero trades."""
+    result = _ledger_step(tmp_path, _pool_events(forward_15m=0))
+    assert result.returncode == 0, result.stderr
+    gates = tmp_path / "docs/calibration/gates"
+    assert not (gates / "ledger/track_record_gate_15m.json").exists()
+    assert (gates / "ledger/returns_ledger_15m.jsonl").exists()
+    assert result.outputs["ledger_trades_15m"] == "0"
+    assert "cumulative 15m series still empty" in result.stdout
+
+
+def test_the_ledger_grows_across_days_while_the_pool_window_moves(tmp_path: Path) -> None:
+    _ledger_step(tmp_path, _pool_events(forward_15m=3), date="2026-10-05")
+    day2 = [
+        _sweep(f"LATER{i}", _OCT_5 + _DAY + i * _M15, step=_M15, timeframe="15m", exit_close=100.0 + i)
+        for i in range(4)
+    ]
+    result = _ledger_step(tmp_path, day2, date="2026-10-06")  # yesterday's events aged out
+    assert result.returncode == 0, result.stderr
+    assert result.outputs["ledger_trades_15m"] == "7"
+    gates = tmp_path / "docs/calibration/gates"
+    assert _read(gates / "15m/track_record_gate_2026-10-06.json")["n_trades"] == 4  # window
+    assert _read(gates / "ledger/track_record_gate_15m.json")["n_trades"] == 7  # memory
+
+
+def test_a_missing_pool_fails_the_ledger_step_loudly(tmp_path: Path) -> None:
+    """The step only runs when `gates` produced — a missing pool is a defect."""
+    result = _ledger_step(tmp_path, None)
+    assert result.returncode == 1
+    assert "events pool is gone" in result.stdout
+
+
+def test_a_failing_ledger_step_cannot_take_the_1d_artifacts_down_with_it() -> None:
+    """The commit step must still run after a failed ledger step — and only then.
+
+    `!cancelled()` lets it run past a failed predecessor; `produced == 'true'`
+    keeps it off when a step BEFORE `gates` failed (then `produced` is empty).
+    """
+    steps = _load()["jobs"]["promotion-gate"]["steps"]
+    names = [step.get("id") or step["name"] for step in steps]
+    commit = next(s for s in steps if s["name"].startswith("Commit gate + regime artifacts"))
+    assert names.index("gates") < names.index("ledger") < steps.index(commit)
+    condition = str(commit["if"])
+    assert "!cancelled()" in condition
+    assert "steps.gates.outputs.produced == 'true'" in condition
+    ledger = next(s for s in steps if s.get("id") == "ledger")
+    assert "steps.gates.outputs.produced == 'true'" in str(ledger["if"])
+    assert "continue-on-error" not in ledger, "a soft-failed ledger step would hide the defect"

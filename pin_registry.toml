@@ -77,17 +77,12 @@
 "tests/test_smc_schema_version_enforcement.py" = 1
 # 2026-08-19 (Sweep): four POSIX-permission skipifs (skip on Windows only).
 "tests/test_smc_atomic_write.py" = 4
-# 2026-08-19 (Sweep): module-wide skipif — python/strategies/smc_mirror has
-# never existed (#2353), so this whole file has been inert since it was
-# written. 2026-08-20: the decision is no longer owed, it is DATED —
-# tests/test_smc_strategy_mirror_deadline_tripwire.py sleeps until 2026-09-30
-# and then demands "build the mirror, delete the file, or move the date
-# deliberately". That tripwire also goes red the moment the mirror lands, so
-# these two ledger lines cannot outlive their reason.
-"tests/test_smc_strategy_snapshot.py" = 1
-# 2026-08-19 (Sweep): inverse of the entry above — pins the scaffolding-only
-# state and skips once the mirror exists.
-"tests/test_smc_strategy_snapshot_scaffolding.py" = 1
+# 2026-10-01: "tests/test_smc_strategy_snapshot.py" = 1 and
+# "tests/test_smc_strategy_snapshot_scaffolding.py" = 1 removed — the deadline
+# tripwire fired on 2026-09-30 with python/strategies/smc_mirror still absent
+# (#2353, inert since 2026-05-25) and the operator decided DELETE on
+# 2026-10-01: both test files, their fixtures, the regen script, the
+# validation doc and the tripwire itself are gone.
 "tests/test_smc_trust_badges_dashboard.py" = 1
 # 2026-08-19 (Sweep): 1 module-wide skipif + 10 decorators, 39 tests silent on
 # every CI run because no pytest-running workflow exports FMP_API_KEY or
@@ -338,7 +333,7 @@ codes = ["E402"]
 # for four sites that need suppressions rather than code changes.
 [[noqa_budget.sites]]
 file = "governance/family_returns.py"
-line = 454  # 2026-07-13 guard_end_ts exit-idx tightening shifted _event_bar_interval (432->453); FamilyEvent event_id field +1 (453->454)
+line = 541  # 2026-07-13 guard_end_ts exit-idx tightening shifted _event_bar_interval (432->453); FamilyEvent event_id field +1 (453->454); 2026-10-02 next-open entry rule (454->483); bar-grid marker (483->503); 2026-10-03 structure grain (503->541)
 codes = ["RUF007"]
 
 [[noqa_budget.sites]]

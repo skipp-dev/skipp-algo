@@ -115,3 +115,494 @@ Kanal (committed + GH Pages).
   sind auf diesen Stand aktualisiert.
 - Schema-Pin `v1.3.0_public_schema_pin.json` re-pinned (Docstring-Update in
   `build_public_report`; additive Felder, kein Version-Bump).
+
+## Nachtrag 2026-10-01: 15m-Beobachtungsebene und wachsendes Trade-Ledger
+
+- **Status:** accepted (Owner-Entscheidung 2026-10-01)
+- **Ändert nicht:** Entscheidung 1–3. Die governte 1D-Serie, ihr Gate, ihr
+  Regime-Report und ihr Weg in den Public-Report bleiben, wie sie sind.
+
+### Anlass (gemessen 2026-10-01)
+
+Die Frage „welche Familie trägt einen Edge" ließ sich aus den Artefakten dieses
+ADR nicht beantworten, und zwar aus zwei Gründen, die nichts mit den Familien
+zu tun haben:
+
+1. **Die Serie ist ein Fenster.** Der Pool ist ein rollendes 30-Tage-Fenster
+   (`accumulate_family_events.py --max-age-days 30`), die Tagesserie damit
+   auch. Über die zwölf committeten Berichte vom 14.–28.8. trug sie 29–34
+   Trades, am 21.9. 27, im Pool vom 30.9. 19. Vorregistriert sind 120–200 je
+   Familie (`governance/edge_hypotheses.json`), der Floor des Track-Record-Gates
+   liegt bei 100, der von §5 bei 40. Ein Fenster dieser Größe erreicht keine
+   davon, gleich wie lange es läuft.
+2. **Der 1D-Filter lässt fast nichts durch.** Am 21.9. lagen 28 von 8 065
+   Pool-Events auf 1D. Der Pool trägt seit #2667 täglich alle Ebenen; die
+   Messung sah davon ein Drittelprozent.
+
+Eine dritte Ursache liegt im Pool selbst (Deduplizierung auf
+`(family, anchor_ts)`, #5585) und ist nicht Gegenstand dieses ADR.
+
+### Entscheidung 4: 15m ist eine zweite, getrennt ausgewiesene Beobachtungsebene
+
+`promotion-gate-daily` rechnet dieselbe Variante-A-Regel zusätzlich auf den
+15m-Events desselben Pools und committet die beiden Fenster-Urteile nach
+`docs/calibration/gates/15m/` (`track_record_gate_<date>.json`,
+`regime_stratified_<date>.json`, Retention 90). Die Fenster-Serie selbst bleibt
+Lauf-Artefakt: gemessen 94 KB bei 551 Trades, und sie wiederholt täglich
+dieselben rund 30 Tage, die das Ledger (Entscheidung 5) je Trade einmal hält.
+
+**Was die 15m-Ebene nicht ist.** Die Rollen aus
+`docs/governance/adr0023_plane_and_gate_clarification.md` gelten unverändert:
+
+- Sie ist **kein Gate.** §5 (E[PnL] nach Kosten) bleibt das bindende Gate und
+  bleibt auf 1D; auf 15m wird kein §5-Urteil gerechnet.
+- Sie hat **keine Wirkung** auf Arming, Stage oder `armed_plane`, und sie
+  belebt den eingefrorenen 15m-Magnitude-Proof nicht wieder (dessen AUC-Messung
+  bleibt eingefroren).
+- Sie geht **nicht** in den Claim-Tier (`docs/commercial/family_claim_status.json`)
+  und **nicht** in den Public-Report ein.
+
+Das Unterverzeichnis ist Teil der Entscheidung: alle 1D-Konsumenten lesen
+`docs/calibration/gates/` nicht-rekursiv (c13 Step 5a
+`returns_series_*.json`, der Emitter `<prefix>_*.json`, die 1D-Retention) und
+sehen die 15m-Dateien nicht.
+
+**Warum 15m.** Es ist die Ebene des einzigen echten Edge-Laufs (EV-20,
+2026-07-06) und des Magnitude-Proofs — also die Ebene, auf der die bisherigen
+positiven Aussagen überhaupt entstanden sind. Die Kosten sind ein Filter: der
+Pool trägt die 15m-Events ohnehin, eine Pipeline wird nicht wiederbelebt.
+
+**Offenlegung zur Wahl.** Vor der Festlegung wurde am 2026-10-01 ein
+Schnappschuss über **alle** Ebenen gesehen (Pool vom 30.9., Anker 31.8.–23.9.,
+dieselbe Regel). Auf 15m schloss dabei für keine Familie das 95-%-Intervall die
+Null aus (n = 551); auf 5m und 10m für mehrere. 15m wurde nicht wegen dieses
+Bildes gewählt, sondern trotz ihm — aber gewählt wurde danach. Deshalb trägt
+das 15m-Ledger einen Evidenz-Start (Entscheidung 5).
+
+### Entscheidung 5: ein wachsendes Ledger je Ebene
+
+`scripts/accumulate_returns_ledger.py` hängt jeden abgeschlossenen Trade genau
+einmal an eine committete JSONL an:
+`docs/calibration/gates/ledger/returns_ledger_<Ebene>.jsonl` für `1D` und `15m`.
+
+- **Schlüssel ist die `event_id`.** Trades ohne ID werden gezählt und nicht
+  aufgenommen.
+- **Nur anhängen.** Der Ertrag eines Trades ist endgültig, sobald er existiert
+  (Entry beim ersten Touch, Exit einen festen Horizont später). Sieht ein
+  späterer Lauf für dieselbe ID einen anderen Ertrag, bleibt der aufgezeichnete
+  stehen, und der Lauf meldet den Widerspruch.
+- **Eine Regel je Ledger.** Jede Zeile trägt `return_rule` und `cost_bps`. Ein
+  Lauf mit anderer Regel oder anderen Kosten verweigert das Anhängen (rc 2,
+  roter Schritt). Ein Regelwechsel bleibt ein expliziter, reviewter
+  Code-Change — und beginnt eine neue Ledger-Datei.
+- **Kumulatives Urteil.** Auf dem Ledger läuft dasselbe Track-Record-Gate
+  noch einmal und schreibt `ledger/track_record_gate_<Ebene>.json`
+  (überschrieben; die Historie ist das Ledger). Parität zur Fensterserie ist
+  gemessen: für denselben Pool liefern beide je Familie dieselben Erträge
+  (1D 19 = 19, 15m 551 = 551).
+- **Evidenz-Start 15m = 2026-10-01.** 15m-Trades mit Anker davor bleiben im
+  Ledger (es sind Tatsachen), zählen aber nicht ins kumulative Urteil. Als
+  unberührte Vorwärts-Evidenz gilt auf 15m nur, was nach der Festlegung
+  anfiel. 1D trägt keinen Evidenz-Start: die Ebene ist seit 2026-07-06
+  festgelegt.
+
+Eine fehlgeschlagene Beobachtungs- oder Ledger-Stufe reißt die 1D-Artefakte
+des Tages nicht mit: der Commit-Schritt läuft mit `!cancelled()` weiter, der
+Lauf bleibt rot.
+
+### Was dieser Nachtrag nicht entscheidet
+
+- Ob ein kumulatives Urteil je in den Public-Report oder den Claim-Tier
+  eingeht. Das ist eine Entscheidung über Aussagen nach außen, keine über
+  Verdrahtung.
+- Ob §5 auf einer kumulativen Basis rechnen soll. §5 liest Events (Score und
+  Ertrag), das Ledger hält Trades.
+- Wie gleichzeitige Trades mehrerer Symbole zu gewichten sind. Sie sind
+  querschnittlich korreliert; `n` im Ledger überschätzt die effektive
+  Stichprobe.
+
+### Größe
+
+Gemessen: 290 Bytes je Ledger-Zeile (551 Zeilen = 157 KB). Der heutige Pool
+liefert auf 15m rund 37 neue Trades je Handelstag, also etwa 11 KB täglich.
+Mit dem korrigierten Pool-Schlüssel (#5585) ist auf 15m mit dem Zwölffachen zu
+rechnen (2 133 statt 177 Trades aus denselben zwei Tagesdateien), also grob
+130 KB täglich und rund 30 MB im Jahr.
+
+
+## Nachtrag 2026-10-02: der Handelstag ist die Einheit, nicht der Trade
+
+- **Status:** accepted (Owner-Entscheidung 2026-10-02)
+- **Löst auf:** den dritten Punkt unter „Was dieser Nachtrag nicht
+  entscheidet" des Nachtrags vom 2026-10-01 (Gewichtung gleichzeitiger Trades).
+- **Ändert nicht:** Entscheidung 1–5. Trade-Definition, Ebenen, Ledger und
+  Kanäle bleiben.
+
+### Anlass (gemessen 2026-10-02)
+
+Am ersten Tag nach #5585 las das 15m-Fenster-Urteil für alle vier Familien
+`green` (n = 2 469, PSR ≈ 1,0); am Vortag war mit n = 634 keine Familie von
+null unterscheidbar. Dazwischen lag keine neue Evidenz, sondern der neue
+Pool-Schlüssel: er hält jedes Symbol als eigenen Trade.
+
+- Die 2 490 Trades des 15m-Ledgers stammen aus 19 Handelstagen; auf einer
+  einzigen Kerze liegen bis zu 56 (Median 2).
+- Das kumulative 15m-Urteil las für SWEEP `green` auf 210 Trades, die alle
+  am 2026-10-01 verankert sind.
+- Die 170 Trades des 1D-Ledgers stammen aus 13 Handelstagen, bis zu 27 je Tag.
+
+Das Gate zieht Trades in ihrer Reihenfolge (stationäre Blöcke der Länge 5) und
+annualisiert mit Trades pro Jahr. Trades desselben Tages bewegen sich aber
+gemeinsam. Tageweise gezogen bleibt auf 15m ein mäßig positiver Mittelwert für
+BOS, OB und SWEEP (rund 9–12 bps je Trade, Untergrenzen 1–6 bps) und für FVG
+ein Intervall durch die Null; auf 1D schließt kein Intervall die Null aus.
+
+### Entscheidung 6: zwei Tages-Prüfungen im Track-Record-Gate
+
+Die Serien tragen zu jedem Ertrag seinen Anker (`anchor_ts_by_variant`,
+parallel zu `returns_by_variant`). `scripts/track_record_gate.py` rechnet
+daraus zwei zusätzliche Prüfungen, je Familie und gepoolt:
+
+| Prüfung | Wert | Schwelle |
+|---|---|---|
+| `trading_days` | Zahl verschiedener UTC-Kalendertage der Anker | ≥ 30 |
+| `day_clustered_mean_ci_low` | untere 95-%-Grenze des mittleren Ertrags je Trade, wenn ganze Tage mit Zurücklegen gezogen werden (2 000 Züge) | > 0 |
+
+Beide gehen in das Aggregat ein wie jede andere Prüfung (rot dominiert), und
+beide sind Pflicht-Evidenz für `claimable`. Liefert ein Aufrufer keine Anker,
+sind beide `skipped`; ein grünes Urteil ist dann nicht claimable und sagt in
+`claim_note`, was fehlt. Eine Serie, die Anker nur für einen Teil der Familien
+trägt, wird verweigert.
+
+**Warum 30.** Ein über Tage gezogenes Intervall ist bei wenigen Tagen selbst
+unzuverlässig; unter rund 30 Ziehungseinheiten unterschätzt es die Streuung.
+Die Zahl ist eine Setzung, keine Messung.
+
+**Offenlegung zur Wahl.** Schwelle und Verfahren wurden gewählt, nachdem die
+Tageszahlen bekannt waren (13 auf 1D, 18–19 auf 15m). Die Wahl kann keine
+Familie begünstigen: beide Prüfungen können ein Urteil nur strenger machen,
+und keine Reihe erreicht die Schwelle.
+
+### Folgen
+
+- **Kein Fenster-Urteil kann mehr `green` werden.** Der Pool hält 30
+  Kalendertage, also höchstens 22 Handelstage. `green` kann nur noch ein
+  kumulatives Urteil über dem Ledger werden. Der Public-Report bettet das
+  1D-Fenster-Urteil ein; ob er stattdessen das kumulative Urteil zeigen soll,
+  bleibt offen wie im Nachtrag vom 2026-10-01.
+- **Die 15m-Vorwärts-Reihe** (Evidenz-Start 2026-10-01) erreicht 30
+  Handelstage frühestens nach 30 Börsentagen mit mindestens einem Trade je
+  Familie.
+- **Die übrigen Prüfungen bleiben, wie sie sind.** `sharpe`,
+  `bootstrap_sharpe_ci_low`, `psr_sr_star_zero` und `min_trl_within_n` rechnen
+  weiter über Trades und überzeichnen auf Ebenen mit vielen Trades je Tag. Sie
+  sind dort Diagnose; bindend gegen die Überzeichnung sind die beiden
+  Tages-Prüfungen.
+- **Verdict-Schema 1.0.0 → 1.1.0** (additive Prüfungen,
+  `summary.day_clustered`). Die beiden Namen stehen am Ende von
+  `KNOWN_GATE_CHECK_NAMES`; die Positionen der bisherigen bleiben.
+
+### Was dieser Nachtrag nicht korrigiert
+
+- **Überlappung über Tagesgrenzen.** Ein Trade hält 3 bis 8 Kerzen (SWEEP 3,
+  FVG 4, OB 6, BOS 8). Auf 15m endet das innerhalb des Tages. Auf 1D sind es
+  3 bis 8 Handelstage: benachbarte Tage teilen sich Haltefenster und sind
+  nicht unabhängig. Das Tages-Intervall ist auf 1D deshalb weiterhin zu eng,
+  nur weniger als zuvor.
+- **Marktrichtung.** Die Prüfungen sagen, ob der Ertrag von null verschieden
+  ist, nicht, ob er über dem liegt, was ein beliebiger Einstieg zur selben
+  Zeit im selben Symbol gebracht hätte.
+- **Einstiegspreis.** Entscheidung 1 setzt den Einstieg zur Zonenmitte bzw.
+  zum Level an — ein Preis, der nach der Entscheidung nicht mehr erreichbar
+  war. Das korrigiert der folgende Nachtrag (2026-10-02 II). (Die erste
+  Fassung dieses Punkts nannte „rund die Hälfte der Level-Trades" ohne
+  gehandeltes Level; die Zahl stammte von einem verschobenen Kerzenraster und
+  ist im Memo berichtigt.)
+
+## Nachtrag 2026-10-02 II: der Einstieg ist ein erreichbarer Preis, und die Bilanz beginnt neu
+
+- **Status:** accepted (Owner-Entscheidung 2026-10-02)
+- **Ersetzt:** in Entscheidung 1 die Einstiegsregel. Ausstieg, Kosten,
+  Horizont, Ebenen, Kanäle und alle übrigen Entscheidungen bleiben.
+- **Beleg:** `docs/governance/variant_a_entry_price_measurement_2026-10-02.md`.
+
+### Anlass (gemessen 2026-10-02, 15m)
+
+Variante A stieg zur Zonenmitte (OB, FVG) oder zum Level (BOS, SWEEP) ein.
+
+- Die Zonenmitte wurde auf der Touch-Kerze bei 66 % der OB- und 63 % der
+  FVG-Trades nicht gehandelt.
+- Ein Bruch oder Sweep steht erst mit dem Schluss der Signalkerze fest; der
+  liegt im Mittel 18 bis 20 bps weiter in Trade-Richtung als das Level.
+- Gemeldet waren +12,0 bps je Trade [5,3; 16,9]. Zum Schlusskurs der
+  Entscheidungskerze gekauft sind es −6,5 bps [−11,1; −2,9], und −3,7 bps
+  gegenüber zufälligen Einstiegen im selben Symbol am selben Tag.
+
+Der gemeldete Ertrag war der Einstiegsvorteil.
+
+### Entscheidung 7: Einstieg zur Eröffnung nach der Entscheidungskerze
+
+Ein Trade zählt zu dem ersten Preis, der gehandelt wird, nachdem die
+Entscheidung feststeht (`RETURN_RULE = "next_open_then_horizon_close"`):
+
+| | Entscheidungskerze | Einstieg | Ausstieg |
+|---|---|---|---|
+| BOS, SWEEP | die Ankerkerze — ihr Schluss bestätigt Bruch bzw. Sweep | Eröffnung der Folgekerze | Schluss `horizon` Kerzen nach der Ankerkerze |
+| OB, FVG | die erste Kerze, deren Spanne die Zone erreicht, sofern die Zone bei ihrem Schluss noch gilt | Eröffnung der Folgekerze | Schluss `horizon` Kerzen nach der Entscheidungskerze |
+
+- **Der Ausstieg ist dieselbe Kerze wie zuvor.** Label-Fenster, Purge und
+  Embargo des Walk-Forward ändern sich nicht.
+- **„Erreicht" statt „zur Ruhe gekommen".** Eine Kerze, die durch die Zone
+  hindurchhandelt, ist die Entscheidungskerze. Variante A zählte nur Kerzen,
+  deren Tief bzw. Hoch in der Zone blieb — eine Auswahl nach dem Verlauf.
+- **Ungültig bei Entscheidung heißt kein Trade.** Ist die Zone mit dem Schluss
+  der Entscheidungskerze bereits invalidiert (OB: ein Schluss jenseits, FVG:
+  zwei in Folge), wird nicht eingestiegen.
+- **Ohne Eröffnungskurs kein Trade.** Events tragen dafür `forward_opens`
+  (die Eröffnungen ihrer Vorwärtskerzen). Fehlen sie, gibt es keinen Ertrag;
+  kein anderer Preis wird ersatzweise genommen.
+- **Wann die Entscheidung feststeht,** ist am Detektor geprüft: alle vier
+  Familien entstehen mit dem Schluss ihrer Ankerkerze. Pivots gehen erst ab
+  ihrer Bestätigung ein, ein Sweep braucht eine bereits bestätigte Linie, OB
+  und FVG lesen nur die Ankerkerze und ihre Vorgänger.
+
+**Warum die Eröffnung und nicht der Schlusskurs.** Zum Schlusskurs der Kerze,
+deren Schluss man abgewartet hat, lässt sich nicht handeln. Intraday liegt die
+nächste Eröffnung daneben; auf 1D liegt eine Nacht dazwischen.
+
+**Verworfen.** Limit-Orders an Zonenmitte oder Zonenrand: sie brauchen eine
+Annahme darüber, ob eine berührte Order gefüllt wird, die sich aus Kerzen
+nicht prüfen lässt. Ein Einstieg zum Level mit vorab liegender Stop-Order:
+der Pool hält nur bestätigte Ereignisse, die Fälle ohne Bestätigung fehlen.
+
+### Entscheidung 8: die Bilanz unter der neuen Regel beginnt getrennt
+
+Erträge unter den beiden Regeln sind verschiedene Größen. Sie werden nicht
+zusammengezählt, nicht gepoolt und nicht zu einer Serie fortgesetzt.
+
+1. **Archiv.** Alles, was `promotion-gate-daily` bis 2026-10-02 nach
+   `docs/calibration/gates/` schrieb, liegt eingefroren unter
+   `docs/calibration/gates/variant_a_frozen/`. Kein Workflow liest oder
+   schreibt dort.
+2. **Neue Ledger.** `ledger/returns_ledger_<Ebene>.jsonl` beginnen leer. Jede
+   Zeile trägt `return_rule`; der Produzent verweigert (rc 2) einen Ledger mit
+   Zeilen einer anderen Regel.
+3. **Evidenz-Start 2026-10-05, beide Ebenen.** Die Regel wurde gewählt, als
+   die Daten bis 2026-10-02 auf dem Tisch lagen. Kumulative Urteile zählen
+   nur Trades, deren Anker am oder nach dem ersten Handelstag danach liegt
+   (`RETURN_RULE_EVIDENCE_START`). Ein Aufruf kann den Start einer Ebene
+   später legen, nie früher; das 15m-Flag `2026-10-01` im Workflow ist damit
+   nicht mehr das bindende Datum.
+4. **Der Pool wird nicht umgepreist.** Ein Event ohne `forward_opens` ist
+   unter der neuen Regel kein Trade. Erkennt ein späterer Lauf dasselbe Event
+   mit denselben Vorwärtskerzen erneut, übernimmt der Pool dessen
+   Eröffnungskurse; solche Trades stehen im Ledger, zählen aber wegen Punkt 3
+   nicht, wenn ihr Anker vor dem 5.10. liegt.
+5. **Move-Size-Ledger (ADR-0023).** Das Ziel dort ist die Größe des
+   realisierten Ertrags, also regelabhängig. Neue Zeilen tragen
+   `return_rule`; Zeilen ohne das Feld gelten als Variante A. Das
+   Wochen-Urteil (`eval_magnitude_shadow_weekly.py`) zählt nur Zeilen der
+   aktuellen Regel. Das Promotion-Gate nimmt als Move-Size-Befund nur Zeilen
+   der aktuellen Regel: der eingefrorene 15m-Proof vom 2026-06-11 ist unter
+   Variante A gemessen und erreicht das Gate nicht mehr. BOS und SWEEP bleiben
+   in `governance/magnitude_stage_policy.json` scharf; ihre Move-Size-Auflösung
+   ist unter der neuen Regel ungemessen, was das Gate für scharfe Familien
+   fail-closed als `info`-Blocker meldet.
+6. **§5-Artefakt.** `epnl_after_cost_<date>.json` trägt `return_rule`.
+
+### Folgen
+
+- **Die neue Bilanz ist zunächst leer.** Die kumulativen Urteile entstehen
+  mit dem ersten geschlossenen Trade, dessen Anker am oder nach dem 5.10.
+  liegt; `green` setzt 30 Handelstage voraus (Nachtrag 2026-10-02).
+- **Fenster-Urteile** haben keinen Evidenz-Start. Sie zeigen die letzten 30
+  Tage unter der neuen Regel, sobald Pool-Events Eröffnungskurse tragen, und
+  sind eine Rückschau, kein Vorwärts-Beleg.
+- **Rückschau auf September (15m, 2 701 Trades, Eröffnungskurse aus den
+  1m-Kerzen ergänzt):** BOS −7,8, OB −7,4, FVG −6,9, SWEEP −5,6 bps je Trade;
+  nur das FVG-Intervall schließt die Null ein. Steht im Memo; geht nicht in
+  das Ledger ein.
+- **Jeder Verbraucher von `governance/family_returns.py` rechnet mit der
+  neuen Regel:** Promotion-Bundle (Tier 1), §5, Kalibrierung, Meta-Label,
+  Feature-A/B. Bis der Pool Events mit Eröffnungskursen trägt, sehen sie
+  keine oder wenige Trades und melden „zu dünn".
+
+### Was dieser Nachtrag nicht entscheidet
+
+- **Ob BOS und SWEEP scharf bleiben.** Ihr Arming ruht auf dem 15m-Proof
+  unter Variante A. Der Nachtrag nimmt den Proof aus dem Gate, ändert aber
+  die Policy-Datei nicht.
+- **Frühere Aussagen, die auf Variante-A-Erträgen beruhen** (EV-20 vom
+  2026-07-06, der Magnitude-Proof vom 2026-06-11): sie sind nicht neu
+  gemessen. Die Events jener Läufe tragen keine Eröffnungskurse.
+- **1D.** Die Messung, die den Anlass gab, lief auf 15m. Auf 1D ist für OB
+  der Anteil nicht gehandelter Zonenmitten gemessen (80 %, n = 20), für BOS
+  und SWEEP nichts.
+
+## Nachtrag 2026-10-02 III: Intraday-Kerzen liegen auf dem Börsenraster
+
+- **Status:** accepted (Owner-Entscheidung 2026-10-02)
+- **Ändert nicht:** Ertragsregel, Evidenz-Start, Ebenen, Kanäle.
+
+### Anlass (gemessen 2026-10-02)
+
+`resample_bars_to_timeframe` las jede Quellkerze als am ENDE gestempelt. Die
+1m-Kerzen der Pipeline (Databento `ohlcv-1m`) sind am BEGINN gestempelt —
+belegt am Eröffnungsvolumen, das auf dem Stempel 13:30 UTC liegt, nicht auf
+13:31. Die Minute 13:30 landete so in der Kerze, die um 13:30 endet:
+
+- Jede Intraday-Kerze war um eine Minute gegen die Börsenuhr versetzt; die
+  15m-Kerze „13:45" enthielt die Minuten 13:31 bis 13:45.
+- Die Eröffnungsminute des regulären Handels lag in der letzten
+  Vorbörsen-Kerze.
+- Dieselben Erkennungsregeln auf börsengerechten 15m-Kerzen trafen nur 68 %
+  (BOS), 58 % (OB), 84 % (FVG) und 69 % (SWEEP) der gemessenen Events auf
+  derselben Kerze. Was der Track Record maß, war auf keinem Chart zu sehen.
+
+In sich war die Messung stimmig; falsch war das Raster, nicht die Rechnung.
+
+### Entscheidung 9: Quellkerzen gelten als am Beginn gestempelt
+
+`resample_bars_to_timeframe(…, source_stamp="start")` ist der Standard: die
+Minute `T` gehört zur Kerze `[floor(T), floor(T) + tf)`. Die Ausgabe bleibt am
+ENDE beschriftet, also bleibt der Anker eines Events der Zeitpunkt, zu dem
+seine Kerze abgeschlossen ist.
+
+- Kerzen, die bereits auf dem Zielraster liegen (höchstens eine je Eimer, alle
+  Stempel auf dem Raster), werden unverändert durchgereicht.
+- `source_stamp="end"` ist für die eigene Ausgabe des Resamplers da, wenn sie
+  weiter verdichtet wird.
+- Die letzte Kerze entfällt, solange die Quelle ihre letzte Teilkerze nicht
+  erreicht hat.
+- Die Trade-Eimer in `pull_databento_edge_input.py` folgen derselben Regel:
+  ein Trade exakt auf der Grenze gehört zur Kerze, die dort beginnt.
+- Tageskerzen sind nicht betroffen; sie werden unverändert übernommen.
+
+Am echten 1m-Bestand geprüft (24 Symbole, 10.8.–2.10.): 28 685 von 28 709
+börsengerechten 15m-Kerzen sind identisch, die fehlenden 24 sind je Symbol die
+letzte, noch unvollständige Kerze; keine zusätzliche.
+
+### Entscheidung 10: das Kerzenraster gehört zur Mess-Definition
+
+Events der beiden Raster sind verschiedene Events. Sie können dieselbe
+`event_id` tragen (gleiches Label, gleiches Level) und beschreiben doch andere
+Kerzen. Deshalb:
+
+1. **Stempel.** Der Benchmark schreibt `bar_grid = "exchange_aligned"` auf
+   jedes FamilyEvent (`governance.family_returns.BAR_GRID`). Ein Event ohne
+   Stempel stammt vom alten Raster (`offset_one_minute`).
+2. **Pool.** `accumulate_family_events.py` nimmt nur Events des aktuellen
+   Rasters auf und meldet, wie viele es verworfen hat. Der
+   Kontinuitäts-Wächter zählt Gleiches gegen Gleiches: frühere Events eines
+   anderen Rasters sind per Regel verworfen, nicht verloren. Der Pool beginnt
+   mit dem ersten Lauf nach der Korrektur neu, ohne Reseed.
+3. **Ledger und Serien.** Jede Ledger-Zeile und jede Serie nennt ihr
+   `bar_grid`; der Ledger-Produzent verweigert (rc 2) einen Ledger mit Zeilen
+   eines anderen Rasters und zeichnet Events eines anderen Rasters nicht auf.
+4. **Archiv.** Was zwischen der Regeländerung und dieser Korrektur entstand —
+   die 15m-Fenster-Urteile vom 2026-10-02 und beide Ledger — liegt eingefroren
+   unter `docs/calibration/gates/offset_grid_frozen/`. Die 1D-Dateien des
+   Tages bleiben: Tageskerzen sind vom Raster nicht betroffen. Der 1D-Ledger
+   beginnt trotzdem neu, weil seine Zeilen kein `bar_grid` tragen und
+   Ledger-Zeilen nie umgeschrieben werden.
+
+### Folgen
+
+- **Der Evidenz-Start bleibt 2026-10-05.** Keine der archivierten Zeilen
+  zählte je für ein kumulatives Urteil.
+- **Chart und Messung stimmen überein.** Ein Skript, das die Messregeln auf
+  Chart-Kerzen anwendet, sieht dieselben Kerzen wie die Pipeline — soweit die
+  Kursdaten übereinstimmen.
+- **Alles, was Struktur aus Intraday-Kerzen rechnet, rechnet auf dem neuen
+  Raster:** der Benchmark, die Struktur-Artefakte
+  (`smc_integration/structure_batch.py`) und der Databento-Abruf für
+  Edge-Läufe. Frühere Intraday-Befunde (auch die Rückschau im Mess-Memo vom
+  2026-10-02) sind auf dem alten Raster gerechnet.
+
+### Was dieser Nachtrag nicht korrigiert
+
+- **Das Sekunden-Fenster** (`full_universe_second_detail_open`), der Rückfall
+  für Symbole außerhalb des 24er-Universums: ob seine Zeilen am Beginn oder
+  am Ende gestempelt sind, ist nicht geprüft. Es deckt nur rund vier Minuten
+  um die Eröffnung.
+- **Die Kursquelle.** TradingView und Databento liefern nicht dieselben Kurse;
+  einzelne Kerzen und damit einzelne Events können abweichen.
+
+## Nachtrag 2026-10-03 IV: eine zweite Mess-Definition — BOS auf dem groben Korn der Pine-Engine
+
+Owner-Entscheidung vom 2026-10-03.
+
+### Anlass (gemessen 2026-10-02)
+
+Der Track Record misst Struktur mit 1-Kerzen-Pivots (`pivot_lookup = 1`). Die
+Pine-Engine der Suite und des Context Bus arbeitet mit `swing_length` 50
+(Minimum 10). Eine Rückschau mit dem Repo-Detektor auf börsengerechten
+15m-Kerzen (24 Symbole, 10.8.–2.10.2026, Regel `next_open_then_horizon_close`,
+5 bps, Tages-Bootstrap) ergab für BOS/CHoCH:
+
+| `pivot_lookup` | Trades | Tage | bps je Trade |
+|---|---|---|---|
+| 1 | 4 461 | 40 | −8,2 [−11,1; −5,4] |
+| 5 | 1 772 | 39 | −9,1 [−13,8; −4,0] |
+| 10 | 1 227 | 39 | −11,5 [−17,5; −5,2] |
+| 20 | 865 | 38 | −7,8 [−14,0; −1,7] |
+| 50 | 433 | 36 | −11,0 [−18,3; −3,4] |
+
+Keine Körnung positiv; gröbere Pivots senken die Trade-Zahl, nicht den Verlust
+je Trade. Das ist eine Rückschau über eine Periode. Die Engine-Annahme — grobe
+Struktur trägt mehr Edge — soll vorwärts gemessen werden, als eigene Bilanz.
+
+### Entscheidung 11: der Benchmark misst BOS zusätzlich auf `pivot_lookup = 50`
+
+- `governance.family_returns.PIVOT_LOOKUP = 1` ist das Korn des Track Records;
+  `COARSE_PIVOT_LOOKUP = 50` das der zweiten Definition. Der Benchmark
+  stempelt jedes FamilyEvent mit `pivot_lookup` und läuft für Intraday-Paare
+  den Struktur-Aufbau ein zweites Mal mit dem groben Pivot; nur dessen
+  BOS/CHoCH-Liste wird übernommen (OB, FVG, SWEEP hängen nicht am Pivot).
+  1D bekommt keinen groben Durchlauf: ein 50er-Pivot braucht 101 Kerzen, das
+  22-Tage-Fenster hat sie nicht.
+- Ein grobes Event ist ein anderes Event als das feine auf derselben Kerze
+  (anderes Niveau, oft andere Art). Seine `event_id` endet auf `:p50`
+  (`COARSE_EVENT_ID_SUFFIX`), damit der Pool die beiden nie zusammenlegt.
+- Beide Körner liegen im selben Pool. **Jeder Pool-Leser hält sich an ein
+  Korn:** `build_returns_series`, `accumulate_returns_ledger`,
+  `run_magnitude_shadow_ledger`, `run_epnl_after_cost_gate` und
+  `build_promotion_gate_bundle` lesen `PIVOT_LOOKUP`, die ersten beiden auf
+  Wunsch (`--pivot-lookup 50`) das grobe. Ein Event ohne Stempel ist ein
+  feines (vor diesem Nachtrag aufgezeichnet).
+
+### Entscheidung 12: eigene Bilanz, nie gepoolt
+
+- Fenster-Urteil unter `docs/calibration/gates/15m_p50/`, Ledger
+  `ledger/returns_ledger_15m_p50.jsonl`, kumulatives Urteil
+  `ledger/track_record_gate_15m_p50.json`. Jede Zeile und jede Serie nennt
+  ihr `pivot_lookup`; der Ledger-Produzent verweigert (rc 2) einen Ledger mit
+  Zeilen eines anderen Korns. Der Evidenz-Start ist derselbe wie für den
+  Track Record (2026-10-05): kein Trade dieser Bilanz lag vor der Entscheidung
+  auf dem Tisch.
+- Die grobe Bilanz ist eine Beobachtung wie die 15m-Ebene: kein Gate, keine
+  Wirkung auf Arming, Stage oder Claim-Tier, nicht im Public-Report.
+- Was sie misst, ist die Pivot-Körnung der Engine, nicht die Engine: deren
+  HH/LH/HL/LL-Klassifikation, Strong/Weak-Levels und Trend-Stack sind nicht
+  nachgebaut. Ein positives Ergebnis wäre ein Grund für den vollen Nachbau,
+  ein negatives widerlegt die Körnungs-Annahme.
+
+### Bekannte Eigenschaft
+
+Der Detektor ist zustandsbehaftet (Strukturrichtung aus den letzten Pivots)
+und sieht je Lauf nur das Kerzenfenster des Tages. Am Fensteranfang fehlen die
+Pivots davor; mit 50er-Pivots sind die ersten rund 100 Kerzen eines Fensters
+ereignislos und die Richtung initialisiert spät. Der Pool über die Tage
+mildert das: jede Kerze liegt an anderen Tagen in der Fenstermitte. Dieselbe
+Eigenschaft hat das feine Korn in kleinerem Maß.
+
+### Rückschau auf der Historie (2026-10-03, nachgetragen)
+
+Dieselben Definitionen auf Databento `EQUS.MINI` 2023-03-28 bis 2026-10-02
+(24 Symbole, Pipeline-Codepfad): keine Familie, keine Körnung, kein Jahr nach
+Kosten positiv. Pivot 1: BOS −4,8 [−5,7; −4,0], OB −5,2 [−5,8; −4,5], FVG −4,5
+[−5,0; −4,0], SWEEP −4,8 [−5,2; −4,4] bps je Trade; Pivot 50 BOS −3,2
+[−5,4; −0,9] — weniger Verlust je Trade, in zwei von vier Jahren mit Null im
+Intervall, in keinem positiv. Die vorwärts zu trennende Spanne der groben
+Bilanz ist damit „−3 bps oder null". Beleg und Vorbehalte:
+`docs/governance/structure_grain_history_2026-10-03.md`.

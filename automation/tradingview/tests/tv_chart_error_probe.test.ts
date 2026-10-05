@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   assertNoVisibleChartScriptError,
+  dismissPromotionOverlay,
   ensureCleanChartScriptForPublish,
   launchTradingViewChromium,
   probeRuntimeSmoke,
@@ -247,6 +248,94 @@ test("publish preparation still rejects a chart error after materialization", as
       () => ensureCleanChartScriptForPublish(page, "Open-Prep Daily Panel"),
       /CE10271/,
     );
+  } finally {
+    await browser.close();
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 2026-10-01, repair-only run 36859274386: a full-size TradingView promotion
+// ("Don't miss this Autumn sale — Up to 80% off — Offer ends in …") sat on the
+// chart and intercepted every click on five of seven settings dialogs
+// (Playwright: "<div class=modalContent-…> from <div data-id=…> subtree
+// intercepts pointer events"). bindingsRepaired: 0. The markup below mirrors
+// what the failure evidence recorded: an overlap-manager entry whose text
+// starts with "Close".
+// ---------------------------------------------------------------------------
+
+const PROMOTION_HTML = `
+  <div id="overlap-manager-root">
+    <div data-id="promo-1">
+      <div class="modalContentWrapper-s5nsR9oq"><div class="modalContent-s5nsR9oq">
+        <button id="promo-close"><span>Close</span></button>
+        <h2>Don’t miss this Autumn sale</h2>
+        <p>Up to 80% off</p>
+        <p>Offer ends in</p>
+        <button id="promo-cta">Explore offers</button>
+      </div></div>
+    </div>
+    <div data-id="settings-1">
+      <div role="dialog"><h2>SMC Setup Check</h2><button>Inputs</button><button>Style</button></div>
+    </div>
+  </div>`;
+
+test("a promotion overlay is closed through its own close button, and nothing else is touched", async () => {
+  const browser = await launchTradingViewChromium({ headless: true });
+  try {
+    const page = await browser.newPage();
+    await page.setContent(`${PROMOTION_HTML}
+      <script>
+        window.ctaClicks = 0;
+        document.getElementById("promo-cta").addEventListener("click", () => { window.ctaClicks += 1; });
+        document.getElementById("promo-close").addEventListener("click", () => {
+          document.querySelector('[data-id="promo-1"]').remove();
+        });
+      </script>`);
+
+    assert.equal(await dismissPromotionOverlay(page), true);
+
+    assert.equal(await page.locator('[data-id="promo-1"]').count(), 0);
+    assert.equal(await page.locator('[data-id="settings-1"]').count(), 1, "the settings dialog must survive");
+    assert.equal(await page.evaluate("window.ctaClicks"), 0, "the offer button must never be clicked");
+  } finally {
+    await browser.close();
+  }
+});
+
+test("without a promotion nothing is clicked and nothing is reported", async () => {
+  const browser = await launchTradingViewChromium({ headless: true });
+  try {
+    const page = await browser.newPage();
+    await page.setContent(`
+      <div id="overlap-manager-root">
+        <div data-id="settings-1">
+          <div role="dialog"><h2>SMC Setup Check</h2><button id="close">Close</button><button>Inputs</button></div>
+        </div>
+      </div>
+      <script>
+        window.closeClicks = 0;
+        document.getElementById("close").addEventListener("click", () => { window.closeClicks += 1; });
+      </script>`);
+
+    assert.equal(await dismissPromotionOverlay(page), false);
+
+    assert.equal(await page.evaluate("window.closeClicks"), 0, "a settings dialog's own Close is not a promotion");
+    assert.equal(await page.locator('[data-id="settings-1"]').count(), 1);
+  } finally {
+    await browser.close();
+  }
+});
+
+test("a promotion that will not close is reported as still present, not as dismissed", async () => {
+  const browser = await launchTradingViewChromium({ headless: true });
+  try {
+    const page = await browser.newPage();
+    // Close button present but inert, Escape ignored.
+    await page.setContent(PROMOTION_HTML);
+
+    assert.equal(await dismissPromotionOverlay(page), false);
+
+    assert.equal(await page.locator('[data-id="promo-1"]').count(), 1);
   } finally {
     await browser.close();
   }

@@ -75,6 +75,13 @@ def test_monitors_critical_crons_with_budgets(text: str) -> None:
         # Luft. Die Regel selbst ist in
         # tests/test_decide_rolling_benchmark_run.py geprueft — dieser
         # Eintrag ist der Alarm daneben, nicht der Beweis.
+        # 2026-10-01, gemessen: die Praemisse oben stimmt nicht. Ein vom
+        # Kadenz-Gate uebersprungener Fire endet mit conclusion `success`
+        # (Gate-Job gruen, Worker skipped), nicht `skipped` — `:success`
+        # wird also von jedem uebersprungenen Fire erfuellt. Genau dieser
+        # Fall trat ein (Fenster A lief seit 31.8. nie) und blieb hier
+        # gruen. Den Alarm traegt seither die PRODUKT-Zeile des Monitors
+        # (`--product …returns_series_*.json`), nicht diese.
         "smc-measurement-benchmark-rolling.yml=72:success:weekday",
         "adr0023-magnitude-shadow-daily.yml=72:any:weekday",
         "adr0023-magnitude-stage1-weekly.yml=192",

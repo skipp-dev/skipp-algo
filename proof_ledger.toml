@@ -481,6 +481,13 @@ artifact        = "tradingview-consumer-bindings"
 version_probe   = "KEINE"
 version_probe_reason = "Feld-Praesenz-Probe kann eine neue WERT-Variante eines bestehenden Feldes nicht ausdruecken (Feld seit #4085, Wert seit #5025); der Urteiler faengt den Fall selbst per not_a_repair_run ab"
 judge           = "tv_repair_only_contract"
+# 2026-10-01: der Urteiler liest jetzt auch die GEBOTS-Haelfte dieser
+# Behauptung ("...und speichert"). Bis dahin war jeder repair-only-Lauf mit
+# bindingsRepaired > 0 und layoutSaved=false ein PASS/contract_held -- 32 in
+# Folge, waehrend TradingViews umgebauter Speicherknopf jede Reparatur verwarf
+# (Korpus 35590264660 -> FAIL/repaired_not_saved; 36820265832 ->
+# STEHT_AUS/nothing_repaired). Der Zeuge 32620808573 unten bleibt PASS: er
+# trug layoutSaved=true.
 # 2026-08-23: derselbe Lauf 32620808573 traegt executionMode=repair-only und
 # haelt den Vertrag: sourceSavesCompleted 0, producerInstancesRemoved 0,
 # consumerInstancesRemoved 0 — nichts deployt, nichts zerlegt.
@@ -1798,6 +1805,121 @@ required, Konstante ohne ihn) und wurde mit #5160 geschlossen; er ist der
 Grund fuer diesen Waechter. Kein Korpus traegt ihn, weil die Baseline seit
 #5160 haelt -- feuert er, ist das der Ernstfall, nicht ein Testfall.
 """
+# ---------------------------------------------------------------------------
+# 5586 (1.10.): Der workflow-freshness-monitor fragt je Zeile "endete der
+# Workflow gruen?". promotion-gate-daily endete vom 31.8. bis 30.9. in 17 von
+# 18 Laeufen `success` und uebersprang dabei alles; der Rolling-Benchmark
+# meldet `success` fuer jeden Fire, den sein Kadenz-Gate ueberspringt. Beide
+# Zeilen blieben frisch, der juengste Gate-Bericht auf main war fuenf Wochen
+# alt. Neu ist eine PRODUKT-Zeile: das Alter der juengsten datierten Datei
+# docs/calibration/gates/track_record_gate_*.json, 72 Werktagsstunden.
+#
+# OFFEN mit Urteiler: die Regel ist suite-ausfuehrbar (65 Tests, gemessene
+# Lage als Fall, Mutationsprobe 2 rot), die Verdrahtung nicht — ob die Sonde
+# die Zeile traegt und ihr Muster im Monitor-Checkout Dateien findet, zeigt
+# erst ein echter Lauf. Die Zeile traegt expected-stale-until=2026-10-08; ab
+# dann faellt sie hart rot, solange kein neuer Gate-Bericht gelandet ist.
+# ---------------------------------------------------------------------------
+[[proof]]
+id              = "5586"
+kind            = "fix"
+# 2026-10-01 nachgetragen: `gh pr view 5586 --json mergedAt,mergeCommit` und
+# `git log -1 origin/main` stimmen ueberein (SHA identisch, 13:03:45Z).
+merged_at       = "2026-10-01T13:03:45Z"
+merge_sha       = "1481efdd6b14c970435ef25dcd4dd83e48bd9bef"
+claim           = "Der workflow-freshness-monitor wertet bei jedem Lauf das Alter des juengsten datierten Gate-Berichts im Checkout aus (docs/calibration/gates/track_record_gate_*.json, 72 Werktagsstunden) und gibt das Ergebnis als eigene Zeile aus — unabhaengig davon, ob die erzeugenden Workflows gruen endeten."
+witness         = "workflow-freshness-monitor"
+witness_job     = "probe"
+evidence_source = "job_log"
+artifact        = ""
+version_probe   = "product:docs/calibration/gates/track_record_gate_"
+judge           = "freshness_product_row"
+# 2026-10-01, GEMESSEN: Lauf 36885087891 (workflow_dispatch auf main, Job
+# `probe` 110446234362, gestartet 15:32:45Z, also nach merged_at). Das Log
+# traegt die ausgegebene Zeile
+#   ##[warning]product:docs/calibration/gates/track_record_gate_*.json:
+#   stale as DECLARED -- … expectation expires 2026-10-08
+# — die Sonde traegt die Zeile, das Muster findet im Monitor-Checkout Dateien
+# (juengster Bericht 2026-09-21), und die Deklaration greift. Die Zeugensuche
+# des Ledgers (`newest_witness`) waehlt genau diesen Lauf, der Urteiler sagt
+# PASS/zeile_ausgewertet. Der Lauf selbst endete `failure` — richtig so: drei
+# andere Zeilen sind ueberfaellig; geurteilt wird ueber den Inhalt, nicht ueber
+# die Conclusion. Korpus: tests/proof_corpus/freshness_product_row/110446234362.json.
+state           = "PASS"
+pass_kind       = "live"
+witness_run     = "36885087891"
+due_by          = "2026-10-09"
+owner           = "operator"
+
+[[unreachable_branch]]
+judge  = "freshness_product_row"
+branch = "kein_log"
+reason = """
+Feuert, wenn der Monitor den Zeugen-Job nicht auffindet und ein leeres Log
+durchreicht. Die Aufzeichnung im Korpus entstand aus einem erfolgreich
+geholten Log, der Zweig ist dort strukturell unerreichbar. Er ist die
+fail-closed-Kante: KANN_NICHT_BEZEUGEN statt PASS.
+"""
+
+[[unreachable_branch]]
+judge  = "freshness_product_row"
+branch = "muster_findet_nichts"
+reason = """
+Feuert, wenn die Zeile ausgewertet wird und MISSING meldet — das Muster faende
+im Checkout des Monitors keine datierte Datei. Vor dem Merge nicht
+beobachtbar. Dass das Muster im Baum Dateien findet, prueft die
+Positivkontrolle test_product_row_pattern_matches_real_files; dieser Zweig
+faengt den Fall, dass der Checkout der Sonde (fetch-depth 1) davon abweicht.
+"""
+
+# ---------------------------------------------------------------------------
+# freshness-product-row-returns-series (2.10.): Die Produkt-Zeile aus #5586
+# pruefte das Alter des juengsten track_record_gate_<Datum>.json. Mit der neuen
+# Ertragsregel (ADR-0031, Nachtrag 2026-10-02 II) liegen die Variante-A-Urteile
+# im Archiv, und ein Tag ohne Trades schreibt kein Urteil — die Zeile haette
+# einen korrekten Zustand angeklagt. Die Serie returns_series_<Datum>.json
+# entsteht dagegen an jedem Tag, an dem der Pool existiert; sie ist der
+# Bericht, dessen Ausbleiben die Zeile melden soll. Das Muster wechselt, das
+# Budget bleibt (72 Werktagsstunden), expected-stale-until entfaellt.
+#
+# Suite-bewiesen: die Regel (tests/test_check_workflow_freshness.py), dass die
+# Zeile im Workflow steht und ihr Muster im Baum eine datierte Datei findet
+# (tests/test_workflow_freshness_monitor_workflow_contract.py). Nicht
+# suite-sichtbar: ob die Sonde im echten Lauf die neue Zeile ausgibt.
+#
+# Derselbe Urteiler wie #5586; er liest je Eintrag die Zeile, die dessen
+# version_probe nennt. Der Zeuge von #5586 (Lauf 36885087891) traegt die alte
+# Zeile und ist fuer diesen Eintrag STEHT_AUS — ausgefuehrt geprueft in
+# test_the_old_row_is_no_witness_for_the_new_entry.
+# ---------------------------------------------------------------------------
+[[proof]]
+id              = "freshness-product-row-returns-series"
+kind            = "fix"
+# 2026-10-02 nachgetragen (#5624): `gh pr view 5624 --json mergedAt,mergeCommit`
+# und `git log -1 origin/main` stimmen ueberein (SHA identisch).
+merged_at       = "2026-10-02T17:58:52Z"
+merge_sha       = "860fcbab0622cca8706bd8079ead05dc75304fef"
+claim           = "Der workflow-freshness-monitor wertet bei jedem Lauf das Alter der juengsten datierten Ertragsserie im Checkout aus (docs/calibration/gates/returns_series_*.json, 72 Werktagsstunden) und gibt das Ergebnis als Annotation 'product:docs/calibration/gates/returns_series_*.json: …' aus."
+witness         = "workflow-freshness-monitor"
+witness_job     = "probe"
+evidence_source = "job_log"
+artifact        = ""
+version_probe   = "product:docs/calibration/gates/returns_series_"
+judge           = "freshness_product_row"
+# 2026-10-02, GEMESSEN: Lauf 37044446792 (workflow_dispatch auf main,
+# head_sha 860fcbab0, Job `probe` 110962289057, nach merged_at). Das Log traegt
+#   ##[notice]product:docs/calibration/gates/returns_series_*.json: fresh (18.0h ago)
+# Geurteilt ueber den Weg des Ledgers selbst (`_judge_entry`): newest_witness
+# waehlt diesen Lauf, Urteil PASS/zeile_ausgewertet. Der Lauf endete `failure`
+# — andere Zeilen sind ueberfaellig; der Urteiler liest den Inhalt, nicht die
+# Conclusion. Das Log ist als Korpus aufgezeichnet.
+state           = "PASS"
+pass_kind       = "live"
+witness_run     = "37044446792"
+due_by          = "2026-10-09"
+owner           = "operator"
+
+# ---------------------------------------------------------------------------
 # library-refresh-safety-net-cadence (29.8.): Die Cron-Ticks des Consumers
 # sanken von 9 auf 4, weil der `workflow_run`-Fast-Path im gesunden Betrieb
 # ohnehin bei JEDEM Producer-Abschluss feuert — das Netz lief bis dahin
@@ -2422,6 +2544,29 @@ claim  = "Der Rolling-Bench schreibt hoechstens eine History-Zeile pro Tag, und 
 state  = "AUSGENOMMEN"
 due_by = "2026-08-29"
 owner  = "operator"
+# ---------------------------------------------------------------------------
+# 5585 (1.10.): accumulate_family_events.py deduplizierte auf (family,
+# anchor_ts) und verlor damit 86 % der Events eines Tages (11 586 Events,
+# 1 570 Schluessel, gemessen an der Tagesdatei vom 24.9.); der Schluessel ist
+# jetzt die event_id.
+#
+# AUSGENOMMEN, weil die beweispflichtige Datei dieses PRs — der Workflow
+# smc-measurement-benchmark-rolling.yml — nur einen KOMMENTAR aendert (die
+# Zeile, die den Dedup-Schluessel beschreibt). Die Verhaltensaenderung liegt
+# in scripts/accumulate_family_events.py, das die Suite importiert und
+# ausfuehrt: 45 Tests, davon 7 neu fuer die Event-Identitaet; Mutationsprobe
+# (Schluessel zurueck auf (family, anchor_ts)) faerbt 6 davon rot. Der Aufruf
+# im Workflow ist unveraendert.
+# ---------------------------------------------------------------------------
+[[proof]]
+id     = "5585"
+kind   = "exempt"
+claim  = "Die Workflow-Datei aendert nur den Kommentar zum Dedup-Schluessel. Die Verhaltensaenderung (Pool-Schluessel = event_id statt (family, anchor_ts)) liegt in scripts/accumulate_family_events.py und ist suite-ausfuehrbar bewiesen: 7 neue Tests bauen gleiche Bar / verschiedene Symbole und Timeframes nach, die Mutationsprobe faerbt 6 rot."
+state  = "AUSGENOMMEN"
+due_by = "2026-10-01"
+owner  = "operator"
+
+# ---------------------------------------------------------------------------
 # rolling-bench-two-windows (29.8.): Der Rolling-Benchmark feuerte per
 # `workflow_run` bei jedem der NEUN Producer-Ticks; sein Kopfkommentar ging
 # von zwei Laeufen aus (Praemisse aus der Zeit, als der Producer 2x lief).
@@ -2730,6 +2875,157 @@ Post-Merge-Lauf, Stolperdraht = Eintrag 5231 due_by 2026-09-06.
 """
 
 # ---------------------------------------------------------------------------
+# returns-ledger-step (1.10., ADR-0031 Nachtrag): promotion-gate-daily bekommt
+# den Schritt `ledger` — 15m-Beobachtungsserie (Fenster-Urteile nach
+# docs/calibration/gates/15m/) und je Ebene ein wachsendes Trade-Ledger
+# (docs/calibration/gates/ledger/). Anlass: die 1D-Serie ist ein rollendes
+# 30-Tage-Fenster und trug 29-34 Trades gegen vorregistrierte 120-200.
+#
+# OFFEN mit Urteiler: Skript und Schritt sind suite-ausfuehrbar (der Schritt
+# laeuft im Test mit den echten Producern, Paritaet zur Tagesserie am echten
+# Pool gemessen: 1D 19 = 19, 15m 551 = 551). Nicht suite-sichtbar ist, ob der
+# Schritt im echten Lauf erreicht wird: er haengt an
+# `steps.gates.outputs.produced == 'true'`, und das Gate hat seit dem 31.8. in
+# 17 von 18 Laeufen nichts produziert (Ursachen: #5584).
+#
+# Symbolische id statt PR-Nummer: der Eintrag entsteht im selben Push wie der
+# PR, eine geratene Nummer waere genau der Ausfall vom 29.8. (#5179).
+# ---------------------------------------------------------------------------
+[[proof]]
+id              = "returns-ledger-step"
+kind            = "fix"
+# 2026-10-01 nachgetragen (#5588): `gh pr view 5588 --json mergedAt,mergeCommit`
+# und `git log -1 origin/main` stimmen ueberein (SHA identisch, Zeitstempel
+# 14:19:38Z Merge-Event vs. 14:19:37Z Commit).
+merged_at       = "2026-10-01T14:19:38Z"
+merge_sha       = "e337aff3f9703d28f9b8f3c705257c44ba47c4cc"
+claim           = "promotion-gate-daily haengt bei jedem produzierenden Lauf die neu abgeschlossenen Variante-A-Trades je Ebene (1D, 15m) an docs/calibration/gates/ledger/returns_ledger_<Ebene>.jsonl an und schreibt die 15m-Fenster-Urteile nach docs/calibration/gates/15m/."
+witness         = "promotion-gate-daily"
+witness_job     = "promotion-gate"
+evidence_source = "job_log"
+artifact        = ""
+version_probe   = "returns ledger 15m:"
+judge           = "returns_ledger_step"
+# 2026-10-01, GEMESSEN: promotion-gate-daily, Lauf 36909606203
+# (workflow_dispatch nach dem Merge von #5584, Job `promotion-gate`
+# 110528686974, gestartet 18:48:42Z). Der Schritt `ledger` lief und druckte
+#   returns ledger 1D: pool 30/7232 events on plane, 30 closed trades
+#   observed, 30 new, 0 contradicted, ledger now 30 (BOS:11, OB:7, SWEEP:12)
+#   returns ledger 15m: pool 846/7232 events on plane, 634 closed trades
+#   observed, 634 new, 0 contradicted, ledger now 634 (BOS:209, FVG:150,
+#   OB:107, SWEEP:168)
+# Die 15m-Fenster-Urteile entstanden; das kumulative 15m-Urteil noch nicht
+# (kein Trade mit Anker ab dem Evidenz-Start 2026-10-01 — wie entworfen).
+#
+# Der erste Urteilsversuch ergab FAIL — zu Unrecht, und der Fehler lag im
+# Urteiler: er suchte die Verweigerung "the events pool is gone" als Text und
+# fand sie im Skript-Echo des run-Blocks. In derselben Aenderung behoben (er
+# liest jetzt die ausgegebene `##[error]`-Zeile); danach PASS/ledger_geschrieben
+# ueber die Zeugensuche des Ledgers. Korpus:
+# tests/proof_corpus/returns_ledger_step/110528686974.json.
+state           = "PASS"
+pass_kind       = "live"
+witness_run     = "36909606203"
+due_by          = "2026-10-15"
+owner           = "operator"
+
+[[unreachable_branch]]
+judge  = "returns_ledger_step"
+branch = "kein_log"
+reason = """
+Feuert, wenn der Monitor den Zeugen-Job nicht auffindet und ein leeres Log
+durchreicht. Die Aufzeichnung im Korpus entstand aus einem erfolgreich
+geholten Log, der Zweig ist dort strukturell unerreichbar. Er ist die
+fail-closed-Kante: KANN_NICHT_BEZEUGEN statt PASS.
+"""
+
+[[unreachable_branch]]
+judge  = "returns_ledger_step"
+branch = "ledger_unvollstaendig"
+reason = """
+Feuert, wenn nur eine der beiden Ebenen ihre Zeile druckt oder der Schritt
+laut verweigert (Regel-Mix im Ledger, Pool verschwunden). Vor dem Merge nicht
+beobachtbar. Beide Verweigerungen sind ausgefuehrt geprueft
+(test_a_ledger_never_pools_two_trade_definitions,
+test_a_missing_pool_fails_the_ledger_step_loudly); dieser Zweig faengt sie im
+echten Lauf.
+"""
+
+# ---------------------------------------------------------------------------
+# shadow-ledger-return-rule (2.10.): Die Ertragsregel wurde ersetzt (ADR-0031,
+# Nachtrag 2026-10-02 II: Einstieg zur Eroeffnung nach der Entscheidungskerze
+# statt zur Zonenmitte bzw. zum Level). Das Move-Size-Ziel des ADR-0023-
+# Shadow-Ledgers ist die Groesse des realisierten Ertrags, also regelabhaengig.
+# scripts/run_magnitude_shadow_ledger.py stempelt deshalb `return_rule` in jede
+# neue Zeile, das Wochen-Urteil und das Promotion-Gate lesen nur Zeilen der
+# aktuellen Regel.
+#
+# Suite-bewiesen: Stempel, Trennung nach Regel, Wochen-Urteil, Gate-Snapshots
+# (auch gegen die echte Seed-Datei), der Stale-Feed-Waechter. Nicht
+# suite-sichtbar: ob adr0023-magnitude-shadow-daily im echten Lauf den neuen
+# Stand ausfuehrt. Zeuge ist die Zusammenfassung des Skripts, die seit der
+# Aenderung die Regel in eckigen Klammern nennt.
+#
+# Derselbe PR aendert in promotion-gate-daily.yml zwei KOMMENTARE (Seed-Proof
+# erreicht das Gate nicht mehr; das 15m-Datum ist nicht mehr das bindende).
+# Am Aufruf aendert sich dort nichts.
+#
+# Symbolische id statt PR-Nummer: der Eintrag entsteht im selben Push wie der
+# PR.
+# ---------------------------------------------------------------------------
+[[proof]]
+id              = "shadow-ledger-return-rule"
+kind            = "fix"
+# 2026-10-02 nachgetragen (#5624): `gh pr view 5624 --json mergedAt,mergeCommit`
+# und `git log -1 origin/main` stimmen ueberein (SHA identisch).
+merged_at       = "2026-10-02T17:58:52Z"
+merge_sha       = "860fcbab0622cca8706bd8079ead05dc75304fef"
+claim           = "adr0023-magnitude-shadow-daily haengt Zeilen an, die return_rule = next_open_then_horizon_close tragen, und nennt die Regel in seiner Zusammenfassung ('shadow ledger <pfad> [next_open_then_horizon_close]: …')."
+witness         = "adr0023-magnitude-shadow-daily"
+witness_job     = "magnitude-shadow"
+evidence_source = "job_log"
+artifact        = ""
+version_probe   = "[next_open_then_horizon_close]:"
+judge           = "shadow_ledger_return_rule"
+state           = "OFFEN"
+due_by          = "2026-10-09"
+owner           = "operator"
+
+[[unreachable_branch]]
+judge  = "shadow_ledger_return_rule"
+branch = "kein_log"
+reason = """
+Feuert, wenn der Monitor den Zeugen-Job nicht auffindet und ein leeres Log
+durchreicht. Die Aufzeichnung im Korpus entstand aus einem erfolgreich
+geholten Log, der Zweig ist dort strukturell unerreichbar. Er ist die
+fail-closed-Kante: KANN_NICHT_BEZEUGEN statt PASS.
+"""
+
+[[unreachable_branch]]
+judge  = "shadow_ledger_return_rule"
+branch = "falsche_regel"
+reason = """
+Feuert, wenn die Zusammenfassung eine andere Regel nennt als die erwartete.
+Das Skript druckt seine eigene Konstante RETURN_RULE; ein Lauf mit dem
+gemergten Stand kann keine andere drucken. Der Zweig faengt den Fall, dass die
+Regel spaeter erneut wechselt, ohne dass dieser Urteiler nachgezogen wird —
+dann FAIL statt eines PASS auf den falschen Stand. Ausgefuehrt geprueft in
+test_a_summary_stamped_with_another_rule_fails.
+"""
+
+[[unreachable_branch]]
+judge  = "shadow_ledger_return_rule"
+branch = "regel_gestempelt"
+reason = """
+Der PASS-Zweig. Vor dem Merge druckt kein Lauf die Regel; der letzte echte Lauf
+(37014478924, Job 110861865818, 2026-10-02 13:39 UTC) steht im Korpus und
+urteilt STEHT_AUS/nicht_gestempelt. Dass das Skript genau die Zeile druckt, die
+dieser Zweig liest, prueft test_the_runner_prints_exactly_the_line_the_judge_reads
+am echten Runner. Diese Erklaerung entfaellt, sobald der erste Lauf nach dem
+Merge als Korpus aufgezeichnet ist.
+"""
+
+# ---------------------------------------------------------------------------
 # house-rules-watch (31.8. spaetabends, Operator-Bestellung): ADR-0034 ruhte
 # auf einem UNGESICHERT -- niemand beobachtete die Hausregel-Seite. Jetzt
 # difft der Montags-Watcher (pine-release-notes-watch) sie als zweites Ziel
@@ -2833,4 +3129,295 @@ reason = """
 der Seed vom 31.8. traegt die unveraenderte Regel. Feuert er, wird das Log als
 Korpus nachgetragen und ADR-0034 neu bewertet (due_by 2026-09-08 haelt die
 Kette wach, bis der erste echte Lauf da ist).
+"""
+
+# ---------------------------------------------------------------------------
+# 5584 (1.10.): Der Rolling-Benchmark lieferte kein Tagesartefakt mehr — aus
+# zwei unabhaengigen Ursachen. (a) Seit 31.8. zaehlte das Kadenz-Gate jeden
+# Lauf mit conclusion=success als "Fenster bedient", auch den Fire, den es
+# selbst uebersprungen hatte (Gate-Job success, Worker skipped); Fenster A lief
+# nie. (b) Seit 25.9. ~16 UTC antwortet GET /actions/artifacts?per_page=100 mit
+# HTTP 500, und restore_databento_export_bundle.py starb in Zeile 161.
+#
+# OFFEN mit Urteiler: die Entscheidungsregel und die Kandidatensuche sind
+# suite-ausfuehrbar, die beiden Dinge, die den Ausfall trugen, aber nicht —
+# die Job-Abfrage im Shell-Schritt des Workflows und die echte GitHub-API.
+# Der Zeuge ist bewusst NICHT der Benchmark (der war die ganze Zeit gruen),
+# sondern sein Konsument: promotion-gate-daily findet das datierte Artefakt
+# wieder oder findet es nicht. Gemessen 1.10.: 17 von 18 Laeufen seit 31.8.
+# fanden es nicht.
+#
+# Der Vorgaenger-Eintrag "rolling-bench-two-windows" (OFFEN, due 5.9.) hat
+# genau diesen Defekt nicht gesehen. NICHT in diesem PR behoben, nur benannt:
+# sein Urteiler sucht `run=true` klein, das Skript druckt `run=True`; der
+# Zweig decided_and_ran ist damit nie erreichbar, und jedes Log mit einer
+# Gate-Entscheidung faellt auf PASS/decided_and_skipped.
+# ---------------------------------------------------------------------------
+[[proof]]
+id              = "5584"
+kind            = "fix"
+# 2026-10-01 nachgetragen: `gh pr view 5584 --json mergedAt,mergeCommit` und
+# `git log -1 origin/main` stimmen ueberein (SHA identisch, Zeitstempel
+# 18:24:52Z Merge-Event vs. 18:24:51Z Commit).
+merged_at       = "2026-10-01T18:24:52Z"
+merge_sha       = "17959c32e6d3995de27494b97dc68a5e3d0da69c"
+claim           = "promotion-gate-daily (14:00 UTC) findet das datierte Bench-Artefakt des Tages wieder, weil der Rolling-Benchmark sein Fenster vor 13:30 UTC wirklich faehrt (ein uebersprungener Fire bedient kein Fenster mehr) und sein Restore-Schritt nicht mehr am HTTP 500 des repo-weiten Artefakt-Index stirbt."
+witness         = "promotion-gate-daily"
+witness_job     = "promotion-gate"
+evidence_source = "job_log"
+artifact        = ""
+version_probe   = "KEINE"
+version_probe_reason = "Der Zeuge ist der Konsument. Dieser PR aendert weder promotion-gate-daily.yml noch irgendetwas, das dessen Log druckt — es gibt dort kein Feld, das erst seit der Aenderung existiert. Zurechenbar ist das Urteil ueber started_at des Zeugen-Jobs nach merged_at."
+judge           = "daily_gate_bench_artifact"
+# 2026-10-01, GEMESSEN — die Kette nach dem Merge (18:24:52Z), von Hand
+# angestossen:
+#   1. smc-measurement-benchmark-rolling, Lauf 36906821841 (workflow_dispatch,
+#      18:26Z): der Restore-Schritt kam durch ("Restored Databento export
+#      artifact smc-databento-production-export-2026-10-01-36836565487 …
+#      mode=today, trade_days=22") — der erste gelungene Restore seit dem
+#      24.9.; Lauf gruen, datiertes Tagesartefakt hochgeladen.
+#   2. promotion-gate-daily, Lauf 36909606203 (workflow_dispatch, Job
+#      `promotion-gate` 110528686974, gestartet 18:48:42Z): das Log traegt
+#        ##[notice]artifact smc-measurement-benchmark-rolling-2026-10-01
+#        fetched from run 36906821841
+#      Das Gate rechnete und legte Bot-PR #5595 an.
+# Die Zeugensuche des Ledgers (`newest_witness`) waehlt Lauf 36909606203, der
+# Urteiler sagt PASS/tagesartefakt_gefunden. Korpus:
+# tests/proof_corpus/daily_gate_bench_artifact/110528686974.json.
+#
+# Was dieser Zeuge NICHT belegt: die Kadenz-Haelfte im Normalbetrieb. Der
+# Benchmark lief hier per Hand ("manueller Dispatch laeuft immer"), nicht weil
+# das Gate ein Fenster als unbedient erkannte. Die Regel ist ausgefuehrt
+# getestet (inkl. Shell-Schritt mit gh-Stub); ob der erste geplante Werktag
+# das datierte Artefakt vor 14:00 UTC liefert, zeigt die Produkt-Zeile des
+# Frische-Monitors — sie faellt ab dem 9.10. rot, wenn kein Bericht landet.
+state           = "PASS"
+pass_kind       = "live"
+witness_run     = "36909606203"
+due_by          = "2026-10-09"
+owner           = "operator"
+
+[[unreachable_branch]]
+judge  = "daily_gate_bench_artifact"
+branch = "kein_log"
+reason = """
+Feuert, wenn der Monitor den Zeugen-Job nicht auffindet und ein leeres Log
+durchreicht. Im aufgezeichneten Korpus kommt das nicht vor: beide Aufzeichnungen
+entstanden aus einem erfolgreich geholten Log. Der Zweig ist die
+fail-closed-Kante — KANN_NICHT_BEZEUGEN statt PASS, damit ein Abrufproblem nie
+wie ein bestandener Beweis aussieht.
+"""
+
+[[unreachable_branch]]
+judge  = "daily_gate_bench_artifact"
+branch = "download_nicht_erreicht"
+reason = """
+Feuert, wenn das Log weder die ausgegebene Fund- noch die ausgegebene
+Fehlanzeige-Zeile traegt — der Job also vor dem Download-Schritt endete. Kein
+aufgezeichneter Lauf tat das: beide Korpus-Logs (21.9. Fund, 30.9. Fehlanzeige)
+erreichten den Schritt. Der Zweig existiert wegen des Skript-Echos: der Runner
+druckt den run-Block mit unaufgeloestem ${ART_NAME} in JEDES Log, und ohne diese
+Kante faende eine Textsuche dort einen "Fund". Synthetisch geprueft in
+tests/test_proof_judge_daily_gate_bench_artifact.py (echtes Log, ausgegebene
+Zeile entfernt).
+"""
+
+# ---------------------------------------------------------------------------
+# #5598 — der Ketten-Save wartete seit dem 2026-08-13 auf einen PR, den es
+# unter diesem Namen nie gab. tv-save-consumer-source sucht
+# bot/library-refresh-<Id des REFRESH-Laufs>-*; smc-library-publish benannte den
+# Branch nach seiner EIGENEN Lauf-Id. Die Suche traf nichts, "kein PR" galt als
+# "nichts geaendert", der Save startete auf dem Baum vor dem Refresh.
+# Gemessen 2026-10-01: 14 von 14 gescheiterten Ketten-Saves (24.9.–1.10.) tragen
+# die Notiz "No bot/library-refresh-<refresh id>-* PR exists"; der juengste
+# (36919569655) begann 26 s nach dem Oeffnen von #5597 und 5 min vor dessen
+# Merge und verweigerte mit "Library publish drift" (Manifest 544, TV 545).
+#
+# Die Suite sieht die Wirkung nicht: beide Schritte sind zwar gegeneinander
+# ausgefuehrt getestet (tests/test_refresh_closes_superseded_bot_prs.py), aber
+# dass GitHub beiden dieselbe Lauf-Id reicht und der PR innerhalb der 600 s
+# merged, zeigt nur ein echter Zyklus. Zeuge ist der naechste Ketten-Save nach
+# einem Publish, der diesen Fix traegt.
+# ---------------------------------------------------------------------------
+[[proof]]
+id              = "5598"
+kind            = "fix"
+merged_at       = "<wird beim Merge nachgetragen>"
+merge_sha       = "<dito>"
+claim           = "Der vom Library-Refresh ausgeloeste Save findet den Refresh-PR des zugehoerigen Publish-Laufs, wartet auf dessen Merge und checkt genau diesen Commit aus — statt auf dem Baum vor dem Refresh zu starten und an Library publish drift zu verweigern."
+witness         = "tv-save-consumer-source"
+witness_job     = "save"
+evidence_source = "job_log"
+artifact        = ""
+version_probe   = "KEINE"
+version_probe_reason = "Der Fix liegt im Branch-Namen, den smc-library-publish vergibt; am Save aendern sich nur YAML-Kommentare, die der Runner nicht druckt. Im Log des Zeugen gibt es deshalb keinen Text, der erst seit dieser Aenderung erscheint — ausser der Ergebniszeile selbst, und die liest der Urteiler. Laeufe mit altem Code erkennt er an ihrer eigenen Signatur (kein PR gefunden + Verweigerung im selben Lauf = FAIL)."
+judge           = "tv_save_awaits_refresh_pr"
+# Achtung beim Nachmessen: `newest_witness` waehlt den JUENGSTEN save-Job nach
+# dem Merge, und das ist meist ein Zeitplan-Verify oder ein Dispatch. Die
+# urteilen STEHT_AUS/kein_ketten_save — das ist kein Befund ueber den Fix.
+# Zeuge ist ein Lauf mit event=workflow_run, dessen Publish NACH dem Merge lief
+# (nur dann traegt der Branch die Refresh-Id).
+state           = "OFFEN"
+due_by          = "2026-10-08"
+owner           = "operator"
+
+[[unreachable_branch]]
+judge  = "tv_save_awaits_refresh_pr"
+branch = "refresh_commit_abgewartet"
+reason = """
+2026-10-01: vor dem Merge von #5598 KONSTRUKTIONSBEDINGT unerreichbar — die
+ausgegebene Zeile "Refresh commit <sha> (PR #N) is on main" entsteht nur, wenn
+der Await-Schritt den PR findet, und das konnte er seit dem 2026-08-13 nicht
+(14 von 14 gescheiterten Ketten-Saves, 24.9.–1.10., melden "No ... PR exists").
+"Noch nicht geboren", nicht "tot": sobald der erste Ketten-Save nach dem Fix als
+Korpus aufgezeichnet ist, faellt diese Deklaration im Widerspruchs-Test auf und
+muss weg — das Aufzeichnen gehoert zum Abschluss von 5598.
+"""
+
+[[unreachable_branch]]
+judge  = "tv_save_awaits_refresh_pr"
+branch = "refresh_pr_nicht_gemergt"
+reason = """
+Feuert, wenn der Await-Schritt den PR FINDET und dann laut scheitert ("did not
+merge within" / "was closed without merging"). Kein aufgezeichneter Lauf tat
+das — bis zum Fix fand der Schritt den PR gar nicht. Der Zweig trennt "die
+Zuordnung stimmt, aber der PR haengt" (PRUEFEN) vom Defekt, den 5598 behebt.
+Ausgefuehrt geprueft ist die Kante im Schritt selbst:
+tests/test_refresh_closes_superseded_bot_prs.py laesst ihn gegen einen offenen PR
+in den Timeout laufen.
+"""
+
+[[unreachable_branch]]
+judge  = "tv_save_awaits_refresh_pr"
+branch = "kein_log"
+reason = """
+Feuert, wenn der Monitor den Zeugen-Job nicht auffindet und ein leeres Log
+durchreicht. Im aufgezeichneten Korpus kommt das nicht vor: alle drei
+Aufzeichnungen entstanden aus einem erfolgreich geholten Log. Der Zweig ist die
+fail-closed-Kante — KANN_NICHT_BEZEUGEN statt PASS, damit ein Abrufproblem nie
+wie ein bestandener Beweis aussieht.
+"""
+
+# ---------------------------------------------------------------------------
+# coarse-grain-ledger (3.10.): Zweite Mess-Definition (ADR-0031, Nachtrag
+# 2026-10-03 IV). Der Benchmark legt BOS auf dem Korn der Pine-Engine
+# (pivot_lookup 50, Id-Suffix :p50) in den Pool; promotion-gate-daily fuehrt
+# dafuer ein drittes Ledger (ledger/returns_ledger_15m_p50.jsonl) und ein
+# eigenes Fenster-Urteil (15m_p50/). Die Suite fuehrt Skript und Schritt mit
+# den echten Producern aus (tests/test_promotion_gate_daily_workflow_contract.py)
+# und prueft die fuenf Pool-Leser gegen grobe Events im Pool. Nicht
+# suite-sichtbar: ob der Schritt im echten Lauf erreicht wird und ob der
+# Benchmark auf dem neuen Stand grobe Events liefert. Der Zeuge ist die Zeile
+# "returns ledger 15m [pivot_lookup=50]: … ledger now N" im Job-Log; vor dem
+# Merge druckt sie niemand (Korpus: Job 111053132530, Lauf 37071929491 vom
+# 2.10. 22:22Z, der letzte Gate-Lauf vor der Aenderung: zwei Zeilen ohne
+# eckigen Block). Der erste Zeuge ist der Lauf Montag 2026-10-05 14:00 UTC;
+# "ledger now 0" ist dort moeglich, wenn der Benchmark des Tages noch nicht
+# auf dem neuen Stand lief — die Bilanz ist eroeffnet, sobald die Zeile da ist.
+# ---------------------------------------------------------------------------
+[[proof]]
+id              = "coarse-grain-ledger"
+kind            = "fix"
+# 2026-10-03 nachgetragen (#5645): `gh pr view 5645 --json mergedAt,mergeCommit`
+# und `git log -1 origin/main` stimmen ueberein (SHA identisch, 18:18:24Z
+# Merge-Event vs. 18:18:23Z Commit).
+merged_at       = "2026-10-03T18:18:24Z"
+merge_sha       = "b9ea379764451e2e3ccb572b6445c34eb4ae1740"
+claim           = "promotion-gate-daily schreibt bei jedem produzierenden Lauf das Ledger der groben BOS-Definition (pivot_lookup 50) getrennt vom Track Record und druckt dafuer die Zeile 'returns ledger 15m [pivot_lookup=50]: … ledger now N'; die Zeilen des Track Records tragen weiter das feine Korn."
+witness         = "promotion-gate-daily"
+witness_job     = "promotion-gate"
+evidence_source = "job_log"
+artifact        = ""
+version_probe   = "returns ledger 15m [pivot_lookup=50]:"
+judge           = "coarse_grain_ledger"
+state           = "OFFEN"
+due_by          = "2026-10-09"
+owner           = "operator"
+
+[[unreachable_branch]]
+judge  = "coarse_grain_ledger"
+branch = "kein_log"
+reason = """
+Feuert, wenn der Monitor den Zeugen-Job nicht auffindet und ein leeres Log
+durchreicht. Die Aufzeichnung im Korpus entstand aus einem erfolgreich
+geholten Log, der Zweig ist dort strukturell unerreichbar. Er ist die
+fail-closed-Kante: KANN_NICHT_BEZEUGEN statt PASS.
+"""
+
+[[unreachable_branch]]
+judge  = "coarse_grain_ledger"
+branch = "verweigert"
+reason = """
+Feuert, wenn der Ledger-Produzent laut verweigert, weil die Datei Zeilen eines
+anderen Korns haelt. Vor dem Merge nicht beobachtbar; die Verweigerung selbst
+ist ausgefuehrt geprueft (test_a_ledger_of_one_grain_refuses_the_other), und
+test_the_runner_prints_exactly_the_lines_the_judge_reads haelt die gelesene
+Form an der ausgegebenen fest.
+"""
+
+[[unreachable_branch]]
+judge  = "coarse_grain_ledger"
+branch = "korn_geschrieben"
+reason = """
+Der PASS-Zweig. Vor dem Merge druckt kein Lauf die Zeile mit eckigem Block; der
+letzte echte Lauf (37071929491, Job 111053132530, 2026-10-02 22:22 UTC) steht
+im Korpus und urteilt STEHT_AUS/nicht_gestempelt. Dass das Skript genau die
+Zeile druckt, die dieser Zweig liest, prueft
+test_the_runner_prints_exactly_the_lines_the_judge_reads am echten Runner.
+Diese Erklaerung entfaellt, sobald der erste Lauf nach dem Merge als Korpus
+aufgezeichnet ist.
+"""
+
+[[proof]]
+id              = "5674"
+kind            = "fix"
+merged_at       = "<wird beim Merge nachgetragen>"
+merge_sha       = "<dito>"
+claim           = "Ein Producer-Refresh meldet je Chart-Pane, welchen Quelltext die angewandte Instanz rechnet, und der Bericht faellt durch, wenn eine davon nicht der Repo-Stand ist."
+witness         = "tv-save-consumer-source"
+witness_job     = "save"
+evidence_source = "artifact"
+artifact        = "tradingview-consumer-bindings"
+version_probe   = "producerRefresh.appliedInstances"
+judge           = "tv_producer_refresh_applied_source"
+# Zeuge ist ein Lauf mit refresh_producer=true nach dem Merge (Dispatch oder
+# Ketten-Save nach einem Library-Refresh). Zeitplan-Verifies urteilen
+# STEHT_AUS/not_a_refresh_run — kein Befund ueber den Fix.
+state           = "OFFEN"
+due_by          = "2026-10-19"
+owner           = "operator"
+
+[[unreachable_branch]]
+judge  = "tv_producer_refresh_applied_source"
+branch = "stale_detected_red"
+reason = """
+2026-10-05: vor dem Merge von #5674 KONSTRUKTIONSBEDINGT unerreichbar — das Feld
+producerRefresh.appliedInstances entsteht erst mit dieser Aenderung. "Noch nicht
+geboren": der erste Refresh-Lauf nach dem Merge wird als Korpus aufgezeichnet,
+dann faellt diese Deklaration im Widerspruchs-Test auf und muss weg.
+"""
+
+[[unreachable_branch]]
+judge  = "tv_producer_refresh_applied_source"
+branch = "stale_but_green"
+reason = """
+2026-10-05: wie stale_detected_red — braucht appliedInstances, das es vor #5674
+nicht gibt. Nach dem Fix nur erreichbar, wenn report.ok die staleInstances-
+Klausel verliert; der Test in tv_producer_refresh_layouts.test.ts pinnt sie.
+"""
+
+[[unreachable_branch]]
+judge  = "tv_producer_refresh_applied_source"
+branch = "all_current"
+reason = """
+2026-10-05: braucht appliedInstances (erst seit #5674). Erreichbar, sobald ein
+Refresh nach dem Merge alle Panes auf den Repo-Stand bringt.
+"""
+
+[[unreachable_branch]]
+judge  = "tv_producer_refresh_applied_source"
+branch = "no_instance_read"
+reason = """
+2026-10-05: braucht appliedInstances als Schluessel (erst seit #5674); erreichbar,
+wenn der Refresh vor dem Lesen abbricht und das Feld leer bleibt.
 """
