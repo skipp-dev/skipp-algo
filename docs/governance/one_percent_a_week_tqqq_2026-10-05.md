@@ -184,3 +184,36 @@ zwischen etwa 3 und 8 %; über Nacht springt der Kurs aber über jeden Stop
 (schlechtester Trade ab 6 % Weite −18,8 %).
 
 Ergebnisdateien: `results_opaw_trailing_wide_{TQQQ,QQQ}_2026-10-05.txt`.
+
+## Nachtrag 3: Tieferer Rückgang vor dem Kauf (1–10 %), 5-%-Trailing-Stop
+
+Vorregistriert in `opaw_dipdepth_prereg_2026-10-05.md`. Kauf erst, wenn TQQQ
+1 … 10 % unter die Montagseröffnung fällt; Ausstieg über 5-%-Trailing-Stop.
+Variante 1 zusätzlich Freitagsverkauf, Variante 2 hält über Wochen, bis der
+Stop greift. Vergleich je Woche gegen Kauf zur Montagseröffnung (OPEN) mit
+denselben Ausstiegen. Kontoverlauf je Handelstag, voller Einsatz.
+
+| Rückgang | V1 Trades | V1 je Trade | V1 Konto | V1 DIP − OPEN [95 %] | V2 Trades | V2 je Trade | V2 Konto | V2 DIP − OPEN [95 %] |
+|---|---|---|---|---|---|---|---|---|
+| 1 % | 337 | +1,17 % | 29,1 | +0,24 % [−0,14; +0,64] | 261 | +1,63 % | 35,6 | +0,35 % [−0,00; +0,72] |
+| 2 % | 277 | +0,49 % | 2,6 | −0,34 % [−0,87; +0,21] | 226 | +0,51 % | 1,9 | −0,34 % [−0,85; +0,17] |
+| 3 % | 236 | +0,51 % | 2,3 | −0,38 % [−0,95; +0,24] | 205 | +0,81 % | 3,1 | −0,23 % [−0,77; +0,34] |
+| 4 % | 196 | +0,50 % | 1,9 | −0,43 % [−1,05; +0,22] | 169 | +1,17 % | 4,7 | −0,15 % [−0,75; +0,45] |
+| 5 % | 167 | +0,44 % | 1,6 | −0,49 % [−1,10; +0,14] | 150 | +0,89 % | 2,8 | −0,29 % [−0,89; +0,33] |
+| 6 % | 143 | +0,37 % | 1,4 | −0,53 % [−1,11; +0,05] | 130 | +0,75 % | 2,0 | −0,37 % [−0,94; +0,22] |
+| 7 % | 123 | +0,07 % | 0,9 | −0,63 % [−1,18; −0,06] | 110 | +0,42 % | 1,3 | −0,49 % [−1,04; +0,06] |
+| 8 % | 107 | −1,11 % | 0,3 | −0,92 % [−1,42; −0,42] | 95 | −0,58 % | 0,5 | −0,72 % [−1,21; −0,24] |
+| 9 % | 94 | −0,43 % | 0,6 | −0,75 % [−1,25; −0,23] | 85 | −0,95 % | 0,4 | −0,78 % [−1,30; −0,24] |
+| 10 % | 80 | −0,44 % | 0,7 | −0,73 % [−1,23; −0,24] | 70 | −0,80 % | 0,5 | −0,72 % [−1,24; −0,20] |
+
+Vergleich: OPEN V1 Konto 10,2, V2 7,9; TQQQ halten 13,7 (größter Rückgang
+−82 %). Keine der 20 Zellen erfüllt die vorab festgelegte Hürde; am nächsten
+kommt 1 % in Variante 2 (untere Grenze −0,00, beide Hälften positiv).
+
+Ablesung: Je tiefer der Rückgang vor dem Kauf, desto schlechter. Ab 7–8 %
+Rückgang innerhalb der Woche kauft die Regel in laufende Einbrüche, und der
+Trailing Stop verkauft kurz danach mit Verlust. Halten bis zum Stop
+(Variante 2) ist etwas besser als der Freitagsverkauf, ändert das Bild aber
+nicht; der 5-%-Stop greift auf TQQQ im Schnitt nach 2 bis 4 Tagen.
+
+Ergebnisdatei: `results_opaw_dipdepth_TQQQ_2026-10-05.txt`.
