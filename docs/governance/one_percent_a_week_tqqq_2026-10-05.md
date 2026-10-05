@@ -217,3 +217,33 @@ Trailing Stop verkauft kurz danach mit Verlust. Halten bis zum Stop
 nicht; der 5-%-Stop greift auf TQQQ im Schnitt nach 2 bis 4 Tagen.
 
 Ergebnisdatei: `results_opaw_dipdepth_TQQQ_2026-10-05.txt`.
+
+## Nachtrag 4: Gegenprobe auf anderen gehebelten ETFs
+
+Vorregistriert in `opaw_oos_etfs_prereg_2026-10-05.md`: die auf TQQQ beste
+Variante (Kauf nach 1 % Rückgang, 5-%-Trailing-Stop, halten bis er greift)
+**unverändert** auf UPRO (S&P 500), SOXL (Halbleiter), TNA (Russell 2000), je
+3-fach, 2018-05..2026-10. Vergleich: Kauf zur Montagseröffnung, gleiche
+Ausstiege.
+
+| Wert | Halten: Konto / Rückgang | Montag sofort: Konto / Rückgang | Nach 1 %: Konto / Rückgang | Nach 1 % minus Montag sofort je Woche [95 %] |
+|---|---|---|---|---|
+| UPRO | 6,98 / −77 % | 4,82 / −38 % | 5,04 / −34 % | +0,01 % [−0,26; +0,26] |
+| SOXL | 20,27 / −91 % | 5,02 / −50 % | 9,23 / −43 % | +0,15 % [−0,30; +0,62] |
+| TNA | 0,88 / −88 % | 2,07 / −54 % | 1,67 / −67 % | −0,07 % [−0,43; +0,28] |
+| *TQQQ (Auswahl)* | *13,68 / −82 %* | *7,90 / −49 %* | *35,64 / −35 %* | *+0,35 % [−0,00; +0,72]* |
+
+**Urteil: nicht bestätigt** — kein Wert besteht, TNA hat ein negatives
+Mittel. Der Vorsprung des 1-%-Einstiegs auf TQQQ ist auf den anderen Werten
+nicht wiederzufinden.
+
+Was sich auf allen vier Werten zeigt: Der 5-%-Trailing-Stop halbiert den
+größten Rückgang gegenüber dem Halten (UPRO −77 → −38 %, SOXL −91 → −50 %,
+TNA −88 → −54 %). Auf TNA, das in der Zeit insgesamt verlor, machte er aus
+0,88 ein Konto von 2,07; auf UPRO und SOXL kostete er Ertrag.
+
+Hinweis zur Datenaufbereitung: SOXL hatte am 2021-03-02 einen 15:1-Split; die
+Split-Erkennung wurde dafür auf Faktoren bis 20:1 (nächstliegender Faktor)
+erweitert. Für TQQQ ändert sich nichts.
+
+Ergebnisdatei: `results_opaw_oos_etfs_2026-10-05.txt`.
