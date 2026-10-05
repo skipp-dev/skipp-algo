@@ -67,13 +67,14 @@ bzw. ab Fondsstart bis 2026-10-02. Voller Einsatz, Konto startet bei 1,00.
 **1. Hilft das Warten auf 1 % Rückgang?** Nein. Bei keiner Trailing-Weite
 liegt der Vorteil gegenüber dem Sofortkauf bei auch nur einem der 17
 auswertbaren ETFs sicher über null. Das Mittel ist bei 15 bis 16 der 17 ETFs
-negativ, bei 10 von 68 Kombinationen sicher negativ (CHAT, SOXX, ITA, XAR,
-PPA, SHLD, EUAD, URNM). Bei 10 bps Kosten dasselbe Bild.
+negativ, bei 12 von 68 Kombinationen sicher negativ (CHAT, SOXX, ITA, XAR,
+PPA, SHLD, EUAD, URNM). Bei 10 bps Kosten: Mittel bei 13 bis 15 der 17 ETFs
+negativ, 9 von 68 Kombinationen sicher negativ.
 
 **2. Ist die Trailing-Regel besser als Halten (Sharpe)?** Nicht belegt. Beim
 Sofortkauf hat die Regel bei 10 bis 11 der 17 ETFs ein höheres Sharpe als das
-Halten, aber nur bei 0 bis 2 ETFs mit Intervall über null (REMX, URNM bei
-5–6 %, SHLD bei 8 %). Der größte Rückgang ist bei 11 bis 15 der 17 ETFs
+Halten, aber nur bei 0 bis 2 ETFs mit Intervall über null (REMX bei 5 und
+6 %, URNM bei 5 %, SHLD bei 8 %). Der größte Rückgang ist bei 11 bis 15 der 17 ETFs
 kleiner. Bei 10 bps Kosten höheres Sharpe nur noch bei 5 bis 9 ETFs.
 
 ## Ablesung
