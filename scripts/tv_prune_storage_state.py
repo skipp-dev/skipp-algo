@@ -30,20 +30,24 @@ Usage::
 
     python scripts/tv_prune_storage_state.py STATE_JSON [--out OUT_JSON]
 
-Without ``--out`` the file is rewritten in place (atomically, mode preserved).
-Stdlib only, so it runs on a bare CI runner without the repo's venv.
+Without ``--out`` the file is rewritten in place (atomically via
+``scripts.smc_atomic_write``, mode preserved). Stdlib only at runtime, so it
+runs on a bare CI runner without the repo's venv.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
-import tempfile
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
+
+if __package__ in (None, ""):  # run as `python scripts/tv_prune_storage_state.py`
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from scripts.smc_atomic_write import atomic_write_text
 
 TRADINGVIEW_DOMAIN = "tradingview.com"
 SESSION_COOKIE = "sessionid"
@@ -74,21 +78,6 @@ def prune_storage_state(state: dict[str, Any]) -> tuple[dict[str, Any], dict[str
     return pruned, stats
 
 
-def _write_atomic(text: str, target: Path) -> None:
-    """tempfile + os.replace in the target's directory, keeping the target's mode (storage states are 0600)."""
-    mode = target.stat().st_mode & 0o777 if target.exists() else 0o600
-    fd, tmp_name = tempfile.mkstemp(prefix=target.name + ".", suffix=".tmp", dir=str(target.parent))
-    tmp_path = Path(tmp_name)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as fh:
-            fh.write(text)
-        os.chmod(tmp_path, mode)
-        os.replace(tmp_path, target)
-    except BaseException:
-        tmp_path.unlink(missing_ok=True)
-        raise
-
-
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("state", help="Playwright storage-state JSON (plain JSON, as written by the capture script)")
@@ -117,7 +106,7 @@ def main(argv: list[str] | None = None) -> int:
 
     text = json.dumps(pruned, indent=2)
     target = Path(args.out) if args.out else source
-    _write_atomic(text, target)
+    atomic_write_text(text, target)
     print(
         f"Pruned storage state: cookies {stats['cookies_before']} -> {stats['cookies_after']}, "
         f"origins {stats['origins_before']} -> {stats['origins_after']}, "
