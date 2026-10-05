@@ -153,3 +153,34 @@ Ablesung:
 
 Ergebnisdateien: `results_opaw_trailing_{TQQQ,QQQ}_2026-10-05.txt`,
 `results_opaw_fair_{TQQQ,QQQ}_2026-10-05.txt`.
+
+## Nachtrag 2: Trailing Stops größer 5 %
+
+Vorregistriert in `opaw_trailing_wide_prereg_2026-10-05.md`: 6, 7, 8, 10, 12,
+15, 20 % und „kein Trailing", gemessen am fairen Vergleich (DIP − OPEN je
+Woche). Für keine der 26 Weiten-Varianten je Wert liegt die untere
+Intervallgrenze über null.
+
+Nur Trailing (TQQQ), je Woche über alle Wochen:
+
+| Trailing | je Trade | DIP je Woche | OPEN je Woche | DIP − OPEN [95 %] | Sharpe | größter Rückgang |
+|---|---|---|---|---|---|---|
+| 5 % | +1,17 % | +0,99 % | +0,72 % | +0,27 % [−0,17; +0,70] | 1,32 | −31 % |
+| 8 % | +1,27 % | +1,08 % | +1,04 % | +0,04 % [−0,37; +0,43] | 1,20 | −45 % |
+| 10 % | +1,11 % | +0,94 % | +1,14 % | −0,20 % [−0,57; +0,13] | 0,95 | −56 % |
+| 20 % | +1,01 % | +0,86 % | +0,90 % | −0,04 % [−0,38; +0,28] | 0,78 | −71 % |
+| kein | +1,18 % | +1,00 % | +1,07 % | −0,07 % [−0,40; +0,24] | 0,89 | −69 % |
+
+Halten TQQQ: +1,07 % je Woche, Sharpe 0,90, Rückgang −78 %.
+
+Auf QQQ ist DIP − OPEN für jede Weite negativ (−0,04 bis −0,27 %). Mit den
+Originalregeln liegen alle Weiten ab 7 % nahe dem Original ohne Trailing
+(TQQQ +0,31 bis +0,38 % je Trade), weil der Trailing Stop kaum noch auslöst.
+
+Ablesung: Ab etwa 8 % wird der Trailing Stop zur Nebensache — die Regel
+nähert sich „Rücksetzer kaufen, bis Freitag halten", und das entspricht im
+Ertrag einfachem Wochen-Halten. Der Schutz durch den Trailing Stop wirkt nur
+zwischen etwa 3 und 8 %; über Nacht springt der Kurs aber über jeden Stop
+(schlechtester Trade ab 6 % Weite −18,8 %).
+
+Ergebnisdateien: `results_opaw_trailing_wide_{TQQQ,QQQ}_2026-10-05.txt`.
