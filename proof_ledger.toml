@@ -3437,19 +3437,17 @@ evidence_source = "job_log"
 artifact        = ""
 version_probe   = "Pruned storage state:"
 judge           = "tv_storage_refresh_pruned"
-state           = "OFFEN"
+# 2026-10-06 GEMESSEN: planmaessiger Lauf 37408592633 (03:21 UTC, Job
+# 112091669125) -- 'Pruned storage state: cookies 10 -> 10, ... secret payload
+# 7724 bytes (limit 48000)', 'Storage state validation passed', 'TV_STORAGE_STATE
+# secret updated successfully.'; Urteiler: PASS, Zweig rotiert. Gegenprobe:
+# credential-health-check 37418514427 (05:26 UTC) tv_storage_state_age ok,
+# Alter 2,1 h, overall ok. Der Lauf ist als Korpus aufgezeichnet.
+state           = "PASS"
+pass_kind       = "live"
+witness_run     = "37408592633"
 due_by          = "2026-10-09"
 owner           = "operator"
-
-[[unreachable_branch]]
-judge  = "tv_storage_refresh_pruned"
-branch = "rotiert"
-reason = """
-2026-10-05: noch nicht geboren -- braucht den ersten Lauf nach dem Merge von
-#5682 (Cron taeglich 03:00 UTC). Der Korpus ist der letzte Lauf davor
-(Job 111603532773, 'Argument list too long'); sobald ein Lauf danach als
-Korpus aufgezeichnet ist, faellt diese Deklaration im Widerspruchs-Test auf.
-"""
 
 [[unreachable_branch]]
 judge  = "tv_storage_refresh_pruned"
