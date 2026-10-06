@@ -196,9 +196,46 @@ risikobegrenzenden Bedingungen (`bar_gap`, `confirm_expired`, `bearish_guard`,
 Werkzeug (Stand 2026-10-06): `--suite-input` setzt Suite-Inputs nur in der
 Sitzung; gemessen nicht dauerhaft (frische Sitzung liest den gespeicherten Wert).
 
-Nach 1b bleibt Schritt 2 die offene Option (Betreiber 2026-10-06: „behalte
-diese Option"). Die Werkzeuglücke ist geschlossen (#5695: `--suite-input`);
-ein Mindestzahl-Zuschnitt braucht dagegen eine Änderung der Suite selbst.
+Nach 1b blieb Schritt 2 die offene Option (Betreiber 2026-10-06: „behalte
+diese Option"), dann „Dann mach das".
 
-UNGESICHERT — verlässt sich auf menschliches Gedächtnis: Schritt 2 ist
-zurückgestellt und wartet auf die Entscheidung des Betreibers.
+#### Umsetzung (#5706)
+
+Zwei Suite-Inputs, Standard aus (= unveränderte Und-Kette der Library):
+`Ready: Min-Count instead of AND chain` und `Ready: Min Soft Gates (of 12)`.
+Eingeschaltet bleiben hart: Bar geschlossen, Confirmed, `bar_gap`, nicht
+`confirm_expired`, `bearish_guard`, `setup_hard`, `overhead_zone`,
+`event_risk` (gegenüber dem Vorschlag zusätzlich, weil es Risiko begrenzt) und
+der Haupt-BOS, falls verlangt. Als Punkte zählen `ready_is_fresh`,
+`session_structure`, `micro_session`, `micro_freshness`, `market_regime`,
+`vola_regime`, `quality`, `accel`, `second_derivative`, `vol_regime_context`,
+`stretch`, `ddvi`. Der LONG-PENDING-Log nennt `soft_met`. Pin:
+`tests/test_smc_core_engine_semantic_contract.py::test_ready_min_count_is_opt_in_and_keeps_the_risk_gates_hard`.
+
+#### Ergebnis Schritt 2 (2026-10-06)
+
+Suite v446 (Quelle `f5688756e3ed`, main nach #5709) auf `vWgAWyfC`, migriert
+mit `--accept-new-suite-input` (#5707): 0 Abweichungen, alle acht Instanzen
+zurück. Tester, reguläre Handelszeit 2023-09 bis 2026-10, fünf Symbole, 15
+Minuten; Min-Count nur in der Sitzung eingeschaltet. Die TradingView-Workflows
+waren dafür auf Betreiberentscheid von 18:38 bis 21:49 UTC pausiert (ein
+Konto erlaubt nur eine Sitzung).
+
+| Confirm | N | Ready-Trades | netto bps, 95 % KI | Überschuss ggü. Placebo | bis 2025: n / bps | 2026: n / bps | Best / Strict |
+|---|---|---|---|---|---|---|---|
+| gespeichert | 12, 10, 8, 6 | 0 | – | – | – | – | 0 / 0 |
+| V3 | 12 | 0 | – | – | – | – | 0 / 0 |
+| V3 | 10 | 6 | −46.2 [−123.2; +39.8] | −80.1 [−125.7; −34.5] | 5 / −35.2 | 1 / −100.9 | 0 / 0 |
+| V3 | 8 | 33 | +1.8 [−38.9; +43.1] | −3.5 [−45.0; +36.3] | 31 / +2.6 | 2 / −10.3 | 0 / 0 |
+| V3 | 6 | 68 | −6.8 [−34.3; +17.8] | −5.1 [−32.5; +19.5] | 60 / −5.4 | 8 / −17.6 | 0 / 0 |
+| Maßstab Armed | – | 167 | +10.8 [−10.7; +35.3] | +8.4 [−13.6; +32.5] | 132 / +17.3 | 35 / −13.5 | – |
+
+- Mit gespeichertem Confirm entsteht bei keinem N ein Ready: Confirm ist der
+  vorgelagerte Engpass (1b).
+- Bester Wert im Auswahlzeitraum bis 2025 ist N = 8 mit +2.6 bps (31 Trades),
+  deutlich unter Armed im selben Zeitraum (+17.3 bps, 132 Trades); im
+  Prüfzeitraum 2026 sind es 2 Trades — zu wenig für ein Urteil.
+- Best und Strict bleiben bei 0, auch wenn Ready handelt.
+
+Urteil: Ready als Mindestzahl erzeugt Trades, aber keinen Vorteil gegenüber
+Armed. Der Schalter bleibt aus (Standard); am Produkt ändert sich nichts.
