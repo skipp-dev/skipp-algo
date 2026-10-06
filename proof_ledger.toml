@@ -3474,3 +3474,62 @@ reason = """
 2026-10-05: nur erreichbar, wenn die Log-Abfrage leer zurueckkommt (Log
 abgelaufen oder API-Fehler); ein echter Lauf hat immer ein Log.
 """
+
+[[proof]]
+id              = "5714"
+kind            = "fix"
+merged_at       = "<wird beim Merge nachgetragen>"
+merge_sha       = "<dito>"
+claim           = "Ein Re-Attest-Lauf (Dispatch auf bot/r1-reattest*) wartet vor dem Neubau seines Vorschlags, bis kein bot/library-refresh-*-PR mehr offen ist, und verweigert deshalb nicht mehr an Library publish drift."
+witness         = "tv-save-consumer-source"
+witness_job     = "save"
+evidence_source = "job_log"
+artifact        = ""
+version_probe   = "KEINE"
+version_probe_reason = "Der neue Schritt laeuft nur in Re-Attest-Laeufen; seine Ausgabezeile ist zugleich das Urteil, das der Urteiler liest. Laeufe mit altem Code erkennt er an ihrer eigenen Signatur (aufgeloestes attested=/N published=/M + Drift-Verweigerung, kein Warte-Notice = FAIL)."
+judge           = "tv_reattest_awaits_refresh_prs"
+# Zeuge ist ein Re-Attest-Lauf nach dem Merge (Cron smc-r1-reattest 12:07Z
+# werktags oder Dispatch nach einem gruenen Ketten-Save). Zeitplan-Verifies und
+# Ketten-Saves urteilen STEHT_AUS/kein_reattest_lauf -- kein Befund ueber den Fix.
+# Ein Re-Attest kann zusaetzlich an der zweiten Ursache vom 2026-10-06 scheitern
+# (3/10 Consumer auf vWgAWyfC, #5713); das sieht dieser Urteiler nicht.
+state           = "OFFEN"
+due_by          = "2026-10-16"
+owner           = "operator"
+
+[[unreachable_branch]]
+judge  = "tv_reattest_awaits_refresh_prs"
+branch = "gewartet_ohne_drift"
+reason = """
+2026-10-07: vor dem Merge von #5714 KONSTRUKTIONSBEDINGT unerreichbar -- die
+Zeile "No library-refresh PR is open" gibt erst der neue Schritt aus. "Noch nicht
+geboren", nicht "tot": sobald der erste Re-Attest-Lauf nach dem Fix als Korpus
+aufgezeichnet ist, faellt diese Deklaration im Widerspruchs-Test auf und muss weg.
+"""
+
+[[unreachable_branch]]
+judge  = "tv_reattest_awaits_refresh_prs"
+branch = "gewartet_trotzdem_drift"
+reason = """
+2026-10-07: braucht wie gewartet_ohne_drift die Ausgabe des neuen Schritts und
+ist vor dem Merge von #5714 unerreichbar. Der Zweig trennt "der Fix reicht nicht"
+(Drift trotz Warten) vom alten Defekt (ohne_warten_neu_gebaut).
+"""
+
+[[unreachable_branch]]
+judge  = "tv_reattest_awaits_refresh_prs"
+branch = "refresh_pr_haengt"
+reason = """
+2026-10-07: feuert, wenn ein Refresh-PR 600 s offen bleibt. Kein aufgezeichneter
+Lauf tat das (der Schritt existiert erst mit #5714). Ausgefuehrt geprueft ist die
+Kante im Schritt selbst: tests/test_workflow_tv_save_consumer_source_contract.py
+laesst das Fragment gegen ein Fake-gh in den Ablauf laufen.
+"""
+
+[[unreachable_branch]]
+judge  = "tv_reattest_awaits_refresh_prs"
+branch = "kein_log"
+reason = """
+2026-10-07: fail-closed-Kante fuer eine leere Log-Abfrage (Log abgelaufen oder
+API-Fehler); alle drei Korpus-Aufzeichnungen stammen aus geholten Logs.
+"""
