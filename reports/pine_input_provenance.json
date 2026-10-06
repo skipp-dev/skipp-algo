@@ -1,7 +1,7 @@
 {
   "schema": "pine-input-provenance/v2",
-  "total_inputs": 619,
-  "total_hidden": 408,
+  "total_inputs": 621,
+  "total_hidden": 410,
   "files": [
     {
       "file": "SMC_Breakout_Overlay.pine",
@@ -2718,8 +2718,8 @@
     },
     {
       "file": "SMC_Long_Dip_Suite.pine",
-      "input_count": 230,
-      "hidden_count": 218,
+      "input_count": 232,
+      "hidden_count": 220,
       "inputs": [
         {
           "varname": "signal_mode",
@@ -3598,6 +3598,22 @@
           "kind": "string",
           "label": "Internal CHoCH only",
           "group": "g_long",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "use_ready_min_count",
+          "kind": "bool",
+          "label": "Ready: Min-Count instead of AND chain",
+          "group": "g_quality",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "ready_min_soft_gates",
+          "kind": "int",
+          "label": "Ready: Min Soft Gates (of 12)",
+          "group": "g_quality",
           "has_display_none": true,
           "visibility": null
         },
