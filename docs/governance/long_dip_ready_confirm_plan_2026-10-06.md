@@ -89,18 +89,69 @@ Danach: Suite-Quelle auf TradingView speichern, `vWgAWyfC` mit
 der US-Handelszeit), Logs beider Sitzungen lesen. Eigentümer: die Sitzung, die
 diesen PR landet (live).
 
-### 1b — Confirm lockern (nach 1a, Betreiberentscheid)
+#### Ergebnis 1a (2026-10-06)
 
-Je nach Befund aus 1a, jeweils als eigene Variante gegen Armed gemessen:
+Suite v436 (Quelle `bf195d114e6e`) auf `vWgAWyfC`, migriert 07:17 UTC, gelesen
+07:25–07:42 UTC, dieselben fünf Symbole und Sitzungen wie oben.
 
-| wenn 1a zeigt … | Variante |
+Scheiternde Confirm-Bedingungen über alle Armed-ohne-Confirm-Bars:
+
+| Bedingung | ETH (1 872 Bars) | RTH (1 313 Bars) |
+|---|---|---|
+| `structure` | 1 797 | 1 228 |
+| `no_break` | 1 391 | 987 |
+| `not_fresh` | 1 303 | 917 |
+| `micro_freshness` | 574 | 385 |
+| `bearish_guard` | 216 | 226 |
+| `accel`, `second_derivative`, `micro_session` | 0 | 0 |
+
+Im Confirm-Fenster (Setup-Alter 1 und 2, danach greift `not_fresh`):
+
+| Alter | Bars ETH | davon `structure` | davon `no_break` | Bars RTH | davon `structure` | davon `no_break` |
+|---|---|---|---|---|---|---|
+| 1 | 292 | 287 | 225 | 203 | 194 | 164 |
+| 2 | 277 | 270 | 201 | 193 | 180 | 141 |
+
+Setups, die zusätzlich Confirmed werden könnten, wenn Bedingungen entfielen
+(statisch je Setup: mindestens eine Bar mit Alter ≥ 1, an der nur entfallene
+Bedingungen scheitern; Untergrenze wie bei Ready):
+
+| entfällt | ETH (318 Setups) | RTH (218 Setups) |
+|---|---|---|
+| `not_fresh` | 4 | 1 |
+| `structure` | 80 | 51 |
+| `structure` + `not_fresh` | 98 | 65 |
+| `structure` + `not_fresh` + `micro_freshness` | 138 | 82 |
+
+`structure` ist `long_confirm_structure_ok`: mit `Require Internal Break For
+Confirm` = true (auf dem Chart über die Chart-API gelesen: `in_105` = true) und
+`Structure Mode` = „Internal CHoCH only" verlangt Confirm einen internen
+bullischen CHoCH seit dem Arming. Das Zeitfenster allein (`not_fresh`) erklärt
+die Abläufe nicht.
+
+Nebenbefund: der Eingabe-Leser von `tv_suite_publication_migration.ts`
+(Einstellungsdialog) ordnet bei zwei Checkboxen in einer Zeile den Wert falsch
+zu (er meldete `Require Internal Break For Confirm` = false und `Live Confirm
+Uses High` = false; die Chart-API zeigt beide true). Die Migrations-Prüfung
+vergleicht vorher/nachher mit demselben Leser und sieht eine Änderung am ersten
+Wert eines solchen Paars deshalb nicht. UNGESICHERT — verlässt sich auf
+menschliches Gedächtnis: Umstellung des Lesers auf `getInputValues()`.
+
+### 1b — Confirm lockern (Betreiberentscheid)
+
+Nach dem Ergebnis von 1a, jeweils als eigene Variante gegen Armed gemessen:
+
+| Variante | bestehender Input |
 |---|---|
-| `not_fresh` dominiert ab Alter 3 | `Max Bars Armed -> Confirm` 2 → 6 (gleich der Frist) |
-| `no_break` mit kleinem `trigger_gap_pct` | `Confirm Break Lookback` 3 → 2 (niedrigerer Trigger) |
-| `accel` / `second_derivative` dominieren | beide aus Confirm nehmen, wie „Scoring over Blocking" bei Ready |
+| Struktur auch per internem BOS | `Structure Mode` → „Internal CHoCH or BOS" |
+| keine Struktur-Pflicht für Confirm | `Require Internal Break For Confirm` → false (Preset „Easy" tut das) |
+| zusätzlich längeres Fenster | `Max Bars Armed -> Confirm` 2 → 6 |
+
+Die erste Variante lässt sich aus dem Log nicht vorrechnen (er enthält keinen
+BOS-Zeitpunkt); sie braucht den Tester.
 
 UNGESICHERT — verlässt sich auf menschliches Gedächtnis: 1b wartet auf die
-Auswertung von 1a und die Entscheidung des Betreibers.
+Entscheidung des Betreibers.
 
 ### 2 — Ready zuschneiden (Betreiberentscheid)
 
