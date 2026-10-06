@@ -397,3 +397,10 @@ test("launchWithTradingViewFallback: both attempts fail -> error carries both me
   assert.match(logs[1], /chrome-channel fallback also failed/);
   assert.match(logs[1], /second-line detail: sandbox denied/);
 });
+
+test("session viewport: default unless TV_SESSION_VIEWPORT=<w>x<h> is set; garbage is refused", async () => {
+  const { resolveSessionViewport, TRADINGVIEW_SESSION_VIEWPORT } = await import("../lib/tv_shared.js");
+  assert.deepEqual(resolveSessionViewport({}), { ...TRADINGVIEW_SESSION_VIEWPORT });
+  assert.deepEqual(resolveSessionViewport({ TV_SESSION_VIEWPORT: "2400x1200" }), { width: 2400, height: 1200 });
+  assert.throws(() => resolveSessionViewport({ TV_SESSION_VIEWPORT: "wide" }), /2400x1200/);
+});

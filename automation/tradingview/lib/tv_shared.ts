@@ -275,6 +275,20 @@ export function resolveTradingViewHeadlessDefault(env: NodeJS.ProcessEnv = proce
 /** Viewport shared by every TradingView session (persistent-profile and storage-state). */
 export const TRADINGVIEW_SESSION_VIEWPORT = { width: 1600, height: 1200 } as const;
 
+/**
+ * Viewport of a session: TRADINGVIEW_SESSION_VIEWPORT unless TV_SESSION_VIEWPORT="<w>x<h>"
+ * is set. Opt-in for local read flows on multi-chart layouts: vWgAWyfC's left chart is
+ * 293 of 1292 px wide at the default (2026-10-06), too narrow for its legend to stay
+ * clickable. CI keeps the default (Xvfb screen size, create_tradingview_storage_state.ts).
+ */
+export function resolveSessionViewport(env: NodeJS.ProcessEnv = process.env): { width: number; height: number } {
+  const raw = env.TV_SESSION_VIEWPORT?.trim();
+  if (!raw) return { ...TRADINGVIEW_SESSION_VIEWPORT };
+  const m = raw.match(/^(\d{3,5})x(\d{3,5})$/);
+  if (!m) throw new Error(`TV_SESSION_VIEWPORT must look like 2400x1200, got: ${raw}`);
+  return { width: Number(m[1]), height: Number(m[2]) };
+}
+
 export function resolveTradingViewLaunchOptions(env: NodeJS.ProcessEnv = process.env): LaunchOptions {
   const launchOptions: LaunchOptions = {
     headless: resolveTradingViewHeadlessDefault(env),
@@ -2344,7 +2358,7 @@ export async function newTradingViewSession(): Promise<TradingViewSession> {
     browser = await launchTradingViewChromium(); // re-resolves env: pure, and the mutual-exclusion throw already fired at the top-of-function resolve
     context = await browser.newContext({
       storageState: storageStatePath,
-      viewport: TRADINGVIEW_SESSION_VIEWPORT,
+      viewport: resolveSessionViewport(),
     });
   } else {
     throw new Error(
