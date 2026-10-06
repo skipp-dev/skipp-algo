@@ -9,6 +9,9 @@ Korpus, ein echtes Job-Log von ``tradingview-storage-refresh`` (Job ``refresh``)
   NACH dem Merge, als Trockenlauf (workflow_dispatch, dry_run=true): beschnitten
   (``cookies 10 -> 10, origins 3 -> 2, size 130.5 KiB -> 130.3 KiB``), Pruefung
   bestanden, nichts geschrieben.
+* ``112091669125`` — Lauf 37408592633 (2026-10-06, 03:21 UTC), der erste
+  planmaessige Lauf nach dem Merge: beschnitten, geprueft, Secret geschrieben
+  (``secret payload 7724 bytes``). Der Zeuge des PASS im Beweis-Ledger.
 
 Die Zeilen fuer die anderen Faelle sind nicht erfunden: die Prune-Zeile druckt
 ``scripts/tv_prune_storage_state.py`` (siehe
@@ -29,6 +32,7 @@ from scripts.proof_ledger import load_entries
 _JUDGE = "tv_storage_refresh_pruned"
 _PRE_MERGE_JOB = "111603532773"
 _DRY_RUN_JOB = "111882829791"
+_CRON_JOB = "112091669125"
 _TS = "2026-10-06T03:28:15.3085441Z "
 _ROOT = Path(__file__).resolve().parents[1]
 _WORKFLOW = _ROOT / ".github" / "workflows" / "tradingview-storage-refresh.yml"
@@ -44,7 +48,7 @@ def _judge(log: str):
 
 def _real_log(job: str = _PRE_MERGE_JOB) -> str:
     corpus = dict(corpus_for(_JUDGE))
-    assert set(corpus) == {_PRE_MERGE_JOB, _DRY_RUN_JOB}, sorted(corpus)
+    assert set(corpus) == {_PRE_MERGE_JOB, _DRY_RUN_JOB, _CRON_JOB}, sorted(corpus)
     return corpus[job]["log"]
 
 
@@ -63,6 +67,12 @@ def test_the_first_real_run_after_the_merge_is_a_dry_run_witness() -> None:
     assert "Argument list too long" not in log
     verdict = _judge(log)
     assert (verdict.state, verdict.branch) == ("STEHT_AUS", "trockenlauf")
+
+
+def test_the_first_scheduled_run_after_the_merge_is_the_pass() -> None:
+    log = _real_log(_CRON_JOB)
+    verdict = _judge(log)
+    assert (verdict.state, verdict.branch) == ("PASS", "rotiert")
 
 
 def test_pruned_and_written_is_the_pass() -> None:
