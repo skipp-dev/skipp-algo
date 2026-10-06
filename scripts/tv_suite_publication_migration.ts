@@ -54,7 +54,7 @@ const expectedSuiteSha = () => normalizedPineSha256(fs.readFileSync("SMC_Long_Di
 export const SUITE = "SMC Long-Dip Suite";
 export const DEFAULT_CHARTS = ["vWgAWyfC", "hKHTmKhu", "twh98JLB"];
 
-export type MigrationArgs = { phase: "inventory" | "migrate" | "publish"; out: string; charts: string[]; dryRun: boolean };
+export type MigrationArgs = { phase: "inventory" | "migrate" | "publish"; out: string; charts: string[]; dryRun: boolean; acceptNewSuiteInputs: string[] };
 
 export function parseMigrationArgs(argv: string[]): MigrationArgs {
   const get = (flag: string): string | undefined => {
@@ -71,7 +71,10 @@ export function parseMigrationArgs(argv: string[]): MigrationArgs {
   }
   if (phase === "migrate" && charts.length !== 1) throw new Error("--phase migrate takes exactly one chart");
   if (phase === "migrate" && charts[0] === "twh98JLB") throw new Error("twh98JLB carries the live Hold Manager shadow alert and is not migrated (operator decision 2026-10-05)");
-  return { phase, out, charts, dryRun: argv.includes("--dry-run") };
+  // Settings-dialog row labels of inputs the new Suite version adds on purpose (repeatable).
+  const acceptNewSuiteInputs = argv.flatMap((a, i) => (a === "--accept-new-suite-input" ? [argv[i + 1] ?? ""] : []));
+  if (acceptNewSuiteInputs.some((l) => !l.trim())) throw new Error("--accept-new-suite-input needs a dialog row label");
+  return { phase, out, charts, dryRun: argv.includes("--dry-run"), acceptNewSuiteInputs };
 }
 
 export type InputValue = { label: string; kind: string; value: string };
@@ -198,16 +201,28 @@ async function inventoryChart(page: Page, chartId: string) {
 export type InputDiff = { name: string; label: string; before: string; after: string };
 
 /** Non-source input differences between two inventories of the same script set. */
-export function diffInputs(before: InstanceRecord[], after: InstanceRecord[]): { missing: string[]; added: string[]; diffs: InputDiff[] } {
+export function diffInputs(
+  before: InstanceRecord[], after: InstanceRecord[], acceptNew: Record<string, string[]> = {},
+): { missing: string[]; added: string[]; diffs: InputDiff[]; acceptedNew: string[] } {
   const byName = (list: InstanceRecord[]) => new Map(list.map((i) => [i.name, i]));
   const b = byName(before);
   const a = byName(after);
   const missing = [...b.keys()].filter((n) => !a.has(n));
   const added = [...a.keys()].filter((n) => !b.has(n));
   const diffs: InputDiff[] = [];
+  const acceptedNew: string[] = [];
   for (const [name, inst] of b) {
-    const other = a.get(name);
+    let other = a.get(name);
     if (!other) continue;
+    // A new script version may add inputs on purpose. Drop exactly the named rows that
+    // did not exist before, then compare every remaining row by position as usual.
+    const allowed = acceptNew[name] ?? [];
+    if (allowed.length > 0 && other.inputs.length > inst.inputs.length) {
+      const known = new Set(inst.inputs.map((x) => x.label));
+      const kept = other.inputs.filter((x) => !(allowed.includes(x.label) && !known.has(x.label)));
+      acceptedNew.push(...other.inputs.filter((x) => !kept.includes(x)).map((x) => `${name}: ${x.label}=${x.value}`));
+      other = { ...other, inputs: kept };
+    }
     // Same script => same input order. Labels repeat ("Length") or are empty (session
     // fields), so a label map mis-pairs them; compare by position.
     if (other.inputs.length !== inst.inputs.length) {
@@ -222,7 +237,7 @@ export function diffInputs(before: InstanceRecord[], after: InstanceRecord[]): {
       }
     });
   }
-  return { missing, added, diffs };
+  return { missing, added, diffs, acceptedNew };
 }
 
 async function removeSuite(page: Page): Promise<void> {
@@ -357,7 +372,7 @@ function consumerTargets(): Map<string, VerifyConsumerTarget> {
   return new Map(config.verifyTargets.map((t) => [t.scriptName, { ...t, producerName: SUITE }]));
 }
 
-async function migrateChart(session: TradingViewSession, chartId: string, out: string, dryRun: boolean) {
+async function migrateChart(session: TradingViewSession, chartId: string, out: string, dryRun: boolean, acceptNewSuiteInputs: string[] = []) {
   const page = session.page;
   const before = await inventoryChart(page, chartId);
   const pruned = PRUNE_RIGHT_PANE.has(chartId) ? await pruneRightPane(page) : [];
@@ -411,7 +426,7 @@ async function migrateChart(session: TradingViewSession, chartId: string, out: s
   for (const inst of kept) await setHidden(page, inst.name, inst.hidden);
   const after = await inventoryChartInPlace(page, chartId);
   const keptForDiff = kept;
-  const diff = diffInputs(keptForDiff, after.instances.filter((i) => i.pane === 0));
+  const diff = diffInputs(keptForDiff, after.instances.filter((i) => i.pane === 0), { [SUITE]: acceptNewSuiteInputs });
   const visibility = kept.filter((k) => after.instances.find((a) => a.name === k.name)?.hidden !== k.hidden).map((k) => k.name);
   const bindingsOk = Object.values(rebind).every((v) => v.startsWith("ok"));
   const suiteCurrent = after.suiteSources.length === 1 && after.suiteSources[0].sha256 === expectedSuiteSha();
@@ -474,7 +489,7 @@ async function main(): Promise<void> {
       return;
     }
     if (args.phase === "migrate") {
-      const res = await migrateChart(session, args.charts[0], args.out, args.dryRun);
+      const res = await migrateChart(session, args.charts[0], args.out, args.dryRun, args.acceptNewSuiteInputs);
       console.log(JSON.stringify({ ...res, diffs: res.diffs.length, diffSample: res.diffs.slice(0, 40) }));
       return;
     }

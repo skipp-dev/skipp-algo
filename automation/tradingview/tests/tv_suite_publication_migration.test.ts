@@ -44,3 +44,15 @@ test("arguments: phases, chart ids and the twh98JLB exclusion", () => {
 test("only vWgAWyfC loses its right pane", () => {
   assert.deepEqual([...PRUNE_RIGHT_PANE], ["vWgAWyfC"]);
 });
+
+test("an input the new Suite adds on purpose is accepted only when named; every other value is still compared", () => {
+  const before = [inst("SMC Long-Dip Suite", [["HTF Bias Min Count", "2"], ["Fast length", "8"]])];
+  const after = [inst("SMC Long-Dip Suite", [["HTF Bias Min Count", "2"], ["Ready: Min Soft Gates (of 12)", "12"], ["Fast length", "8"]])];
+  assert.deepEqual(diffInputs(before, after).diffs.map((d) => d.label), ["(input count)"]);
+  const ok = diffInputs(before, after, { "SMC Long-Dip Suite": ["Ready: Min Soft Gates (of 12)"] });
+  assert.deepEqual(ok.diffs, []);
+  assert.deepEqual(ok.acceptedNew, ["SMC Long-Dip Suite: Ready: Min Soft Gates (of 12)=12"]);
+  const changed = [inst("SMC Long-Dip Suite", [["HTF Bias Min Count", "3"], ["Ready: Min Soft Gates (of 12)", "12"], ["Fast length", "8"]])];
+  assert.deepEqual(diffInputs(before, changed, { "SMC Long-Dip Suite": ["Ready: Min Soft Gates (of 12)"] }).diffs.map((d) => d.label), ["0:HTF Bias Min Count"]);
+  assert.deepEqual(parseMigrationArgs(["--phase", "migrate", "--out", "o", "--charts", "vWgAWyfC", "--accept-new-suite-input", "X"]).acceptNewSuiteInputs, ["X"]);
+});
