@@ -3371,8 +3371,10 @@ aufgezeichnet ist.
 [[proof]]
 id              = "5674"
 kind            = "fix"
-merged_at       = "<wird beim Merge nachgetragen>"
-merge_sha       = "<dito>"
+# 2026-10-07 nachgetragen: `gh pr view 5674 --json mergedAt,mergeCommit` und
+# `git log` auf den Merge-Commit stimmen ueberein (SHA identisch).
+merged_at       = "2026-10-05T11:28:42Z"
+merge_sha       = "06496b2bab42635203b76e178ed81501a6ce906e"
 claim           = "Ein Producer-Refresh meldet je Chart-Pane, welchen Quelltext die angewandte Instanz rechnet, und der Bericht faellt durch, wenn eine davon nicht der Repo-Stand ist."
 witness         = "tv-save-consumer-source"
 witness_job     = "save"
@@ -3478,8 +3480,10 @@ abgelaufen oder API-Fehler); ein echter Lauf hat immer ein Log.
 [[proof]]
 id              = "5714"
 kind            = "fix"
-merged_at       = "<wird beim Merge nachgetragen>"
-merge_sha       = "<dito>"
+# 2026-10-07 nachgetragen: `gh pr view 5714 --json mergedAt,mergeCommit` und
+# `git log` auf den Merge-Commit stimmen ueberein (SHA identisch).
+merged_at       = "2026-10-06T23:22:28Z"
+merge_sha       = "60bc5e79b58f91850f6a8bf1bfc120e151e51008"
 claim           = "Ein Re-Attest-Lauf (Dispatch auf bot/r1-reattest*) wartet vor dem Neubau seines Vorschlags, bis kein bot/library-refresh-*-PR mehr offen ist, und verweigert deshalb nicht mehr an Library publish drift."
 witness         = "tv-save-consumer-source"
 witness_job     = "save"
