@@ -166,3 +166,16 @@ test("a skipped clean layout leaves a trace line in tracePageEvent's exact log f
     "the skip must emit the [tv-trace] repair-skip-clean-layout line",
   );
 });
+
+// 2026-10-06, tv-save run 37510785146: a Pine editor docked into the account UI state
+// squeezed vWgAWyfC's chart until no consumer's settings could open. Every binding check
+// closes a docked editor before it looks for the consumer on the chart.
+test("verifyConsumerBindings closes a docked Pine editor before looking for the consumer", () => {
+  const src = fs.readFileSync(path.join(_dir, "..", "..", "..", "scripts", "tv_verify_consumer_bindings.ts"), "utf-8");
+  const body = src.slice(src.indexOf("export async function verifyConsumerBindings("));
+  const close = body.indexOf("await closeDockedPineEditor(session.page)");
+  const visible = body.indexOf("await isScriptVisibleOnChartSurface(session.page, target.scriptName)");
+  const settings = body.indexOf("await openSettingsForScript(session.page, target.scriptName");
+  assert.ok(close > 0, "no docked-editor close in verifyConsumerBindings");
+  assert.ok(close < visible && visible < settings, "the close must precede the visibility check and the settings open");
+});

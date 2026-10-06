@@ -5,6 +5,7 @@ import * as path from "node:path";
 import { parseBusBindingLabels } from "../automation/tradingview/lib/bus_binding_labels.mjs";
 
 import {
+  closeDockedPineEditor,
   closeModal,
   closeTradingViewSession,
   countChartScriptInstances,
@@ -390,6 +391,9 @@ export async function verifyConsumerBindings(
     );
   }
 
+  // A docked Pine editor (account UI state) squeezes the chart until the legend has no
+  // height; every consumer's settings then fail to open (tv-save 37510785146, 2026-10-06).
+  if (await closeDockedPineEditor(session.page)) console.error(`[tv-trace] closed-docked-pine-editor before ${target.scriptName}`);
   if (!(await isScriptVisibleOnChartSurface(session.page, target.scriptName))) {
     throw new Error(`Existing chart instance not found: ${target.scriptName}`);
   }
