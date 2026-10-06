@@ -473,6 +473,10 @@ async function publishSuite(page: Page, out: string) {
     description: "SMC Long-Dip Suite — private publication of the repository source (skipp-algo).",
   });
   await page.screenshot({ path: path.join(out, "publish-after.png") });
+  // The docked editor is account-wide UI state: left open it squeezes vWgAWyfC's chart for every
+  // later session, and the CI save flow then cannot open any consumer's settings (tv-save run
+  // 37510785146, 2026-10-06 20:29 UTC, after this phase had run).
+  await closeDockedEditor(page);
   return { savedNow, editorSha: editorSha.slice(0, 12), publishConfirmed: result.publishConfirmed, noChangeDetected: result.noChangeDetected, versionContext: result.versionContextTexts.slice(0, 5) };
 }
 
