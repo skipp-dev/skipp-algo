@@ -32,6 +32,13 @@ test("the Ready diagnosis line parses as LONG PENDING with its failing gates", (
   assert.equal(ev?.fields.failing, "accel second_derivative");
 });
 
+test("the Confirm diagnosis line parses as LONG UNCONFIRMED with age and failing conditions", () => {
+  const ev = parseLongEvent("[2026-10-06T15:00:00.000+02:00]: LONG UNCONFIRMED | age=3 | trigger_gap_pct=0.412 | failing=no_break not_fresh");
+  assert.equal(ev?.event, "LONG UNCONFIRMED");
+  assert.equal(ev?.fields.age, "3");
+  assert.equal(ev?.fields.failing, "no_break not_fresh");
+});
+
 test("other log lines are not lifecycle events", () => {
   assert.equal(parseLongEvent(splitLogLines(PANEL)[1]), null);
 });
