@@ -690,6 +690,9 @@ var bool require_main_break_for_ready = input.bool(false, 'Require Main BOS For 
 var bool use_live_confirm_break = input.bool(true, 'Live Confirm Uses High', group = g_long, inline = 'confirm2', display = display.none)
 var bool use_live_invalidation_break = input.bool(false, 'Live Invalidation Uses Low', group = g_long, inline = 'confirm2', display = display.none)
 var string long_internal_structure_mode = input.string('Internal CHoCH only', 'Structure Mode', options = ['Internal CHoCH or BOS', 'Internal CHoCH only'], group = g_long, inline = 'confirm3', display = display.none)
+// Ready min-count (plan step 2, docs/governance/long_dip_ready_confirm_plan_2026-10-06.md). Off = unchanged AND chain.
+var bool use_ready_min_count = input.bool(false, 'Ready: Min-Count instead of AND chain', group = g_quality, inline = 'rmc', tooltip = 'Off: Ready needs every gate (unchanged). On: risk gates stay hard (bar gap, confirm expiry, bearish guard, setup touch rule, overhead zone, event risk, main BOS if required); the 12 other Ready gates count as points and Ready needs at least the minimum below. Best and Strict keep their full hurdles.', display = display.none)
+var int ready_min_soft_gates = input.int(12, 'Ready: Min Soft Gates (of 12)', minval = 0, maxval = 12, group = g_quality, inline = 'rmc', display = display.none)
 
 // EMA support
 var bool show_ema_support = input.bool(true, 'Show EMA Support', group = g_long, inline = 'ema', display = display.none)
@@ -2563,6 +2566,12 @@ if show_long_engine_debug_eff and barstate.isconfirmed and long_state.armed and 
     log.info('LONG UNCONFIRMED | age={0} | trigger_gap_pct={1} | failing={2}', long_setup_age, str.tostring(_trigger_gap_pct, '#.###'), _confirm_failing == '' ? 'none' : str.trim(_confirm_failing))
 
 [long_building_state, ready_bar_gap_ok, scoring_accel_ready, scoring_sd_ready, scoring_vol_ready, scoring_stretch_ready, scoring_ddvi_ready, lifecycle_ready_ok, long_ready_state] = ll.resolve_long_ready_projection_state(long_state.armed, long_internal_structure_ok, long_state.confirmed, long_state.confirm_bar_index, bar_index, use_scoring_over_blocking, accel_ready_gate_ok, sd_ready_gate_ok, vol_ready_context_ok, stretch_ready_context_ok, ddvi_ready_ok_safe, close_safe_mode, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready_eff, bull_bos_sig, main_bos_recent, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, quality_gate_ok)
+// Ready min-count (plan step 2, 2026-10-06): with use_ready_min_count the risk gates stay hard and the
+// 12 remaining Ready gates count as points. Off (default) leaves the library's AND chain untouched.
+int ready_soft_gates_met = (ready_is_fresh ? 1 : 0) + (session_structure_gate_ok ? 1 : 0) + (micro_session_gate_ok ? 1 : 0) + (micro_freshness_gate_ok ? 1 : 0) + (market_regime_gate_ok ? 1 : 0) + (vola_regime_gate_safe ? 1 : 0) + (quality_gate_ok ? 1 : 0) + (scoring_accel_ready ? 1 : 0) + (scoring_sd_ready ? 1 : 0) + (scoring_vol_ready ? 1 : 0) + (scoring_stretch_ready ? 1 : 0) + (scoring_ddvi_ready ? 1 : 0)
+if use_ready_min_count
+    bool _ready_hard_ok = close_safe_mode and long_state.confirmed and ready_bar_gap_ok and not long_confirm_expired and long_confirm_bearish_guard_ok and (not require_main_break_for_ready_eff or bull_bos_sig or main_bos_recent) and setup_hard_gate_ok and overhead_zone_ok and event_risk_gate_ok
+    long_ready_state := _ready_hard_ok and ready_soft_gates_met >= ready_min_soft_gates
 [long_entry_best_state, long_entry_strict_state] = ll.resolve_long_entry_projection_state(long_ready_state, best_signal_quality_gate_ok, accel_entry_best_gate_ok, sd_entry_best_gate_ok, vol_entry_best_context_ok_safe, stretch_entry_best_context_ok, ddvi_entry_best_ok_safe, strict_signal_quality_gate_ok, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe)
 [long_ready_blocker_text, long_strict_blocker_text] = ll.resolve_long_execution_blocker_state(long_ready_state, long_state.confirmed, close_safe_mode, ready_bar_gap_ok, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready_eff, bull_bos_sig, main_bos_recent, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok, market_regime_gate_ok, vola_regime_gate_safe, quality_gate_ok, scoring_accel_ready, scoring_sd_ready, scoring_vol_ready, scoring_stretch_ready, scoring_ddvi_ready, long_entry_strict_state, strict_signal_quality_gate_ok, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe)
 
@@ -2602,7 +2611,7 @@ if show_long_engine_debug_eff and barstate.isconfirmed and long_state.confirmed 
     _ready_failing += scoring_vol_ready ? '' : ' vol_regime_context'
     _ready_failing += scoring_stretch_ready ? '' : ' stretch'
     _ready_failing += scoring_ddvi_ready ? '' : ' ddvi'
-    log.info('LONG PENDING | ready={0} | failing={1}', long_ready_blocker_text, _ready_failing == '' ? 'none' : str.trim(_ready_failing))
+    log.info('LONG PENDING | ready={0} | soft_met={2} | failing={1}', long_ready_blocker_text, _ready_failing == '' ? 'none' : str.trim(_ready_failing), ready_soft_gates_met)
 
 bool long_quality_clean_tier = ll.resolve_long_clean_tier(close_safe_mode, bullish_trend_safe, zone_recent, reclaim_recent, long_state.confirmed, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, quality_gate_ok, bull_close_strong, ema_support_ok, adx_strong, relvol_ok, vwap_filter_ok)
 [long_stop_level, long_risk_r, long_target_1, long_target_2] = ll.compute_long_risk_plan_state(long_plan_active, long_planned_stop_level, planned_risk, long_state.trigger, target1_r, target2_r)
