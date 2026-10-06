@@ -231,8 +231,8 @@ async function removeSuite(page: Page): Promise<void> {
   await row.locator('[data-qa-id="legend-delete-action"]').click({ force: true });
   await page.waitForTimeout(1_500);
   // TradingView asks before removing an indicator that others depend on
-  const confirm = page.locator('[role="dialog"] button, [data-name*="dialog"] button').filter({ hasText: /^(Remove|Delete|Yes|Ok)$/i }).first();
-  if (await confirm.isVisible().catch(() => false)) await confirm.click();
+  const confirm = page.locator('button[data-qa-id="yes-btn"]').first();
+  if (await confirm.isVisible().catch(() => false)) await confirm.click({ force: true });
   await page.waitForTimeout(2_500);
 }
 
@@ -270,19 +270,29 @@ const smcLegendNames = async (page: Page): Promise<string[]> =>
     .map(legendScriptName).filter((t) => t.startsWith("SMC"));
 
 /**
- * Add one of the account's OWN scripts by exact name: Indicators dialog -> "My scripts"
+ * The private publication of the Suite (https://www.tradingview.com/script/FH5Mbqkz-SMC-Long-Dip-Suite/).
+ * Measured 2026-10-05/06: adding it from "My scripts" AND from "Favorites" both yield an
+ * instance backed by the SAVED script (pineId USER;…), which never takes publication
+ * updates. `fromPublication` in the result records which one a migration produced; it
+ * is not gated (operator decision 2026-10-05 "A").
+ */
+export const SUITE_PUBLICATION_ID = "PUB;9ce21213fa54457496aae1941b828682";
+
+/**
+ * Add one of the account's OWN scripts by exact name: Indicators dialog -> section
  * -> search -> click the row whose text IS the name. Refuses anything else.
  *
  * Written because addExistingScriptToChartViaIndicators searches ALL scripts and, when
  * its row click misses, falls back to the keyboard and adds the first hit — in the
  * 2026-10-05 dry run that was a community script, five times over.
  */
-async function addOwnScript(page: Page, name: string): Promise<void> {
+
+async function addOwnScript(page: Page, name: string, section: "My scripts" | "Favorites" = "My scripts"): Promise<void> {
   const countBefore = (await smcLegendNames(page)).filter((n) => n === name).length;
   await page.locator('[data-name="open-indicators-dialog"]:visible').first().click();
   await page.waitForTimeout(1_500);
   const dialog = page.locator('[data-name="indicators-dialog"], [role="dialog"]').last();
-  await dialog.getByText("My scripts", { exact: true }).first().click();
+  await dialog.getByText(section, { exact: true }).first().click();
   await page.waitForTimeout(1_000);
   await page.keyboard.type(name, { delay: 25 });
   await page.waitForTimeout(2_000);
@@ -290,7 +300,7 @@ async function addOwnScript(page: Page, name: string): Promise<void> {
   const n = await rows.count();
   if (n !== 1) {
     await page.keyboard.press("Escape");
-    throw new Error(`"My scripts" shows ${n} rows named exactly ${name}`);
+    throw new Error(`"${section}" shows ${n} rows named exactly ${name}`);
   }
   await rows.first().click();
   await page.waitForTimeout(2_500);
@@ -321,8 +331,8 @@ async function pruneRightPane(page: Page): Promise<string[]> {
     await page.waitForTimeout(400);
     await target.locator('[data-qa-id="legend-delete-action"]').click({ force: true });
     await page.waitForTimeout(1_500);
-    const confirm = page.locator('[role="dialog"] button, [data-name*="dialog"] button').filter({ hasText: /^(Remove|Delete|Yes|Ok)$/i }).first();
-    if (await confirm.isVisible().catch(() => false)) await confirm.click();
+    const confirm = page.locator('button[data-qa-id="yes-btn"]').first();
+    if (await confirm.isVisible().catch(() => false)) await confirm.click({ force: true });
     await page.waitForTimeout(2_000);
     removed.push(name);
   }
@@ -361,7 +371,7 @@ async function migrateChart(session: TradingViewSession, chartId: string, out: s
   const toAdd = [SUITE, ...order.filter((n) => n !== SUITE && !left.includes(n))];
   const addResults: Record<string, string> = {};
   for (const name of toAdd) {
-    addResults[name] = await addOwnScript(page, name).then(() => "ok").catch((e) => String((e as Error)?.message ?? e).slice(0, 160));
+    addResults[name] = await addOwnScript(page, name, name === SUITE ? "Favorites" : "My scripts").then(() => "ok").catch((e) => String((e as Error)?.message ?? e).slice(0, 160));
     if (addResults[name] !== "ok") break; // never stack further adds on a failed one
   }
   await page.screenshot({ path: path.join(out, `${chartId}-after-add.png`) });
@@ -375,6 +385,26 @@ async function migrateChart(session: TradingViewSession, chartId: string, out: s
       .then((r) => `${r.ok ? "ok" : "NOT ok"} checked=${r.checked} repaired=${r.repaired.length}`)
       .catch((e) => `error: ${String((e as Error)?.message ?? e).slice(0, 160)}`);
   }
+  // Which script and version the new Suite instance is pinned to, read from its own
+  // pineId/pineVersion inputs (a coarse search of the chart model gave a false
+  // "publication" positive on 2026-10-05). Recorded, not gated: operator decision
+  // 2026-10-05 (A) accepts the saved script at the current version; the gate is the
+  // source hash below.
+  const PIN_SOURCE = `
+    const api = window.TradingViewApi; const out = [];
+    const n = api.chartsCount ? api.chartsCount() : 1;
+    for (let i = 0; i < n; i += 1) {
+      const chart = api.chart ? api.chart(i) : api.activeChart();
+      for (const st of chart.getAllStudies()) {
+        if (st.name !== "SMC Long-Dip Suite") continue;
+        const inputs = chart.getStudyById(st.id).getInputValues();
+        const get = (id) => (inputs.find((x) => x.id === id) || {}).value || null;
+        out.push({ chart: i, id: st.id, pineId: get("pineId"), pineVersion: get("pineVersion") });
+      }
+    }
+    return out;
+  `;
+  const suitePin = await page.evaluate((src) => new Function(src)(), PIN_SOURCE).catch((e) => ({ error: String(e).slice(0, 160) }));
   // restore visibility
   for (const inst of kept) await setHidden(page, inst.name, inst.hidden);
   const after = await inventoryChartInPlace(page, chartId);
@@ -383,7 +413,8 @@ async function migrateChart(session: TradingViewSession, chartId: string, out: s
   const visibility = kept.filter((k) => after.instances.find((a) => a.name === k.name)?.hidden !== k.hidden).map((k) => k.name);
   const bindingsOk = Object.values(rebind).every((v) => v.startsWith("ok"));
   const suiteCurrent = after.suiteSources.length === 1 && after.suiteSources[0].sha256 === expectedSuiteSha();
-  const clean = diff.missing.length === 0 && diff.added.length === 0 && diff.diffs.length === 0 && visibility.length === 0 && bindingsOk && suiteCurrent
+  const fromPublication = Array.isArray(suitePin) && suitePin.length === 1 && suitePin[0].pineId === SUITE_PUBLICATION_ID;
+  const clean = Array.isArray(suitePin) && suitePin.length === 1 && diff.missing.length === 0 && diff.added.length === 0 && diff.diffs.length === 0 && visibility.length === 0 && bindingsOk && suiteCurrent
     && Object.values(addResults).every((v) => v === "ok");
   let saved = false;
   if (!dryRun && clean) {
@@ -391,7 +422,7 @@ async function migrateChart(session: TradingViewSession, chartId: string, out: s
     saved = true;
   }
   const result = {
-    chartId, dryRun, clean, saved, pruned, removedLeft: left, addResults, rebind, visibilityMismatch: visibility, suiteCurrent,
+    chartId, dryRun, clean, saved, pruned, fromPublication, suitePin, removedLeft: left, addResults, rebind, visibilityMismatch: visibility, suiteCurrent,
     before: before.instances.map((i) => `${i.name}#${i.entityId}${i.hidden ? "(hidden)" : ""}`),
     after: after.instances.map((i) => `${i.name}#${i.entityId}${i.hidden ? "(hidden)" : ""}`),
     suiteAfter: after.suiteSources.map((x) => `${x.pane}:${x.entityId}:${x.sha256?.slice(0, 12)}`),
