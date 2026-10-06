@@ -148,12 +148,13 @@ async function showStrategy(page: Page): Promise<void> {
   const row = page.locator('[data-qa-id="chart-container"]').first()
     .locator('[data-qa-id="legend-source-item"]').filter({ hasText: STRATEGY_NAME }).first();
   // The row box is wider than its text; the canvas intercepts the pointer at
-  // its centre, so hover the title to reveal the row's actions.
-  await row.locator('[data-qa-id*="legend-source-title"]').first().hover();
+  // its centre, so hover the title to reveal the row's actions. force: with the market
+  // open the row's live values re-layout it and it never counts as "stable" (2026-10-06).
+  await row.locator('[data-qa-id*="legend-source-title"]').first().hover({ force: true });
   await page.waitForTimeout(500);
   const eye = row.locator('[data-qa-id="legend-show-hide-action"]');
   if ((await eye.getAttribute("aria-label")) !== "Show") throw new Error("strategy is already visible; expected the stored layout to keep it hidden");
-  await eye.click();
+  await eye.click({ force: true });
   await page.locator('[data-qa-id="backtesting"]').first().waitFor({ state: "visible", timeout: 30_000 });
   await awaitRecalculatedReport(page);
 }
