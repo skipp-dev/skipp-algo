@@ -123,16 +123,16 @@ Bedingungen scheitern; Untergrenze wie bei Ready):
 | `structure` + `not_fresh` | 98 | 65 |
 | `structure` + `not_fresh` + `micro_freshness` | 138 | 82 |
 
-`structure` ist `long_confirm_structure_ok`: mit `Require Internal Break For
-Confirm` = true (auf dem Chart über die Chart-API gelesen: `in_105` = true) und
+`structure` ist `long_confirm_structure_ok`: mit
+`Require Internal Break For Confirm` = true (auf dem Chart über die Chart-API gelesen: `in_105` = true) und
 `Structure Mode` = „Internal CHoCH only" verlangt Confirm einen internen
 bullischen CHoCH seit dem Arming. Das Zeitfenster allein (`not_fresh`) erklärt
 die Abläufe nicht.
 
 Nebenbefund: der Eingabe-Leser von `tv_suite_publication_migration.ts`
 (Einstellungsdialog) ordnet bei zwei Checkboxen in einer Zeile den Wert falsch
-zu (er meldete `Require Internal Break For Confirm` = false und `Live Confirm
-Uses High` = false; die Chart-API zeigt beide true). Die Migrations-Prüfung
+zu (er meldete `Require Internal Break For Confirm` = false und
+`Live Confirm Uses High` = false; die Chart-API zeigt beide true). Die Migrations-Prüfung
 vergleicht vorher/nachher mit demselben Leser und sieht eine Änderung am ersten
 Wert eines solchen Paars deshalb nicht. UNGESICHERT — verlässt sich auf
 menschliches Gedächtnis: Umstellung des Lesers auf `getInputValues()`.
@@ -150,8 +150,29 @@ Nach dem Ergebnis von 1a, jeweils als eigene Variante gegen Armed gemessen:
 Die erste Variante lässt sich aus dem Log nicht vorrechnen (er enthält keinen
 BOS-Zeitpunkt); sie braucht den Tester.
 
-UNGESICHERT — verlässt sich auf menschliches Gedächtnis: 1b wartet auf die
-Entscheidung des Betreibers.
+#### Ergebnis 1b (2026-10-06, Betreiber: alle drei messen)
+
+Gemessen im Tester auf `vWgAWyfC` (Suite v436), reguläre Handelszeit,
+2023-09-01 bis 2026-10-05/06, fünf Symbole, 15 Minuten. Die Varianten wurden
+nur in der Sitzung gesetzt (`--suite-input`, #5695), nie gespeichert; eine
+frische Sitzung las danach die gespeicherten Werte unverändert (`in_105` true,
+`in_72` 2, `in_109` „Internal CHoCH only"). Bewertung wie im Bericht vom
+2026-10-04: 5 bps je Trade, Intervall über gezogene Einstiegstage, Placebo je
+Trade 200 Zufallseinstiege.
+
+| Variante | Confirmed-Trades (Tage) | netto bps, 95 % KI | Überschuss ggü. Placebo, 95 % KI | Ready / Best / Strict |
+|---|---|---|---|---|
+| gespeichert (Grundlinie) | 1 (1) | −227.8 | −22.5 | 0 / 0 / 0 |
+| V1 `Structure Mode` → „Internal CHoCH or BOS" | 21 (9) | −16.2 [−82.8; +21.2] | −13.1 [−79.9; +25.9] | 0 / 0 / 0 |
+| V2 `Require Internal Break For Confirm` → false | 75 (53) | +9.2 [−19.4; +36.5] | +10.1 [−19.8; +37.2] | 0 / 0 / 0 |
+| V3 = V2 + `Max Bars Armed -> Confirm` 2 → 6 | 94 (69) | +4.1 [−20.2; +27.4] | +4.3 [−19.7; +27.6] | 0 / 0 / 0 |
+| Maßstab: Armed (Grundlinie) | 167 (132) | +10.8 [−10.7; +35.3] | +8.4 [−13.6; +32.5] | – |
+
+Keine Variante schlägt Armed, keine erreicht Ready. Confirm zu lockern löst
+den Engpass nicht; die gespeicherten Werte bleiben (Betreiber 2026-10-06: V1
+nicht übernehmen). Nicht gemessen: erweiterte Handelszeit (der Report setzte
+sich bei laufender Vorbörse nicht) und die Pine-Logs der Varianten (Netzausfall
+während des Laufs). UNGESICHERT — verlässt sich auf menschliches Gedächtnis.
 
 ### 2 — Ready zuschneiden (Betreiberentscheid)
 
@@ -172,10 +193,12 @@ risikobegrenzenden Bedingungen (`bar_gap`, `confirm_expired`, `bearish_guard`,
 „mindestens N". Best und Strict behalten ihre vollen Hürden. N wird auf
 2023-09 bis 2025-12 festgelegt, 2026 bleibt für einen einzigen Test unberührt.
 
-Werkzeuglücke: `tv_strategy_report_readout.ts` schaltet nur die Stufe der
-Strategy um, keine Suite-Inputs. Für A–D braucht er eine Option, die
-Suite-Inputs nur in der Sitzung setzt, ohne Speichern; ob solche Änderungen
-ohne Speichern nicht dauerhaft werden, ist ungemessen.
+Werkzeug (Stand 2026-10-06): `--suite-input` setzt Suite-Inputs nur in der
+Sitzung; gemessen nicht dauerhaft (frische Sitzung liest den gespeicherten Wert).
 
-UNGESICHERT — verlässt sich auf menschliches Gedächtnis: Schritt 2 wartet auf
-die Entscheidung des Betreibers.
+Nach 1b bleibt Schritt 2 die offene Option (Betreiber 2026-10-06: „behalte
+diese Option"). Die Werkzeuglücke ist geschlossen (#5695: `--suite-input`);
+ein Mindestzahl-Zuschnitt braucht dagegen eine Änderung der Suite selbst.
+
+UNGESICHERT — verlässt sich auf menschliches Gedächtnis: Schritt 2 ist
+zurückgestellt und wartet auf die Entscheidung des Betreibers.
