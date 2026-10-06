@@ -539,13 +539,41 @@ def test_ready_diagnosis_log_names_every_failing_ready_gate() -> None:
     """
     source = _read(CORE_PATH)
     assert "if show_long_engine_debug_eff and barstate.isconfirmed and long_state.confirmed and not long_ready_state" in source
-    assert "log.info('LONG PENDING | ready={0} | failing={1}'" in source
+    assert "log.info('LONG PENDING | ready={0} | soft_met={2} | failing={1}'" in source
     # every gate the Ready blocker chain evaluates is named in the diagnosis
     for gate in ("bar_gap", "confirm_expired", "not_fresh", "bearish_guard", "main_break", "setup_hard",
                  "trade_hard", "environment_hard", "session_structure", "micro_session", "micro_freshness",
                  "overhead_zone", "market_regime", "vola_regime", "quality", "accel", "second_derivative",
                  "vol_regime_context", "stretch", "ddvi"):
         assert f"' {gate}'" in source, gate
+
+
+def test_ready_min_count_is_opt_in_and_keeps_the_risk_gates_hard() -> None:
+    """Plan step 2 (docs/governance/long_dip_ready_confirm_plan_2026-10-06.md): Ready as a
+    minimum count instead of an AND chain. Off by default (the library's AND chain is
+    untouched); on, the risk gates stay hard and the 12 other Ready gates count as points.
+    """
+    import re
+    source = _read(CORE_PATH)
+    assert "var bool use_ready_min_count = input.bool(false, 'Ready: Min-Count instead of AND chain'" in source
+    assert "var int ready_min_soft_gates = input.int(12, 'Ready: Min Soft Gates (of 12)', minval = 0, maxval = 12" in source
+    soft = re.search(r"int ready_soft_gates_met = (.+)", source).group(1)
+    soft_terms = re.findall(r"\((\w+) \? 1 : 0\)", soft)
+    assert soft_terms == ["ready_is_fresh", "session_structure_gate_ok", "micro_session_gate_ok", "micro_freshness_gate_ok",
+                          "market_regime_gate_ok", "vola_regime_gate_safe", "quality_gate_ok", "scoring_accel_ready",
+                          "scoring_sd_ready", "scoring_vol_ready", "scoring_stretch_ready", "scoring_ddvi_ready"]
+    hard = re.search(r"bool _ready_hard_ok = (.+)", source).group(1)
+    for gate in ("close_safe_mode", "long_state.confirmed", "ready_bar_gap_ok", "not long_confirm_expired",
+                 "long_confirm_bearish_guard_ok", "(not require_main_break_for_ready_eff or bull_bos_sig or main_bos_recent)",
+                 "setup_hard_gate_ok", "overhead_zone_ok", "event_risk_gate_ok"):
+        assert gate in hard, gate
+    assert "if use_ready_min_count\n" in source
+    assert "    long_ready_state := _ready_hard_ok and ready_soft_gates_met >= ready_min_soft_gates" in source
+    # the override sits after the library call and before anything reads long_ready_state
+    i_lib = source.index("[long_building_state, ready_bar_gap_ok, scoring_accel_ready,")
+    i_override = source.index("long_ready_state := _ready_hard_ok")
+    i_first_reader = source.index("ll.resolve_long_entry_projection_state(long_ready_state")
+    assert i_lib < i_override < i_first_reader
 
 
 def test_confirm_diagnosis_log_names_every_failing_confirm_condition() -> None:
