@@ -390,6 +390,42 @@ jobs:
       # TradingView lists 192"). The run therefore rebuilds its own proposal
       # from CURRENT main before it measures anything, and force-pushes it so
       # the later evidence commit still fast-forwards onto the same branch.
+      # The library publish releases the tradingview-session lock the moment it
+      # has published, but its manifest PR (bot/library-refresh-*) merges only
+      # minutes later (median 297 s, see "Await the refresh commit on main").
+      # A queued re-attest run takes the lock in that window, rebuilds on the
+      # pre-refresh main and the rollout refuses on library drift -- 3 of 3
+      # re-attest runs since 18:00Z on 2026-10-06 (37486040838, 37508171373,
+      # 37508426550: manifest 564/566, TradingView 566/567). The workflow_run
+      # path already waits for its own refresh PR; the dispatch path waits for
+      # every open one before it rebuilds.
+      - name: Await open library-refresh PRs before rebuilding
+        id: reattest_refresh_wait
+        if: ${{ github.event.inputs.reattest == 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+          REPO: ${{ github.repository }}
+          AWAIT_TIMEOUT_SECONDS: "600"
+        run: |
+          set -euo pipefail
+          deadline=$(( SECONDS + AWAIT_TIMEOUT_SECONDS ))
+          while :; do
+            open=$(gh pr list --repo "$REPO" --state open --limit 100 \
+                     --json number,headRefName \
+                     --jq '[.[] | select(.headRefName | startswith("bot/library-refresh-")) | .number] | join(" ")')
+            if [ -z "$open" ]; then
+              echo "::notice::No library-refresh PR is open; main carries the published manifest."
+              exit 0
+            fi
+            if [ "$SECONDS" -ge "$deadline" ]; then
+              # Fatal on purpose: rebuilding now reproduces the drift refusal.
+              echo "::error::Library-refresh PR(s) ${open} still open after ${AWAIT_TIMEOUT_SECONDS}s. Merge them and re-dispatch the re-attestation."
+              exit 1
+            fi
+            echo "Library-refresh PR(s) ${open} open; waiting for the merge."
+            sleep 15
+          done
+
       - name: Rebuild the proposal on current main
         id: rebuild
         if: ${{ github.event.inputs.reattest == 'true' }}

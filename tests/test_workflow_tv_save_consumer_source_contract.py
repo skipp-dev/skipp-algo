@@ -1899,3 +1899,50 @@ def test_failure_evidence_is_produced_and_collected() -> None:
     assert "steps.save.conclusion == 'failure'" in upload["if"], (
         "evidence must survive the failing run it describes"
     )
+
+
+def _reattest_wait_step() -> dict:
+    return next(s for s in _steps() if s.get("id") == "reattest_refresh_wait")
+
+
+def test_reattest_waits_for_open_library_refresh_prs_before_rebuilding() -> None:
+    """2026-10-06: 3 of 3 re-attest runs took the TradingView lock in the window
+    between a library publish and the merge of its manifest PR, rebuilt on the
+    pre-refresh main and were refused on library drift. The dispatch path now
+    waits for every open bot/library-refresh-* PR before it rebuilds."""
+    steps = _steps()
+    wait = _reattest_wait_step()
+    rebuild = next(s for s in steps if s.get("id") == "rebuild")
+    assert steps.index(wait) < steps.index(rebuild)
+    assert wait["if"] == rebuild["if"]  # exactly the re-attest runs
+    run = wait["run"]
+    assert "--state open" in run and 'startswith("bot/library-refresh-")' in run
+    assert wait["env"]["AWAIT_TIMEOUT_SECONDS"] == "600"
+    assert re.search(r'-ge "\$deadline" \]; then\n\s+#[^\n]*\n\s+echo "::error::[^\n]*"\n\s+exit 1', run)
+
+
+@pytest.mark.parametrize(
+    ("answers", "timeout", "expected_rc", "expected_calls"),
+    [
+        (["", ""], "600", 0, 1),            # nothing open: proceeds at once
+        (["5709", "5709", ""], "600", 0, 3),  # open, open, merged: proceeds after the merge
+        (["5709", "5709", "5709"], "0", 1, 1),  # still open at the deadline: fails loudly
+    ],
+)
+def test_reattest_wait_fragment_runs(tmp_path: Path, answers: list[str], timeout: str, expected_rc: int, expected_calls: int) -> None:
+    run = _reattest_wait_step()["run"].replace("sleep 15", "true")
+    calls = tmp_path / "calls"
+    calls.write_text("0")
+    answers_file = tmp_path / "answers"
+    answers_file.write_text("\n".join(answers) + "\n")
+    fake_gh = tmp_path / "gh"
+    fake_gh.write_text(
+        "#!/bin/bash\n"
+        f'n=$(cat "{calls}"); n=$((n+1)); echo "$n" > "{calls}"\n'
+        f'sed -n "${{n}}p" "{answers_file}"\n'
+    )
+    fake_gh.chmod(0o755)
+    env = {**os.environ, "PATH": f"{tmp_path}:{os.environ['PATH']}", "REPO": "o/r", "AWAIT_TIMEOUT_SECONDS": timeout}
+    proc = subprocess.run(["bash", "-c", run], env=env, capture_output=True, text=True, timeout=60)
+    assert proc.returncode == expected_rc, proc.stdout + proc.stderr
+    assert int(calls.read_text()) == expected_calls
