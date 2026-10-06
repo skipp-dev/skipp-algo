@@ -123,16 +123,16 @@ Bedingungen scheitern; Untergrenze wie bei Ready):
 | `structure` + `not_fresh` | 98 | 65 |
 | `structure` + `not_fresh` + `micro_freshness` | 138 | 82 |
 
-`structure` ist `long_confirm_structure_ok`: mit `Require Internal Break For
-Confirm` = true (auf dem Chart über die Chart-API gelesen: `in_105` = true) und
+`structure` ist `long_confirm_structure_ok`: mit
+`Require Internal Break For Confirm` = true (auf dem Chart über die Chart-API gelesen: `in_105` = true) und
 `Structure Mode` = „Internal CHoCH only" verlangt Confirm einen internen
 bullischen CHoCH seit dem Arming. Das Zeitfenster allein (`not_fresh`) erklärt
 die Abläufe nicht.
 
 Nebenbefund: der Eingabe-Leser von `tv_suite_publication_migration.ts`
 (Einstellungsdialog) ordnet bei zwei Checkboxen in einer Zeile den Wert falsch
-zu (er meldete `Require Internal Break For Confirm` = false und `Live Confirm
-Uses High` = false; die Chart-API zeigt beide true). Die Migrations-Prüfung
+zu (er meldete `Require Internal Break For Confirm` = false und
+`Live Confirm Uses High` = false; die Chart-API zeigt beide true). Die Migrations-Prüfung
 vergleicht vorher/nachher mit demselben Leser und sieht eine Änderung am ersten
 Wert eines solchen Paars deshalb nicht. UNGESICHERT — verlässt sich auf
 menschliches Gedächtnis: Umstellung des Lesers auf `getInputValues()`.
