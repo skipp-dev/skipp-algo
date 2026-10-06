@@ -14,6 +14,7 @@
 //
 // Usage: tsx scripts/tv_long_engine_log_readout.ts --out <dir>
 //          [--symbols NASDAQ:AAPL,NYSE:JPM] [--interval 15] [--session keep|Regular|Extended]
+//          [--suite-input "Require Internal Break For Confirm=false" ...]  (session only, never saved)
 
 import fs from "node:fs";
 import path from "node:path";
@@ -26,11 +27,17 @@ import {
   newTradingViewSession,
   setChartSessionMode,
 } from "../automation/tradingview/lib/tv_shared.js";
+import {
+  applySuiteInputOverrides,
+  getAllFlagValues,
+  parseSuiteInputOverride,
+  type SuiteInputOverride,
+} from "../automation/tradingview/lib/tv_suite_input_overrides.js";
 import { DEFAULT_SYMBOLS, symbolSlug } from "./tv_strategy_report_readout.js";
 
 export const SUITE_NAME = "SMC Long-Dip Suite";
 
-export type LogArgs = { out: string; symbols: string[]; interval: string; session: string };
+export type LogArgs = { out: string; symbols: string[]; interval: string; session: string; suiteInputs: SuiteInputOverride[] };
 
 export function parseLogArgs(argv: string[]): LogArgs {
   const get = (flag: string): string | undefined => {
@@ -43,7 +50,8 @@ export function parseLogArgs(argv: string[]): LogArgs {
   if (!["keep", "Regular", "Extended"].includes(session)) throw new Error(`unknown session: ${session}`);
   const symbols = (get("--symbols") ?? DEFAULT_SYMBOLS.join(",")).split(",").map((s) => s.trim()).filter(Boolean);
   if (symbols.length === 0) throw new Error("no symbols");
-  return { out, symbols, interval: get("--interval") ?? "15", session };
+  const suiteInputs = getAllFlagValues(argv, "--suite-input").map(parseSuiteInputOverride);
+  return { out, symbols, interval: get("--interval") ?? "15", session, suiteInputs };
 }
 
 /** Split a panel text into log lines; a line starts with "[<ISO time>]: ". */
@@ -156,6 +164,7 @@ async function main(): Promise<void> {
   fs.mkdirSync(args.out, { recursive: true });
   const base = process.env.TV_CHART_URL || "https://www.tradingview.com/chart/vWgAWyfC/";
   const summary: Record<string, unknown>[] = [];
+  const suiteSource = fs.readFileSync("SMC_Long_Dip_Suite.pine", "utf-8");
   for (const symbol of args.symbols) {
     // a fresh session per symbol: the logs panel keeps the previous symbol's lines otherwise
     const session = await newTradingViewSession();
@@ -175,6 +184,8 @@ async function main(): Promise<void> {
       if (args.session !== "keep") await setChartSessionMode(page, args.session as "Regular" | "Extended");
       await enableDebugLogs(page);
       await page.waitForTimeout(5_000);
+      // after the dialog: its Ok would re-apply the dialog's values
+      const suiteInputs = await applySuiteInputOverrides(page, SUITE_NAME, suiteSource, args.suiteInputs);
       const { lines, scrolled } = await readLogs(page);
       const stem = `${symbolSlug(symbol)}_${args.interval}_${args.session}`;
       fs.writeFileSync(path.join(args.out, `${stem}.log`), lines.join("\n") + "\n");
@@ -182,7 +193,7 @@ async function main(): Promise<void> {
       const counts: Record<string, number> = {};
       for (const e of events) counts[e.event] = (counts[e.event] ?? 0) + 1;
       const row = { symbol, interval: args.interval, session: args.session, lines: lines.length, scrolled,
-        first: lines[0]?.slice(1, 26) ?? null, last: lines.at(-1)?.slice(1, 26) ?? null, counts, readAt: new Date().toISOString() };
+        first: lines[0]?.slice(1, 26) ?? null, last: lines.at(-1)?.slice(1, 26) ?? null, counts, suiteInputs, readAt: new Date().toISOString() };
       summary.push(row);
       console.log(JSON.stringify(row));
       fs.writeFileSync(path.join(args.out, "summary.json"), JSON.stringify(summary, null, 2));

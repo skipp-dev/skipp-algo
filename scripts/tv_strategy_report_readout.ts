@@ -16,6 +16,7 @@
 // Usage: tsx scripts/tv_strategy_report_readout.ts --out <dir>
 //          [--symbols NASDAQ:AAPL,NYSE:JPM] [--stages Armed,Confirmed,Ready,Best,Strict]
 //          [--interval 15] [--session keep|Regular|Extended]
+//          [--suite-input "Require Internal Break For Confirm=false" ...]  (session only, never saved)
 
 import fs from "node:fs";
 import path from "node:path";
@@ -28,12 +29,18 @@ import {
   newTradingViewSession,
   setChartSessionMode,
 } from "../automation/tradingview/lib/tv_shared.js";
+import {
+  applySuiteInputOverrides,
+  getAllFlagValues,
+  parseSuiteInputOverride,
+  type SuiteInputOverride,
+} from "../automation/tradingview/lib/tv_suite_input_overrides.js";
 
 export const STRATEGY_NAME = "SMC Long-Dip Strategy";
 export const STAGES = ["Armed", "Confirmed", "Ready", "Best", "Strict"] as const;
 export const DEFAULT_SYMBOLS = ["NASDAQ:AAPL", "NASDAQ:NVDA", "NYSE:JPM", "NYSE:XOM", "NYSE:UNH"];
 
-export type ReadoutArgs = { out: string; symbols: string[]; stages: string[]; interval: string; session: string };
+export type ReadoutArgs = { out: string; symbols: string[]; stages: string[]; interval: string; session: string; suiteInputs: SuiteInputOverride[] };
 
 export function parseReadoutArgs(argv: string[]): ReadoutArgs {
   const get = (flag: string): string | undefined => {
@@ -53,7 +60,8 @@ export function parseReadoutArgs(argv: string[]): ReadoutArgs {
   if (!["keep", "Regular", "Extended"].includes(session)) throw new Error(`unknown session: ${session}`);
   const symbols = (get("--symbols") ?? DEFAULT_SYMBOLS.join(",")).split(",").map((s) => s.trim()).filter(Boolean);
   if (symbols.length === 0) throw new Error("no symbols");
-  return { out, symbols, stages, interval: get("--interval") ?? "15", session };
+  const suiteInputs = getAllFlagValues(argv, "--suite-input").map(parseSuiteInputOverride);
+  return { out, symbols, stages, interval: get("--interval") ?? "15", session, suiteInputs };
 }
 
 /** "NASDAQ:AAPL" -> "AAPL"; file-name safe. */
@@ -187,6 +195,7 @@ async function main(): Promise<void> {
   fs.mkdirSync(args.out, { recursive: true });
   const base = process.env.TV_CHART_URL || "https://www.tradingview.com/chart/vWgAWyfC/";
   const summary: Record<string, unknown>[] = [];
+  const suiteSource = fs.readFileSync("SMC_Long_Dip_Suite.pine", "utf-8");
   const session = await newTradingViewSession();
   try {
     const { page } = session;
@@ -203,6 +212,7 @@ async function main(): Promise<void> {
         await page.waitForTimeout(2_000);
       }
       if (args.session !== "keep") await setChartSessionMode(page, args.session as "Regular" | "Extended");
+      const suiteInputs = await applySuiteInputOverrides(page, "SMC Long-Dip Suite", suiteSource, args.suiteInputs);
       await showStrategy(page);
       for (const stage of args.stages) {
         const changed = await setStage(page, stage);
@@ -211,7 +221,7 @@ async function main(): Promise<void> {
         const stem = `${symbolSlug(symbol)}_${args.interval}_${stage.toLowerCase()}`;
         fs.writeFileSync(path.join(args.out, `${stem}.txt`), text);
         if (verdict.state === "trades") await downloadXlsx(page, path.join(args.out, `${stem}.xlsx`));
-        const row = { symbol, interval: args.interval, session: args.session, stage, ...verdict, readAt: new Date().toISOString() };
+        const row = { symbol, interval: args.interval, session: args.session, stage, ...verdict, suiteInputs, readAt: new Date().toISOString() };
         summary.push(row);
         console.log(JSON.stringify(row));
         fs.writeFileSync(path.join(args.out, "summary.json"), JSON.stringify(summary, null, 2));
