@@ -1,0 +1,60 @@
+{
+  "day": "2026-10-06",
+  "labels": {
+    "BRBI": {
+      "pnl_30m_pct": null,
+      "profitable_30m": null,
+      "source": "pending"
+    },
+    "BRZU": {
+      "pnl_30m_pct": null,
+      "profitable_30m": null,
+      "source": "pending"
+    },
+    "EWZ": {
+      "pnl_30m_pct": -1.1024,
+      "profitable_30m": false,
+      "source": "outcomes"
+    },
+    "ITUB": {
+      "pnl_30m_pct": 0.2976,
+      "profitable_30m": true,
+      "source": "outcomes"
+    },
+    "PCVX": {
+      "pnl_30m_pct": -10.7705,
+      "profitable_30m": false,
+      "source": "outcomes"
+    },
+    "PTC": {
+      "pnl_30m_pct": -0.1811,
+      "profitable_30m": false,
+      "source": "outcomes"
+    },
+    "RXO": {
+      "pnl_30m_pct": -0.4899,
+      "profitable_30m": false,
+      "source": "outcomes"
+    },
+    "SBS": {
+      "pnl_30m_pct": -0.5452,
+      "profitable_30m": false,
+      "source": "outcomes"
+    },
+    "STNE": {
+      "pnl_30m_pct": -1.7987,
+      "profitable_30m": false,
+      "source": "outcomes"
+    },
+    "XP": {
+      "pnl_30m_pct": 0.6161,
+      "profitable_30m": true,
+      "source": "outcomes"
+    }
+  },
+  "pending": [
+    "BRBI",
+    "BRZU"
+  ],
+  "schema_version": 1
+}
