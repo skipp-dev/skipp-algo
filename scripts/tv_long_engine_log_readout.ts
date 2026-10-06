@@ -23,7 +23,7 @@ import {
   closeTradingViewSession,
   closePineEditorIfVisible,
   dismissPromotionOverlay,
-  gotoChartAndAwaitScript,
+  gotoChartClosingDockedEditor,
   newTradingViewSession,
   setChartSessionMode,
 } from "../automation/tradingview/lib/tv_shared.js";
@@ -170,7 +170,7 @@ async function main(): Promise<void> {
     const session = await newTradingViewSession();
     try {
       const { page } = session;
-      await gotoChartAndAwaitScript(page, `${base}?symbol=${encodeURIComponent(symbol)}&interval=${args.interval}`, SUITE_NAME);
+      await gotoChartClosingDockedEditor(page, `${base}?symbol=${encodeURIComponent(symbol)}&interval=${args.interval}`, SUITE_NAME);
       await page.waitForTimeout(4_000);
       await dismissPromotionOverlay(page).catch(() => undefined);
       // A docked Pine editor squeezes the chart until the legend rows have no height.

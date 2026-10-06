@@ -25,7 +25,7 @@ import {
   closeTradingViewSession,
   closePineEditorIfVisible,
   dismissPromotionOverlay,
-  gotoChartAndAwaitScript,
+  gotoChartClosingDockedEditor,
   newTradingViewSession,
   setChartSessionMode,
 } from "../automation/tradingview/lib/tv_shared.js";
@@ -200,7 +200,7 @@ async function main(): Promise<void> {
   try {
     const { page } = session;
     for (const symbol of args.symbols) {
-      await gotoChartAndAwaitScript(page, `${base}?symbol=${encodeURIComponent(symbol)}&interval=${args.interval}`, STRATEGY_NAME);
+      await gotoChartClosingDockedEditor(page, `${base}?symbol=${encodeURIComponent(symbol)}&interval=${args.interval}`, STRATEGY_NAME);
       await page.waitForTimeout(4_000);
       await dismissPromotionOverlay(page).catch(() => undefined);
       // A docked Pine editor squeezes the chart until the legend rows have no height.
@@ -212,8 +212,16 @@ async function main(): Promise<void> {
         await page.waitForTimeout(2_000);
       }
       if (args.session !== "keep") await setChartSessionMode(page, args.session as "Regular" | "Extended");
-      const suiteInputs = await applySuiteInputOverrides(page, "SMC Long-Dip Suite", suiteSource, args.suiteInputs);
       await showStrategy(page);
+      // After showing: a hidden strategy recalculates on a Suite input change too, and
+      // showing it then has no loading edge (measured 2026-10-06). Watch the edge the
+      // override itself causes; rejection is captured so it cannot go unhandled.
+      const recalculated = args.suiteInputs.length > 0 ? awaitRecalculatedReport(page).then(() => null, (e: unknown) => e) : null;
+      const suiteInputs = await applySuiteInputOverrides(page, "SMC Long-Dip Suite", suiteSource, args.suiteInputs);
+      if (recalculated) {
+        const failure = await recalculated;
+        if (failure) throw failure;
+      }
       for (const stage of args.stages) {
         const changed = await setStage(page, stage);
         const text = changed ? await awaitRecalculatedReport(page) : await awaitStableReport(page);
