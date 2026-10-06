@@ -1,0 +1,98 @@
+{
+  "candidates_measured": [
+    "BOS",
+    "SWEEP"
+  ],
+  "candidates_passed": [],
+  "cost_bps": 5.0,
+  "cost_calibration": null,
+  "cost_source": "flat_default",
+  "epnl_ci_floor": 0.0,
+  "events_on_plane": 177,
+  "events_total": 21190,
+  "families_measured": [
+    "BOS",
+    "OB",
+    "SWEEP"
+  ],
+  "measurement_plane": "1D",
+  "min_trades": 40,
+  "n_bootstrap": 1000,
+  "results": {
+    "BOS": {
+      "cost_bps": 5.0,
+      "equal_ci_high": 0.008952966877275315,
+      "equal_ci_low": -0.015582649930818558,
+      "equal_mean": -0.003508759264498803,
+      "equal_profitable": false,
+      "fail_reasons": [
+        "epnl_floor"
+      ],
+      "family": "BOS",
+      "min_sample_pass": true,
+      "n_bootstrap": 1000,
+      "n_trades": 46,
+      "passes": false,
+      "role": "candidate",
+      "seed": 230022,
+      "sized_ci_high": 0.01935229840145859,
+      "sized_ci_low": -0.012828563949859739,
+      "sized_mean": 0.0026406331676586264,
+      "sized_profitable": false,
+      "sizing_non_destructive": true,
+      "sizing_uplift": 0.00614939243215743,
+      "verdict": "FAIL"
+    },
+    "OB": {
+      "cost_bps": 5.0,
+      "equal_ci_high": 0.0,
+      "equal_ci_low": 0.0,
+      "equal_mean": 0.0005958589887662759,
+      "equal_profitable": false,
+      "fail_reasons": [
+        "min_sample"
+      ],
+      "family": "OB",
+      "min_sample_pass": false,
+      "n_bootstrap": 1000,
+      "n_trades": 17,
+      "passes": false,
+      "role": "control",
+      "seed": 230022,
+      "sized_ci_high": 0.0,
+      "sized_ci_low": 0.0,
+      "sized_mean": 0.006904338527591893,
+      "sized_profitable": false,
+      "sizing_non_destructive": true,
+      "sizing_uplift": 0.0063084795388256175,
+      "verdict": "INCONCLUSIVE"
+    },
+    "SWEEP": {
+      "cost_bps": 5.0,
+      "equal_ci_high": 0.0025149166062271486,
+      "equal_ci_low": -0.008606533091604557,
+      "equal_mean": -0.003238727253232411,
+      "equal_profitable": false,
+      "fail_reasons": [
+        "epnl_floor",
+        "sizing_destructive"
+      ],
+      "family": "SWEEP",
+      "min_sample_pass": true,
+      "n_bootstrap": 1000,
+      "n_trades": 105,
+      "passes": false,
+      "role": "candidate",
+      "seed": 230022,
+      "sized_ci_high": 0.000466175032519331,
+      "sized_ci_low": -0.012580526958828693,
+      "sized_mean": -0.0059473962256694065,
+      "sized_profitable": false,
+      "sizing_non_destructive": false,
+      "sizing_uplift": -0.0027086689724369955,
+      "verdict": "FAIL"
+    }
+  },
+  "return_rule": "next_open_then_horizon_close",
+  "seed": 230022
+}
