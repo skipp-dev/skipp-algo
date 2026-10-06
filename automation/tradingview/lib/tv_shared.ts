@@ -2440,6 +2440,29 @@ export async function gotoChartAndAwaitScript(
   }
 }
 
+/**
+ * gotoChartAndAwaitScript for READ flows on the operator layout: a Pine editor docked
+ * into the account's UI state squeezes the chart pane until its legend has no height,
+ * so the script never "surfaces" (2026-10-06: migration and both readouts failed this
+ * way after a publish left the editor docked). Closes the docked editor while waiting.
+ * Not for publish flows, which need the editor.
+ */
+export async function gotoChartClosingDockedEditor(page: Page, chartUrl: string, scriptName: string): Promise<void> {
+  await gotoChart(page, chartUrl);
+  const deadline = Date.now() + DRILL_SETTLE_TIMEOUT_MS;
+  for (;;) {
+    if (await page.locator("#pine-editor-dialog").first().isVisible().catch(() => false)) {
+      await page.locator('button[aria-label="Close"][title="Close"]').first().click().catch(() => undefined);
+      await page.waitForTimeout(1_500);
+    }
+    if (await isScriptVisibleOnChartSurface(page, scriptName).catch(() => false)) return;
+    if (Date.now() >= deadline) {
+      throw new Error(`Chart did not surface ${scriptName} within ${DRILL_SETTLE_TIMEOUT_MS}ms of loading ${chartUrl} (docked editor closed)`);
+    }
+    await page.waitForTimeout(500);
+  }
+}
+
 export async function takeScreenshot(
   page: Page,
   runId: string,

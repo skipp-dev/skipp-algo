@@ -34,10 +34,8 @@ import {
   closeTradingViewSession,
   type TradingViewSession,
   dismissPromotionOverlay,
-  DRILL_SETTLE_TIMEOUT_MS,
-  gotoChart,
   gotoChartAndAwaitScript,
-  isScriptVisibleOnChartSurface,
+  gotoChartClosingDockedEditor,
   newTradingViewSession,
   ensurePineEditor,
   openExistingScript,
@@ -98,24 +96,6 @@ const closeDockedEditor = async (page: Page) => {
   }
 };
 
-/**
- * Load a chart and wait for the Suite only AFTER closing a docked Pine editor. The
- * publish phase leaves the editor docked (account-wide UI state); on vWgAWyfC that
- * squeezes the 1h pane until its legend has no height, and the Suite never
- * "surfaces" (2026-10-06: two failed runs right after a publish).
- */
-async function gotoChartWithRoom(page: Page, url: string): Promise<void> {
-  await gotoChart(page, url);
-  const deadline = Date.now() + DRILL_SETTLE_TIMEOUT_MS;
-  for (;;) {
-    await closeDockedEditor(page);
-    if (await isScriptVisibleOnChartSurface(page, SUITE).catch(() => false)) return;
-    if (Date.now() >= deadline) {
-      throw new Error(`Chart did not surface ${SUITE} within ${DRILL_SETTLE_TIMEOUT_MS}ms of loading ${url} (docked editor closed)`);
-    }
-    await page.waitForTimeout(500);
-  }
-}
 
 const READ_INPUTS_SOURCE = `
   const dialog = Array.from(document.querySelectorAll('[data-name="indicator-properties-dialog"], [role="dialog"]')).pop();
@@ -193,7 +173,7 @@ async function readInstanceInputsOnce(page: Page, row: Locator): Promise<{ input
 }
 
 async function inventoryChart(page: Page, chartId: string) {
-  await gotoChartWithRoom(page, `https://www.tradingview.com/chart/${chartId}/`);
+  await gotoChartClosingDockedEditor(page, `https://www.tradingview.com/chart/${chartId}/`, SUITE);
   await page.waitForTimeout(5_000);
   await dismissPromotionOverlay(page).catch(() => undefined);
   await closeDockedEditor(page);
