@@ -546,3 +546,22 @@ def test_ready_diagnosis_log_names_every_failing_ready_gate() -> None:
                  "overhead_zone", "market_regime", "vola_regime", "quality", "accel", "second_derivative",
                  "vol_regime_context", "stretch", "ddvi"):
         assert f"' {gate}'" in source, gate
+
+
+def test_confirm_diagnosis_log_names_every_failing_confirm_condition() -> None:
+    """2026-10-06: about three quarters of Armed setups expired without Confirm
+    (docs/governance/long_dip_ready_confirm_plan_2026-10-06.md). While debug logs are
+    on, every Armed, not-yet-Confirmed bar logs ALL failing Confirm conditions of
+    compute_long_confirm_transition_state; scripts/tv_long_engine_log_readout.ts
+    parses the line as event "LONG UNCONFIRMED" (one word: its regex is LONG [A-Z]+).
+    """
+    source = _read(CORE_PATH)
+    assert "if show_long_engine_debug_eff and barstate.isconfirmed and long_state.armed and not long_state.confirmed" in source
+    assert "log.info('LONG UNCONFIRMED | age={0} | trigger_gap_pct={1} | failing={2}'" in source
+    # every input of compute_long_confirm_transition_state except close_safe_mode
+    # (always true on a confirmed bar) is named in the diagnosis
+    for cond, name in (("long_confirm_break", "no_break"), ("long_confirm_structure_ok", "structure"),
+                       ("confirm_is_fresh", "not_fresh"), ("long_confirm_bearish_guard_ok", "bearish_guard"),
+                       ("micro_session_gate_ok", "micro_session"), ("micro_freshness_gate_ok", "micro_freshness"),
+                       ("accel_confirm_gate_ok", "accel"), ("sd_confirmed_gate_ok", "second_derivative")):
+        assert f"_confirm_failing += {cond} ? '' : ' {name}'" in source, name
