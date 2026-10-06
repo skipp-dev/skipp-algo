@@ -2455,6 +2455,20 @@ export async function gotoChartAndAwaitScript(
 }
 
 /**
+ * Close a Pine editor DOCKED into the account's UI state. Its title-bar Close button sits
+ * outside the scope closePineEditorIfVisible searches (measured 2026-10-05). Docked, it
+ * squeezes the chart until legend rows have no height: the CI save flow then could not
+ * open any consumer's settings (tv-save run 37510785146, 2026-10-06). Returns whether it
+ * closed one. Not for flows that need the editor afterwards.
+ */
+export async function closeDockedPineEditor(page: Page): Promise<boolean> {
+  if (!(await page.locator("#pine-editor-dialog").first().isVisible().catch(() => false))) return false;
+  await page.locator('button[aria-label="Close"][title="Close"]').first().click().catch(() => undefined);
+  await page.waitForTimeout(1_500);
+  return true;
+}
+
+/**
  * gotoChartAndAwaitScript for READ flows on the operator layout: a Pine editor docked
  * into the account's UI state squeezes the chart pane until its legend has no height,
  * so the script never "surfaces" (2026-10-06: migration and both readouts failed this
@@ -2465,10 +2479,7 @@ export async function gotoChartClosingDockedEditor(page: Page, chartUrl: string,
   await gotoChart(page, chartUrl);
   const deadline = Date.now() + DRILL_SETTLE_TIMEOUT_MS;
   for (;;) {
-    if (await page.locator("#pine-editor-dialog").first().isVisible().catch(() => false)) {
-      await page.locator('button[aria-label="Close"][title="Close"]').first().click().catch(() => undefined);
-      await page.waitForTimeout(1_500);
-    }
+    await closeDockedPineEditor(page);
     if (await isScriptVisibleOnChartSurface(page, scriptName).catch(() => false)) return;
     if (Date.now() >= deadline) {
       throw new Error(`Chart did not surface ${scriptName} within ${DRILL_SETTLE_TIMEOUT_MS}ms of loading ${chartUrl} (docked editor closed)`);
