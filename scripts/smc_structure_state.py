@@ -81,8 +81,8 @@ def build_structure_state(
 
     if snapshot is not None and not snapshot.empty:
         df = snapshot.copy()
-        if symbol and "symbol" in df.columns:
-            df = df[df["symbol"] == symbol]
+        from scripts.smc_symbol_scope import scope_to_symbol  # local import: keeps the pinned linenos
+        df = scope_to_symbol(df, symbol)
 
         if not df.empty:
             result = _derive_structure(df, result)

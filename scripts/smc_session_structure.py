@@ -22,6 +22,8 @@ from typing import Any
 
 import pandas as pd
 
+from scripts.smc_symbol_scope import scope_to_symbol
+
 logger = logging.getLogger(__name__)
 
 # ── Defaults ────────────────────────────────────────────────────────
@@ -81,8 +83,7 @@ def build_session_structure(
 
     if snapshot is not None and not snapshot.empty:
         df = snapshot.copy()
-        if symbol and "symbol" in df.columns:
-            df = df[df["symbol"] == symbol]
+        df = scope_to_symbol(df, symbol)
 
         if not df.empty:
             result = _derive_session_structure(df, result)
@@ -90,8 +91,7 @@ def build_session_structure(
     # PDH / PDL from previous day snapshot
     if prev_day_snapshot is not None and not prev_day_snapshot.empty:
         pdf = prev_day_snapshot
-        if symbol and "symbol" in pdf.columns:
-            pdf = pdf[pdf["symbol"] == symbol]
+        pdf = scope_to_symbol(pdf, symbol)
         if not pdf.empty:
             row = pdf.iloc[-1]
             result["SESS_PDH"] = float(row.get("high", 0.0))
