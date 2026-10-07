@@ -134,8 +134,10 @@ Nebenbefund: der Eingabe-Leser von `tv_suite_publication_migration.ts`
 zu (er meldete `Require Internal Break For Confirm` = false und
 `Live Confirm Uses High` = false; die Chart-API zeigt beide true). Die Migrations-Prüfung
 vergleicht vorher/nachher mit demselben Leser und sieht eine Änderung am ersten
-Wert eines solchen Paars deshalb nicht. UNGESICHERT — verlässt sich auf
-menschliches Gedächtnis: Umstellung des Lesers auf `getInputValues()`.
+Wert eines solchen Paars deshalb nicht. Erledigt mit #5719 (2026-10-07): der
+Leser liest `getInputValues()` + `getInputsInfo()`; live bestätigt (Suite 234
+Inputs = Zahl der `input()`-Aufrufe, `in_105..in_108` true/false/true/false,
+108 Quell-Inputs = bekannte Bindungen).
 
 ### 1b — Confirm lockern (Betreiberentscheid)
 
@@ -170,9 +172,38 @@ Trade 200 Zufallseinstiege.
 
 Keine Variante schlägt Armed, keine erreicht Ready. Confirm zu lockern löst
 den Engpass nicht; die gespeicherten Werte bleiben (Betreiber 2026-10-06: V1
-nicht übernehmen). Nicht gemessen: erweiterte Handelszeit (der Report setzte
-sich bei laufender Vorbörse nicht) und die Pine-Logs der Varianten (Netzausfall
-während des Laufs). UNGESICHERT — verlässt sich auf menschliches Gedächtnis.
+nicht übernehmen). Erweiterte Handelszeit und Pine-Logs der Varianten sind am
+2026-10-07 (00–08 UTC, ohne Live-Kerzen) nachgemessen, siehe unten.
+
+#### Nachmessung 1b (2026-10-07): erweiterte Handelszeit und Logs
+
+Tester, Sitzung des Layouts (ETH, Historie je Symbol ab März bis Juli 2025),
+sonst wie oben:
+
+| Variante | Confirmed-Trades (Tage) | netto bps, 95 % KI | Überschuss ggü. Placebo, 95 % KI | Ready / Best / Strict |
+|---|---|---|---|---|
+| gespeichert (Grundlinie) | 29 (8) | +2.5 [−10.2; +25.4] | +2.6 [−10.7; +22.0] | 0 / 0 / 0 |
+| V1 | 75 (27) | −8.0 [−24.4; +6.1] | −3.7 [−18.7; +7.6] | 0 / 0 / 0 |
+| V2 | 166 (72) | +0.4 [−11.6; +12.5] | −2.0 [−14.4; +9.3] | 0 / 0 / 0 |
+| V3 | 191 (89) | −1.1 [−13.5; +11.7] | −2.3 [−15.5; +10.5] | 0 / 0 / 0 |
+| Maßstab: Armed (Grundlinie) | 271 (141) | −0.2 [−13.1; +14.6] | −1.7 [−14.6; +12.3] | – |
+
+Pine-Logs (LONG UNCONFIRMED / LONG PENDING) der Varianten:
+
+| Variante / Sitzung | Armed | Confirmed | Bars Armed-ohne-Confirm | häufigste Confirm-Hürde | PENDING-Bars | Ready |
+|---|---|---|---|---|---|---|
+| gespeichert / ETH | 318 | 8 | 1 872 | `structure` 96 % | 54 | 0 |
+| V1 / ETH | 318 | 27 | 1 763 | `structure` 91 % | 186 | 0 |
+| V2 / ETH | 317 | 86 | 1 435 | `no_break` 88 % | 577 | 0 |
+| V3 / ETH | 317 | 111 | 1 357 | `no_break` 92 % | 739 | 0 |
+| gespeichert / RTH | 218 | 1 | 1 313 | `structure` 94 % | 7 | 0 |
+| V1 / RTH | 218 | 9 | 1 273 | `structure` 89 % | 56 | 0 |
+| V2 / RTH | 217 | 52 | 1 033 | `no_break` 88 % | 344 | 0 |
+| V3 / RTH | 217 | 67 | 990 | `no_break` 91 % | 442 | 0 |
+
+Ohne Struktur-Pflicht scheitert Confirm fast nur noch am Ausbruch über den
+Trigger; Confirmed vervielfacht sich, Ready bleibt bei jedem Lauf 0. Das Urteil
+oben gilt in beiden Sitzungen.
 
 ### 2 — Ready zuschneiden (Betreiberentscheid)
 
