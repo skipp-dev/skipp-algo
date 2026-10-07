@@ -19,6 +19,7 @@ import {
   newTradingViewSession,
   openExistingScript,
   pineDeclarationTitlePattern,
+  publishPrivateScript,
   readEditorContent,
   saveScript,
   setEditorContent,
@@ -68,7 +69,21 @@ export type SaveConsumerResult = {
    * slot with every buffer check green).
    */
   persistedSourceVerified: boolean;
+  /** Set for privately published scripts (PRIVATELY_PUBLISHED_SCRIPTS): the publish that persisted the save. */
+  privatePublish?: { publishConfirmed: boolean; noChangeDetected: boolean };
 };
+
+/**
+ * Scripts the account keeps as a PRIVATE publication. For these, Ctrl+S leaves the
+ * saved-script slot unchanged: tv-save run 37568182460 (2026-10-07) saved the Suite
+ * twice with the new text in the editor and the facade still served v446; publishing
+ * the same editor state created v448 (= repository, verify run 37570844930 green).
+ * Operator decision 2026-10-07: the save flow publishes these as a new private version.
+ */
+export const PRIVATELY_PUBLISHED_SCRIPTS: Readonly<Record<string, { description: string }>> = {
+  "SMC Long-Dip Suite": { description: "SMC Long-Dip Suite — private publication of the repository source (skipp-algo)." },
+};
+
 export type VerifyConsumerSourceResult = {
   ok: boolean;
   matches: boolean;
@@ -246,6 +261,24 @@ export async function saveConsumerSource(
   });
   assertConsumerEditorSource("post-save source", target, postSaveSource, expectedSha256);
 
+  // A private publication persists only through a publish (see PRIVATELY_PUBLISHED_SCRIPTS).
+  // The persisted-store proof below then judges what the publish stored.
+  let privatePublish: SaveConsumerResult["privatePublish"];
+  const publication = PRIVATELY_PUBLISHED_SCRIPTS[target.scriptName];
+  if (publication) {
+    const published = await publishPrivateScript(session.page, {
+      scriptName: target.scriptName,
+      title: target.scriptName,
+      description: publication.description,
+    });
+    privatePublish = { publishConfirmed: published.publishConfirmed, noChangeDetected: published.noChangeDetected };
+    tracePageEvent(session.page, "source-save-private-publish", `${target.scriptName}:confirmed:${published.publishConfirmed}:nochange:${published.noChangeDetected}`);
+    if (!published.publishConfirmed && !published.noChangeDetected) {
+      throw new Error(`private publish of ${target.scriptName} was not confirmed; its saved-script slot cannot change without it`);
+    }
+    await ensurePineEditor(session.page).catch(() => undefined);
+  }
+
   // Persisted-store proof. Every check above reads the Monaco buffer, and the
   // buffer cannot see WHERE TradingView bound the save: run 33031264859
   // (2026-08-27) persisted one consumer's source into a sibling's slot with
@@ -294,6 +327,7 @@ export async function saveConsumerSource(
     stagedSourceVerified: true,
     postSaveSourceVerified: true,
     persistedSourceVerified,
+    ...(privatePublish ? { privatePublish } : {}),
   };
 }
 

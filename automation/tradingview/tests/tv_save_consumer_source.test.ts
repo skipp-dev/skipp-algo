@@ -288,3 +288,19 @@ test("extractPineDeclarationTitle resolves EVERY rollout consumer source to its 
     );
   }
 });
+
+// 2026-10-07, tv-save run 37568182460: Ctrl+S left the privately published Suite's slot at
+// v446 (twice); a publish of the same editor state created v448. The save flow publishes
+// privately published scripts between the post-save buffer check and the persisted-store proof.
+test("privately published scripts are published before the persisted-store proof", async () => {
+  const { PRIVATELY_PUBLISHED_SCRIPTS } = await import("../../../scripts/tv_save_consumer_source.js");
+  assert.deepEqual(Object.keys(PRIVATELY_PUBLISHED_SCRIPTS), ["SMC Long-Dip Suite"]);
+  const fsMod = await import("node:fs");
+  const src = fsMod.readFileSync(new URL("../../../scripts/tv_save_consumer_source.ts", import.meta.url), "utf-8");
+  const body = src.slice(src.indexOf("export async function saveConsumerSource("));
+  const postSave = body.indexOf('assertConsumerEditorSource("post-save source"');
+  const publish = body.indexOf("await publishPrivateScript(session.page");
+  const facade = body.indexOf("await fetchSavedScriptSourceViaFacade(session.page, target.scriptName)");
+  assert.ok(postSave > 0 && postSave < publish && publish < facade, "publish must sit between the post-save check and the facade proof");
+  assert.match(body, /if \(!published\.publishConfirmed && !published\.noChangeDetected\) \{\n\s+throw new Error/);
+});
