@@ -2462,10 +2462,32 @@ export async function gotoChartAndAwaitScript(
  * closed one. Not for flows that need the editor afterwards.
  */
 export async function closeDockedPineEditor(page: Page): Promise<boolean> {
-  if (!(await page.locator("#pine-editor-dialog").first().isVisible().catch(() => false))) return false;
-  await page.locator('button[aria-label="Close"][title="Close"]').first().click().catch(() => undefined);
+  const editor = page.locator("#pine-editor-dialog").first();
+  if (!(await editor.isVisible().catch(() => false))) return false;
+  const close = await pineEditorTitleBarClose(page, editor);
+  await (close ?? page.locator('button[aria-label="Close"][title="Close"]').first()).click().catch(() => undefined);
   await page.waitForTimeout(1_500);
   return true;
+}
+
+/**
+ * The docked editor's own Close button sits in the title bar ABOVE the editor element,
+ * outside the dialog scope. Only a Close button horizontally inside the editor's span
+ * from 80 px above to 60 px below its top counts -- never some other dialog's Close.
+ * Measured 2026-10-05/06: this button closes the docked editor (readouts, migration).
+ */
+export async function pineEditorTitleBarClose(page: Page, editor: Locator): Promise<Locator | null> {
+  const box = await editor.boundingBox().catch(() => null);
+  if (!box) return null;
+  const candidates = page.locator('button[aria-label="Close"][title="Close"]');
+  const n = await candidates.count().catch(() => 0);
+  for (let i = 0; i < n; i += 1) {
+    const b = await candidates.nth(i).boundingBox().catch(() => null);
+    if (b && b.x >= box.x - 8 && b.x + b.width <= box.x + box.width + 8 && b.y <= box.y + 60 && b.y >= box.y - 80) {
+      return candidates.nth(i);
+    }
+  }
+  return null;
 }
 
 /**
@@ -7890,6 +7912,20 @@ export async function closePineEditorIfVisible(page: Page): Promise<boolean> {
     "pine-editor-close-control-inventory",
     controls ? JSON.stringify(controls) : "unreadable",
   );
+
+  // 2026-10-07: the control inventory above never reaches the docked editor's own Close:
+  // it sits in the title bar above the dialog. Every producer refresh since 2026-10-06
+  // timed out behind this ("pine-editor-docked-not-closeable", then the add-to-chart
+  // legend check saw a squeezed legend; tv-save run 37549435565).
+  const titleBarClose = await pineEditorTitleBarClose(page, dialog);
+  if (titleBarClose) {
+    await titleBarClose.click().catch(() => undefined);
+    await page.waitForTimeout(1_000);
+    if (!(await dialog.isVisible({ timeout: 500 }).catch(() => false))) {
+      tracePageEvent(page, "pine-editor-close-ok-titlebar");
+      return true;
+    }
+  }
 
   // Still unresolved and NOT to be assumed either way: whether the docked state
   // lives in the saved layout (server-side, so a CI run could close it for the
