@@ -5,35 +5,35 @@
       "name": "oos_trades",
       "status": "green",
       "threshold": 100.0,
-      "value": 965.0
+      "value": 3816.0
     },
     {
       "detail": "rr_target=1.0",
       "name": "win_rate",
       "status": "red",
       "threshold": 0.55,
-      "value": 0.41865284974093264
+      "value": 0.4392033542976939
     },
     {
-      "detail": "freq=230182 (observed trades/year)",
+      "detail": "freq=163375 (observed trades/year)",
       "name": "sharpe",
       "status": "red",
       "threshold": 1.0,
-      "value": -54.204886077536344
+      "value": -40.230138106466924
     },
     {
       "detail": "method=studentized",
       "name": "bootstrap_sharpe_ci_low",
       "status": "red",
       "threshold": 0.3,
-      "value": -85.91397973133466
+      "value": -55.25444881004525
     },
     {
       "detail": "fractional",
       "name": "max_drawdown",
       "status": "red",
       "threshold": 0.15,
-      "value": 0.4870040797832892
+      "value": 0.9104053989893967
     },
     {
       "detail": "missing",
@@ -68,33 +68,33 @@
       "name": "psr_sr_star_zero",
       "status": "red",
       "threshold": 0.95,
-      "value": 0.00015659351894309337
+      "value": 2.1545271122747067e-10
     },
     {
       "detail": "sr_hat <= sr_star (no detectable edge)",
       "name": "min_trl_within_n",
       "status": "red",
-      "threshold": 965.0,
+      "threshold": 3816.0,
       "value": null
     },
     {
-      "detail": "distinct UTC anchor days; at most 555 trades on one day",
+      "detail": "distinct UTC anchor days; at most 590 trades on one day",
       "name": "trading_days",
       "status": "red",
       "threshold": 30.0,
-      "value": 2.0
+      "value": 8.0
     },
     {
       "detail": "lower 95% bound of the mean return per trade, whole days resampled",
       "name": "day_clustered_mean_ci_low",
       "status": "red",
       "threshold": 0.0,
-      "value": -0.0006997002507733714
+      "value": -0.0008158553445605202
     }
   ],
   "claim_note": "aggregate status 'red': green sub-checks are diagnostics, not claimable evidence; red checks: win_rate, sharpe, bootstrap_sharpe_ci_low, max_drawdown, psr_sr_star_zero, min_trl_within_n, trading_days, day_clustered_mean_ci_low",
   "claimable": false,
-  "n_trades": 965,
+  "n_trades": 3816,
   "per_variant": {
     "BOS": {
       "checks": [
@@ -103,35 +103,35 @@
           "name": "oos_trades",
           "status": "green",
           "threshold": 100.0,
-          "value": 183.0
+          "value": 681.0
         },
         {
           "detail": "rr_target=1.0",
           "name": "win_rate",
           "status": "red",
           "threshold": 0.55,
-          "value": 0.43169398907103823
+          "value": 0.4552129221732746
         },
         {
-          "detail": "freq=230182 (observed trades/year)",
+          "detail": "freq=163375 (observed trades/year)",
           "name": "sharpe",
           "status": "red",
           "threshold": 1.0,
-          "value": -66.2493628683359
+          "value": -52.53975141411233
         },
         {
           "detail": "method=studentized",
           "name": "bootstrap_sharpe_ci_low",
           "status": "red",
           "threshold": 0.3,
-          "value": -133.53406911480087
+          "value": -78.03934231281089
         },
         {
           "detail": "fractional",
           "name": "max_drawdown",
           "status": "red",
           "threshold": 0.15,
-          "value": 0.20638921173020838
+          "value": 0.511442564748399
         },
         {
           "detail": "missing",
@@ -166,53 +166,53 @@
           "name": "psr_sr_star_zero",
           "status": "red",
           "threshold": 0.95,
-          "value": 0.025199419125565947
+          "value": 0.00024634751273711064
         },
         {
           "detail": "sr_hat <= sr_star (no detectable edge)",
           "name": "min_trl_within_n",
           "status": "red",
-          "threshold": 183.0,
+          "threshold": 681.0,
           "value": null
         },
         {
-          "detail": "distinct UTC anchor days; at most 94 trades on one day",
+          "detail": "distinct UTC anchor days; at most 105 trades on one day",
           "name": "trading_days",
           "status": "red",
           "threshold": 30.0,
-          "value": 2.0
+          "value": 8.0
         },
         {
           "detail": "lower 95% bound of the mean return per trade, whole days resampled",
           "name": "day_clustered_mean_ci_low",
           "status": "red",
           "threshold": 0.0,
-          "value": -0.0013280151175351289
+          "value": -0.001384625421468989
         }
       ],
       "claim_note": "aggregate status 'red': green sub-checks are diagnostics, not claimable evidence; red checks: win_rate, sharpe, bootstrap_sharpe_ci_low, max_drawdown, psr_sr_star_zero, min_trl_within_n, trading_days, day_clustered_mean_ci_low",
       "claimable": false,
       "failures": [
-        "win_rate=0.4317 vs threshold 0.5500",
-        "sharpe=-66.2494 vs threshold 1.0000",
-        "bootstrap_sharpe_ci_low=-133.5341 vs threshold 0.3000",
-        "max_drawdown=0.2064 vs threshold 0.1500",
-        "psr_sr_star_zero=0.0252 vs threshold 0.9500",
+        "win_rate=0.4552 vs threshold 0.5500",
+        "sharpe=-52.5398 vs threshold 1.0000",
+        "bootstrap_sharpe_ci_low=-78.0393 vs threshold 0.3000",
+        "max_drawdown=0.5114 vs threshold 0.1500",
+        "psr_sr_star_zero=0.0002 vs threshold 0.9500",
         "min_trl_within_n",
-        "trading_days=2.0000 vs threshold 30.0000",
-        "day_clustered_mean_ci_low=-0.0013 vs threshold 0.0000"
+        "trading_days=8.0000 vs threshold 30.0000",
+        "day_clustered_mean_ci_low=-0.0014 vs threshold 0.0000"
       ],
-      "n_trades": 183,
+      "n_trades": 681,
       "schema_version": "1.1.0",
       "status": "red",
       "summary": {
         "day_clustered": {
           "B": 2000,
-          "ci_high": -0.000721905298800721,
-          "ci_low": -0.0013280151175351289,
-          "max_trades_per_day": 94,
-          "mean": -0.0010166800193874002,
-          "n_days": 2,
+          "ci_high": -0.0006475548387195997,
+          "ci_low": -0.001384625421468989,
+          "max_trades_per_day": 105,
+          "mean": -0.0010411544985835007,
+          "n_days": 8,
           "positive_days": 0,
           "unit": "UTC calendar day of anchor_ts"
         },
@@ -221,12 +221,12 @@
           "B": 500,
           "alpha": 0.05,
           "block_length": 5,
-          "ci_high": 0.3204657650635825,
-          "ci_low": 0.07974170641860734,
+          "ci_high": 0.6687885324952973,
+          "ci_low": 0.3512617616854013,
           "ci_method": "percentile",
           "metric": "max_dd",
-          "n": 183,
-          "value": 0.20638921173020838
+          "n": 681,
+          "value": 0.511442564748399
         },
         "min_trl": null,
         "per_regime_hit_rate_spread": null,
@@ -234,37 +234,37 @@
         "profit_factor": {
           "B": 500,
           "alpha": 0.05,
-          "ci_high": 1.03126738133948,
-          "ci_low": 0.43304533792927197,
+          "ci_high": 0.8473147574189924,
+          "ci_low": 0.5625161305059977,
           "ci_method": "percentile",
           "metric": "profit_factor",
-          "n": 183,
-          "value": 0.6653491592025528
+          "n": 681,
+          "value": 0.6923282670752978
         },
-        "psr": 0.025199419125565947,
+        "psr": 0.00024634751273711064,
         "rr_target": 1.0,
         "sharpe": {
           "B": 500,
           "alpha": 0.05,
           "block_length": 5,
-          "ci_high": -10.833756754146197,
-          "ci_low": -133.53406911480087,
+          "ci_high": -25.501904032562432,
+          "ci_low": -78.03934231281089,
           "ci_method": "studentized",
-          "freq": 230182,
+          "freq": 163375,
           "metric": "sharpe",
-          "n": 183,
-          "value": -66.2493628683359
+          "n": 681,
+          "value": -52.53975141411233
         },
         "walk_forward_efficiency": null,
         "win_rate": {
           "B": 500,
           "alpha": 0.05,
-          "ci_high": 0.4972677595628415,
-          "ci_low": 0.3551912568306011,
+          "ci_high": 0.4933920704845815,
+          "ci_low": 0.41409691629955947,
           "ci_method": "bca",
           "metric": "win_rate",
-          "n": 183,
-          "value": 0.43169398907103823
+          "n": 681,
+          "value": 0.4552129221732746
         },
         "win_rate_threshold": 0.55
       }
@@ -276,35 +276,35 @@
           "name": "oos_trades",
           "status": "green",
           "threshold": 100.0,
-          "value": 268.0
+          "value": 1099.0
         },
         {
           "detail": "rr_target=1.0",
           "name": "win_rate",
           "status": "red",
           "threshold": 0.55,
-          "value": 0.4141791044776119
+          "value": 0.44131028207461326
         },
         {
-          "detail": "freq=230182 (observed trades/year)",
+          "detail": "freq=163375 (observed trades/year)",
           "name": "sharpe",
           "status": "red",
           "threshold": 1.0,
-          "value": -68.78403314604876
+          "value": -38.92769280858177
         },
         {
           "detail": "method=studentized",
           "name": "bootstrap_sharpe_ci_low",
           "status": "red",
           "threshold": 0.3,
-          "value": -127.75133551528205
+          "value": -65.08436590668371
         },
         {
           "detail": "fractional",
           "name": "max_drawdown",
           "status": "red",
           "threshold": 0.15,
-          "value": 0.21105473080713935
+          "value": 0.5067074923846471
         },
         {
           "detail": "missing",
@@ -339,54 +339,54 @@
           "name": "psr_sr_star_zero",
           "status": "red",
           "threshold": 0.95,
-          "value": 0.008126495437346448
+          "value": 0.0005552960693555042
         },
         {
           "detail": "sr_hat <= sr_star (no detectable edge)",
           "name": "min_trl_within_n",
           "status": "red",
-          "threshold": 268.0,
+          "threshold": 1099.0,
           "value": null
         },
         {
-          "detail": "distinct UTC anchor days; at most 170 trades on one day",
+          "detail": "distinct UTC anchor days; at most 177 trades on one day",
           "name": "trading_days",
           "status": "red",
           "threshold": 30.0,
-          "value": 2.0
+          "value": 7.0
         },
         {
           "detail": "lower 95% bound of the mean return per trade, whole days resampled",
           "name": "day_clustered_mean_ci_low",
           "status": "red",
           "threshold": 0.0,
-          "value": -0.0013694531163862607
+          "value": -0.0011795591069435614
         }
       ],
       "claim_note": "aggregate status 'red': green sub-checks are diagnostics, not claimable evidence; red checks: win_rate, sharpe, bootstrap_sharpe_ci_low, max_drawdown, psr_sr_star_zero, min_trl_within_n, trading_days, day_clustered_mean_ci_low",
       "claimable": false,
       "failures": [
-        "win_rate=0.4142 vs threshold 0.5500",
-        "sharpe=-68.7840 vs threshold 1.0000",
-        "bootstrap_sharpe_ci_low=-127.7513 vs threshold 0.3000",
-        "max_drawdown=0.2111 vs threshold 0.1500",
-        "psr_sr_star_zero=0.0081 vs threshold 0.9500",
+        "win_rate=0.4413 vs threshold 0.5500",
+        "sharpe=-38.9277 vs threshold 1.0000",
+        "bootstrap_sharpe_ci_low=-65.0844 vs threshold 0.3000",
+        "max_drawdown=0.5067 vs threshold 0.1500",
+        "psr_sr_star_zero=0.0006 vs threshold 0.9500",
         "min_trl_within_n",
-        "trading_days=2.0000 vs threshold 30.0000",
-        "day_clustered_mean_ci_low=-0.0014 vs threshold 0.0000"
+        "trading_days=7.0000 vs threshold 30.0000",
+        "day_clustered_mean_ci_low=-0.0012 vs threshold 0.0000"
       ],
-      "n_trades": 268,
+      "n_trades": 1099,
       "schema_version": "1.1.0",
       "status": "red",
       "summary": {
         "day_clustered": {
           "B": 2000,
-          "ci_high": 9.694758741621623e-05,
-          "ci_low": -0.0013694531163862607,
-          "max_trades_per_day": 170,
-          "mean": -0.0008332319635032654,
-          "n_days": 2,
-          "positive_days": 1,
+          "ci_high": 5.81961750873385e-05,
+          "ci_low": -0.0011795591069435614,
+          "max_trades_per_day": 177,
+          "mean": -0.0006056901001357761,
+          "n_days": 7,
+          "positive_days": 3,
           "unit": "UTC calendar day of anchor_ts"
         },
         "fdr_rate": null,
@@ -394,12 +394,12 @@
           "B": 500,
           "alpha": 0.05,
           "block_length": 5,
-          "ci_high": 0.3618303003028269,
-          "ci_low": 0.08768963968622616,
+          "ci_high": 0.6933954421701717,
+          "ci_low": 0.2896551048272289,
           "ci_method": "percentile",
           "metric": "max_dd",
-          "n": 268,
-          "value": 0.21105473080713935
+          "n": 1099,
+          "value": 0.5067074923846471
         },
         "min_trl": null,
         "per_regime_hit_rate_spread": null,
@@ -407,37 +407,37 @@
         "profit_factor": {
           "B": 500,
           "alpha": 0.05,
-          "ci_high": 0.9410193907461732,
-          "ci_low": 0.4744983191584825,
+          "ci_high": 0.8896988261235581,
+          "ci_low": 0.6128231501643169,
           "ci_method": "percentile",
           "metric": "profit_factor",
-          "n": 268,
-          "value": 0.6609236237679692
+          "n": 1099,
+          "value": 0.7508554415948971
         },
-        "psr": 0.008126495437346448,
+        "psr": 0.0005552960693555042,
         "rr_target": 1.0,
         "sharpe": {
           "B": 500,
           "alpha": 0.05,
           "block_length": 5,
-          "ci_high": -17.694742382445074,
-          "ci_low": -127.75133551528205,
+          "ci_high": -12.540214598948607,
+          "ci_low": -65.08436590668371,
           "ci_method": "studentized",
-          "freq": 230182,
+          "freq": 163375,
           "metric": "sharpe",
-          "n": 268,
-          "value": -68.78403314604876
+          "n": 1099,
+          "value": -38.92769280858177
         },
         "walk_forward_efficiency": null,
         "win_rate": {
           "B": 500,
           "alpha": 0.05,
-          "ci_high": 0.4664179104477612,
-          "ci_low": 0.34701492537313433,
+          "ci_high": 0.47042766151046406,
+          "ci_low": 0.4110563225918336,
           "ci_method": "bca",
           "metric": "win_rate",
-          "n": 268,
-          "value": 0.4141791044776119
+          "n": 1099,
+          "value": 0.44131028207461326
         },
         "win_rate_threshold": 0.55
       }
@@ -449,35 +449,35 @@
           "name": "oos_trades",
           "status": "green",
           "threshold": 100.0,
-          "value": 101.0
+          "value": 394.0
         },
         {
           "detail": "rr_target=1.0",
           "name": "win_rate",
           "status": "red",
           "threshold": 0.55,
-          "value": 0.49504950495049505
+          "value": 0.4873096446700508
         },
         {
-          "detail": "freq=230182 (observed trades/year)",
+          "detail": "freq=163375 (observed trades/year)",
           "name": "sharpe",
           "status": "red",
           "threshold": 1.0,
-          "value": -22.287818210653228
+          "value": -31.77927395150231
         },
         {
           "detail": "method=studentized",
           "name": "bootstrap_sharpe_ci_low",
           "status": "red",
           "threshold": 0.3,
-          "value": -86.04331715869347
+          "value": -69.8204098672952
         },
         {
           "detail": "fractional",
           "name": "max_drawdown",
-          "status": "green",
+          "status": "red",
           "threshold": 0.15,
-          "value": 0.05312683185320345
+          "value": 0.2387357097625332
         },
         {
           "detail": "missing",
@@ -512,53 +512,54 @@
           "name": "psr_sr_star_zero",
           "status": "red",
           "threshold": 0.95,
-          "value": 0.32232606054332186
+          "value": 0.06047547602936815
         },
         {
           "detail": "sr_hat <= sr_star (no detectable edge)",
           "name": "min_trl_within_n",
           "status": "red",
-          "threshold": 101.0,
+          "threshold": 394.0,
           "value": null
         },
         {
-          "detail": "distinct UTC anchor days; at most 56 trades on one day",
+          "detail": "distinct UTC anchor days; at most 66 trades on one day",
           "name": "trading_days",
           "status": "red",
           "threshold": 30.0,
-          "value": 2.0
+          "value": 7.0
         },
         {
           "detail": "lower 95% bound of the mean return per trade, whole days resampled",
           "name": "day_clustered_mean_ci_low",
           "status": "red",
           "threshold": 0.0,
-          "value": -0.00029009638530690666
+          "value": -0.0010471441820714346
         }
       ],
-      "claim_note": "aggregate status 'red': green sub-checks are diagnostics, not claimable evidence; red checks: win_rate, sharpe, bootstrap_sharpe_ci_low, psr_sr_star_zero, min_trl_within_n, trading_days, day_clustered_mean_ci_low",
+      "claim_note": "aggregate status 'red': green sub-checks are diagnostics, not claimable evidence; red checks: win_rate, sharpe, bootstrap_sharpe_ci_low, max_drawdown, psr_sr_star_zero, min_trl_within_n, trading_days, day_clustered_mean_ci_low",
       "claimable": false,
       "failures": [
-        "win_rate=0.4950 vs threshold 0.5500",
-        "sharpe=-22.2878 vs threshold 1.0000",
-        "bootstrap_sharpe_ci_low=-86.0433 vs threshold 0.3000",
-        "psr_sr_star_zero=0.3223 vs threshold 0.9500",
+        "win_rate=0.4873 vs threshold 0.5500",
+        "sharpe=-31.7793 vs threshold 1.0000",
+        "bootstrap_sharpe_ci_low=-69.8204 vs threshold 0.3000",
+        "max_drawdown=0.2387 vs threshold 0.1500",
+        "psr_sr_star_zero=0.0605 vs threshold 0.9500",
         "min_trl_within_n",
-        "trading_days=2.0000 vs threshold 30.0000",
-        "day_clustered_mean_ci_low=-0.0003 vs threshold 0.0000"
+        "trading_days=7.0000 vs threshold 30.0000",
+        "day_clustered_mean_ci_low=-0.0010 vs threshold 0.0000"
       ],
-      "n_trades": 101,
+      "n_trades": 394,
       "schema_version": "1.1.0",
       "status": "red",
       "summary": {
         "day_clustered": {
           "B": 2000,
-          "ci_high": -0.00011668515776902487,
-          "ci_low": -0.00029009638530690666,
-          "max_trades_per_day": 56,
-          "mean": -0.00021283395719596905,
-          "n_days": 2,
-          "positive_days": 0,
+          "ci_high": 0.00014199409567213292,
+          "ci_low": -0.0010471441820714346,
+          "max_trades_per_day": 66,
+          "mean": -0.0004895081607587652,
+          "n_days": 7,
+          "positive_days": 1,
           "unit": "UTC calendar day of anchor_ts"
         },
         "fdr_rate": null,
@@ -566,12 +567,12 @@
           "B": 500,
           "alpha": 0.05,
           "block_length": 5,
-          "ci_high": 0.10131125795917291,
-          "ci_low": 0.0219084557628506,
+          "ci_high": 0.3549856964666246,
+          "ci_low": 0.09442323172365956,
           "ci_method": "percentile",
           "metric": "max_dd",
-          "n": 101,
-          "value": 0.05312683185320345
+          "n": 394,
+          "value": 0.2387357097625332
         },
         "min_trl": null,
         "per_regime_hit_rate_spread": null,
@@ -579,37 +580,37 @@
         "profit_factor": {
           "B": 500,
           "alpha": 0.05,
-          "ci_high": 1.5704214188990846,
-          "ci_low": 0.5023549126912492,
+          "ci_high": 1.0634196613409135,
+          "ci_low": 0.5987146045490758,
           "ci_method": "percentile",
           "metric": "profit_factor",
-          "n": 101,
-          "value": 0.8766840312648019
+          "n": 394,
+          "value": 0.7995918491381985
         },
-        "psr": 0.32232606054332186,
+        "psr": 0.06047547602936815,
         "rr_target": 1.0,
         "sharpe": {
           "B": 500,
           "alpha": 0.05,
           "block_length": 5,
-          "ci_high": 61.042773034635125,
-          "ci_low": -86.04331715869347,
+          "ci_high": -0.8162347426233285,
+          "ci_low": -69.8204098672952,
           "ci_method": "studentized",
-          "freq": 230182,
+          "freq": 163375,
           "metric": "sharpe",
-          "n": 101,
-          "value": -22.287818210653228
+          "n": 394,
+          "value": -31.77927395150231
         },
         "walk_forward_efficiency": null,
         "win_rate": {
           "B": 500,
           "alpha": 0.05,
-          "ci_high": 0.5841584158415841,
-          "ci_low": 0.38613861386138615,
+          "ci_high": 0.5389632866062588,
+          "ci_low": 0.43147208121827413,
           "ci_method": "bca",
           "metric": "win_rate",
-          "n": 101,
-          "value": 0.49504950495049505
+          "n": 394,
+          "value": 0.4873096446700508
         },
         "win_rate_threshold": 0.55
       }
@@ -621,35 +622,35 @@
           "name": "oos_trades",
           "status": "green",
           "threshold": 100.0,
-          "value": 413.0
+          "value": 1642.0
         },
         {
           "detail": "rr_target=1.0",
           "name": "win_rate",
           "status": "red",
           "threshold": 0.55,
-          "value": 0.39709443099273606
+          "value": 0.41961023142509135
         },
         {
-          "detail": "freq=230182 (observed trades/year)",
+          "detail": "freq=163375 (observed trades/year)",
           "name": "sharpe",
           "status": "red",
           "threshold": 1.0,
-          "value": -44.305479101292136
+          "value": -37.31777940722456
         },
         {
           "detail": "method=studentized",
           "name": "bootstrap_sharpe_ci_low",
           "status": "red",
           "threshold": 0.3,
-          "value": -102.74294851632428
+          "value": -61.921349678632424
         },
         {
           "detail": "fractional",
           "name": "max_drawdown",
           "status": "red",
           "threshold": 0.15,
-          "value": 0.18323182059438464
+          "value": 0.5576816016084412
         },
         {
           "detail": "missing",
@@ -684,53 +685,53 @@
           "name": "psr_sr_star_zero",
           "status": "red",
           "threshold": 0.95,
-          "value": 0.029102417372696254
+          "value": 9.2254300828154e-05
         },
         {
           "detail": "sr_hat <= sr_star (no detectable edge)",
           "name": "min_trl_within_n",
           "status": "red",
-          "threshold": 413.0,
+          "threshold": 1642.0,
           "value": null
         },
         {
-          "detail": "distinct UTC anchor days; at most 235 trades on one day",
+          "detail": "distinct UTC anchor days; at most 264 trades on one day",
           "name": "trading_days",
           "status": "red",
           "threshold": 30.0,
-          "value": 2.0
+          "value": 7.0
         },
         {
           "detail": "lower 95% bound of the mean return per trade, whole days resampled",
           "name": "day_clustered_mean_ci_low",
           "status": "red",
           "threshold": 0.0,
-          "value": -0.0006513347554142539
+          "value": -0.0006789136868636419
         }
       ],
       "claim_note": "aggregate status 'red': green sub-checks are diagnostics, not claimable evidence; red checks: win_rate, sharpe, bootstrap_sharpe_ci_low, max_drawdown, psr_sr_star_zero, min_trl_within_n, trading_days, day_clustered_mean_ci_low",
       "claimable": false,
       "failures": [
-        "win_rate=0.3971 vs threshold 0.5500",
-        "sharpe=-44.3055 vs threshold 1.0000",
-        "bootstrap_sharpe_ci_low=-102.7429 vs threshold 0.3000",
-        "max_drawdown=0.1832 vs threshold 0.1500",
-        "psr_sr_star_zero=0.0291 vs threshold 0.9500",
+        "win_rate=0.4196 vs threshold 0.5500",
+        "sharpe=-37.3178 vs threshold 1.0000",
+        "bootstrap_sharpe_ci_low=-61.9213 vs threshold 0.3000",
+        "max_drawdown=0.5577 vs threshold 0.1500",
+        "psr_sr_star_zero=0.0001 vs threshold 0.9500",
         "min_trl_within_n",
-        "trading_days=2.0000 vs threshold 30.0000",
+        "trading_days=7.0000 vs threshold 30.0000",
         "day_clustered_mean_ci_low=-0.0007 vs threshold 0.0000"
       ],
-      "n_trades": 413,
+      "n_trades": 1642,
       "schema_version": "1.1.0",
       "status": "red",
       "summary": {
         "day_clustered": {
           "B": 2000,
-          "ci_high": -0.0003039238882089488,
-          "ci_low": -0.0006513347554142539,
-          "max_trades_per_day": 235,
-          "mean": -0.000453655448408814,
-          "n_days": 2,
+          "ci_high": -0.0002958000591617972,
+          "ci_low": -0.0006789136868636419,
+          "max_trades_per_day": 264,
+          "mean": -0.00048226971225211066,
+          "n_days": 7,
           "positive_days": 0,
           "unit": "UTC calendar day of anchor_ts"
         },
@@ -739,12 +740,12 @@
           "B": 500,
           "alpha": 0.05,
           "block_length": 5,
-          "ci_high": 0.37185958078906717,
-          "ci_low": 0.09733418523064655,
+          "ci_high": 0.7392872211601911,
+          "ci_low": 0.3647298477186306,
           "ci_method": "percentile",
           "metric": "max_dd",
-          "n": 413,
-          "value": 0.18323182059438464
+          "n": 1642,
+          "value": 0.5576816016084412
         },
         "min_trl": null,
         "per_regime_hit_rate_spread": null,
@@ -752,37 +753,37 @@
         "profit_factor": {
           "B": 500,
           "alpha": 0.05,
-          "ci_high": 0.9987897574049244,
-          "ci_low": 0.5807007803003514,
+          "ci_high": 0.8782749924630591,
+          "ci_low": 0.6654257748827899,
           "ci_method": "percentile",
           "metric": "profit_factor",
-          "n": 413,
-          "value": 0.7634420122425052
+          "n": 1642,
+          "value": 0.7657340232787777
         },
-        "psr": 0.029102417372696254,
+        "psr": 9.2254300828154e-05,
         "rr_target": 1.0,
         "sharpe": {
           "B": 500,
           "alpha": 0.05,
           "block_length": 5,
-          "ci_high": 14.95537357665163,
-          "ci_low": -102.74294851632428,
+          "ci_high": -13.674816658215939,
+          "ci_low": -61.921349678632424,
           "ci_method": "studentized",
-          "freq": 230182,
+          "freq": 163375,
           "metric": "sharpe",
-          "n": 413,
-          "value": -44.305479101292136
+          "n": 1642,
+          "value": -37.31777940722456
         },
         "walk_forward_efficiency": null,
         "win_rate": {
           "B": 500,
           "alpha": 0.05,
-          "ci_high": 0.44552058111380144,
-          "ci_low": 0.35524718110741343,
+          "ci_high": 0.44336175395858707,
+          "ci_low": 0.39432395374560575,
           "ci_method": "bca",
           "metric": "win_rate",
-          "n": 413,
-          "value": 0.39709443099273606
+          "n": 1642,
+          "value": 0.41961023142509135
         },
         "win_rate_threshold": 0.55
       }
@@ -793,11 +794,11 @@
   "summary": {
     "day_clustered": {
       "B": 2000,
-      "ci_high": -0.0005606851230662939,
-      "ci_low": -0.0006997002507733714,
-      "max_trades_per_day": 555,
-      "mean": -0.0006406368286387589,
-      "n_days": 2,
+      "ci_high": -0.0004109990749670649,
+      "ci_low": -0.0008158553445605202,
+      "max_trades_per_day": 590,
+      "mean": -0.0006182999781031187,
+      "n_days": 8,
       "positive_days": 0,
       "unit": "UTC calendar day of anchor_ts"
     },
@@ -806,12 +807,12 @@
       "B": 500,
       "alpha": 0.05,
       "block_length": 5,
-      "ci_high": 0.6544036352304973,
-      "ci_low": 0.2787211656321909,
+      "ci_high": 0.964545306234996,
+      "ci_low": 0.8078383540265818,
       "ci_method": "percentile",
       "metric": "max_dd",
-      "n": 965,
-      "value": 0.4870040797832892
+      "n": 3816,
+      "value": 0.9104053989893967
     },
     "min_trl": null,
     "per_regime_hit_rate_spread": null,
@@ -819,37 +820,37 @@
     "profit_factor": {
       "B": 500,
       "alpha": 0.05,
-      "ci_high": 0.8647656922817217,
-      "ci_low": 0.5962821084775775,
+      "ci_high": 0.8188916785075545,
+      "ci_low": 0.6828416443156055,
       "ci_method": "percentile",
       "metric": "profit_factor",
-      "n": 965,
-      "value": 0.716529058448424
+      "n": 3816,
+      "value": 0.7468121525246085
     },
-    "psr": 0.00015659351894309337,
+    "psr": 2.1545271122747067e-10,
     "rr_target": 1.0,
     "sharpe": {
       "B": 500,
       "alpha": 0.05,
       "block_length": 5,
-      "ci_high": -22.93641764088128,
-      "ci_low": -85.91397973133466,
+      "ci_high": -25.80275195602969,
+      "ci_low": -55.25444881004525,
       "ci_method": "studentized",
-      "freq": 230182,
+      "freq": 163375,
       "metric": "sharpe",
-      "n": 965,
-      "value": -54.204886077536344
+      "n": 3816,
+      "value": -40.230138106466924
     },
     "walk_forward_efficiency": null,
     "win_rate": {
       "B": 500,
       "alpha": 0.05,
-      "ci_high": 0.44870466321243524,
-      "ci_low": 0.38812212748831865,
+      "ci_high": 0.4559078369264603,
+      "ci_low": 0.42423704340974755,
       "ci_method": "bca",
       "metric": "win_rate",
-      "n": 965,
-      "value": 0.41865284974093264
+      "n": 3816,
+      "value": 0.4392033542976939
     },
     "win_rate_threshold": 0.55
   }
