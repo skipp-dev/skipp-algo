@@ -3385,7 +3385,14 @@ judge           = "tv_producer_refresh_applied_source"
 # Zeuge ist ein Lauf mit refresh_producer=true nach dem Merge (Dispatch oder
 # Ketten-Save nach einem Library-Refresh). Zeitplan-Verifies urteilen
 # STEHT_AUS/not_a_refresh_run — kein Befund ueber den Fix.
-state           = "OFFEN"
+# 2026-10-07 GEMESSEN: Lauf 37571106022 (Re-Attest mit refresh_producer, Job
+# 112629745505), Artefakt tradingview-consumer-bindings: producerRefresh ok,
+# appliedInstances 3/3 auf 559167fd (= Repo); Urteiler: PASS, Zweig all_current.
+# Gegenprobe: Verify-Lauf 37570844930 (04:18 UTC) 12/12 Quellen, 10/10 Bindungen.
+# Als Korpus aufgezeichnet.
+state           = "PASS"
+pass_kind       = "live"
+witness_run     = "37571106022"
 due_by          = "2026-10-19"
 owner           = "operator"
 
@@ -3408,13 +3415,6 @@ nicht gibt. Nach dem Fix nur erreichbar, wenn report.ok die staleInstances-
 Klausel verliert; der Test in tv_producer_refresh_layouts.test.ts pinnt sie.
 """
 
-[[unreachable_branch]]
-judge  = "tv_producer_refresh_applied_source"
-branch = "all_current"
-reason = """
-2026-10-05: braucht appliedInstances (erst seit #5674). Erreichbar, sobald ein
-Refresh nach dem Merge alle Panes auf den Repo-Stand bringt.
-"""
 
 [[unreachable_branch]]
 judge  = "tv_producer_refresh_applied_source"
@@ -3497,19 +3497,17 @@ judge           = "tv_reattest_awaits_refresh_prs"
 # Ketten-Saves urteilen STEHT_AUS/kein_reattest_lauf -- kein Befund ueber den Fix.
 # Ein Re-Attest kann zusaetzlich an der zweiten Ursache vom 2026-10-06 scheitern
 # (3/10 Consumer auf vWgAWyfC, #5713); das sieht dieser Urteiler nicht.
-state           = "OFFEN"
+# 2026-10-07 GEMESSEN: Re-Attest-Lauf 37571106022 (04:22 UTC, Job 112629745505)
+# -- '##[notice]No library-refresh PR is open', 'attested=/562 published=/569',
+# keine Drift-Verweigerung; Urteiler: PASS, Zweig gewartet_ohne_drift. Gegenprobe:
+# PR #5723 'automated R1 re-attestation to /569' gemergt 04:51 UTC. Der Lauf ist
+# als Korpus aufgezeichnet.
+state           = "PASS"
+pass_kind       = "live"
+witness_run     = "37571106022"
 due_by          = "2026-10-16"
 owner           = "operator"
 
-[[unreachable_branch]]
-judge  = "tv_reattest_awaits_refresh_prs"
-branch = "gewartet_ohne_drift"
-reason = """
-2026-10-07: vor dem Merge von #5714 KONSTRUKTIONSBEDINGT unerreichbar -- die
-Zeile "No library-refresh PR is open" gibt erst der neue Schritt aus. "Noch nicht
-geboren", nicht "tot": sobald der erste Re-Attest-Lauf nach dem Fix als Korpus
-aufgezeichnet ist, faellt diese Deklaration im Widerspruchs-Test auf und muss weg.
-"""
 
 [[unreachable_branch]]
 judge  = "tv_reattest_awaits_refresh_prs"
