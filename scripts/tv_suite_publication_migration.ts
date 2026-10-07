@@ -71,9 +71,9 @@ export function parseMigrationArgs(argv: string[]): MigrationArgs {
   }
   if (phase === "migrate" && charts.length !== 1) throw new Error("--phase migrate takes exactly one chart");
   if (phase === "migrate" && charts[0] === "twh98JLB") throw new Error("twh98JLB carries the live Hold Manager shadow alert and is not migrated (operator decision 2026-10-05)");
-  // Settings-dialog row labels of inputs the new Suite version adds on purpose (repeatable).
+  // Names (getInputsInfo) of inputs the new Suite version adds on purpose (repeatable).
   const acceptNewSuiteInputs = argv.flatMap((a, i) => (a === "--accept-new-suite-input" ? [argv[i + 1] ?? ""] : []));
-  if (acceptNewSuiteInputs.some((l) => !l.trim())) throw new Error("--accept-new-suite-input needs a dialog row label");
+  if (acceptNewSuiteInputs.some((l) => !l.trim())) throw new Error("--accept-new-suite-input needs an input name");
   return { phase, out, charts, dryRun: argv.includes("--dry-run"), acceptNewSuiteInputs };
 }
 
@@ -100,79 +100,44 @@ const closeDockedEditor = async (page: Page) => {
 };
 
 
-const READ_INPUTS_SOURCE = `
-  const dialog = Array.from(document.querySelectorAll('[data-name="indicator-properties-dialog"], [role="dialog"]')).pop();
-  if (!dialog) return { error: "no dialog" };
-  const norm = (v) => (v || "").replace(/\\s+/g, " ").trim();
-  const out = [];
-  // Each input row: a label cell followed by its control(s). TradingView renders
-  // label and control as siblings; walk controls and take the nearest preceding label text.
-  const controls = Array.from(dialog.querySelectorAll('input, button[class*="button"], [role="combobox"]'))
-    .filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; })
-    .filter((e) => !/^(Defaults|Cancel|Ok|Close menu)$/.test(norm(e.innerText)) && !e.closest('[role="tablist"]'));
-  for (const c of controls) {
-    let label = "";
-    let node = c;
-    for (let k = 0; k < 6 && node && !label; k += 1) {
-      let prev = node.previousElementSibling;
-      while (prev && !label) { label = norm(prev.innerText); prev = prev.previousElementSibling; }
-      node = node.parentElement;
-    }
-    const kind = c.tagName === "INPUT" ? (c.type || "text") : "select";
-    const value = kind === "checkbox" ? String(c.checked) : c.tagName === "INPUT" ? c.value : norm(c.innerText);
-    out.push({ label: label.slice(0, 80), kind, value: String(value).slice(0, 200) });
-  }
-  return { inputs: out };
-`;
-
-async function readInstanceInputs(page: Page, row: Locator): Promise<{ inputs: InputValue[]; error: string }> {
-  // The settings dialog occasionally is not up yet on the first read ("no dialog",
-  // 2026-10-05 dry run); one retry, and an empty read is reported, never silent.
-  const first = await readInstanceInputsOnce(page, row);
-  if (first.inputs.length > 0) return first;
-  await page.waitForTimeout(1_500);
-  const second = await readInstanceInputsOnce(page, row);
-  return second.inputs.length > 0 ? second : { inputs: [], error: second.error || first.error || "no inputs read" };
+/**
+ * One study's inputs as records for the before/after comparison, from the chart API
+ * (getInputValues + getInputsInfo). The settings dialog was read before 2026-10-07 and
+ * MISSED the first checkbox of every inline pair: around "Require Internal Break For
+ * Confirm" it returned two checkboxes (false, false) where the API shows four
+ * (in_105..in_108 = true, false, true, false), so a change there went unseen. Only the
+ * script's own inputs (in_N) count; pineVersion & co. change with every migration.
+ * Source inputs (BUS bindings) are rebound separately and keep kind "source".
+ */
+export function apiInputsToRecords(
+  values: Array<{ id: string; value: unknown }>, info: Array<{ id: string; name?: string; type?: string }>,
+): InputValue[] {
+  const byId = new Map(info.map((x) => [x.id, x]));
+  return values
+    .filter((v) => /^in_[0-9]+$/.test(v.id))
+    .sort((a, b) => Number(a.id.slice(3)) - Number(b.id.slice(3)))
+    .map((v) => {
+      const meta = byId.get(v.id);
+      return { label: meta?.name ?? v.id, kind: meta?.type ?? typeof v.value, value: String(v.value) };
+    });
 }
 
-async function readInstanceInputsOnce(page: Page, row: Locator): Promise<{ inputs: InputValue[]; error: string }> {
-  try {
-    await row.locator('[data-qa-id*="legend-source-title"]').first().hover({ force: true });
-    await page.waitForTimeout(400);
-    await row.locator('[data-qa-id="legend-settings-action"]').click({ force: true });
-    await page.locator('[data-id="indicator-properties-dialog-tabs-inputs"]').first().click({ timeout: 10_000 }).catch(() => undefined);
-    await page.waitForTimeout(1_200);
-    // the dialog virtualises long input lists: scroll it to the end while collecting
-    const collected = new Map<string, InputValue>();
-    for (let step = 0; step < 60; step += 1) {
-      const res = await page.evaluate((src) => new Function(src)(), READ_INPUTS_SOURCE) as { inputs?: InputValue[]; error?: string };
-      if (res.error) throw new Error(res.error);
-      // A row seen again in the next scroll window carries the same label, kind and
-      // value; keep the first sighting. (Two genuinely identical rows collapse —
-      // acceptable for a before/after comparison, which is what this feeds.)
-      for (const input of res.inputs ?? []) {
-        const key = `${input.label}|${input.kind}|${input.value}`;
-        if (!collected.has(key)) collected.set(key, input);
-      }
-      const moved = await page.evaluate(() => {
-        const dialog = Array.from(document.querySelectorAll('[data-name="indicator-properties-dialog"], [role="dialog"]')).pop();
-        const scroller = dialog ? Array.from(dialog.querySelectorAll("*")).find((e) => e.scrollHeight > e.clientHeight + 20 && getComputedStyle(e).overflowY !== "visible") : null;
-        if (!scroller) return false;
-        const before = scroller.scrollTop;
-        scroller.scrollTop = before + scroller.clientHeight * 0.8;
-        return scroller.scrollTop !== before;
-      });
-      if (!moved) break;
-      await page.waitForTimeout(250);
-    }
-    await page.locator('[data-name="indicator-properties-dialog"], [role="dialog"]').last()
-      .locator("button").filter({ hasText: /^Cancel$/ }).first().click().catch(() => page.keyboard.press("Escape"));
-    await page.waitForTimeout(500);
-    return { inputs: [...collected.values()], error: "" };
-  } catch (error) {
-    await page.keyboard.press("Escape").catch(() => undefined);
-    return { inputs: [], error: String((error as Error)?.message ?? error).slice(0, 300) };
-  }
+const READ_API_INPUTS_SOURCE = `
+  const [chartIndex, entityId] = arguments[0];
+  const chart = window.TradingViewApi.chart(chartIndex);
+  let study;
+  try { study = chart.getStudyById(entityId); } catch (e) { return { error: "no study " + entityId + " on chart " + chartIndex }; }
+  if (!study || typeof study.getInputsInfo !== "function") return { error: "no input API for " + entityId };
+  return { values: study.getInputValues(), info: study.getInputsInfo().map((x) => ({ id: x.id, name: x.name, type: x.type })) };
+`;
+
+async function readInstanceInputs(page: Page, pane: number, entityId: string | null): Promise<{ inputs: InputValue[]; error: string }> {
+  if (!entityId) return { inputs: [], error: "legend row without data-entity-id" };
+  const res = await page.evaluate(([src, arg]) => new Function(src as string).call(null, arg), [READ_API_INPUTS_SOURCE, [pane, entityId]] as const)
+    .catch((e: unknown) => ({ error: String(e).slice(0, 300) })) as { values?: Array<{ id: string; value: unknown }>; info?: Array<{ id: string; name?: string; type?: string }>; error?: string };
+  if (res.error || !res.values || !res.info) return { inputs: [], error: res.error ?? "no inputs read" };
+  const inputs = apiInputsToRecords(res.values, res.info);
+  return inputs.length > 0 ? { inputs, error: "" } : { inputs: [], error: "no in_N inputs" };
 }
 
 async function inventoryChart(page: Page, chartId: string) {
@@ -190,7 +155,7 @@ async function inventoryChart(page: Page, chartId: string) {
       if (!name.startsWith("SMC")) continue;
       const entityId = await row.getAttribute("data-entity-id");
       const hidden = (await row.locator('[data-qa-id="legend-show-hide-action"]').getAttribute("aria-label").catch(() => null)) === "Show";
-      const { inputs, error } = await readInstanceInputs(page, row);
+      const { inputs, error } = await readInstanceInputs(page, pane, entityId);
       instances.push({ pane, name, entityId, hidden, inputs, inputsError: error });
     }
   }
@@ -231,7 +196,7 @@ export function diffInputs(
     }
     inst.inputs.forEach((input, index) => {
       const after = other.inputs[index];
-      if (input.label.startsWith("BUS ")) return; // bindings are rebound separately
+      if (input.label.startsWith("BUS ") || input.kind === "source") return; // bindings are rebound separately
       if (after.kind !== input.kind || after.value !== input.value) {
         diffs.push({ name, label: `${index}:${input.label}`, before: input.value, after: after.value });
       }
@@ -274,7 +239,7 @@ async function inventoryChartInPlace(page: Page, chartId: string) {
       if (!name.startsWith("SMC")) continue;
       const entityId = await row.getAttribute("data-entity-id");
       const hidden = (await row.locator('[data-qa-id="legend-show-hide-action"]').getAttribute("aria-label").catch(() => null)) === "Show";
-      const { inputs, error } = await readInstanceInputs(page, row);
+      const { inputs, error } = await readInstanceInputs(page, pane, entityId);
       instances.push({ pane, name, entityId, hidden, inputs, inputsError: error });
     }
   }
