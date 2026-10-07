@@ -302,5 +302,5 @@ test("privately published scripts are published before the persisted-store proof
   const publish = body.indexOf("await publishPrivateScript(session.page");
   const facade = body.indexOf("await fetchSavedScriptSourceViaFacade(session.page, target.scriptName)");
   assert.ok(postSave > 0 && postSave < publish && publish < facade, "publish must sit between the post-save check and the facade proof");
-  assert.match(body, /if \(!published\.publishConfirmed && !published\.noChangeDetected\) \{\n\s+throw new Error/);
+  assert.match(body, /if \(!published\.publishConfirmed && !published\.noChangeDetected\) \{\r?\n\s+throw new Error/);
 });
