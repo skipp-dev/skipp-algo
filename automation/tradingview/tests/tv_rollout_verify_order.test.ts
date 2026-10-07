@@ -179,3 +179,18 @@ test("verifyConsumerBindings closes a docked Pine editor before looking for the 
   assert.ok(close > 0, "no docked-editor close in verifyConsumerBindings");
   assert.ok(close < visible && visible < settings, "the close must precede the visibility check and the settings open");
 });
+
+// 2026-10-07, tv-save run 37549435565: every producer refresh timed out behind a docked
+// Pine editor that closePineEditorIfVisible could not close (its Close sits in the title
+// bar, outside the dialog scope). The title-bar close is tried before giving up.
+test("closePineEditorIfVisible tries the editor's title-bar Close before reporting docked-not-closeable", () => {
+  const src = fs.readFileSync(path.join(_dir, "..", "lib", "tv_shared.ts"), "utf-8");
+  const body = src.slice(src.indexOf("export async function closePineEditorIfVisible("));
+  const fallback = body.indexOf("await pineEditorTitleBarClose(page, dialog)");
+  const inventory = body.indexOf('"pine-editor-close-control-inventory"');
+  const giveUp = body.indexOf('tracePageEvent(page, "pine-editor-docked-not-closeable")');
+  // before the read-only inventory (tests/test_tradingview_editor_recovery_contract.py keeps that tail click-free)
+  assert.ok(fallback > 0 && fallback < inventory && inventory < giveUp, "title-bar close must precede the inventory and the give-up trace");
+  const helper = src.slice(src.indexOf("export async function pineEditorTitleBarClose("));
+  assert.match(helper.slice(0, 1200), /b\.x >= box\.x - 8 && b\.x \+ b\.width <= box\.x \+ box\.width \+ 8/, "the Close must lie within the editor's horizontal span");
+});
