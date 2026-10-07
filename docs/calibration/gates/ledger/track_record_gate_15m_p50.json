@@ -5,7 +5,7 @@
       "name": "oos_trades",
       "status": "red",
       "threshold": 100.0,
-      "value": 9.0
+      "value": 20.0
     },
     {
       "detail": "",
@@ -74,27 +74,27 @@
       "detail": "",
       "name": "min_trl_within_n",
       "status": "skipped",
-      "threshold": 9.0,
+      "threshold": 20.0,
       "value": null
     },
     {
-      "detail": "distinct UTC anchor days; at most 9 trades on one day",
+      "detail": "distinct UTC anchor days; at most 11 trades on one day",
       "name": "trading_days",
       "status": "red",
       "threshold": 30.0,
-      "value": 1.0
+      "value": 2.0
     },
     {
-      "detail": "needs at least 2 anchor days",
+      "detail": "lower 95% bound of the mean return per trade, whole days resampled",
       "name": "day_clustered_mean_ci_low",
-      "status": "skipped",
+      "status": "red",
       "threshold": 0.0,
-      "value": null
+      "value": -0.0017653924070566063
     }
   ],
-  "claim_note": "aggregate status 'red': green sub-checks are diagnostics, not claimable evidence; red checks: oos_trades, trading_days",
+  "claim_note": "aggregate status 'red': green sub-checks are diagnostics, not claimable evidence; red checks: oos_trades, trading_days, day_clustered_mean_ci_low",
   "claimable": false,
-  "n_trades": 9,
+  "n_trades": 20,
   "per_variant": {
     "BOS": {
       "checks": [
@@ -103,7 +103,7 @@
           "name": "oos_trades",
           "status": "red",
           "threshold": 100.0,
-          "value": 9.0
+          "value": 20.0
         },
         {
           "detail": "",
@@ -172,49 +172,49 @@
           "detail": "",
           "name": "min_trl_within_n",
           "status": "skipped",
-          "threshold": 9.0,
+          "threshold": 20.0,
           "value": null
         },
         {
-          "detail": "distinct UTC anchor days; at most 9 trades on one day",
+          "detail": "distinct UTC anchor days; at most 11 trades on one day",
           "name": "trading_days",
           "status": "red",
           "threshold": 30.0,
-          "value": 1.0
+          "value": 2.0
         },
         {
-          "detail": "needs at least 2 anchor days",
+          "detail": "lower 95% bound of the mean return per trade, whole days resampled",
           "name": "day_clustered_mean_ci_low",
-          "status": "skipped",
+          "status": "red",
           "threshold": 0.0,
-          "value": null
+          "value": -0.0017653924070566063
         }
       ],
-      "claim_note": "aggregate status 'red': green sub-checks are diagnostics, not claimable evidence; red checks: oos_trades, trading_days",
+      "claim_note": "aggregate status 'red': green sub-checks are diagnostics, not claimable evidence; red checks: oos_trades, trading_days, day_clustered_mean_ci_low",
       "claimable": false,
       "failures": [
-        "oos_trades=9.0000 vs threshold 100.0000",
-        "trading_days=1.0000 vs threshold 30.0000"
+        "oos_trades=20.0000 vs threshold 100.0000",
+        "trading_days=2.0000 vs threshold 30.0000",
+        "day_clustered_mean_ci_low=-0.0018 vs threshold 0.0000"
       ],
-      "n_trades": 9,
+      "n_trades": 20,
       "schema_version": "1.1.0",
       "status": "red",
       "summary": {
         "day_clustered": {
           "B": 2000,
-          "ci_high": null,
-          "ci_low": null,
-          "max_trades_per_day": 9,
-          "mean": -0.0017653924070566063,
-          "n_days": 1,
-          "positive_days": 0,
-          "skipped_reason": "needs at least 2 anchor days",
+          "ci_high": 0.0010825084574890304,
+          "ci_low": -0.0017653924070566063,
+          "max_trades_per_day": 11,
+          "mean": -0.0001990469315565061,
+          "n_days": 2,
+          "positive_days": 1,
           "unit": "UTC calendar day of anchor_ts"
         },
         "fdr_rate": null,
         "max_drawdown": {
           "min_events": 30,
-          "n": 9,
+          "n": 20,
           "skipped_reason": "insufficient_trades"
         },
         "min_trl": null,
@@ -222,20 +222,20 @@
         "permutation_p": null,
         "profit_factor": {
           "min_events": 30,
-          "n": 9,
+          "n": 20,
           "skipped_reason": "insufficient_trades"
         },
         "psr": null,
         "rr_target": 1.0,
         "sharpe": {
           "min_events": 30,
-          "n": 9,
+          "n": 20,
           "skipped_reason": "insufficient_trades"
         },
         "walk_forward_efficiency": null,
         "win_rate": {
           "min_events": 30,
-          "n": 9,
+          "n": 20,
           "skipped_reason": "insufficient_trades"
         },
         "win_rate_threshold": 0.55
@@ -247,19 +247,18 @@
   "summary": {
     "day_clustered": {
       "B": 2000,
-      "ci_high": null,
-      "ci_low": null,
-      "max_trades_per_day": 9,
-      "mean": -0.0017653924070566063,
-      "n_days": 1,
-      "positive_days": 0,
-      "skipped_reason": "needs at least 2 anchor days",
+      "ci_high": 0.0010825084574890304,
+      "ci_low": -0.0017653924070566063,
+      "max_trades_per_day": 11,
+      "mean": -0.0001990469315565061,
+      "n_days": 2,
+      "positive_days": 1,
       "unit": "UTC calendar day of anchor_ts"
     },
     "fdr_rate": null,
     "max_drawdown": {
       "min_events": 30,
-      "n": 9,
+      "n": 20,
       "skipped_reason": "insufficient_trades"
     },
     "min_trl": null,
@@ -267,20 +266,20 @@
     "permutation_p": null,
     "profit_factor": {
       "min_events": 30,
-      "n": 9,
+      "n": 20,
       "skipped_reason": "insufficient_trades"
     },
     "psr": null,
     "rr_target": 1.0,
     "sharpe": {
       "min_events": 30,
-      "n": 9,
+      "n": 20,
       "skipped_reason": "insufficient_trades"
     },
     "walk_forward_efficiency": null,
     "win_rate": {
       "min_events": 30,
-      "n": 9,
+      "n": 20,
       "skipped_reason": "insufficient_trades"
     },
     "win_rate_threshold": 0.55

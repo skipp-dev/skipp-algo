@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-07",
+  "n_trades_with_regime": 3816,
+  "n_trades_total": 3816,
+  "measurement": {
+    "return_rule": "next_open_then_horizon_close",
+    "bar_grid": "exchange_aligned",
+    "pivot_lookup": 1,
+    "cost_bps": 5.0,
+    "regime_taxonomy": "point_in_time (TRENDING/RANGING/NEUTRAL)",
+    "note": "net returns GIVEN a triggered setup (untriggered events are not trades); entry at the open of the bar after the decision bar, exit at the family-horizon close, fixed round-turn cost \u2014 see ADR-0031 (Nachtrag 2026-10-02 II) and governance/family_returns.py"
+  },
+  "status": "ok",
+  "per_regime": {
+    "NEUTRAL": {
+      "n": 871,
+      "regime_frequency_pct": 0.22824947589098532,
+      "sharpe": -0.04920295701804708,
+      "max_dd": -0.42404108201514645,
+      "win_rate": 0.4569460390355913,
+      "profit_factor": 0.8664827238589844
+    },
+    "RANGING": {
+      "n": 2313,
+      "regime_frequency_pct": 0.6061320754716981,
+      "sharpe": -0.13263672791432943,
+      "max_dd": -1.8096316174558054,
+      "win_rate": 0.4232598357111976,
+      "profit_factor": 0.6736865554162199
+    },
+    "TRENDING": {
+      "n": 632,
+      "regime_frequency_pct": 0.16561844863731656,
+      "sharpe": -0.06259432623715146,
+      "max_dd": -0.3560715222968249,
+      "win_rate": 0.47310126582278483,
+      "profit_factor": 0.8387286999659651
+    }
+  },
+  "aggregate": {
+    "value": -0.10199269953103844,
+    "method": "frequency_weighted",
+    "regimes_used": [
+      "NEUTRAL",
+      "RANGING",
+      "TRENDING"
+    ],
+    "regimes_skipped": [],
+    "unknown_share": 0.0
+  },
+  "concentration": {
+    "concentrated": false,
+    "dominant_regime": null,
+    "share_of_total_pnl": 0.0,
+    "threshold": 0.8,
+    "per_regime_pnl": {
+      "NEUTRAL": -0.2798765482327334,
+      "RANGING": -1.8085778270240966,
+      "TRENDING": -0.2709783411846709
+    }
+  },
+  "stratified_bootstrap": {
+    "statistic": "mean_net_return",
+    "observed": -0.0006182999781031187,
+    "ci_lower": -0.0008546912959045786,
+    "ci_upper": -0.0003992369715654243,
+    "n_resamples": 1000,
+    "per_regime_n": {
+      "NEUTRAL": 871,
+      "RANGING": 2313,
+      "TRENDING": 632
+    },
+    "skipped_regimes": [],
+    "seed": 0
+  }
+}
