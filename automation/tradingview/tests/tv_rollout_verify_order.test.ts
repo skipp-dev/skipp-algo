@@ -187,8 +187,10 @@ test("closePineEditorIfVisible tries the editor's title-bar Close before reporti
   const src = fs.readFileSync(path.join(_dir, "..", "lib", "tv_shared.ts"), "utf-8");
   const body = src.slice(src.indexOf("export async function closePineEditorIfVisible("));
   const fallback = body.indexOf("await pineEditorTitleBarClose(page, dialog)");
+  const inventory = body.indexOf('"pine-editor-close-control-inventory"');
   const giveUp = body.indexOf('tracePageEvent(page, "pine-editor-docked-not-closeable")');
-  assert.ok(fallback > 0 && giveUp > fallback, "title-bar close must precede the give-up trace");
+  // before the read-only inventory (tests/test_tradingview_editor_recovery_contract.py keeps that tail click-free)
+  assert.ok(fallback > 0 && fallback < inventory && inventory < giveUp, "title-bar close must precede the inventory and the give-up trace");
   const helper = src.slice(src.indexOf("export async function pineEditorTitleBarClose("));
   assert.match(helper.slice(0, 1200), /b\.x >= box\.x - 8 && b\.x \+ b\.width <= box\.x \+ box\.width \+ 8/, "the Close must lie within the editor's horizontal span");
 });

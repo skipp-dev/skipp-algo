@@ -7880,6 +7880,22 @@ export async function closePineEditorIfVisible(page: Page): Promise<boolean> {
     return true;
   }
 
+  // 2026-10-07: the dialog-scoped candidates above never reach the docked editor's own Close:
+  // it sits in the title bar above the dialog. Pinned by measurement, not aimed: exact
+  // aria-label AND title "Close", inside the editor's span (pineEditorTitleBarClose).
+  // It runs BEFORE the read-only inventory below, which stays click-free. Every producer
+  // refresh since 2026-10-06 timed out behind this ("pine-editor-docked-not-closeable",
+  // then the add-to-chart legend check saw a squeezed legend; tv-save run 37549435565).
+  const titleBarClose = await pineEditorTitleBarClose(page, dialog);
+  if (titleBarClose) {
+    await titleBarClose.click().catch(() => undefined);
+    await page.waitForTimeout(1_000);
+    if (!(await dialog.isVisible({ timeout: 500 }).catch(() => false))) {
+      tracePageEvent(page, "pine-editor-close-ok-titlebar");
+      return true;
+    }
+  }
+
   // The selectors above missed. Rather than assert again that nothing exists,
   // read the panel's controls out and put them in the trace. Attributes only --
   // no click, no keyboard, nothing that could reach Publish or Add-to-chart.
@@ -7912,20 +7928,6 @@ export async function closePineEditorIfVisible(page: Page): Promise<boolean> {
     "pine-editor-close-control-inventory",
     controls ? JSON.stringify(controls) : "unreadable",
   );
-
-  // 2026-10-07: the control inventory above never reaches the docked editor's own Close:
-  // it sits in the title bar above the dialog. Every producer refresh since 2026-10-06
-  // timed out behind this ("pine-editor-docked-not-closeable", then the add-to-chart
-  // legend check saw a squeezed legend; tv-save run 37549435565).
-  const titleBarClose = await pineEditorTitleBarClose(page, dialog);
-  if (titleBarClose) {
-    await titleBarClose.click().catch(() => undefined);
-    await page.waitForTimeout(1_000);
-    if (!(await dialog.isVisible({ timeout: 500 }).catch(() => false))) {
-      tracePageEvent(page, "pine-editor-close-ok-titlebar");
-      return true;
-    }
-  }
 
   // Still unresolved and NOT to be assumed either way: whether the docked state
   // lives in the saved layout (server-side, so a CI run could close it for the
