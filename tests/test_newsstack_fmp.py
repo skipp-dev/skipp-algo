@@ -4209,3 +4209,13 @@ class TestFmpExtras(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# 2026-10-08: FMP news is off by default (ENABLE_FMP_NEWS). This module tests the
+# FMP news paths themselves, so it runs them switched on -- the pre-change behaviour.
+import pytest as _pytest_fmp_news
+
+
+@_pytest_fmp_news.fixture(autouse=True)
+def _fmp_news_on(monkeypatch):
+    monkeypatch.setenv("ENABLE_FMP_NEWS", "1")

@@ -24,6 +24,7 @@ from open_prep.feature_flags import (
     is_fmp_enabled,
     is_fmp_general_enabled,
     is_fmp_house_trades_enabled,
+    is_fmp_news_enabled,
     is_fmp_senate_trades_enabled,
     is_newsapi_ai_enabled,
     is_opra_uoa_enabled,
@@ -73,7 +74,7 @@ class Config:
     newsapi_ai_key: str = field(default_factory=lambda: os.getenv("NEWSAPI_KEY", ""), repr=False)
 
     # ── Feature flags ───────────────────────────────────────────
-    enable_fmp: bool = field(default_factory=is_fmp_enabled)
+    enable_fmp: bool = field(default_factory=lambda: is_fmp_enabled() and is_fmp_news_enabled())  # 2026-10-08: FMP news off unless ENABLE_FMP_NEWS=1
     enable_fmp_articles: bool = field(default_factory=is_fmp_articles_enabled)
     enable_benzinga_rest: bool = field(default_factory=is_benzinga_rest_enabled)
     enable_benzinga_ws: bool = field(default_factory=is_benzinga_ws_enabled)
