@@ -66,3 +66,20 @@ def test_probe_skips_fmp_news_without_request_and_is_not_critical(fmp_news_unset
     reloaded = importlib.reload(probes)
     news = [p for p in reloaded.PROBES if "/stable/news/" in p.name]
     assert news and all(p.critical is False for p in news)
+
+
+@pytest.mark.parametrize(
+    ("method", "args"),
+    [("fetch_stock_latest", (0, 5)), ("fetch_press_latest", (0, 5)), ("fetch_articles", (5,)), ("fetch_general_latest", (0, 5))],
+)
+def test_fmp_adapter_news_methods_make_no_request_by_default(fmp_news_unset, method, args):
+    """Lowest layer: direct adapter users (streamlit terminal, smc_live_news_bus) are covered too."""
+    from newsstack_fmp.ingest_fmp import FmpAdapter
+
+    adapter = FmpAdapter("k")
+    try:
+        adapter._safe_get = MagicMock(side_effect=AssertionError("FMP news must not be requested"))
+        assert getattr(adapter, method)(*args) == []
+        adapter._safe_get.assert_not_called()
+    finally:
+        adapter.close()
