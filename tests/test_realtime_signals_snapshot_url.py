@@ -506,7 +506,10 @@ def _isolated_engine(monkeypatch, tmp_path):
     """Engine whose constructor cannot see a real snapshot (env/file)."""
     from pathlib import Path
 
-    monkeypatch.delenv("OPEN_PREP_SNAPSHOT_URL", raising=False)
+    # Empty, not deleted: deleting it activates the LIVE default snapshot URL
+    # (_open_prep_snapshot_url), and the constructor then read 836 real
+    # candidates whenever the GitHub API call succeeded (validate (4), 2026-10-08).
+    monkeypatch.setenv("OPEN_PREP_SNAPSHOT_URL", "")
     monkeypatch.setattr(rs, "LATEST_RUN_PATH", Path(tmp_path) / "missing.json")
     monkeypatch.setattr(rs, "_LEGACY_RUN_PATH", Path(tmp_path) / "missing2.json")
     monkeypatch.setattr(rs.RealtimeEngine, "_enrich_watchlist_live", lambda self: None)
