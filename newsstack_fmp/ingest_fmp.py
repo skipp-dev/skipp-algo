@@ -28,6 +28,12 @@ import httpx
 from .common_types import NewsItem
 from .normalize import normalize_fmp
 
+
+def _fmp_news_enabled() -> bool:
+    from .config import is_fmp_news_enabled  # config: the one module allowed to import open_prep flags
+
+    return is_fmp_news_enabled()
+
 logger = logging.getLogger(__name__)
 
 FMP_BASE = "https://financialmodelingprep.com/stable"
@@ -183,20 +189,29 @@ class FmpAdapter:
             raise last_exc
         raise RuntimeError(f"FMP: all {self._MAX_RETRIES} retries exhausted for {_sanitize_url(url)}")
 
+    # 2026-10-08: every FMP news endpoint returns nothing (no request) unless
+    # ENABLE_FMP_NEWS=1 -- the lowest layer, so direct adapter users (terminal,
+    # smc_live_news_bus) are covered too.
     def fetch_stock_latest(self, page: int, limit: int) -> list[NewsItem]:
         """GET /stable/news/stock-latest?page=…&limit=…"""
+        if not _fmp_news_enabled():
+            return []
         url = f"{FMP_BASE}/news/stock-latest"
         r = self._safe_get(url, {"page": page, "limit": limit, "apikey": self.api_key})
         return [normalize_fmp("fmp_stock_latest", it) for it in _as_list(_safe_json(r))]
 
     def fetch_press_latest(self, page: int, limit: int) -> list[NewsItem]:
         """GET /stable/news/press-releases-latest?page=…&limit=…"""
+        if not _fmp_news_enabled():
+            return []
         url = f"{FMP_BASE}/news/press-releases-latest"
         r = self._safe_get(url, {"page": page, "limit": limit, "apikey": self.api_key})
         return [normalize_fmp("fmp_press_latest", it) for it in _as_list(_safe_json(r))]
 
     def fetch_articles(self, limit: int) -> list[NewsItem]:
         """GET /stable/fmp-articles?page=0&limit=…"""
+        if not _fmp_news_enabled():
+            return []
         url = f"{FMP_BASE}/fmp-articles"
         r = self._safe_get(url, {"page": 0, "limit": limit, "apikey": self.api_key})
         return [normalize_fmp("fmp_articles", it) for it in _as_list(_safe_json(r))]
@@ -207,6 +222,8 @@ class FmpAdapter:
         Macro / market-wide news that complements the per-symbol
         ``fetch_stock_latest`` and corporate ``fetch_press_latest`` feeds.
         """
+        if not _fmp_news_enabled():
+            return []
         url = f"{FMP_BASE}/news/general-latest"
         r = self._safe_get(url, {"page": page, "limit": limit, "apikey": self.api_key})
         return [normalize_fmp("fmp_general_latest", it) for it in _as_list(_safe_json(r))]

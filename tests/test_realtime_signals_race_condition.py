@@ -15,6 +15,19 @@ import pytest
 from open_prep import realtime_signals as rs
 
 
+@pytest.fixture(autouse=True)
+def _offline_open_prep_snapshot(monkeypatch: Any) -> None:
+    """Keep the engine on the test's local snapshot.
+
+    ``_open_prep_snapshot_url()`` defaults to the LIVE rolling snapshot on the
+    GitHub API. Unset, ``_load_watchlist`` fetched it whenever the network call
+    succeeded and read real symbols (ALAB, DELL, ...) instead of the tmp file:
+    validate (4) red on main-adjacent bot PRs and #5748 (2026-10-08). An
+    explicitly empty value is the documented offline switch.
+    """
+    monkeypatch.setenv("OPEN_PREP_SNAPSHOT_URL", "")
+
+
 def _minimal_snapshot(symbols: list[str]) -> dict[str, Any]:
     return {
         "ranked_v2": [{"symbol": s, "score": 0.5, "confidence_tier": "STANDARD"} for s in symbols],

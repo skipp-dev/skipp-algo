@@ -170,6 +170,10 @@ def probe_fmp_treasury() -> tuple[str, str]:
 def probe_fmp_news() -> tuple[str, str]:
     """FMP /stable/news/stock-latest — newsstack ingestion endpoint."""
     import httpx
+
+    from open_prep.feature_flags import is_fmp_news_enabled
+    if not is_fmp_news_enabled():
+        return ("SKIP", "ENABLE_FMP_NEWS off (2026-10-08) — no FMP news request")
     key = os.getenv("FMP_API_KEY", "")
     if not key:
         return ("SKIP", "FMP_API_KEY missing")
@@ -193,6 +197,10 @@ def probe_fmp_news() -> tuple[str, str]:
 
 def probe_fmp_press() -> tuple[str, str]:
     import httpx
+
+    from open_prep.feature_flags import is_fmp_news_enabled
+    if not is_fmp_news_enabled():
+        return ("SKIP", "ENABLE_FMP_NEWS off (2026-10-08) — no FMP news request")
     key = os.getenv("FMP_API_KEY", "")
     if not key:
         return ("SKIP", "FMP_API_KEY missing")
@@ -895,12 +903,17 @@ def probe_newsapi_ai() -> tuple[str, str]:
 # Critical = a workflow surface we actually consume in prod.
 # Non-critical = visibility only (entitlement-gated / retired endpoints kept
 # in the table so a future re-grant or restoration is detected immediately).
+from open_prep.feature_flags import is_fmp_news_enabled as _is_fmp_news_enabled
+
+_FMP_NEWS_ON = _is_fmp_news_enabled()
+
 PROBES: list[Probe] = [
     # FMP — universe, fundamentals, news, technicals
     Probe("FMP /stable/quote", probe_fmp_quote, critical=True),
     Probe("FMP /stable/treasury-rates", probe_fmp_treasury, critical=True),
-    Probe("FMP /stable/news/stock-latest", probe_fmp_news, critical=True),
-    Probe("FMP /stable/news/press-releases", probe_fmp_press, critical=True),
+    # FMP news: critical only while ENABLE_FMP_NEWS=1 (off by default since 2026-10-08)
+    Probe("FMP /stable/news/stock-latest", probe_fmp_news, critical=_FMP_NEWS_ON),
+    Probe("FMP /stable/news/press-releases", probe_fmp_press, critical=_FMP_NEWS_ON),
     Probe("FMP /stable/company-screener", probe_fmp_screener, critical=True),
     Probe("FMP /stable/technical-indicators", probe_fmp_technical, critical=True),
     # G2/D3 re-check 2026-05-12: mover seed + incremental ATR feeders.

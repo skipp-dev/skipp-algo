@@ -80,6 +80,16 @@ def is_fmp_enabled() -> bool:
     return _bool_env("ENABLE_FMP", "1")
 
 
+def is_fmp_news_enabled() -> bool:
+    """Return True iff ``ENABLE_FMP_NEWS`` is set to ``"1"`` (default OFF: 2026-10-08 operator: stop every FMP news query).
+
+    Gates every FMP news endpoint (news/stock-latest, news/press-releases-latest,
+    news/general-latest, fmp-articles) in the newsstack, open_prep and the SMC
+    client. Benzinga carries the news; FMP stays for market and fundamental data.
+    """
+    return _bool_env("ENABLE_FMP_NEWS", "0")
+
+
 def is_fmp_articles_enabled() -> bool:
     """Return True iff ``ENABLE_FMP_ARTICLES`` is set to ``"1"`` (default OFF: 2026-07-25 fmp-articles = ~76% of FMP news volume, no proven edge — cost cut)."""
     return _bool_env("ENABLE_FMP_ARTICLES", "0")

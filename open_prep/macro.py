@@ -1164,6 +1164,9 @@ class FMPClient:
         return rows
 
     def get_fmp_articles(self, limit: int = 250) -> list[dict[str, Any]]:
+        from open_prep.feature_flags import is_fmp_news_enabled  # 2026-10-08: FMP news off by default
+        if not is_fmp_news_enabled():
+            return []
         params: dict[str, Any] = {
             "page": 0,
             "limit": max(int(limit), 1),
@@ -1180,6 +1183,9 @@ class FMPClient:
         return list(data) if isinstance(data, list) else []
 
     def get_stock_latest_news(self, *, symbol: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
+        from open_prep.feature_flags import is_fmp_news_enabled  # 2026-10-08: FMP news off by default
+        if not is_fmp_news_enabled():
+            return []
         params: dict[str, Any] = {"limit": max(int(limit), 1)}
         if symbol:
             params["symbol"] = str(symbol).strip().upper()
@@ -1590,6 +1596,9 @@ class FMPClient:
         limit: int = 50,
     ) -> list[dict[str, Any]]:
         """FMP `/stable/news/stock-latest` (latest stock-tagged news feed)."""
+        from open_prep.feature_flags import is_fmp_news_enabled  # 2026-10-08: FMP news off by default
+        if not is_fmp_news_enabled():
+            return []
         params: dict[str, Any] = {
             "page": max(int(page), 0),
             "limit": max(int(limit), 1),
