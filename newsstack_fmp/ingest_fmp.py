@@ -30,7 +30,7 @@ from .normalize import normalize_fmp
 
 
 def _fmp_news_enabled() -> bool:
-    from open_prep.feature_flags import is_fmp_news_enabled
+    from .config import is_fmp_news_enabled  # config: the one module allowed to import open_prep flags
 
     return is_fmp_news_enabled()
 
