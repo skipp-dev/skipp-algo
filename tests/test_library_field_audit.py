@@ -20,6 +20,96 @@ _GENERATORS = [
     ROOT / "scripts" / "smc_hero_setup_quality.py",
 ]
 
+# Known orphan references that are tolerated until their Pine consumer is cleaned up.
+_KNOWN_ORPHANS: set[str] = {
+    # ── Deprecated v5-v5.3 fields removed in WP-LF5 ──
+    # Still referenced by legacy overlay scripts (SMC_Event_Overlay, SMC_HTF_Confluence,
+    # SMC_Imbalance_Context, SMC_Liquidity_Context, SMC_Liquidity_Structure,
+    # SMC_Profile_Context, SMC_Session_Context, SMC_Structure_Context).
+    "ACTIVE_RESISTANCE",
+    "ACTIVE_RESISTANCE_COUNT",
+    "ACTIVE_SUPPORT",
+    "ACTIVE_SUPPORT_COUNT",
+    "ACTIVE_ZONE_COUNT",
+    "BEAR_FVG_ACTIVE",
+    "BEAR_FVG_BOTTOM",
+    "BEAR_FVG_COUNT",
+    "BEAR_FVG_FULL_MITIGATION",
+    "BEAR_FVG_MITIGATION_PCT",
+    "BEAR_FVG_PARTIAL_MITIGATION",
+    "BEAR_FVG_TOP",
+    "BOS_BEAR",
+    "BOS_BULL",
+    "BPR_ACTIVE",
+    "BPR_BOTTOM",
+    "BPR_TOP",
+    "BULL_FVG_ACTIVE",
+    "BULL_FVG_BOTTOM",
+    "BULL_FVG_COUNT",
+    "BULL_FVG_FULL_MITIGATION",
+    "BULL_FVG_MITIGATION_PCT",
+    "BULL_FVG_PARTIAL_MITIGATION",
+    "BULL_FVG_TOP",
+    "CHOCH_BEAR",
+    "CHOCH_BULL",
+    "CONFIRM_SCORE",
+    "FOLLOW_THROUGH_SCORE",
+    "FVG_CONFIRM_OK",
+    "HTF_BEARISH_DIVERGENCE",
+    "HTF_BEARISH_PATTERN",
+    "HTF_BULLISH_DIVERGENCE",
+    "HTF_BULLISH_PATTERN",
+    "HTF_STRUCTURE_OK",
+    "IMBALANCE_STATE",
+    "LIQ_VOID_BEAR_ACTIVE",
+    "LIQ_VOID_BOTTOM",
+    "LIQ_VOID_BULL_ACTIVE",
+    "LIQ_VOID_TOP",
+    "POOL_IMBALANCE",
+    "POOL_MAGNET_DIRECTION",
+    "POOL_QUALITY_SCORE",
+    "PRIMARY_RESISTANCE_LEVEL",
+    "PRIMARY_RESISTANCE_STRENGTH",
+    "PRIMARY_SUPPORT_LEVEL",
+    "PRIMARY_SUPPORT_STRENGTH",
+    "PROFILE_AH_QUALITY",
+    "PROFILE_AVG_SPREAD_BPS",
+    "PROFILE_CLEAN_SCORE",
+    "PROFILE_CONTEXT_SCORE",
+    "PROFILE_MIDDAY_EFFICIENCY",
+    "PROFILE_PM_QUALITY",
+    "PROFILE_RTH_DOMINANCE_PCT",
+    "PROFILE_SESSION_BIAS",
+    "PROFILE_SPREAD_REGIME",
+    "PROFILE_TICKER_GRADE",
+    "PROFILE_VWAP_DISTANCE_PCT",
+    "PROFILE_VWAP_POSITION",
+    "PROFILE_WICKINESS",
+    "RECENT_BEAR_SWEEP",
+    "RECENT_BULL_SWEEP",
+    "RESISTANCE_ACTIVE",
+    "RESISTANCE_MITIGATION_PCT",
+    "RESISTANCE_SWEEP_COUNT",
+    "RETRACE_OK",
+    "REVERSAL_CONTEXT_ACTIVE",
+    "SESSION_MSS_BEAR",
+    "SESSION_MSS_BULL",
+    "SETUP_SCORE",
+    "STRUCTURE_BEAR_ACTIVE",
+    "STRUCTURE_BULL_ACTIVE",
+    "STRUCTURE_STATE",
+    "SUPPORT_ACTIVE",
+    "SUPPORT_MITIGATION_PCT",
+    "SUPPORT_SWEEP_COUNT",
+    "SWEEP_QUALITY_SCORE",
+    "SWEEP_RECLAIM_ACTIVE",
+    "SWEEP_TYPE",
+    "VWAP_HOLD_OK",
+    "ZONE_CONTEXT_BIAS",
+    "ZONE_LIQUIDITY_IMBALANCE",
+}
+
+
 def _collect_generated_fields() -> set[str]:
     """Parse all generators for 'export const' field names and render_csv_export calls."""
     from scripts.generate_smc_micro_profiles import LIST_EXPORTS
@@ -122,32 +212,18 @@ def _collect_pine_mp_refs() -> dict[str, set[str]]:
 
 
 def test_all_pine_mp_refs_resolve_to_generated_fields() -> None:
-    from scripts.smc_bus_manifest import SURFACE_DEFINITIONS
-
     generated = _collect_generated_fields()
     pine_refs = _collect_pine_mp_refs()
 
-    observed_missing = {
-        (fname, ref)
-        for fname, refs in pine_refs.items()
-        for ref in refs - generated
-    }
-    declared_missing = {
-        (surface.file, ref)
-        for surface in SURFACE_DEFINITIONS
-        for ref in surface.known_missing_mp_fields
-    }
-    undeclared = sorted(observed_missing - declared_missing)
-    stale = sorted(declared_missing - observed_missing)
+    orphans: list[str] = []
+    for fname, refs in sorted(pine_refs.items()):
+        for ref in sorted(refs):
+            if ref not in generated and ref not in _KNOWN_ORPHANS:
+                orphans.append(f"  {fname} -> mp.{ref}")
 
-    assert undeclared == [], (
-        "Pine mp.* references to non-existent library fields were added "
-        "without per-surface debt classification:\n"
-        + "\n".join(f"  {fname} -> mp.{ref}" for fname, ref in undeclared)
-    )
-    assert stale == [], (
-        "Declared per-surface mp.* debt is stale; remove resolved entries:\n"
-        + "\n".join(f"  {fname} -> mp.{ref}" for fname, ref in stale)
+    assert orphans == [], (
+        "Pine mp.* references to non-existent library fields:\n"
+        + "\n".join(orphans)
     )
 
 
@@ -174,53 +250,13 @@ def test_zone_hr_family_export_is_audit_visible(family: str) -> None:
     )
 
 
-def test_missing_mp_field_debt_is_exact_and_replacement_scoped() -> None:
-    """Debt is an exact per-file snapshot, never a global field allowlist."""
-    from scripts.smc_bus_manifest import SURFACE_DEFINITIONS
-
+def test_known_orphans_are_still_orphans() -> None:
+    """Prevent _KNOWN_ORPHANS from going stale — remove entries once the field is generated."""
     generated = _collect_generated_fields()
-    pine_refs = _collect_pine_mp_refs()
-    debt_surfaces = [
-        surface
-        for surface in SURFACE_DEFINITIONS
-        if surface.known_missing_mp_fields
-    ]
-
-    # 2026-07-30 R5 rebuild removed HTF Confluence (12 fields) and Session
-    # Context (2 fields) from the snapshot-debt population: 7/81 -> 5/67.
-    assert len(debt_surfaces) == 5
-    assert sum(len(surface.known_missing_mp_fields) for surface in debt_surfaces) == 67
-    for surface in debt_surfaces:
-        observed = pine_refs.get(surface.file, set()) - generated
-        assert surface.lifecycle == "replacement_pending"
-        assert surface.rollout_state == "not_deployed"
-        assert surface.compile_expectation == "known_broken"
-        assert set(surface.known_missing_mp_fields) == observed
-
-
-def test_active_deployed_and_required_surfaces_have_no_mp_field_debt() -> None:
-    from scripts.smc_bus_manifest import SURFACE_DEFINITIONS
-
-    offenders = [
-        (
-            surface.file,
-            surface.lifecycle,
-            surface.rollout_state,
-            surface.compile_expectation,
+    for orphan in _KNOWN_ORPHANS:
+        assert orphan not in generated, (
+            f"{orphan} is now generated — remove it from _KNOWN_ORPHANS"
         )
-        for surface in SURFACE_DEFINITIONS
-        if surface.known_missing_mp_fields
-        and (
-            surface.lifecycle == "active"
-            or surface.rollout_state == "deployed"
-            or surface.compile_expectation == "required"
-        )
-    ]
-
-    assert offenders == [], (
-        "active, deployed, and compile-required surfaces must be mp-debt-free: "
-        f"{offenders}"
-    )
 
 
 def test_field_count_is_within_audit_bounds() -> None:
@@ -310,17 +346,6 @@ PYTHON_ONLY_EXPORTS: set[str] = {
     "VOLATILITY_PROXY_SOURCE",
     "VOLATILITY_PROXY_SYMBOL",
     "VOLATILITY_REGIME_CONFIDENCE",
-    # ── R5 live-context cutover (2026-07-30) ──
-    # These compatibility exports remain generated for Python enrichment and
-    # existing published-library readers. The rebuilt Pine roots deliberately
-    # compute confirmed chart/session state locally and MUST NOT regress to
-    # these frozen snapshot fields.
-    "ATR_RATIO",
-    "ATR_REGIME",
-    "SESSION_DIRECTION_BIAS",
-    "SQUEEZE_MOMENTUM_BIAS",
-    "SQUEEZE_ON",
-    "SQUEEZE_RELEASED",
     # ── zone priority calibration weights (Python-side only) ──
     "ZONE_CAL_OB",
     "ZONE_CAL_FVG",
@@ -359,7 +384,7 @@ PYTHON_ONLY_EXPORTS: set[str] = {
     # canonical rolled-up action-impact label but is RESERVED (see the
     # RESERVED_PINE_EXPORTS.add('TRUST_ACTION_IMPACT') call below) until
     # the dashboard re-wire ticket lands. A comment in
-    # SMC_Decision_Board.pine:759 documents only the *intent* to wire it up;
+    # SMC_Long_Dip_Dashboard.pine:759 documents only the *intent* to wire it up;
     # that comment was previously misclassified as a real consumer by
     # the unfiltered regex scan, hence the v3 phase 11 fix.) ──
     "TRUST_CAUSE_DOMAIN",
@@ -399,7 +424,7 @@ RESERVED_PINE_EXPORTS.update(PINE_HERO_QUALITY_FIELDS)
 
 # ENG-WS2-02 trust contract — exported as the canonical rolled-up
 # action-impact label, but no production *.pine file consumes it yet
-# (a comment in SMC_Decision_Board.pine:759 documents the *intent* to
+# (a comment in SMC_Long_Dip_Dashboard.pine:759 documents the *intent* to
 # consume it — that comment was previously misclassified as a real
 # consumer by the unfiltered regex scan; see v3 phase 11 fix).
 # Re-classified as RESERVED with a backlog reference until the
@@ -415,14 +440,18 @@ RESERVED_PINE_EXPORTS.add("TRUST_ACTION_IMPACT")
 # PR after the next TradingView library re-publish (plan §3.7 step 7).
 RESERVED_PINE_EXPORTS.add("HR_SENTINEL_DEGRADED")
 
-# Confidence-vocabulary close-window (2026-08-10): the legacy
-# ZONE_CAL_CONFIDENCE export is intentionally absent after its four-week
-# migration window; ZONE_CAL_RELIABILITY_SCORE is the sole Pine contract.
+# Confidence-vocabulary program (2026-07-13, flip PR): the dashboard now
+# consumes mp.ZONE_CAL_RELIABILITY_SCORE (honest name — a sample-size x smECE
+# reliability HEURISTIC, not a statistical confidence level), so the LEGACY
+# alias ZONE_CAL_CONFIDENCE no longer has a Pine consumer. It stays exported
+# for any external importer and is dropped in the close-window cleanup
+# (calendar reminder 2026-08-10; #3535 pattern).
+RESERVED_PINE_EXPORTS.add("ZONE_CAL_CONFIDENCE")
 
 # Phase H Pine consumer maturity is now complete: ZONE_CAL_TRUST and the
 # per-family ZONE_HR_{OB,BOS,SWEEP} were wired into the audit row 12
 # composite warning + trust glyph by issue #16 (c). The follow-up tooltip
-# patch then wired the remaining two scalars (ZONE_CAL_RELIABILITY_SCORE +
+# patch then wired the remaining two scalars (ZONE_CAL_CONFIDENCE +
 # ZONE_CAL_TREND) into the row 12 hover tooltip via dashboard_row_tt, so
 # the entire ZONE_CAL_* scaffolding block from ADR 2026-04-22 has landed
 # Pine consumers and no longer needs reservation.

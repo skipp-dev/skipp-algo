@@ -1,7 +1,5 @@
-import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { NobleCryptoPlugin, ScureBase32Plugin, generateSync } from "otplib";
 import {
   chromium,
   type Browser,
@@ -12,17 +10,9 @@ import {
 } from "playwright";
 
 import { tvSelectors, type PineDraftKind } from "../selectors.js";
-import { saveChartLayout } from "./tv_layout_save.js";
-import { normalizedPineSha256 } from "./tv_consumer_rollout_evidence.js";
-import {
-  chartIntervalDisplayLabel,
-  clipboardReadbackProvesWrite,
-  type ChartStateSnapshot,
-} from "./tv_validation_model.js";
 import {
   inspectTradingViewStorageState,
   resolveTradingViewAuthResolution,
-  type DataWindowItem,
   type TradingViewAuthResolution,
   type TradingViewStorageStateInspection,
 } from "./tv_validation_model.js";
@@ -51,62 +41,6 @@ export type TradingViewPageAuthState = {
   reason: string;
   evidence: TradingViewPageAuthEvidence;
 };
-
-export type TradingViewStorageCaptureWaitAction =
-  | "wait"
-  | "navigate_to_login"
-  | "navigate_to_chart"
-  | "complete";
-
-/** TradingView serves every interactive login surface under /accounts/. */
-function isTradingViewAuthSurface(url: string): boolean {
-  return /\/accounts\//i.test(url);
-}
-
-export function resolveTradingViewStorageCaptureWaitAction(input: {
-  url: string;
-  signInSignals: boolean;
-  authenticated: boolean;
-  storageLooksAuthenticated: boolean;
-  persistentProfile: boolean;
-  /**
-   * Server-confirmed anonymous session (not merely "no positive auth evidence
-   * yet"). Optional so existing callers keep their previous behaviour.
-   */
-  explicitlyAnonymous?: boolean;
-  /**
-   * RAW DOM evidence that a login form is on screen. Deliberately separate from
-   * `signInSignals`, which the capture script ORs with "session is anonymous" —
-   * that conflated flag is true for every anonymous page and would suppress the
-   * login navigation entirely.
-   */
-  loginFormVisible?: boolean;
-}): TradingViewStorageCaptureWaitAction {
-  const authenticatedSession =
-    !input.signInSignals
-    && input.authenticated
-    && (input.storageLooksAuthenticated || input.persistentProfile);
-  if (authenticatedSession) {
-    return input.url.includes("/chart") ? "complete" : "navigate_to_chart";
-  }
-
-  // A persistent profile whose session expired (or was never minted) lands on
-  // the chart URL, where TradingView shows no login form. Polling it until the
-  // timeout looks identical to "operator is still typing", so send the operator
-  // to the login page once. Only on a SERVER-CONFIRMED anonymous session:
-  // storage heuristics accept a guest `sessionid`/`device_t` as authenticated,
-  // so they cannot gate this. The raw login-form check and the /accounts/ check
-  // keep the navigation from fighting a form that is already on screen.
-  if (
-    input.explicitlyAnonymous === true
-    && !input.loginFormVisible
-    && !isTradingViewAuthSurface(input.url)
-  ) {
-    return "navigate_to_login";
-  }
-
-  return "wait";
-}
 
 export type VisibleCount = {
   total: number;
@@ -167,65 +101,7 @@ export type InputContractDiagnosis = {
 export type AddToChartOptions = {
   forceInsert?: boolean;
   tolerateFailure?: boolean;
-  // Override for the tracked-step timeout. The refresh path passes the same
-  // 90s floor as its outer wrapper: a healthy insertion was observed at 44s,
-  // and the default 45s inner timer closed the session right after
-  // (documented in refreshChartScriptInstance; live run 29929470730).
-  stepTimeoutMs?: number;
 };
-
-// Pure helper for the producer chart-instance refresh: the applied Suite
-// instance lives in EVERY layout that carries consumers, so the refresh must
-// cover the primary layout plus every distinct per-target chartUrl. The
-// 2026-07-22 live run refreshed only primaryChartUrl (desktop) while the
-// operator watched the Mobile layout — the visible instance stayed frozen.
-export function resolveProducerRefreshChartUrls(config: {
-  primaryChartUrl: string;
-  verifyTargets: Array<{ chartUrl?: string }>;
-}): string[] {
-  const urls = [config.primaryChartUrl];
-  for (const target of config.verifyTargets) {
-    if (target.chartUrl && !urls.includes(target.chartUrl)) urls.push(target.chartUrl);
-  }
-  return urls;
-}
-
-/** The consumer instances a save-then-rebind rollout must RE-APPLY.
- *
- * Saving a consumer's source does not touch the instance already applied to a
- * layout: TradingView keeps it on the version it was added with, which is the
- * whole reason the producer gets re-applied after a save. The consumer never
- * was, so one whose own source GAINED an input kept a stale instance — its new
- * rows do not exist in the settings dialog and the rebind dies with "Source
- * combobox not found" (runs 30694013096, 30696257671, 30698519321, all on
- * CTX SessionMssBull after #4263 appended two channels).
- *
- * Only consumers whose source this run actually saved are returned: an
- * untouched instance cannot have gained an input, and re-applying it would
- * drop healthy bindings for nothing. The producer is excluded — it has its own
- * pass, and refreshing it here would strip the bindings a second time.
- */
-export function resolveConsumerRefreshTargets(config: {
-  producerName: string;
-  primaryChartUrl: string;
-  saveTargets: ReadonlyArray<{ scriptName: string }>;
-  verifyTargets: ReadonlyArray<{ scriptName: string; chartUrl?: string }>;
-}): Array<{ scriptName: string; chartUrl: string }> {
-  const saved = new Set(config.saveTargets.map((target) => target.scriptName));
-  const out: Array<{ scriptName: string; chartUrl: string }> = [];
-  const seen = new Set<string>();
-
-  for (const target of config.verifyTargets) {
-    if (target.scriptName === config.producerName) continue;
-    if (!saved.has(target.scriptName)) continue;
-    const chartUrl = target.chartUrl ?? config.primaryChartUrl;
-    const key = `${target.scriptName}\u0000${chartUrl}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push({ scriptName: target.scriptName, chartUrl });
-  }
-  return out;
-}
 
 type PageLifecycleTracker = {
   pageClosed: boolean;
@@ -274,20 +150,6 @@ export function resolveTradingViewHeadlessDefault(env: NodeJS.ProcessEnv = proce
 
 /** Viewport shared by every TradingView session (persistent-profile and storage-state). */
 export const TRADINGVIEW_SESSION_VIEWPORT = { width: 1600, height: 1200 } as const;
-
-/**
- * Viewport of a session: TRADINGVIEW_SESSION_VIEWPORT unless TV_SESSION_VIEWPORT="<w>x<h>"
- * is set. Opt-in for local read flows on multi-chart layouts: vWgAWyfC's left chart is
- * 293 of 1292 px wide at the default (2026-10-06), too narrow for its legend to stay
- * clickable. CI keeps the default (Xvfb screen size, create_tradingview_storage_state.ts).
- */
-export function resolveSessionViewport(env: NodeJS.ProcessEnv = process.env): { width: number; height: number } {
-  const raw = env.TV_SESSION_VIEWPORT?.trim();
-  if (!raw) return { ...TRADINGVIEW_SESSION_VIEWPORT };
-  const m = raw.match(/^(\d{3,5})x(\d{3,5})$/);
-  if (!m) throw new Error(`TV_SESSION_VIEWPORT must look like 2400x1200, got: ${raw}`);
-  return { width: Number(m[1]), height: Number(m[2]) };
-}
 
 export function resolveTradingViewLaunchOptions(env: NodeJS.ProcessEnv = process.env): LaunchOptions {
   const launchOptions: LaunchOptions = {
@@ -345,18 +207,6 @@ export function isMissingBrowserExecutableError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
   return MISSING_BROWSER_ERROR_MARKERS.some((marker) => message.includes(marker));
 }
-
-/**
- * Launch bound for the last-ditch system-Chrome fallback. Playwright's default is
- * 180s, which it spends waiting on a Chrome that already started but never answers
- * the CDP handshake (an arm64 Chrome 150 against the pinned Playwright 1.55 does
- * exactly this). Unbounded, every browser-backed test in `npm run tv:test` burned
- * that full timeout — 25 uniform ~210s failures whose messages said "Timeout
- * 180000ms exceeded" and never once named the actually-missing pinned browser.
- * A launch that has not connected in 30s is not going to; failing fast surfaces
- * the real remedy instead of a 90-minute suite of misleading timeouts.
- */
-export const CHROME_CHANNEL_FALLBACK_TIMEOUT_MS = 30_000;
 
 export type TradingViewLaunchFallbackOptions = {
   /**
@@ -422,13 +272,7 @@ export async function launchWithTradingViewFallback<T>(
       + "falling back to channel \"chrome\". Run `npx playwright install chromium` to use the pinned browser.",
     );
     try {
-      // Bounded: an explicit caller timeout still wins, otherwise the fallback gets
-      // CHROME_CHANNEL_FALLBACK_TIMEOUT_MS instead of Playwright's 180s default.
-      return await launch({
-        ...launchOptions,
-        channel: "chrome",
-        timeout: launchOptions.timeout ?? CHROME_CHANNEL_FALLBACK_TIMEOUT_MS,
-      });
+      return await launch({ ...launchOptions, channel: "chrome" });
     } catch (fallbackError) {
       const fallbackMessage = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
       // Preserve the fallback failure's FULL detail via the log channel — the thrown
@@ -501,137 +345,9 @@ export function readJson<T>(filePath: string): T {
   return JSON.parse(fs.readFileSync(filePath, "utf-8")) as T;
 }
 
-/**
- * Write JSON via a same-directory temp file + rename, never in place.
- *
- * A plain writeFileSync truncates first and fills afterwards: a crash (or the
- * 30-minute job timeout) between the two leaves a half-written file behind.
- * For the throwaway reports that is cosmetic — for the COMMITTED hand-lib
- * release manifest it is not: `recordHandLibRelease` read-merges the file on
- * every publish, so a torn write turns the next verified publish into a
- * JSON.parse failure and reports it failed (2026-08-15 review, Minor #7).
- * rename() within one directory is atomic on POSIX; readers see the old
- * bytes or the new bytes, never a mix. Same shape as
- * `writePrivateJsonAtomic` below, without the owner-only permission bits —
- * these files are committed artifacts, not credentials.
- */
 export function writeJson(filePath: string, payload: unknown): void {
-  const parent = path.dirname(filePath);
-  fs.mkdirSync(parent, { recursive: true });
-  const temporaryPath = path.join(parent, `.${path.basename(filePath)}.${randomUUID()}.tmp`);
-  try {
-    fs.writeFileSync(temporaryPath, JSON.stringify(payload, null, 2) + "\n", {
-      encoding: "utf-8",
-      flag: "wx",
-    });
-    fs.renameSync(temporaryPath, filePath);
-  } finally {
-    fs.rmSync(temporaryPath, { force: true });
-  }
-}
-
-/**
- * Atomically replace a credential-bearing JSON file with owner-only
- * permissions. The temporary file lives beside the destination so rename()
- * cannot cross filesystems.
- */
-export function writePrivateJsonAtomic(filePath: string, payload: unknown): void {
-  const parent = path.dirname(filePath);
-  fs.mkdirSync(parent, { recursive: true });
-  const temporaryPath = path.join(parent, `.${path.basename(filePath)}.${randomUUID()}.tmp`);
-  try {
-    fs.writeFileSync(
-      temporaryPath,
-      JSON.stringify(payload, null, 2) + "\n",
-      { encoding: "utf-8", flag: "wx", mode: 0o600 },
-    );
-    fs.chmodSync(temporaryPath, 0o600);
-    fs.renameSync(temporaryPath, filePath);
-    fs.chmodSync(filePath, 0o600);
-  } finally {
-    fs.rmSync(temporaryPath, { force: true });
-  }
-}
-
-export type ExclusiveFileLock = {
-  owner: string;
-  path: string;
-  release: () => void;
-};
-
-/**
- * Acquire a fail-closed, owner-labelled lock for a local TradingView capture.
- *
- * The lock is deliberately not auto-stolen: after a crash, an operator must
- * first establish that no capture still owns the account session and then
- * remove the stale lock. A random token prevents an old process from deleting
- * a newer lock if somebody manually removes/replaces the file.
- */
-export function acquireExclusiveFileLock(
-  lockPath: string,
-  owner: string,
-): ExclusiveFileLock {
-  const resolvedPath = path.resolve(lockPath);
-  const parent = path.dirname(resolvedPath);
-  fs.mkdirSync(parent, { recursive: true });
-  const token = randomUUID();
-  const payload = {
-    owner,
-    pid: process.pid,
-    acquiredAt: new Date().toISOString(),
-    token,
-  };
-
-  try {
-    fs.writeFileSync(
-      resolvedPath,
-      JSON.stringify(payload, null, 2) + "\n",
-      { encoding: "utf-8", flag: "wx", mode: 0o600 },
-    );
-    fs.chmodSync(resolvedPath, 0o600);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "EEXIST") {
-      throw error;
-    }
-    let currentOwner = "unknown";
-    try {
-      const current = JSON.parse(fs.readFileSync(resolvedPath, "utf-8")) as { owner?: unknown };
-      if (typeof current.owner === "string" && current.owner.trim()) {
-        currentOwner = current.owner.trim();
-      }
-    } catch {
-      // The existence of an unreadable lock is still a lock; fail closed.
-    }
-    throw new Error(
-      `TradingView capture lock is already held by ${currentOwner}: ${resolvedPath}. `
-      + "If the previous capture crashed, verify that no capture process is running before removing the stale lock.",
-    );
-  }
-
-  let released = false;
-  return {
-    owner,
-    path: resolvedPath,
-    release: () => {
-      if (released) {
-        return;
-      }
-      released = true;
-      try {
-        const current = JSON.parse(fs.readFileSync(resolvedPath, "utf-8")) as { token?: unknown };
-        if (current.token === token) {
-          fs.rmSync(resolvedPath);
-        }
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
-          console.warn(
-            `[tv-auth] Could not release capture lock ${resolvedPath}: `
-            + `${error instanceof Error ? error.message : String(error)}`,
-          );
-        }
-      }
-    },
-  };
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, JSON.stringify(payload, null, 2) + "\n", "utf-8");
 }
 
 function normalizeUiText(value: string): string {
@@ -706,61 +422,6 @@ export function isLegendTruncatedMatch(legendText: string, scriptName: string): 
   return true;
 }
 
-// TradingView's sign-in page renders social buttons + an "Email" chooser and
-// creates the identifier input only once that chooser is clicked. Probed live
-// 2026-07-28: 0 matching inputs on load, buttons ["Show more options", "Email"],
-// input visible immediately after the click.
-export const TV_LOGIN_IDENTIFIER_SELECTOR =
-  'input[name="id_username"], input[name="username"], input[type="email"], '
-  + 'input[placeholder*="email" i], input[placeholder*="username" i]';
-
-const TV_LOGIN_EMAIL_CHOOSER_SELECTOR =
-  'button:has-text("Email"), span[role="button"]:has-text("Email"), '
-  + 'div[role="button"]:has-text("Email")';
-
-/**
- * Make the e-mail/username field available for an automated login.
- *
- * Returns true when the identifier input is visible afterwards. Callers must
- * NOT wait on the input first: until 2026-07-28 the headless-login fallback did
- * exactly that, burned its 10 s timeout on an element TradingView had not
- * created yet, and fell through to the interactive branch — which on CI can
- * only time out. Reveal first, then fill.
- */
-export async function revealEmailLoginField(
-  page: Page,
-  revealTimeoutMs = 5_000,
-): Promise<boolean> {
-  const identifier = page.locator(TV_LOGIN_IDENTIFIER_SELECTOR).first();
-  if (await identifier.isVisible().catch(() => false)) {
-    return true;
-  }
-
-  const chooser = page.locator(TV_LOGIN_EMAIL_CHOOSER_SELECTOR).first();
-  if (await chooser.isVisible().catch(() => false)) {
-    await chooser.click({ timeout: revealTimeoutMs }).catch(() => undefined);
-    try {
-      await identifier.waitFor({ state: "visible", timeout: revealTimeoutMs });
-      return true;
-    } catch {
-      // fall through to the "more options" retry below
-    }
-  }
-
-  // Some layouts hide the e-mail chooser behind "Show more options".
-  const moreOptions = page
-    .locator('button:has-text("Show more options"), button:has-text("More options")')
-    .first();
-  if (await moreOptions.isVisible().catch(() => false)) {
-    await moreOptions.click({ timeout: revealTimeoutMs }).catch(() => undefined);
-    if (await chooser.isVisible().catch(() => false)) {
-      await chooser.click({ timeout: revealTimeoutMs }).catch(() => undefined);
-    }
-  }
-
-  return await identifier.isVisible().catch(() => false);
-}
-
 export function validateTradingViewStorageState(storageStatePath: string): void {
   if (boolEnv("TV_SKIP_AUTH_STATE_VALIDATION", false)) {
     console.error("[tv-auth] WARNING: TV_SKIP_AUTH_STATE_VALIDATION=1 is set. Storage state validation is bypassed.");
@@ -778,223 +439,6 @@ export function validateTradingViewStorageState(storageStatePath: string): void 
   throw new Error(
     `TV_STORAGE_STATE does not look authenticated. Cookies: ${cookiePreview}. Local storage keys: ${storagePreview}. Refresh it with npm run tv:storage-state after logging in and opening the chart, or set TV_SKIP_AUTH_STATE_VALIDATION=1 to bypass this check.`,
   );
-}
-
-// ── TradingView 2FA (one-time code) entry ──────────────────────────────────
-//
-// The headless fallback reached the 2FA step for the first time on 2026-07-28
-// (run 30341257192, after #4140 unblocked the login form) and then looped:
-// "TOTP code generated — filling 2FA field automatically." 32 times in 180 s
-// with no submit and no error. `fill(token)` wrote the whole 6-digit code into
-// the FIRST matching input; a per-digit OTP layout caps each box at one char,
-// so the read-back never reached 6 and the caller's `hasLikelyCode` guard
-// skipped every submit candidate — filling forever, submitting never.
-
-/** Inputs that plausibly hold a one-time code, most specific first. */
-export const TV_OTP_FIELD_SELECTOR =
-  'input[autocomplete="one-time-code"], input[inputmode="numeric"], '
-  + 'input[name*="code" i], input[placeholder*="code" i], input[type="tel"]';
-
-export type OtpEntryPlan = {
-  /** Digits go into separate single-character boxes. */
-  perBox: boolean;
-  /** The layout can hold the whole code at all. */
-  usable: boolean;
-  reason: string;
-};
-
-/**
- * Decide how a code of `codeLength` digits has to be entered.
- *
- * Pure so the decision is pinned by a browserless test — the DOM interaction
- * around it is thin on purpose.
- */
-export function planOtpEntry(
-  fields: { maxLength: number }[],
-  codeLength: number,
-): OtpEntryPlan {
-  if (fields.length === 0) {
-    return { perBox: false, usable: false, reason: "no_code_field" };
-  }
-
-  // maxLength is -1 / 524288 when unset, so only a genuinely small cap counts.
-  const singleCharBoxes = fields.filter(
-    (field) => field.maxLength === 1,
-  ).length;
-  if (singleCharBoxes >= codeLength) {
-    return { perBox: true, usable: true, reason: "per_box_inputs" };
-  }
-  if (singleCharBoxes > 0) {
-    return {
-      perBox: true,
-      usable: false,
-      reason: `per_box_inputs_short:${singleCharBoxes}/${codeLength}`,
-    };
-  }
-
-  const first = fields[0];
-  const capacity = first.maxLength > 0 ? first.maxLength : Number.MAX_SAFE_INTEGER;
-  if (capacity < codeLength) {
-    return {
-      perBox: false,
-      usable: false,
-      reason: `single_field_too_small:${capacity}/${codeLength}`,
-    };
-  }
-  return { perBox: false, usable: true, reason: "single_field" };
-}
-
-/** A code counts as entered only when every digit landed somewhere. */
-export function isOtpEntryComplete(
-  observed: string,
-  expected: string,
-): boolean {
-  return observed.replace(/\s+/g, "") === expected;
-}
-
-export type TotpTelemetryResolution = {
-  entered: boolean;
-  submitted: boolean;
-  inferredFromAuthenticatedSession: boolean;
-};
-
-export const TOTP_AUTH_INFERENCE_MAX_LAG_MS = 15_000;
-
-/**
- * Reconcile TOTP telemetry when the provider auto-submits and clears its code
- * field before Playwright can read it back.
- *
- * Dispatch alone is not proof of success. Only authentication observed shortly
- * after that dispatch can promote an unobservable entry to entered+submitted;
- * the time bound prevents a later manual login from claiming an older attempt.
- */
-export function resolveTotpTelemetry(input: {
-  inputDispatchedAtMs?: number;
-  entryObserved: boolean;
-  submitDispatched: boolean;
-  authenticated: boolean;
-  authenticatedAtMs?: number;
-  maxInferenceLagMs?: number;
-}): TotpTelemetryResolution {
-  const maxInferenceLagMs =
-    input.maxInferenceLagMs ?? TOTP_AUTH_INFERENCE_MAX_LAG_MS;
-  const inferenceLagMs =
-    input.inputDispatchedAtMs !== undefined
-    && input.authenticatedAtMs !== undefined
-      ? input.authenticatedAtMs - input.inputDispatchedAtMs
-      : undefined;
-  const authenticatedAfterDispatch =
-    input.authenticated
-    && inferenceLagMs !== undefined
-    && inferenceLagMs >= 0
-    && inferenceLagMs <= maxInferenceLagMs;
-  return {
-    entered: input.entryObserved || authenticatedAfterDispatch,
-    submitted: input.submitDispatched || authenticatedAfterDispatch,
-    inferredFromAuthenticatedSession:
-      authenticatedAfterDispatch && (!input.entryObserved || !input.submitDispatched),
-  };
-}
-
-/** Return the TOTP time-step number for deterministic retry de-duplication. */
-export function totpTimeStep(nowMs: number, periodSeconds = 30): number {
-  if (!Number.isFinite(nowMs) || !Number.isFinite(periodSeconds) || periodSeconds <= 0) {
-    throw new Error("TOTP time-step inputs must be finite and periodSeconds must be positive");
-  }
-  return Math.floor(nowMs / (periodSeconds * 1_000));
-}
-
-/** Generate the current 6-digit TOTP for a Base32 secret.
- *
- * Lives here rather than at the call site so it can be pinned against the
- * RFC 6238 vectors. It was inline in `scripts/create_tradingview_storage_state.ts`
- * as `authenticator.generate(secret)` until 2026-08-05, when the otplib 12 -> 13
- * bump (#4445, an npm-all group update) removed the `authenticator` export
- * outright. The next scheduled `tradingview-storage-refresh` run died on the
- * import before a browser ever started, and its failure issue asked for a manual
- * cookie refresh -- a fix for a problem that did not exist.
- *
- * Two things about v13 that a naive migration gets wrong, both pinned by
- * `tv_totp_token.test.ts`:
- *   - the plugins are classes, so they must be instantiated, not called;
- *   - `epoch` is SECONDS here and was MILLISECONDS in v12. Passing ms yields
- *     confident, well-formed, wrong codes -- which against a live 2FA prompt
- *     looks exactly like a bad secret.
- */
-export function generateTotpToken(
-  secret: string,
-  options: { epochSeconds?: number; digits?: number } = {},
-): string {
-  const { epochSeconds, digits = 6 } = options;
-  return generateSync({
-    strategy: "totp",
-    secret,
-    base32: new ScureBase32Plugin(),
-    crypto: new NobleCryptoPlugin(),
-    digits,
-    ...(epochSeconds === undefined ? {} : { epoch: epochSeconds }),
-  });
-}
-
-/** A TOTP may be entered/submitted at most once in a given time-step. */
-export function shouldAttemptTotp(
-  lastAttemptedStep: number | undefined,
-  nowMs: number,
-  periodSeconds = 30,
-): { attempt: boolean; step: number } {
-  const step = totpTimeStep(nowMs, periodSeconds);
-  return { attempt: lastAttemptedStep !== step, step };
-}
-
-/** Raw shape collected from the DOM for one potentially-actionable node. */
-export type ActionableNode = {
-  tag: string;
-  type?: string;
-  role?: string;
-  className?: string;
-  text?: string;
-  visible: boolean;
-};
-
-/**
- * Compact, log-safe inventory of what could submit a form.
- *
- * Run 30343856471 reported `buttons on page: []` on TradingView's 2FA step:
- * neither `button` nor `[role="button"]` existed, so the submit-candidate list
- * could not match by construction. Naming the actual control needs a wider net
- * than "button", and a bounded one — this runs inside a 180 s poll loop.
- */
-export function summariseActionableNodes(
-  nodes: ActionableNode[],
-  limit = 15,
-): string[] {
-  return nodes
-    .filter((node) => node.visible)
-    .map((node) => {
-      const parts = [node.tag.toLowerCase()];
-      if (node.type) parts.push(`type=${node.type}`);
-      if (node.role) parts.push(`role=${node.role}`);
-      const cls = (node.className || "").trim().split(/\s+/).filter(Boolean).slice(0, 2).join(".");
-      if (cls) parts.push(`.${cls}`);
-      const text = (node.text || "").replace(/\s+/g, " ").trim().slice(0, 30);
-      if (text) parts.push(`"${text}"`);
-      return parts.join(" ");
-    })
-    .slice(0, limit);
-}
-
-/** Visible lines that read like a rejection, so a failing run says WHY. */
-export function extractErrorLines(bodyText: string, limit = 5): string[] {
-  return bodyText
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(
-      (line) =>
-        line.length > 0
-        && line.length <= 200
-        && /invalid|incorrect|wrong|expired|failed|error|try again|too many|locked|blocked/i.test(line),
-    )
-    .slice(0, limit);
 }
 
 export function resolveTradingViewPageAuthState(evidence: TradingViewPageAuthEvidence): TradingViewPageAuthState {
@@ -1243,37 +687,8 @@ function popActiveStep(page: Page, stepName: string): void {
   tracker.activeStep = tracker.stepStack[tracker.stepStack.length - 1] ?? null;
 }
 
-export function stepTimeoutMs(): number {
+function stepTimeoutMs(): number {
   return numEnv("TV_STEP_TIMEOUT_MS", 45_000);
-}
-
-export function resolveOpenScriptTiming(env: NodeJS.ProcessEnv = process.env): {
-  stepTimeoutMs: number;
-  modelSettleTimeoutMs: number;
-} {
-  const parseMs = (name: string, fallback: number): number => {
-    const raw = env[name];
-    if (!raw) return fallback;
-    const parsed = Number(raw);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-  };
-  const baseStepTimeoutMs = parseMs("TV_STEP_TIMEOUT_MS", 45_000);
-
-  return {
-    // Opening a 200+ KiB Pine consumer can require multiple selector attempts
-    // plus a delayed Monaco model swap. The generic 45s step timeout caused the
-    // first attempt to keep running while the batch started a second attempt.
-    stepTimeoutMs: parseMs(
-      "TV_OPEN_SCRIPT_TIMEOUT_MS",
-      Math.max(baseStepTimeoutMs, 180_000),
-    ),
-    modelSettleTimeoutMs: parseMs("TV_OPEN_SCRIPT_MODEL_SETTLE_TIMEOUT_MS", 30_000),
-  };
-}
-
-export function isTrackedStepTimeoutError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
-  return /^Step timed out after \d+ms: /.test(message);
 }
 
 async function runTrackedStep<T>(
@@ -1328,7 +743,7 @@ async function runTrackedStep<T>(
   }
 }
 
-export function tracePageEvent(page: Page, type: string, detail?: string): void {
+function tracePageEvent(page: Page, type: string, detail?: string): void {
   const tracker = pageLifecycleTrackers.get(page);
   if (tracker) {
     pushLifecycleEvent(tracker, type, detail);
@@ -1392,7 +807,7 @@ function extractLikelyInputLabelsFromDialogText(dialogText: string): string[] {
 
   const labels = new Set<string>();
 
-  for (const match of normalizedDialogText.matchAll(/\b(?:BUS|CTX)\s+[A-Za-z][A-Za-z0-9/]*\b/g)) {
+  for (const match of normalizedDialogText.matchAll(/\bBUS\s+[A-Za-z][A-Za-z0-9/]*\b/g)) {
     const label = normalizeUiText(match[0]);
     if (label) {
       labels.add(label);
@@ -1429,30 +844,7 @@ export function diagnoseInputContract(
   const expectedCount = expectedSet.size;
   const observedCount = observedSet.size;
   const missingCount = Math.max(expectedCount - overlapCount, 0);
-
-  // 2026-08-01: drift used to require `legacyLabels.length >= 2`, i.e. it was
-  // only recognised when the instance still SHOWED labels that no longer exist.
-  // That sees renames and replacements and is structurally blind to a purely
-  // ADDITIVE contract change, where the stale instance shows a strict subset
-  // and no legacy label at all. #4263 added CTX SessionMssBull/Bear to the
-  // Context BUS ("additive within schema 8001"); the saved overlay was updated
-  // and verified, yet the applied instance kept its old 60 inputs. The
-  // diagnosis called that `likelyPartialSurface` — "we probably just did not
-  // see everything" — so the mutating preflight never refreshed the instance
-  // and the R4 rebind failed with "Source combobox not found for
-  // CTX SessionMssBull" on runs 30694013096 and 30696257671.
-  //
-  // The benign reading is not available here: `collectVisibleInputLabels`
-  // enumerates through `snapshotDialogAcrossScroll`, which walks the dialog's
-  // whole scroll plan. A label missing from an across-scroll enumeration is
-  // missing from the instance, not merely off-screen.
-  //
-  // What DOES stay a surface problem is seeing none of the expected labels:
-  // that is the wrong dialog or an unrendered one, and re-applying the script
-  // on that evidence would drop bindings for nothing. So the split is now
-  // "some seen, some missing" = stale instance, "none seen" = surface.
-  // legacyLabels stays reported: it still names WHY an instance is stale.
-  const likelyDrift = missingCount > 0 && overlapCount > 0;
+  const likelyDrift = legacyLabels.length >= 2 && missingCount > 0;
 
   return {
     expectedCount,
@@ -1461,7 +853,7 @@ export function diagnoseInputContract(
     missingCount,
     legacyLabels,
     likelyDrift,
-    likelyPartialSurface: missingCount > 0 && overlapCount === 0,
+    likelyPartialSurface: !likelyDrift && overlapCount > 0 && missingCount > 0,
   };
 }
 
@@ -1749,11 +1141,6 @@ function legacyOpenScriptNames(scriptName: string): string[] {
   switch (normalizeUiText(scriptName).toLowerCase()) {
     case "smc long-dip suite":
       return ["SMC Core", "SMC Core Engine"];
-    case "smc hold manager r2.4 validation":
-      // 2026-08-16: the operator renamed the saved document to its
-      // declaration title. Any caller still holding the pre-rename name
-      // (an unmerged branch, a stale checkout) resolves to the new one.
-      return ["SMC Hold Manager"];
     case "smc core":
       return ["SMC Core Engine"];
     case "smc core engine":
@@ -1763,17 +1150,7 @@ function legacyOpenScriptNames(scriptName: string): string[] {
     case "smc long-dip dashboard v7":
       return ["SMC Decision Board", "SMC Dashboard"];
     case "smc decision board":
-      // 2026-08-31: the plain declaration title was missing here while the
-      // counter-direction ("smc long-dip dashboard", above) already listed
-      // "SMC Decision Board" — an asymmetric table. It matters because the
-      // chart legend carries the indicator() title: SMC_Long_Dip_Dashboard.pine
-      // declares "SMC Long-Dip Dashboard", so the legend row reads that, while
-      // the rollout config verifies the product name "SMC Decision Board"
-      // (docs/SMC_PRODUCT_IDENTITY.md: the Pro chart companion). Measured
-      // against the real legend text: neither "SMC Long-Dip Dashboard v7" nor
-      // "SMC Dashboard" matches it on exact|loose — and only exact|loose reach
-      // the legend probes. The v7 suffix is NOT normalised away.
-      return ["SMC Long-Dip Dashboard", "SMC Long-Dip Dashboard v7", "SMC Dashboard"];
+      return ["SMC Long-Dip Dashboard v7", "SMC Dashboard"];
     case "smc long-dip strategy":
       return ["SMC Long-Dip Strategy v7", "SMC Execution", "SMC Long Strategy"];
     case "smc long-dip strategy v7":
@@ -1787,21 +1164,6 @@ function legacyOpenScriptNames(scriptName: string): string[] {
 
 export function resolveOpenScriptSearchNames(scriptName: string): string[] {
   return uniqueNormalizedTexts([scriptName, ...legacyOpenScriptNames(scriptName)]);
-}
-
-export function resolveOpenScriptSelectionAttempts(scriptName: string): Array<{
-  searchName: string;
-  exactTitleOnly: boolean;
-}> {
-  const searchNames = resolveOpenScriptSearchNames(scriptName);
-  return searchNames.flatMap((searchName, index) =>
-    index === 0
-      ? [
-        { searchName, exactTitleOnly: false },
-        { searchName, exactTitleOnly: true },
-      ]
-      : [{ searchName, exactTitleOnly: true }]
-  );
 }
 
 function openScriptIdentityNames(scriptName: string): string[] {
@@ -1857,22 +1219,6 @@ function publishDialogCompanionMatch(scriptName: string, uiText: string): boolea
     `^(?:update|publish)\\s+['\u2018\u2019\u201C\u201D"]?${escaped}['\u2018\u2019\u201C\u201D"]?(?:\\s|$)`,
     "i",
   ).test(normalizedCandidate);
-}
-
-export function hasDirectUpdatePublishSurface(scriptName: string, bodyText: string): boolean {
-  const normalizedScriptName = normalizeUiText(scriptName);
-  if (!normalizedScriptName) {
-    return false;
-  }
-
-  const directUpdateTitle = new RegExp(
-    `^update\\s+['\u2018\u2019\u201C\u201D"]?${escapeRegex(normalizedScriptName)}['\u2018\u2019\u201C\u201D"]?\\s+(?:library|script)(?:\\s|$)`,
-    "i",
-  );
-  return bodyText
-    .split(/\r?\n/)
-    .map((line) => normalizeUiText(line))
-    .some((line) => directUpdateTitle.test(line));
 }
 
 function nonIdentityEditorCompanionMatch(uiText: string): boolean {
@@ -2358,7 +1704,7 @@ export async function newTradingViewSession(): Promise<TradingViewSession> {
     browser = await launchTradingViewChromium(); // re-resolves env: pure, and the mutual-exclusion throw already fired at the top-of-function resolve
     context = await browser.newContext({
       storageState: storageStatePath,
-      viewport: resolveSessionViewport(),
+      viewport: TRADINGVIEW_SESSION_VIEWPORT,
     });
   } else {
     throw new Error(
@@ -2383,131 +1729,11 @@ export async function closeTradingViewSession(session: TradingViewSession): Prom
   await session.browser.close().catch(() => undefined);
 }
 
-/**
- * Navigate to a chart.
- *
- * Traced deliberately (2026-08-22). Three of the call sites in
- * `tv_batch_consumer_rollout.ts` swallow the rejection with
- * `.catch(() => undefined)` because a failed recovery navigation must not kill
- * the run — but until now that combination left NOTHING behind: the function
- * emitted no event, so a navigation that never happened was invisible in both
- * the log and the artifact, and only surfaced as an unrelated-looking failure
- * further down. Measured on runs 758 and 771: zero occurrences of this
- * function in either log, which made the absence unusable as evidence.
- */
 export async function gotoChart(page: Page, chartUrl?: string): Promise<void> {
-  const target = chartUrl || process.env.TV_CHART_URL || "https://www.tradingview.com/chart/";
-  tracePageEvent(page, "goto-chart-start", target);
-  try {
-    await page.goto(target, { waitUntil: "domcontentloaded" });
-  } catch (error) {
-    tracePageEvent(
-      page,
-      "goto-chart-error",
-      `${target}:${String((error as Error)?.message ?? error)}`,
-    );
-    throw error;
-  }
+  await page.goto(chartUrl || process.env.TV_CHART_URL || "https://www.tradingview.com/chart/", {
+    waitUntil: "domcontentloaded",
+  });
   await page.waitForTimeout(3_000);
-  tracePageEvent(page, "goto-chart-ok", target);
-}
-
-export const DRILL_SETTLE_TIMEOUT_MS = Number(process.env.TV_DRILL_SETTLE_TIMEOUT_MS ?? 30_000);
-
-/**
- * Load a chart and wait until TradingView has actually surfaced `scriptName`.
- *
- * `gotoChart` resolves on `domcontentloaded` plus a FIXED 3s wait, which is
- * sometimes before the legend has been rebuilt. Every read afterwards then dies
- * on `Existing chart instance not found` against a chart that is perfectly
- * healthy: CI run 30684930443 failed that way 8s in, and the identical retry
- * (30685141166) was green. Re-rolling the dice costs a whole browser run, so
- * wait for the condition instead of paying for another one.
- *
- * The wait is deliberately the SAME predicate that throws inside
- * `verifyConsumerBindings`, not a stricter proxy for it: waiting on a different
- * signal would only move the guess. If it never becomes true the error says how
- * long it waited, so a genuinely missing indicator still reads as missing
- * rather than as a slow one.
- *
- * Introduced for the repair drill (#4295) and shared from here because a second
- * drill needs the identical wait. A drill that asserts a script is ABSENT needs
- * it even more: on an unsettled chart absence is indistinguishable from a
- * legend that has not been drawn, so it must first wait for something that is
- * expected to be present — the producer — and only then read the absence.
- */
-export async function gotoChartAndAwaitScript(
-  page: Page,
-  chartUrl: string,
-  scriptName: string,
-): Promise<void> {
-  await gotoChart(page, chartUrl);
-  const deadline = Date.now() + DRILL_SETTLE_TIMEOUT_MS;
-  for (;;) {
-    if (await isScriptVisibleOnChartSurface(page, scriptName).catch(() => false)) return;
-    if (Date.now() >= deadline) {
-      throw new Error(
-        `Chart did not surface ${scriptName} within ${DRILL_SETTLE_TIMEOUT_MS}ms of loading ${chartUrl}`,
-      );
-    }
-    await page.waitForTimeout(500);
-  }
-}
-
-/**
- * Close a Pine editor DOCKED into the account's UI state. Its title-bar Close button sits
- * outside the scope closePineEditorIfVisible searches (measured 2026-10-05). Docked, it
- * squeezes the chart until legend rows have no height: the CI save flow then could not
- * open any consumer's settings (tv-save run 37510785146, 2026-10-06). Returns whether it
- * closed one. Not for flows that need the editor afterwards.
- */
-export async function closeDockedPineEditor(page: Page): Promise<boolean> {
-  const editor = page.locator("#pine-editor-dialog").first();
-  if (!(await editor.isVisible().catch(() => false))) return false;
-  const close = await pineEditorTitleBarClose(page, editor);
-  await (close ?? page.locator('button[aria-label="Close"][title="Close"]').first()).click().catch(() => undefined);
-  await page.waitForTimeout(1_500);
-  return true;
-}
-
-/**
- * The docked editor's own Close button sits in the title bar ABOVE the editor element,
- * outside the dialog scope. Only a Close button horizontally inside the editor's span
- * from 80 px above to 60 px below its top counts -- never some other dialog's Close.
- * Measured 2026-10-05/06: this button closes the docked editor (readouts, migration).
- */
-export async function pineEditorTitleBarClose(page: Page, editor: Locator): Promise<Locator | null> {
-  const box = await editor.boundingBox().catch(() => null);
-  if (!box) return null;
-  const candidates = page.locator('button[aria-label="Close"][title="Close"]');
-  const n = await candidates.count().catch(() => 0);
-  for (let i = 0; i < n; i += 1) {
-    const b = await candidates.nth(i).boundingBox().catch(() => null);
-    if (b && b.x >= box.x - 8 && b.x + b.width <= box.x + box.width + 8 && b.y <= box.y + 60 && b.y >= box.y - 80) {
-      return candidates.nth(i);
-    }
-  }
-  return null;
-}
-
-/**
- * gotoChartAndAwaitScript for READ flows on the operator layout: a Pine editor docked
- * into the account's UI state squeezes the chart pane until its legend has no height,
- * so the script never "surfaces" (2026-10-06: migration and both readouts failed this
- * way after a publish left the editor docked). Closes the docked editor while waiting.
- * Not for publish flows, which need the editor.
- */
-export async function gotoChartClosingDockedEditor(page: Page, chartUrl: string, scriptName: string): Promise<void> {
-  await gotoChart(page, chartUrl);
-  const deadline = Date.now() + DRILL_SETTLE_TIMEOUT_MS;
-  for (;;) {
-    await closeDockedPineEditor(page);
-    if (await isScriptVisibleOnChartSurface(page, scriptName).catch(() => false)) return;
-    if (Date.now() >= deadline) {
-      throw new Error(`Chart did not surface ${scriptName} within ${DRILL_SETTLE_TIMEOUT_MS}ms of loading ${chartUrl} (docked editor closed)`);
-    }
-    await page.waitForTimeout(500);
-  }
 }
 
 export async function takeScreenshot(
@@ -2679,31 +1905,6 @@ async function firstVisibleLocator(locator: Locator, timeoutMs = 2_500): Promise
   return null;
 }
 
-async function waitForFirstVisibleLocator(
-  candidates: Locator[],
-  timeoutMs: number,
-  accept: (candidate: Locator) => Promise<boolean> = async () => true,
-): Promise<Locator | null> {
-  const deadline = Date.now() + timeoutMs;
-  do {
-    for (const locator of candidates) {
-      const total = await locator.count().catch(() => 0);
-      for (let index = 0; index < total; index += 1) {
-        const candidate = locator.nth(index);
-        if (
-          (await candidate.isVisible({ timeout: 100 }).catch(() => false))
-          && (await accept(candidate).catch(() => false))
-        ) {
-          return candidate;
-        }
-      }
-    }
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  } while (Date.now() < deadline);
-
-  return null;
-}
-
 export async function collectVisibleLocatorMetadata(locator: Locator, timeoutMs = 750): Promise<Array<{
   text: string;
   ariaLabel: string;
@@ -2751,58 +1952,9 @@ function normalizeVisibleEvidenceValues(entries: Array<{
 
 export async function collectOpenScriptIdentityTexts(page: Page, scriptName: string): Promise<string[]> {
   const texts: string[] = [];
-  let legendEvidenceSkipped = 0;
 
   for (const candidate of tvSelectors.openScriptIdentity(page, scriptName)) {
-    const total = await candidate.count().catch(() => 0);
-    for (let index = 0; index < total; index += 1) {
-      const element = candidate.nth(index);
-      try {
-        if (!(await element.isVisible({ timeout: 750 }))) {
-          continue;
-        }
-      } catch {
-        continue;
-      }
-      // The identity families scan the whole page, and with the script ON THE
-      // CHART two chart-side surfaces carry its name in exactly the
-      // [class*="title"] shapes they accept: the legend row and the Object
-      // Tree entry in the right widgetbar. Both leaked as open-script identity
-      // evidence while the editor sat on an untouched "Untitled script" draft
-      // (measured live 2026-07-31 during the CE10156 diagnosis; ancestor
-      // chains: legend titles under .legend-* < .chart-gui-wrapper <
-      // .chart-container, tree entries under [data-name="tree"] inside the
-      // widgetbar). Chart-side texts are never editor evidence. Two layers:
-      // the measured, unhashed chart-surface containers first, then the same
-      // legend-action-button proximity probe countChartScriptInstances uses,
-      // in case TradingView renames the wrapper classes.
-      const insideLegendRow = await element.evaluate((node) => {
-        if (node.closest('.chart-container, .chart-gui-wrapper, [data-name="tree"]')) {
-          return true;
-        }
-        let current: Element | null = node;
-        for (let depth = 0; depth < 4 && current; depth += 1) {
-          const text = (current as HTMLElement).innerText ?? "";
-          if (text.length > 300) {
-            break;
-          }
-          if (current.querySelector('button[data-qa-id="legend-settings-action"], button[data-qa-id="legend-more-action"]')) {
-            return true;
-          }
-          current = current.parentElement;
-        }
-        return false;
-      }).catch(() => false);
-      if (insideLegendRow) {
-        legendEvidenceSkipped += 1;
-        continue;
-      }
-      texts.push(...normalizeVisibleEvidenceValues(await collectVisibleLocatorMetadata(element, 750)));
-    }
-  }
-
-  if (legendEvidenceSkipped > 0) {
-    tracePageEvent(page, "open-script-identity-legend-evidence-skipped", `${scriptName}:${legendEvidenceSkipped}`);
+    texts.push(...normalizeVisibleEvidenceValues(await collectVisibleLocatorMetadata(candidate, 750)));
   }
 
   return uniqueNormalizedTexts(texts);
@@ -2844,106 +1996,6 @@ export async function fetchPublishedLibraryVersionViaFacade(page: Page, scriptNa
     return version;
   } catch (error: unknown) {
     tracePageEvent(page, "facade-version-error", `${scriptName}:${String(error).slice(0, 120)}`);
-    return null;
-  }
-}
-
-/**
- * Extract the title from a Pine declaration statement
- * (`indicator("…")` / `strategy("…")` / `library("…")`, optionally via the
- * named `title=` argument). Returns null when the source carries no such
- * declaration. Pure and exported for hermetic tests: this is the identity
- * leg of the persisted-source readback (run 33031264859, 2026-08-27 — the
- * editor-buffer readback verified this run's own staged content while the
- * saved-script store held ANOTHER consumer's source in the slot).
- */
-export function extractPineDeclarationTitle(source: string): string | null {
-  const match = /\b(?:indicator|strategy|library)\s*\(\s*(?:title\s*=\s*)?(["'])([^"'\r\n]*)\1/.exec(source);
-  return match ? match[2] ?? null : null;
-}
-
-export type SavedScriptFacadeSource = {
-  scriptIdPart: string;
-  version: number;
-  source: string;
-};
-
-/**
- * Authoritative PERSISTED saved-script source via TradingView's pine-facade
- * API (`filter=saved` listing + per-script get). This deliberately bypasses
- * the Pine editor: the editor serves per-script working buffers that survive
- * even a hard page reload, so any chooser+Monaco readback can report the
- * session's own writes instead of the stored document (proven by run
- * 33031264859: verify pass after the 11:08:02Z reload hashed the repo source
- * for "SMC Long-Dip Mobile" while the persisted slot — operator evidence
- * 2026-08-28, fresh add from the Indicators dialog — held the
- * "SMC Long-Dip Strategy" source at this run's own pin /364).
- *
- * Returns null (never throws) when the listing/get fails, the script is
- * absent, the saved name is ambiguous, or the response shape is not the
- * expected one — every reason is traced so a run that silently loses the
- * store-authoritative leg is visible in its job log.
- */
-export async function fetchSavedScriptSourceViaFacade(
-  page: Page,
-  scriptName: string,
-): Promise<SavedScriptFacadeSource | null> {
-  try {
-    const listResponse = await page.request.get("https://pine-facade.tradingview.com/pine-facade/list/?filter=saved");
-    if (!listResponse.ok()) {
-      tracePageEvent(page, "facade-saved-source-http", `${scriptName}:list:${listResponse.status()}`);
-      return null;
-    }
-    const scripts = (await listResponse.json()) as Array<{
-      scriptName?: string;
-      scriptIdPart?: unknown;
-      version?: unknown;
-    }>;
-    const hits = Array.isArray(scripts)
-      ? scripts.filter((script) => (script.scriptName || "") === scriptName)
-      : [];
-    if (hits.length === 0) {
-      tracePageEvent(page, "facade-saved-source-absent", scriptName);
-      return null;
-    }
-    if (hits.length > 1) {
-      // Two saved documents with the same name: the readback cannot know
-      // which one the rollout wrote. Refusing here keeps the caller on the
-      // (traced) editor fallback instead of verifying an arbitrary slot.
-      tracePageEvent(page, "facade-saved-source-ambiguous", `${scriptName}:${hits.length}`);
-      return null;
-    }
-    const scriptIdPart = typeof hits[0].scriptIdPart === "string" ? hits[0].scriptIdPart : "";
-    const version = parseFacadeSavedVersion(hits[0].version);
-    if (!scriptIdPart || version === null) {
-      tracePageEvent(
-        page,
-        "facade-saved-source-shape",
-        `${scriptName}:idPart=${scriptIdPart ? "present" : "missing"}:version=${String(hits[0].version ?? "missing")}`,
-      );
-      return null;
-    }
-    const getResponse = await page.request.get(
-      `https://pine-facade.tradingview.com/pine-facade/get/${encodeURIComponent(scriptIdPart)}/${version}`,
-    );
-    if (!getResponse.ok()) {
-      tracePageEvent(page, "facade-saved-source-http", `${scriptName}:get:${getResponse.status()}`);
-      return null;
-    }
-    const payload = (await getResponse.json()) as { source?: unknown } | null;
-    const source = typeof payload?.source === "string" ? payload.source : null;
-    if (source === null || !source.trim()) {
-      tracePageEvent(page, "facade-saved-source-shape", `${scriptName}:get-payload-has-no-source-string`);
-      return null;
-    }
-    tracePageEvent(
-      page,
-      "facade-saved-source-resolved",
-      `${scriptName}:v${version}:${Buffer.byteLength(source, "utf-8")}`,
-    );
-    return { scriptIdPart, version, source };
-  } catch (error: unknown) {
-    tracePageEvent(page, "facade-saved-source-error", `${scriptName}:${String(error).slice(0, 120)}`);
     return null;
   }
 }
@@ -2998,42 +2050,6 @@ export async function fillFirst(value: string, candidates: Locator[], timeoutMs 
     const candidate = await firstVisibleLocator(locator, timeoutMs);
     if (candidate) {
       await candidate.fill(value);
-      return true;
-    }
-  }
-
-  return false;
-}
-
-function normalizePublishFieldValue(value: string): string {
-  return value.replace(/\s+/g, " ").trim();
-}
-
-export async function fillFirstAndVerify(
-  value: string,
-  candidates: Locator[],
-  timeoutMs = 2_500,
-): Promise<boolean> {
-  const expected = normalizePublishFieldValue(value);
-
-  for (const locator of candidates) {
-    const candidate = await firstVisibleLocator(locator, timeoutMs);
-    if (!candidate) {
-      continue;
-    }
-
-    const filled = await candidate.fill(value).then(() => true).catch(() => false);
-    if (!filled) {
-      continue;
-    }
-
-    const actual = await candidate.evaluate((node) => {
-      if (node instanceof HTMLInputElement || node instanceof HTMLTextAreaElement) {
-        return node.value;
-      }
-      return (node as HTMLElement).innerText || node.textContent || "";
-    }).catch(() => "");
-    if (normalizePublishFieldValue(actual) === expected) {
       return true;
     }
   }
@@ -4046,62 +3062,6 @@ export async function dismissOverlapManagerOverlay(page: Page): Promise<void> {
   tracePageEvent(page, "dismiss-overlap-manager-overlay-done", `js-bypass:remaining=${remaining}`);
 }
 
-// What marks a TradingView promotion, as opposed to a tool dialog. Kept to
-// phrases a settings / indicator / alert dialog does not carry.
-const PROMOTION_OVERLAY_TEXT = /offer ends in|explore offers?|\b\d{1,3}\s?% off\b/i;
-
-/**
- * Close a TradingView promotion overlay through its own close button.
- *
- * Measured 2026-10-01 (repair-only run 36859274386, layout vWgAWyfC): a
- * full-size "Autumn sale — Up to 80% off — Offer ends in …" modal sat on the
- * chart and intercepted every click on five of seven settings dialogs
- * ("<div class=modalContent-…> from <div data-id=…> subtree intercepts pointer
- * events"); the run repaired 0 of 108 bindings. dismissOverlapManagerOverlay
- * does not help there: it runs once after navigation, the promotion appears
- * later, and its last resort would also neutralise an open settings dialog.
- *
- * Deliberately narrow: only an overlay that reads like an offer is touched,
- * only its close control is clicked (never the offer button), and the result
- * says whether the overlay is actually gone. Returns false both when there was
- * no promotion and when one would not close — the caller's next click then
- * fails with the screenshot, which is the honest outcome.
- */
-export async function dismissPromotionOverlay(page: Page): Promise<boolean> {
-  if (page.isClosed()) return false;
-  const promotion = page
-    .locator('#overlap-manager-root [data-id], [role="dialog"]')
-    .filter({ hasText: PROMOTION_OVERLAY_TEXT });
-  if ((await promotion.count().catch(() => 0)) === 0) return false;
-
-  const overlay = promotion.first();
-  const headline = ((await overlay.innerText().catch(() => "")) ?? "").replace(/\s+/g, " ").trim().slice(0, 120);
-  tracePageEvent(page, "promotion-overlay-found", headline);
-
-  const closeCandidates = [
-    overlay.getByRole("button", { name: /^close$/i }),
-    overlay.locator('button[aria-label*="close" i], [role="button"][aria-label*="close" i]'),
-    overlay.locator('[data-name="close"], button[class*="close" i]'),
-  ];
-  for (const candidate of closeCandidates) {
-    const control = candidate.first();
-    if (!(await control.isVisible().catch(() => false))) continue;
-    await control.click({ timeout: 3_000 }).catch(() => undefined);
-    break;
-  }
-
-  const deadline = Date.now() + 3_000;
-  while (Date.now() < deadline) {
-    if ((await promotion.count().catch(() => 0)) === 0) {
-      tracePageEvent(page, "promotion-overlay-dismissed", headline);
-      return true;
-    }
-    await page.waitForTimeout(150).catch(() => undefined);
-  }
-  tracePageEvent(page, "promotion-overlay-stuck", headline);
-  return false;
-}
-
 async function collectVisibleIndicatorMyScriptNames(page: Page, limit = 8): Promise<string[]> {
   return page
     .locator('[data-name="indicators-dialog"] [data-id^="USER;"]')
@@ -4498,41 +3458,20 @@ async function waitForDialogByTextToClose(page: Page, pattern: RegExp, timeoutMs
 }
 
 async function dismissPublishCancelConfirmation(page: Page, timeoutMs = 500): Promise<boolean> {
-  // 2026-08-17: TradingView replaced this confirmation. The old dialog read
-  // "Cancel publication?" and confirmed with "Yes"; the new one reads
-  // "Delete this publication? … you will lose everything and will need to
-  // start from scratch" with buttons Cancel / Delete — it discards the
-  // UNSAVED publication draft, which is exactly what the no-change dismissal
-  // wants. Seven publish runs hung on the unanswered modal (surface-close
-  // clicks timing out behind it, identity evidence collapsing on the covered
-  // page) while the refresh treadmill re-published 255 -> 262 unverified.
-  // Both variants stay handled; the matched text decides which affirmative
-  // button this is allowed to press, strictly inside the matched dialog.
   const cancelDialog = await findVisibleDialogByText(page, /cancel publication/i, timeoutMs);
-  const dialog = cancelDialog
-    ?? await findVisibleDialogByText(page, /delete this publication/i, timeoutMs);
-  if (!dialog) {
+  if (!cancelDialog) {
     return false;
   }
-  const isLegacyCancel = cancelDialog !== null;
-  const dialogPattern = isLegacyCancel ? /cancel publication/i : /delete this publication/i;
-  const variant = isLegacyCancel ? "cancel" : "delete";
 
-  tracePageEvent(page, "publish-no-change", `${variant}-confirm-visible`);
-  const affirmatives = isLegacyCancel
-    ? [
-        dialog.getByRole("button", { name: /^yes$/i }),
-        dialog.getByText(/^yes$/i),
-        dialog.locator('button:has-text("Yes")'),
-      ]
-    : [
-        dialog.getByRole("button", { name: /^delete$/i }),
-        dialog.locator('button:has-text("Delete")'),
-      ];
+  tracePageEvent(page, "publish-no-change", "cancel-confirm-visible");
   const confirmed = await clickVisibleWithFallback(
     page,
-    affirmatives,
-    `publish-no-change-${variant}-confirm`,
+    [
+      cancelDialog.getByRole("button", { name: /^yes$/i }),
+      cancelDialog.getByText(/^yes$/i),
+      cancelDialog.locator('button:has-text("Yes")'),
+    ],
+    "publish-no-change-cancel-confirm",
     1_500,
     500,
   ).catch(() => false);
@@ -4541,8 +3480,8 @@ async function dismissPublishCancelConfirmation(page: Page, timeoutMs = 500): Pr
     await page.keyboard.press("Enter").catch(() => undefined);
   }
 
-  const dialogClosed = await waitForDialogByTextToClose(page, dialogPattern, 1_500);
-  tracePageEvent(page, "publish-no-change", dialogClosed ? `${variant}-confirm-dismissed` : `${variant}-confirm-still-visible`);
+  const dialogClosed = await waitForDialogByTextToClose(page, /cancel publication/i, 1_500);
+  tracePageEvent(page, "publish-no-change", dialogClosed ? "cancel-confirm-dismissed" : "cancel-confirm-still-visible");
   return dialogClosed;
 }
 
@@ -4567,16 +3506,6 @@ async function dismissPublishSurfaceAfterNoChange(page: Page): Promise<boolean> 
     ).catch(() => false);
     if (!(await hasPublishSurface(page, 150))) {
       tracePageEvent(page, "publish-no-change", `surface-dismissed:close:${attempt}`);
-      return true;
-    }
-
-    // Answer the confirmation the close click just spawned BEFORE pressing
-    // Escape: Escape cancels the confirm modal and hands the stuck publish
-    // surface straight back (the 2026-08-17 loop shape — three attempts,
-    // every close click timing out behind the unanswered modal).
-    await dismissPublishCancelConfirmation(page, 500).catch(() => false);
-    if (!(await hasPublishSurface(page, 150))) {
-      tracePageEvent(page, "publish-no-change", `surface-dismissed:confirm:${attempt}`);
       return true;
     }
 
@@ -4605,11 +3534,11 @@ async function capturePublishConfirmationEvidence(page: Page, scriptName?: strin
       versionContextTexts = await collectPublishedVersionContextTexts(page, scriptName).catch(() => []);
     }
     bodyText = await page.locator("body").innerText().catch(() => "");
-    publishSurfaceClosed = !(await hasPublishSurface(page, 150));
+    publishSurfaceClosed = publishSurfaceClosed || !(await hasPublishSurface(page, 150));
 
     if (
-      publishSurfaceClosed
-      || (scriptName && detectPublishedVersionFromContextTexts(versionContextTexts, scriptName) !== null)
+      (scriptName && detectPublishedVersionFromContextTexts(versionContextTexts, scriptName) !== null)
+      || detectPublishedVersionFromBody(bodyText, scriptName) !== null
     ) {
       break;
     }
@@ -4624,46 +3553,6 @@ async function capturePublishConfirmationEvidence(page: Page, scriptName?: strin
   );
 
   return { versionContextTexts, bodyText, publishSurfaceClosed };
-}
-
-async function visiblePublishValidationMessage(page: Page, timeoutMs = 250): Promise<string | null> {
-  for (const locator of tvSelectors.publishValidationError(page)) {
-    const candidate = await firstVisibleLocatorFast(locator, timeoutMs);
-    if (!candidate) {
-      continue;
-    }
-    const text = await candidate.innerText().catch(() => "");
-    if (text.trim()) {
-      return text.replace(/\s+/g, " ").trim();
-    }
-  }
-  return null;
-}
-
-async function visiblePublishSurfaceFingerprint(page: Page): Promise<string> {
-  const snippets = await collectVisibleOverlayTextSnippets(page, 250).catch(() => []);
-  return snippets.map((value) => value.replace(/\s+/g, " ").trim()).filter(Boolean).join("\n");
-}
-
-export function publishStepMadeProgress(options: {
-  beforeStep: string;
-  afterStep: string;
-  continueStillVisible: boolean;
-}): boolean {
-  return !options.continueStillVisible
-    || !options.beforeStep
-    || options.afterStep !== options.beforeStep;
-}
-
-export function publishConfirmationIsAuthoritative(options: {
-  publishSurfaceClosed: boolean;
-  versionContextTexts: string[];
-  scriptName?: string;
-}): boolean {
-  const publishedVersionDetected = options.scriptName
-    ? detectPublishedVersionFromContextTexts(options.versionContextTexts, options.scriptName)
-    : null;
-  return options.publishSurfaceClosed || publishedVersionDetected !== null;
 }
 
 async function handlePublishNoChangeDialog(page: Page, timeoutMs = 500): Promise<boolean> {
@@ -4910,258 +3799,33 @@ async function snapshotDialogAcrossScroll(page: Page, dialog: Locator): Promise<
 
 async function verifyOpenedSettingsDialogIdentity(page: Page, scriptName: string, tracePrefix: string): Promise<boolean> {
   tracePageEvent(page, `${tracePrefix}-identity-start`, scriptName);
-  // Nachlese statt Sofort-Urteil (Lauf 32886027492: target-visible im
-  // Deklarationsmoment) — siehe settleDialogPick. Ein Treffer erst in der
-  // Nachlese traegt eine eigene Spur: sie ist die inhaltliche Versionsprobe
-  // dieses Fixes am echten Lauf.
-  const readPick = async () =>
-    pickDialogForScript(await collectVisibleDialogSnapshots(page).catch(() => []), scriptName);
-  const traceSettled = (picked: DialogPick, reads: number) => {
-    if (reads > 1 && picked.verdict === "match") {
-      tracePageEvent(page, `${tracePrefix}-identity-title-settled`, `${picked.dialog!.title}:reads=${reads}`);
-    }
-  };
   if (await hasScriptSettingsInputsSurface(page)) {
-    const settled = await settleDialogPick(readPick, SETTINGS_IDENTITY_RE_READ_WAITS_MS, async (ms) => {
-      await page.waitForTimeout(ms);
-    });
-    const picked = settled.pick;
-    traceSettled(picked, settled.reads);
-    if (picked.verdict === "untitled") {
-      // Review-Fund 27.8.: ein untitled aus der NACHLESE traegt eine bis zu
-      // 1,2 s alte Surface-Messung — der (fremde) Dialog kann waehrend der
-      // Wartezeit geschlossen worden sein (Ghost-Versuche rufen closeModal).
-      // Erst frisch bestaetigen. Ohne Surface ist das KEIN Erfolg und KEIN
-      // Identitaets-Mismatch (kein Zaehler-Tick): die Leiter oeffnet erneut.
-      if (settled.reads === 1 || await hasScriptSettingsInputsSurface(page)) {
-        tracePageEvent(page, `${tracePrefix}-identity-implicit-surface`, scriptName);
-        return true;
-      }
-      tracePageEvent(page, `${tracePrefix}-identity-surface-gone-after-settle`, scriptName);
-      return false;
-    }
-    if (picked.verdict === "match") {
-      tracePageEvent(page, `${tracePrefix}-identity-title-match`, picked.dialog!.title);
+    const dialogs = await collectVisibleDialogSnapshots(page).catch(() => []);
+    const titledDialog = dialogs.find((dialog) => normalizeUiText(dialog.title).length > 0);
+    if (!titledDialog) {
+      tracePageEvent(page, `${tracePrefix}-identity-implicit-surface`, scriptName);
       return true;
     }
-    tracePageEvent(
-      page,
-      `${tracePrefix}-identity-mismatch`,
-      `${scriptName} != ${picked.dialog!.title} (${picked.visibleCount} titled dialog(s) visible)`,
-    );
-    recordSettingsIdentityMismatch(settingsIdentityMismatchCountsForPage(page), scriptName);
+    if (settingsDialogTitleMatchesScriptName(scriptName, titledDialog.title)) {
+      tracePageEvent(page, `${tracePrefix}-identity-title-match`, titledDialog.title);
+      return true;
+    }
+    tracePageEvent(page, `${tracePrefix}-identity-mismatch`, `${scriptName} != ${titledDialog.title}`);
     await closeModal(page).catch(() => undefined);
     return false;
   }
 
-  const settled = await settleDialogPick(readPick, SETTINGS_IDENTITY_RE_READ_WAITS_MS, async (ms) => {
-    await page.waitForTimeout(ms);
-  });
-  const picked = settled.pick;
-  traceSettled(picked, settled.reads);
-  if (picked.verdict === "untitled") {
+  const dialogs = await collectVisibleDialogSnapshots(page).catch(() => []);
+  const titledDialog = dialogs.find((dialog) => normalizeUiText(dialog.title).length > 0);
+  if (!titledDialog) {
     tracePageEvent(page, `${tracePrefix}-identity-missing-title`, scriptName);
     throw new Error(`Opened settings dialog without an identifiable script title for: ${scriptName}`);
   }
-  if (picked.verdict === "match") {
+  if (settingsDialogTitleMatchesScriptName(scriptName, titledDialog.title)) {
     return true;
   }
-  tracePageEvent(
-    page,
-    `${tracePrefix}-identity-mismatch`,
-    `${scriptName} != ${picked.dialog!.title} (${picked.visibleCount} titled dialog(s) visible)`,
-  );
-  recordSettingsIdentityMismatch(settingsIdentityMismatchCountsForPage(page), scriptName);
-  throw new Error(
-    `Opened settings dialog for wrong script: expected ${scriptName}, got ${picked.dialog!.title}`
-    + ` (${picked.visibleCount} titled dialog(s) visible)`,
-  );
-}
-
-export type DialogPick = {
-  verdict: "match" | "mismatch" | "untitled";
-  /** Bei "match" der passende, bei "mismatch" der erste betitelte (fuer die Spur). */
-  dialog: { title: string } | null;
-  /** Wie viele betitelte Dialoge gleichzeitig sichtbar waren — das ist der Befund. */
-  visibleCount: number;
-};
-
-/**
- * Welcher der sichtbaren Dialoge gehoert zum Ziel?
- *
- * Bis 2026-08-23 nahm die Identitaetspruefung `dialogs.find(titled)` — den
- * ERSTEN mit Titel, nicht den passenden. Sind mehrere Dialoge gleichzeitig
- * offen, ist das eine Lotterie: der richtige kann offen sein und trotzdem
- * abgelehnt werden.
- *
- * Gemessen an Lauf 32556181388: Ziel `SMC Long-Dip Alerts` sah in EINEM Lauf
- * drei verschiedene fremde Dialoge (`SMC Breakout Overlay` 4x, `SMC Setup
- * Check` 2x, Producer `SMC Long-Dip Suite` 2x). Bei einem einzigen
- * haengengebliebenen Dialog waere der Fremde immer derselbe — drei
- * verschiedene sind nur mit mehreren gleichzeitig sichtbaren erklaerbar.
- * `closeModal` meldete dabei 31/31 Erfolg, schliesst aber je nur einen.
- *
- * "untitled" bleibt vom Mismatch getrennt: eine sichtbare Einstellungsflaeche
- * ohne lesbaren Titel ist NICHT das falsche Skript, und dieser Unterschied
- * trug bereits den implicit-surface-Pfad.
- */
-export function pickDialogForScript(
-  dialogs: ReadonlyArray<{ title: string }>,
-  scriptName: string,
-): DialogPick {
-  const titled = dialogs.filter((dialog) => normalizeUiText(dialog.title).length > 0);
-  if (titled.length === 0) {
-    return { verdict: "untitled", dialog: null, visibleCount: 0 };
-  }
-  const matching = titled.find((dialog) => settingsDialogTitleMatchesScriptName(scriptName, dialog.title));
-  if (matching) {
-    return { verdict: "match", dialog: matching, visibleCount: titled.length };
-  }
-  return { verdict: "mismatch", dialog: titled[0], visibleCount: titled.length };
-}
-
-/**
- * Nachlese-Staffel, bevor ein Mismatch deklariert wird. Kurz und endlich:
- * die Summe lebt im 60-s-Budget des umgebenden Steps, und im Erfolgsfall
- * (erste Lesung trifft) wird gar nicht gewartet.
- */
-export const SETTINGS_IDENTITY_RE_READ_WAITS_MS: readonly number[] = [400, 800];
-
-/**
- * Ein Mismatch gilt erst, wenn er eine kurze Nachlese ueberlebt.
- *
- * Messgrund (Ledger klasse-h, Lauf 32886027492, 2026-08-26): im Moment der
- * Fehlschlag-Deklaration stand der RICHTIGE Dialog offen
- * (`dialogAtFailureVerdict = target-visible`, Titel korrekt, genau einer
- * sichtbar) — die einmalige Sofort-Lesung hatte Sekunden vorher den Titel des
- * VORHERIGEN Ziels gesehen (2026-08-24: "der gelesene Dialog ist immer der
- * des vorherigen Ziels"). Das passt zu einem wiederverwendeten
- * Settings-Modal, dessen Titel dem Inhalt nachzieht: der Klick oeffnet den
- * richtigen Dialog, die Pruefung liest zu frueh, deklariert Mismatch — und
- * closeModal schliesst den gerade korrekt geoeffneten Dialog. Genau daraus
- * wurde die symmetrische Nachbar-Kaskade.
- *
- * Nur "mismatch" wird nachgelesen: "match" ist fertig, und "untitled" hat
- * eigene Zweige (implicit-surface bzw. missing-title), die eine Wartezeit nur
- * verlangsamen wuerde, ohne etwas zu entscheiden.
- */
-export async function settleDialogPick(
-  readPick: () => Promise<DialogPick>,
-  waitsMs: readonly number[],
-  sleep: (ms: number) => Promise<void>,
-): Promise<{ pick: DialogPick; reads: number }> {
-  let pick = await readPick();
-  let reads = 1;
-  for (const waitMs of waitsMs) {
-    if (pick.verdict !== "mismatch") {
-      break;
-    }
-    await sleep(waitMs);
-    pick = await readPick();
-    reads += 1;
-  }
-  return { pick, reads };
-}
-
-export type DialogAtFailureVerdict = "target-visible" | "foreign-visible" | "untitled-visible" | "no-dialog";
-
-/**
- * Ledger klasse-h, Kandidat (A): klassifiziert, was `pickDialogForScript`
- * ueber die zum Messzeitpunkt sichtbaren Dialoge sagt, in die vier Zustaende,
- * die die Beweisdatei unterscheidbar halten sollen. Reine Funktion, ohne
- * Browser testbar -- derselbe Zuschnitt wie `pickDialogForScript` selbst, das
- * sie wiederverwendet statt eine zweite Fassung der Auswahl danebenzustellen.
- *
- * "no-dialog" ist ein eigener Zustand VOR `pickDialogForScript`, weil dessen
- * "untitled"-Verdikt sowohl "kein Dialog da" als auch "ein Dialog ohne
- * lesbaren Titel" abdeckt -- hier muessen beide auseinanderbleiben.
- */
-export function classifyDialogAtFailure(
-  dialogs: ReadonlyArray<{ title: string }>,
-  scriptName: string,
-): { verdict: DialogAtFailureVerdict; title: string | null; visibleCount: number } {
-  if (dialogs.length === 0) {
-    return { verdict: "no-dialog", title: null, visibleCount: 0 };
-  }
-  const picked = pickDialogForScript(dialogs, scriptName);
-  if (picked.verdict === "match") {
-    return { verdict: "target-visible", title: picked.dialog?.title ?? null, visibleCount: picked.visibleCount };
-  }
-  if (picked.verdict === "mismatch") {
-    return { verdict: "foreign-visible", title: picked.dialog?.title ?? null, visibleCount: picked.visibleCount };
-  }
-  // "untitled": dialogs.length > 0 here (checked above), so this is genuinely
-  // a visible dialog without a readable title -- not the zero-dialogs case.
-  return { verdict: "untitled-visible", title: null, visibleCount: picked.visibleCount };
-}
-
-/**
- * Ledger klasse-h, Eskalation (Lauf 32803019213, save-Job 2026-08-25
- * 11:52:50Z): der Doppelklick-Pfad trifft nicht zufaellig daneben, sondern
- * STABIL den Legenden-NACHBARN (Alerts->Setup Check 2x, Alerts->Breakout
- * Overlay 1x, symmetrisch Setup Check->Alerts 1x, alle in einem Lauf). Der
- * Waechter (verifyOpenedSettingsDialogIdentity) lehnt das korrekt ab, aber
- * ein dritter/vierter Doppelklick auf dieselbe Zielzeile aendert nichts --
- * die Leiter wiederholte bis dahin denselben Ansatz, bis das 60s-Schrittbudget
- * (`Step timed out`) ausging. Ab dem ZWEITEN Mismatch fuer dasselbe Ziel lohnt
- * ein weiterer Doppelklick nicht mehr.
- *
- * Reine Zaehl-/Entscheidungslogik auf einer einfachen Map, ohne Browser
- * beweisbar (derselbe Zuschnitt wie pickDialogForScript). Der Page-gebundene
- * Teil -- welche Zaehlung zu welcher Page/welchem Skript gehoert -- ist unten
- * in settingsIdentityMismatchCountsForPage vom Browser abgetrennt, damit
- * diese Funktionen selbst keinen Browser brauchen.
- */
-export type SettingsIdentityMismatchCounts = Map<string, number>;
-
-export function recordSettingsIdentityMismatch(
-  counts: SettingsIdentityMismatchCounts,
-  scriptName: string,
-): number {
-  const next = (counts.get(scriptName) ?? 0) + 1;
-  counts.set(scriptName, next);
-  return next;
-}
-
-export function settingsIdentityMismatchCount(
-  counts: SettingsIdentityMismatchCounts,
-  scriptName: string,
-): number {
-  return counts.get(scriptName) ?? 0;
-}
-
-export function resetSettingsIdentityMismatchCount(
-  counts: SettingsIdentityMismatchCounts,
-  scriptName: string,
-): void {
-  counts.delete(scriptName);
-}
-
-/**
- * Gemessene Schwelle (Lauf 32803019213): der ERSTE Mismatch bleibt beim
- * bestehenden Doppelklick-Pfad -- die Leiter bleibt fuer die erfolgreichen
- * 80 % der Ziele (2,9-6,2s) unangetastet. Erst der ZWEITE Mismatch fuer
- * dasselbe Ziel eskaliert auf den zeilengebundenen Knopf-Pfad
- * (openSettingsForScriptViaLegendButton).
- */
-export const SETTINGS_IDENTITY_MISMATCH_ESCALATION_THRESHOLD = 2;
-
-export function shouldEscalateSettingsOpenPath(mismatchCount: number): boolean {
-  return mismatchCount >= SETTINGS_IDENTITY_MISMATCH_ESCALATION_THRESHOLD;
-}
-
-// Browser-gebunden: eine Zaehlung je Page+Skript (WeakMap, damit sie mit der
-// Page verschwindet), so dass parallele Ziele auf verschiedenen Pages sich
-// nicht gegenseitig eskalieren.
-const settingsIdentityMismatchCountsByPage = new WeakMap<Page, SettingsIdentityMismatchCounts>();
-
-function settingsIdentityMismatchCountsForPage(page: Page): SettingsIdentityMismatchCounts {
-  let counts = settingsIdentityMismatchCountsByPage.get(page);
-  if (!counts) {
-    counts = new Map();
-    settingsIdentityMismatchCountsByPage.set(page, counts);
-  }
-  return counts;
+  tracePageEvent(page, `${tracePrefix}-identity-mismatch`, `${scriptName} != ${titledDialog.title}`);
+  throw new Error(`Opened settings dialog for wrong script: expected ${scriptName}, got ${titledDialog.title}`);
 }
 
 export function settingsDialogTitleMatchesScriptName(scriptName: string, dialogTitle?: string | null): boolean {
@@ -5540,78 +4204,6 @@ type VisibleChartScriptStateProbeOptions = {
   legendAncestorTextTimeoutMs?: number;
 };
 
-// The chart legend lives under the chart surface; the Pine editor, dialogs,
-// menus and the Object Tree do not. Legend titles sit under .legend-* <
-// .chart-gui-wrapper < .chart-container (measured 2026-07-31 during the CE10156
-// diagnosis).
-export const CHART_LEGEND_CONTAINER_SELECTOR = ".chart-container, .chart-gui-wrapper";
-
-// Surfaces that also carry the script name but are NOT the chart legend. The
-// pine-editor host is the important one: the editor shows the script's title
-// whenever it is open, and counting that as on-chart would make presence
-// trivially true. LEGEND_TEXT_EXCLUDED_SURFACES (defined further down) covers
-// dialogs, menus, the tree and the pine-dialog; the id-based editor selectors
-// catch the docked editor's title button. Composed at call time, not module
-// load, because LEGEND_TEXT_EXCLUDED_SURFACES initializes after this point.
-function chartLegendExcludedSelector(): string {
-  return `${LEGEND_TEXT_EXCLUDED_SURFACES}, #pine-editor-dialog, [id*="pine-editor" i]`;
-}
-
-/**
- * Pure verdict for {@link hasVisibleChartLegendText}: a name match counts as an
- * on-chart legend row only when it sits inside the chart container AND outside
- * every excluded surface. Kept separate from the DOM probe so the decision is
- * unit-testable without a browser.
- */
-export function chartLegendTextVerdict(flags: { inContainer: boolean; inExcluded: boolean }): boolean {
-  return flags.inContainer && !flags.inExcluded;
-}
-
-/**
- * Button-free presence check: is {@link scriptName} visible as legend text on
- * the chart? This is the source-level fix for the transient-button blindness
- * that {@link findLegendRowWrappers} inherits — removal, the refresh residual
- * check and verify visibility all funnel through hasLegendMatch, so keying
- * presence on the text here fixes all three at once. It does NOT return a
- * clickable handle (removal still needs the wrapper for that); it only answers
- * "is it there".
- */
-async function hasVisibleChartLegendText(page: Page, scriptName: string): Promise<boolean> {
-  // Alias-aware, like findLegendRowWrappers. Both are halves of ONE signal
-  // (hasLegendMatch) and this half exists for when the button half is blind —
-  // until 2026-08-31 it was the narrower of the two. Rationale and the measured
-  // incident: tv_legend_text_visibility.test.ts.
-  const patterns = resolveOpenScriptSearchNames(scriptName)
-    .flatMap((name) => {
-      const [exactPattern, loosePattern] = buildScriptNamePatterns(name);
-      return [exactPattern, loosePattern];
-    });
-  for (const pattern of patterns) {
-    const matches = page.getByText(pattern);
-    const total = await matches.count().catch(() => 0);
-    for (let index = 0; index < Math.min(total, 24); index += 1) {
-      const target = matches.nth(index);
-      if (!(await target.isVisible({ timeout: 250 }).catch(() => false))) {
-        continue;
-      }
-      const flags = await target
-        .evaluate(
-          (node, selectors) => ({
-            inContainer: Boolean((node as Element).closest(selectors.container)),
-            inExcluded: Boolean((node as Element).closest(selectors.excluded)),
-          }),
-          { container: CHART_LEGEND_CONTAINER_SELECTOR, excluded: chartLegendExcludedSelector() },
-        )
-        .catch(() => ({ inContainer: false, inExcluded: true }));
-      if (chartLegendTextVerdict(flags)) {
-        tracePageEvent(page, "chart-legend-text-present", `${scriptName}:${index}`);
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
 export async function collectVisibleChartScriptState(
   page: Page,
   scriptName: string,
@@ -5622,13 +4214,7 @@ export async function collectVisibleChartScriptState(
   const locatorTimeoutMs = options.locatorTimeoutMs ?? 500;
 
   const legendWrappers = await findLegendRowWrappers(page, scriptName, options).catch(() => []);
-  // The wrapper probe starts at the legend-settings-action button, which
-  // TradingView only renders on hover / right after an interaction. A script
-  // that IS on the chart but whose row is idle reads as absent (run
-  // 30718040533: a freshly added overlay verified as "not found"). Fall back
-  // to the visible legend TEXT, which does not depend on the transient button.
-  const hasLegendMatch = legendWrappers.length > 0
-    || await hasVisibleChartLegendText(page, scriptName).catch(() => false);
+  const hasLegendMatch = legendWrappers.length > 0;
   const hasStrategyReportMatch = await hasVisibleLocator([
     page.getByText(strategyPattern),
     page.getByRole("button", { name: strategyPattern }),
@@ -5650,14 +4236,7 @@ export async function collectVisibleChartScriptState(
 }
 
 function isScriptVisibleOnChart(state: VisibleChartScriptState): boolean {
-  // The legend row is the only signal tied to THIS script. `hasStrategyReportMatch`
-  // merely asks whether "Strategy report" is visible anywhere on the page, and
-  // `hasScriptNameMatch` matches the name anywhere — including the Pine editor's
-  // own title. Combining them reported a library as already-on-chart whenever any
-  // strategy happened to be loaded, and flipped to a false negative as soon as the
-  // Pine editor replaced the Strategy Tester in the bottom panel. Both flags stay in
-  // the state because the traces they feed are useful evidence; neither decides.
-  return state.hasLegendMatch;
+  return state.hasLegendMatch || (state.hasStrategyReportMatch && state.hasScriptNameMatch);
 }
 
 export function isScriptVisibleOnChartState(state: VisibleChartScriptState): boolean {
@@ -5750,155 +4329,6 @@ export async function findLegendRowWrappers(
 
   matches.sort((left, right) => left.textLength - right.textLength);
   return matches.slice(0, 6).map((entry) => entry.locator);
-}
-
-// The script name also shows up in dialogs, menus, the Object Tree and the
-// Pine dialog (measured 2026-07-31 during the CE10156 diagnosis). Text-first
-// legend discovery must never resolve one of those as a legend row.
-export const LEGEND_TEXT_EXCLUDED_SURFACES =
-  '[role="dialog"], [data-name*="dialog" i], [class*="modal" i], [role="menu"], [data-name*="menu" i], [data-name="tree"], [data-name="pine-dialog"]';
-
-export type LegendRowScanCounts = {
-  /**
-   * ROHTREFFER der Textsuche ueber alle Kandidatennamen. Die Schleife
-   * verarbeitet je Name hoechstens 24 — uebersteigt matches die Summe der
-   * uebrigen Zaehler, BENENNT das den Deckel, statt ihn zu verschweigen
-   * (Review-Fund 27.8.: vorher stand hier der gedeckelte Wert, und
-   * `matches=24` sah aus wie eine vollstaendige Messung).
-   */
-  matches: number;
-  invisible: number;
-  excluded: number;
-  noWrapper: number;
-  badText: number;
-  actionCount: number;
-  dup: number;
-};
-
-/**
- * Benennt die stillen Skip-Gruende eines leeren Zeilen-Scans.
- *
- * Messgrund (Ledger klasse-h, Lauf 32886027492, 2026-08-26): die Eskalation
- * meldete `escalation-rows SMC Long-Dip Alerts:0` — null Zeilen, waehrend
- * dieselbe Textsuche zwei Minuten vorher die Zeile fand. Die Spur nannte nur
- * das Endergebnis; WELCHER der sechs Filter jeden Treffer verwarf, war aus
- * dem Log nicht rekonstruierbar. Ein schweigender Zweig sieht aus wie ein
- * gesunder.
- */
-export function formatLegendRowScanDetail(scan: LegendRowScanCounts): string {
-  return `matches=${scan.matches}:invisible=${scan.invisible}:excluded=${scan.excluded}`
-    + `:no-wrapper=${scan.noWrapper}:text=${scan.badText}:actions=${scan.actionCount}:dup=${scan.dup}`;
-}
-
-/**
- * Ist diese Knopf-Menge die einer EINZELNEN Legendenzeile?
- *
- * Messgrund (Lauf 32957051467, 2026-08-27 01:44/01:45Z — erste Auswertung
- * der #5098-Skip-Zaehler): beide Alerts-Scans starben mit `actions=1` — der
- * einzige sichtbare, nicht ausgeschlossene Kandidat fiel an der alten
- * Summenregel `count !== 1` ueber BEIDE Knopfarten, weil die Hover-Leiste
- * der Zeile Settings- UND More-Knopf traegt (Summe 2). Der Filter, der
- * Pane-Container aussieben soll, frass die Zielzeile — ausgerechnet auf dem
- * Eskalationspfad, der den Settings-Knopf klicken will.
- *
- * Der tragfaehige Container-Diskriminator ist die Zahl der SETTINGS-Knoepfe:
- * eine enge Zeile traegt genau einen (egal ob daneben ein More-Knopf steht),
- * ein Container mit N Zeilen traegt N. Zeilen ganz ohne Settings-Knopf
- * bleiben wie bisher ueber genau einen More-Knopf zugelassen.
- */
-export function isSingleLegendRowActionSet(settingsCount: number, moreCount: number): boolean {
-  if (settingsCount === 1) {
-    return true;
-  }
-  return settingsCount === 0 && moreCount === 1;
-}
-
-/**
- * Text-first legend row discovery, for rows the button-first probes miss.
- *
- * Run 30702240413, same session, same DOM: {@link findLegendRowWrappers}
- * reported 0 rows for the pre-#4263 overlay instance while the text-first
- * settings opener found the row, hovered it and opened it — 60 rows, twice,
- * in two runs. TradingView renders the legend action buttons on hover, so a
- * probe that STARTS at the buttons never sees a row nobody is pointing at.
- * This starts at the visible legend text, hovers it (which is what makes the
- * action buttons the wrapper resolution needs exist), and only then resolves
- * the tight legend row exactly like the settings opener does.
- */
-export async function findLegendRowWrappersByVisibleText(page: Page, scriptName: string): Promise<Locator[]> {
-  const candidateNames = resolveOpenScriptSearchNames(scriptName);
-  const patternsList = candidateNames.map((name) => buildScriptNamePatterns(name));
-  const wrappers: Locator[] = [];
-  const seenKeys = new Set<string>();
-  const scan: LegendRowScanCounts = { matches: 0, invisible: 0, excluded: 0, noWrapper: 0, badText: 0, actionCount: 0, dup: 0 };
-
-  for (const [index] of candidateNames.entries()) {
-    const [, loosePattern] = patternsList[index];
-    const matches = page.getByText(loosePattern);
-    const total = await matches.count().catch(() => 0);
-    scan.matches += total;  // Rohtreffer; die Schleife selbst deckelt bei 24
-    for (let item = 0; item < Math.min(total, 24); item += 1) {
-      const target = matches.nth(item);
-      if (!(await target.isVisible({ timeout: 250 }).catch(() => false))) {
-        scan.invisible += 1;
-        continue;
-      }
-      const excluded = await target
-        .evaluate((node, selector) => Boolean(node.closest(selector)), LEGEND_TEXT_EXCLUDED_SURFACES)
-        .catch(() => true);
-      if (excluded) {
-        scan.excluded += 1;
-        continue;
-      }
-      await target.scrollIntoViewIfNeeded().catch(() => undefined);
-      await target.hover({ timeout: 750 }).catch(() => undefined);
-      const wrapper = target
-        .locator('xpath=ancestor::*[.//button[@data-qa-id="legend-settings-action"] or .//button[@data-qa-id="legend-more-action"]][1]')
-        .first();
-      if (!(await wrapper.isVisible({ timeout: 400 }).catch(() => false))) {
-        scan.noWrapper += 1;
-        continue;
-      }
-      const wrapperText = normalizeUiText((await wrapper.innerText({ timeout: 300 }).catch(() => "")) || "");
-      if (!wrapperText || wrapperText.length > 300) {
-        scan.badText += 1;
-        continue;
-      }
-      // Tight row only — a pane container carries the text of every study
-      // below it. Diskriminator ist die Zahl der SETTINGS-Knoepfe (siehe
-      // isSingleLegendRowActionSet): die alte Summenregel ueber beide
-      // Knopfarten frass eine echte Zeile mit Settings+More (Summe 2) —
-      // Lauf 32957051467, actions=1 in beiden Alerts-Scans.
-      const settingsActionCount = await wrapper
-        .locator('button[data-qa-id="legend-settings-action"]')
-        .count()
-        .catch(() => 0);
-      const moreActionCount = await wrapper
-        .locator('button[data-qa-id="legend-more-action"]')
-        .count()
-        .catch(() => 0);
-      if (!isSingleLegendRowActionSet(settingsActionCount, moreActionCount)) {
-        scan.actionCount += 1;
-        continue;
-      }
-      const box = await wrapper.boundingBox().catch(() => null);
-      const key = box ? `${Math.round(box.x)}:${Math.round(box.y)}:${Math.round(box.width)}` : `${index}:${item}`;
-      if (seenKeys.has(key)) {
-        scan.dup += 1;
-        continue;
-      }
-      seenKeys.add(key);
-      wrappers.push(wrapper);
-      tracePageEvent(page, "legend-text-wrapper-found", `${scriptName}:${item}:${wrapperText.slice(0, 80)}`);
-    }
-  }
-  if (wrappers.length === 0) {
-    // Lauf 32886027492 (escalation-rows :0): das Leer-Ergebnis MUSS seinen
-    // Grund nennen — nur dann entscheidet der naechste natuerliche Fehlschlag,
-    // welcher Filter greift. Auf dem Erfolgspfad keine zusaetzliche Spur.
-    tracePageEvent(page, "legend-text-wrapper-scan-empty", `${scriptName}:${formatLegendRowScanDetail(scan)}`);
-  }
-  return wrappers.slice(0, 6);
 }
 
 /**
@@ -6011,122 +4441,6 @@ function scriptRemovalConfirmActionLocators(page: Page): Locator[] {
   ];
 }
 
-// Measured 2026-07-31 at the identity-evidence probe: Object Tree entries
-// live under [data-name="tree"] inside the right widgetbar.
-export const OBJECT_TREE_PANEL_SELECTOR = '[data-name="tree"]';
-
-// Candidates for the right-sidebar toggle that opens the Object Tree panel.
-// Unlike the panel anchor above these are NOT live-measured yet — the first
-// tree-removal run proves them. Kept as a family so one rename does not kill
-// the path.
-function objectTreeToggleLocators(page: Page): Locator[] {
-  return [
-    page.locator('button[data-name="object_tree"], [data-name="object-tree"], [data-name="objecttree"]'),
-    page.getByRole("button", { name: /object tree/i }),
-    page.locator('button[aria-label*="object tree" i], [data-tooltip*="object tree" i]'),
-  ];
-}
-
-async function ensureObjectTreeVisible(page: Page): Promise<boolean> {
-  const panel = page.locator(OBJECT_TREE_PANEL_SELECTOR).first();
-  if (await panel.isVisible({ timeout: 300 }).catch(() => false)) {
-    return true;
-  }
-  const opened = await clickVisibleWithFallback(
-    page,
-    objectTreeToggleLocators(page),
-    "object-tree-open",
-    1_500,
-    300,
-  ).catch(() => false);
-  if (!opened) {
-    return false;
-  }
-  await page.waitForTimeout(400);
-  return await panel.isVisible({ timeout: 1_000 }).catch(() => false);
-}
-
-function objectTreeRowsForScript(page: Page, scriptName: string): Locator {
-  const [, loosePattern] = buildScriptNamePatterns(scriptName);
-  return page.locator(OBJECT_TREE_PANEL_SELECTOR).first().getByText(loosePattern);
-}
-
-/**
- * Operator-suggested removal path (2026-08-02): right sidebar -> Object Tree
- * -> right-click the entry -> Remove.
- *
- * Every other removal path anchors on the chart LEGEND row, which must first
- * be found by the button-first probe — and TradingView renders those buttons
- * on hover only, so the pre-#4263 overlay row was undiscoverable (0 wrappers
- * in 192ms across four detection variants) while plainly visible to a human,
- * who removed it by hand exactly this way. The Object Tree is a complete
- * inventory panel with stable rows, and the context menu needs no
- * hover-rendered buttons. The menu machinery (right-click, the Remove and
- * confirm locator families) already existed; only the tree as an anchor
- * surface was missing.
- *
- * Success is judged by the tree's OWN row count, never by
- * countChartScriptInstances — that probe is blind for exactly the rows this
- * path exists to remove, and consulting it would report every successful
- * tree removal as a failure.
- */
-export async function removeChartScriptInstancesViaObjectTree(
-  page: Page,
-  scriptName: string,
-  maxRemovals = 4,
-): Promise<number> {
-  if (!(await ensureObjectTreeVisible(page))) {
-    tracePageEvent(page, "object-tree-unavailable", scriptName);
-    return 0;
-  }
-
-  let removedCount = 0;
-  for (let attempt = 0; attempt < maxRemovals; attempt += 1) {
-    const rows = objectTreeRowsForScript(page, scriptName);
-    const before = await rows.count().catch(() => 0);
-    if (before === 0) {
-      break;
-    }
-    const row = rows.first();
-    if (!(await row.isVisible({ timeout: 400 }).catch(() => false))) {
-      break;
-    }
-    await row.scrollIntoViewIfNeeded().catch(() => undefined);
-    await row.click({ timeout: 800 }).catch(() => undefined); // highlight, as the operator does
-    await row.click({ button: "right", timeout: 1_000, force: true }).catch(() => undefined);
-
-    const clickedRemove = await clickVisibleWithFallback(
-      page,
-      scriptRemovalActionLocators(page),
-      "object-tree-remove",
-      1_200,
-      300,
-    ).catch(() => false);
-    if (!clickedRemove) {
-      tracePageEvent(page, "object-tree-remove-miss", `${scriptName}:${attempt}`);
-      await closeModal(page).catch(() => undefined);
-      break;
-    }
-    await clickVisibleWithFallback(
-      page,
-      scriptRemovalConfirmActionLocators(page),
-      "object-tree-remove-confirm",
-      1_000,
-      300,
-    ).catch(() => false);
-    await page.waitForTimeout(400);
-
-    const after = await objectTreeRowsForScript(page, scriptName).count().catch(() => before);
-    if (after >= before) {
-      tracePageEvent(page, "object-tree-remove-no-change", `${scriptName}:${attempt}:${before}->${after}`);
-      break;
-    }
-    removedCount += before - after;
-    tracePageEvent(page, "object-tree-remove-ok", `${scriptName}:${before}->${after}`);
-  }
-  return removedCount;
-}
-
 async function tryKeyboardRemoveScriptInstance(page: Page, wrapper: Locator, scriptName: string, attempt: number): Promise<boolean> {
   await wrapper.scrollIntoViewIfNeeded().catch(() => undefined);
   await wrapper.hover({ timeout: 1_000 }).catch(() => undefined);
@@ -6229,30 +4543,8 @@ export async function removeVisibleChartScriptInstances(page: Page, scriptName: 
       await dismissSignInModal(page);
       await closePineEditorIfVisible(page);
 
-      let wrappers = await findLegendRowWrappers(page, scriptName).catch(() => []);
+      const wrappers = await findLegendRowWrappers(page, scriptName).catch(() => []);
       if (wrappers.length === 0) {
-        // Run 30702240413: the pre-#4263 overlay row was invisible to the
-        // button-first probe above while the text-first settings opener found
-        // and opened it. Without this fallback the stale instance survives
-        // removal and the force-insert stacks a fresh copy next to it — which
-        // is what five R4 readback runs then rebound into.
-        wrappers = await findLegendRowWrappersByVisibleText(page, scriptName).catch(() => []);
-        if (wrappers.length > 0) {
-          tracePageEvent(page, "script-remove-text-fallback-found", `${scriptName}:${wrappers.length}`);
-        }
-      }
-      if (wrappers.length === 0) {
-        // Last resort, suggested by the operator after removing by hand what
-        // four legend-probe variants could not find: the Object Tree lists
-        // every applied object as a stable row and its context menu needs no
-        // hover-rendered buttons. Zero tree removals means there is genuinely
-        // nothing left to remove (or no tree) — then, as before, we stop.
-        const treeRemoved = await removeChartScriptInstancesViaObjectTree(page, scriptName).catch(() => 0);
-        if (treeRemoved > 0) {
-          removedCount += treeRemoved;
-          tracePageEvent(page, "script-remove-object-tree-fallback-ok", `${scriptName}:${treeRemoved}`);
-          continue; // re-probe: further copies may now be discoverable
-        }
         break;
       }
 
@@ -6289,15 +4581,7 @@ export async function removeVisibleChartScriptInstances(page: Page, scriptName: 
           continue;
         }
 
-        // `=> true`, not `=> false` (2026-08-15 sweep): a CRASHED visibility
-        // probe (dead context, closed page) is not a cleared instance. With
-        // `false` the failure counted as a removal AND emitted the success
-        // trace `script-remove-ok:…:cleared:direct` -- a stale instance left
-        // behind is the known measurement poison (UNIVERSE UNINIT, rebind
-        // into the wrong dialog). The keyboard twin above already maps the
-        // same failure to `true`, and refreshChartScriptInstance deliberately
-        // probes residuals WITHOUT a catch for the same reason.
-        const stillVisibleAfterDirectDelete = await isScriptStrictlyVisibleOnChartSurface(page, scriptName).catch(() => true);
+        const stillVisibleAfterDirectDelete = await isScriptStrictlyVisibleOnChartSurface(page, scriptName).catch(() => false);
         if (!stillVisibleAfterDirectDelete) {
           removedCount += 1;
           tracePageEvent(page, "script-remove-ok", `${scriptName}:cleared:direct`);
@@ -6350,9 +4634,7 @@ export async function removeVisibleChartScriptInstances(page: Page, scriptName: 
         continue;
       }
 
-      // Same decision as the direct-delete probe above: a crashed probe must
-      // not read as "cleared".
-      const stillVisible = await isScriptStrictlyVisibleOnChartSurface(page, scriptName).catch(() => true);
+      const stillVisible = await isScriptStrictlyVisibleOnChartSurface(page, scriptName).catch(() => false);
       if (!stillVisible) {
         removedCount += 1;
         tracePageEvent(page, "script-remove-ok", `${scriptName}:cleared`);
@@ -6370,416 +4652,20 @@ export async function removeVisibleChartScriptInstances(page: Page, scriptName: 
 
 export async function refreshChartScriptInstance(page: Page, scriptName: string): Promise<number> {
   return runTrackedStep(page, `refreshChartScriptInstance:${scriptName}`, async () => {
-    // Remember the chart this refresh started on: ensurePineEditor's recovery
-    // clicks can navigate the tab off the chart onto /pine-screener/ (CI run
-    // 29946386778; two headed repros 2026-07-24). Off-chart, every editor and
-    // script-open candidate misses until the outer 90s timer fires, so a URL
-    // check + goto back converts that strand into a same-step retry.
-    const originChartUrl = page.url();
-    // Use the exact legend-instance probe for refresh safety. The broader chart
-    // visibility probe also accepts "Strategy Report" plus a script-name text
-    // match; after a successful removal TradingView can briefly retain those
-    // texts outside the legend and make a cleared 1 -> 0 instance look stale.
-    const initialCount = await countChartScriptInstances(page, scriptName).catch(() => 0);
-    let removedCount = await removeVisibleChartScriptInstances(page, scriptName).catch(() => 0);
-    const remainingCount = await countChartScriptInstances(page, scriptName).catch(() => initialCount);
-    tracePageEvent(page, "script-refresh-instance-counts", `${scriptName}:${initialCount}->${remainingCount}`);
+    const initiallyVisible = await isScriptStrictlyVisibleOnChartSurface(page, scriptName).catch(() => false);
+    const removedCount = await removeVisibleChartScriptInstances(page, scriptName).catch(() => 0);
+    const stillVisible = await isScriptStrictlyVisibleOnChartSurface(page, scriptName).catch(() => false);
 
-    if (initialCount > 0 && remainingCount > 0) {
+    if (initiallyVisible && stillVisible) {
       throw new Error(`Could not clear stale chart instance before refresh for ${scriptName}`);
     }
 
-    // The counting probes above are button-first and were blind to exactly the
-    // row this matters for (run 30702240413: overlay 0->0 while the row was
-    // openable by text). Re-probe by TEXT and fail closed: inserting next to a
-    // stale instance is how five runs rebound 60 sources into the wrong
-    // dialog. No .catch on the probe — if it breaks, failing this step is
-    // more honest than reading the breakage as "no residuals".
-    let residualRows = await findLegendRowWrappersByVisibleText(page, scriptName);
-    for (let extra = 0; residualRows.length > 0 && extra < 2; extra += 1) {
-      tracePageEvent(page, "script-refresh-residual-text-rows", `${scriptName}:${residualRows.length}`);
-      removedCount += await removeVisibleChartScriptInstances(page, scriptName).catch(() => 0);
-      residualRows = await findLegendRowWrappersByVisibleText(page, scriptName);
-    }
-    if (residualRows.length > 0) {
-      throw new Error(
-        `Stale ${scriptName} instance still on the chart after removal (${residualRows.length} text-visible row(s))`,
-      );
-    }
-
     await ensurePineEditor(page).catch(() => undefined);
-    if (originChartUrl.includes("/chart/") && !page.url().includes("/chart/")) {
-      tracePageEvent(page, "script-refresh-strand-recovered", `${page.url()} -> ${originChartUrl}`);
-      await gotoChart(page, originChartUrl);
-      await ensurePineEditor(page).catch(() => undefined);
-    }
     await openExistingScript(page, scriptName).catch(() => undefined);
-    await addCurrentScriptToChart(page, scriptName, { forceInsert: true, stepTimeoutMs: Math.max(stepTimeoutMs(), 90_000) });
+    await addCurrentScriptToChart(page, scriptName, { forceInsert: true });
     await page.waitForTimeout(1_250);
     return removedCount;
-  // This is a composite operation: removal, editor recovery, script lookup and
-  // chart insertion each have their own tracked work. A normal CI run observed
-  // the insertion effect at 44s, then the default 45s outer timer closed the
-  // otherwise healthy session. Keep operator overrides, but provide enough
-  // floor for the whole refresh transaction.
-  }, Math.max(stepTimeoutMs(), 90_000));
-}
-
-export type AppliedInstanceSource = {
-  pane: number;
-  entityId: string | null;
-  sha256: string | null;
-  length: number;
-  error: string;
-};
-
-/**
- * Which applied instances of `expectedSha256` are stale (or unreadable).
- *
- * 2026-10-05: a green producer refresh (save v435 + remove/re-add, 131 bindings
- * repaired) left BOTH Suite instances on vWgAWyfC — one per chart pane — on old
- * source (220 105 / 220 030 chars, neither carrying the new code). The refresh
- * counted one instance per layout and never looked at what the panes actually
- * run. Pure, so the verdict is provable without a browser.
- */
-export function staleAppliedInstances(instances: AppliedInstanceSource[], expectedSha256: string): AppliedInstanceSource[] {
-  return instances.filter((instance) => instance.sha256 !== expectedSha256);
-}
-
-/**
- * Read the source each chart pane's applied instance of `scriptName` carries.
- *
- * The legend's "Source code" action opens the source OF THAT INSTANCE (measured
- * 2026-10-05: it showed the old code while the saved slot held v435), so this is
- * the ground truth for "what does the chart compute". A docked Pine editor is
- * closed first and after each read; its title-bar Close button sits outside the
- * scope closePineEditorIfVisible searches.
- */
-export async function readAppliedInstanceSources(page: Page, scriptName: string): Promise<AppliedInstanceSource[]> {
-  const closeEditor = async () => {
-    if (await page.locator("#pine-editor-dialog").first().isVisible().catch(() => false)) {
-      await page.locator('button[aria-label="Close"][title="Close"]').first().click().catch(() => undefined);
-      await page.waitForTimeout(1_500);
-    }
-  };
-  await closeEditor();
-  const panes = page.locator('[data-qa-id="chart-container"]');
-  const paneCount = await panes.count();
-  const out: AppliedInstanceSource[] = [];
-  for (let pane = 0; pane < paneCount; pane += 1) {
-    const rows = panes.nth(pane).locator('[data-qa-id="legend-source-item"]').filter({ hasText: scriptName });
-    const rowCount = await rows.count();
-    for (let r = 0; r < rowCount; r += 1) {
-      const row = rows.nth(r);
-      const entityId = await row.getAttribute("data-entity-id").catch(() => null);
-      try {
-        await row.locator('[data-qa-id*="legend-source-title"]').first().hover({ force: true });
-        await page.waitForTimeout(400);
-        await row.locator('[data-qa-id="legend-pine-action"]').click({ force: true });
-        const source = await readEditorContent(page, { expectedDeclarationTitle: scriptName });
-        out.push({ pane, entityId, sha256: normalizedPineSha256(source), length: source.length, error: "" });
-      } catch (error) {
-        out.push({ pane, entityId, sha256: null, length: 0, error: String((error as Error)?.message ?? error).slice(0, 300) });
-      }
-      tracePageEvent(page, "applied-instance-source", `${scriptName}:pane=${pane}:${entityId}:${out.at(-1)?.sha256?.slice(0, 12) ?? "unreadable"}`);
-      await closeEditor();
-    }
-  }
-  return out;
-}
-
-/**
- * Where to double-click inside a legend row, guaranteed to land INSIDE it.
- *
- * Pure so it can be proven without a browser; the DOM hit-test that follows it
- * is Playwright-against-TradingView and is only proven by the next CI run.
- *
- * The offsets aim a little inside the row rather than at its centre, because a
- * legend row's centre can sit under the hover toolbar TradingView renders over
- * it. They used to be applied UNCLAMPED:
- *
- *     x + max(16, min(56, width * 0.25))
- *     y + max(6, min(height / 2, max(height - 6, 6)))
- *
- * For a row of height <= 5 or width <= 16 — a clipped or partially scrolled row
- * reports exactly that — the result lies OUTSIDE the element: 16px to the right
- * of a 10px-wide row, or 6px below a 4px-tall one. `page.mouse.dblclick` takes
- * raw viewport coordinates and has no actionability check, so it then opens
- * whatever IS painted there: the NEIGHBOURING legend row.
- *
- * Measured on 2026-08-22 (runs 758 and 771): every attempt to open
- * `SMC Long-Dip Alerts` opened the dialog of `SMC Setup Check` or
- * `SMC Breakout Overlay` — its two neighbours in the rollout order — and
- * targeting Setup Check opened Long-Dip Alerts. The identity guard rejected
- * each wrong dialog correctly, so nothing wrong was written, but the step burnt
- * its full 60s budget twice per run and the layout repair stopped there.
- */
-export type LegendRowGeometry = {
-  text: string;
-  box: { x: number; y: number; width: number; height: number };
-};
-
-/** TradingView's legend row. Same selector the shared test fixture models. */
-const LEGEND_SOURCE_ITEM_SELECTOR = '[data-name="legend-source-item"]';
-
-/** Script name to a safe file-name fragment: "SMC Long-Dip Alerts" -> "smc-long-dip-alerts". */
-export function slugifyForPath(value: string): string {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 60) || "unnamed";
-}
-
-export type LegendFailureEvidence = {
-  scriptName: string;
-  capturedAt: string;
-  /**
-   * Welcher Weg die Zeilen geliefert hat. Ohne dieses Feld ist eine leere
-   * `neighbourhood` nicht von "falsch gesucht" zu unterscheiden — genau die
-   * Verwechslung, die Lauf 32556181388 erzeugt hat.
-   */
-  rowSource: "legend-source-item" | "visible-text";
-  /** The target row and its vertical neighbours, or [] when it was not found. */
-  neighbourhood: LegendRowGeometry[];
-  /** Where a double-click would have gone, and what actually sits there. */
-  aim: { point: { x: number; y: number }; topElement: string } | null;
-  screenshotPath: string;
-  /**
-   * Ledger klasse-h, Kandidat (A): war GENAU in dem Moment, in dem dieser
-   * Fehlschlag deklariert wird, ein Dialog sichtbar -- und trug er den Titel
-   * des Zielskripts? Dieselbe Pruefung (collectVisibleDialogSnapshots +
-   * pickDialogForScript), die die Leiter vorher hat scheitern lassen, nur
-   * nachtraeglich an derselben Stelle, statt an einer zweiten.
-   *
-   * "target-visible" bewiese (A): der Dialog war schon da, nur die Erkennung
-   * war schon fertig. "no-dialog" oder "foreign-visible" widerlegen (A) an
-   * dieser Stelle: der Zieldialog stand zu diesem Zeitpunkt schlicht nicht
-   * auf dem Schirm. Vier explizite Werte statt eines Booleans, weil "kein
-   * Dialog", "Dialog ohne lesbaren Titel" und "Messung fehlgeschlagen" sonst
-   * ununterscheidbar waeren -- genau die Verwechslung, an der
-   * `neighbourhood: []` schon einmal gescheitert ist.
-   */
-  dialogAtFailureVerdict: DialogAtFailureVerdict | "probe-failed";
-  /** Titel des zum Messzeitpunkt gefundenen Dialogs, falls einer da war; sonst null. */
-  dialogAtFailureTitle: string | null;
-  /** Wie viele BETITELTE Dialoge gleichzeitig sichtbar waren (wie DialogPick.visibleCount). */
-  dialogAtFailureVisibleCount: number;
-  /** Nur bei "probe-failed" belegt: warum die Messung selbst scheiterte. */
-  dialogAtFailureReason: string;
-};
-
-/**
- * Whether a legend row belongs to `scriptName`.
- *
- * TradingView appends a version chip ("SMC Setup Check · 8.0"), so the row text
- * is longer than the name — but a bare `startsWith` would be useless here:
- * "SMC Long-Dip" prefixes four real script names, and Dashboard / Strategy /
- * Alerts / Mobile would all match each other. The name must be followed by a
- * separator, or be the whole text.
- */
-function legendRowBelongsToScript(text: string, scriptName: string): boolean {
-  const rowText = normalizeUiText(text);
-  const name = normalizeUiText(scriptName);
-  if (!rowText || !name) return false;
-  if (rowText === name) return true;
-  if (!rowText.startsWith(name)) return false;
-  // Only the version chip may follow. A SPACE is not a valid separator: script
-  // names contain spaces, so "SMC Long-Dip" would swallow "SMC Long-Dip
-  // Dashboard" and the neighbourhood would describe the wrong row.
-  return /^\s*·/.test(rowText.slice(name.length));
-}
-
-/**
- * The target legend row plus the rows directly above and below it.
- *
- * Written down as failure evidence because a mis-aimed double-click hits a
- * NEIGHBOUR: on 2026-08-22 every attempt to open `SMC Long-Dip Alerts` opened
- * `SMC Setup Check` or `SMC Breakout Overlay`, and nothing recorded where those
- * rows actually were — so the geometry had to be inferred instead of read.
- *
- * Neighbourhood is vertical position, not DOM order. An absent target yields
- * nothing rather than a guess: evidence that quietly describes the wrong row is
- * worse than evidence that says it could not find the row.
- */
-export function selectLegendNeighbourhood(
-  rows: readonly LegendRowGeometry[],
-  scriptName: string,
-): LegendRowGeometry[] {
-  const ordered = [...rows].sort((a, b) => a.box.y - b.box.y);
-  const index = ordered.findIndex((entry) => legendRowBelongsToScript(entry.text, scriptName));
-  if (index === -1) return [];
-  return ordered.slice(Math.max(0, index - 1), index + 2);
-}
-
-/**
- * Everything a 3am reader needs about a target that never opened: a full-page
- * screenshot, the geometry of its legend row and its neighbours, and what
- * actually sits at the point a double-click would have gone to.
- *
- * Written only when a target has failed for good — one file pair per failed
- * script, nothing on a green run. The 2026-08-22 diagnosis needed exactly this
- * and had to infer it instead: the run left a bindings snapshot and trace lines,
- * but no record of where any row was.
- *
- * Best-effort by construction. This runs on a page that has ALREADY failed, so
- * every probe here can fail too; a partial evidence file beats throwing a second
- * error over the first one and losing both.
- */
-export async function captureLegendFailureEvidence(
-  page: Page,
-  scriptName: string,
-  runId: string,
-): Promise<LegendFailureEvidence> {
-  const evidence: LegendFailureEvidence = {
-    scriptName,
-    capturedAt: utcNow(),
-    rowSource: "legend-source-item",
-    neighbourhood: [],
-    aim: null,
-    screenshotPath: "",
-    dialogAtFailureVerdict: "probe-failed",
-    dialogAtFailureTitle: null,
-    dialogAtFailureVisibleCount: 0,
-    dialogAtFailureReason: "",
-  };
-
-  // Klasse-H-Messprobe (Kandidat A), zuerst und lesend: BEVOR irgendetwas
-  // anderes hier den Zustand der Seite noch anfasst, festhalten, welcher
-  // Dialog (falls einer) genau jetzt sichtbar ist. Wiederverwendet dieselben
-  // Bausteine wie die Erkennungsstufe selbst (collectVisibleDialogSnapshots,
-  // pickDialogForScript ueber classifyDialogAtFailure) statt einer zweiten
-  // Fassung derselben Pruefung.
-  try {
-    const dialogsAtFailure = await collectVisibleDialogSnapshots(page);
-    const classified = classifyDialogAtFailure(dialogsAtFailure, scriptName);
-    evidence.dialogAtFailureVerdict = classified.verdict;
-    evidence.dialogAtFailureTitle = classified.title;
-    evidence.dialogAtFailureVisibleCount = classified.visibleCount;
-  } catch (error) {
-    evidence.dialogAtFailureVerdict = "probe-failed";
-    evidence.dialogAtFailureReason = `probe-failed: ${String((error as Error)?.message ?? error)}`;
-  }
-
-  evidence.screenshotPath = await takeScreenshot(page, runId, `settings-failure-${slugifyForPath(scriptName)}`)
-    .catch(() => "");
-
-  // Zwei Wege, weil der erste nachweislich leer ausgehen kann.
-  //
-  // `[data-name="legend-source-item"]` stammt aus einer Test-Fixture dieses
-  // Repos, nicht aus gemessenem TradingView-DOM. Lauf 32556181388 (2026-08-22)
-  // hat das live gezeigt: die Beweisdatei entstand, aber `aim` blieb null und
-  // die Warnung trug kein `click point hit` — die Zielzeile war in der
-  // Nachbarschaft nicht enthalten. Der Produktionscode dieses Repos sucht
-  // Legendenzeilen deshalb seit dem 2026-07-Vorfall ueber TEXT statt ueber
-  // Attribute (findLegendRowWrappersByVisibleText): ein Attribut-Selektor auf
-  // der Legende ist hier bekannt fragil.
-  //
-  // Der Attribut-Weg bleibt zuerst, weil er die ganze Legende liefert und damit
-  // echte Nachbarn kennt; der Text-Weg liefert nur die Zielzeile, aber lieber
-  // eine Zeile mit Geometrie als eine leere Datei, die wie "nichts gefunden"
-  // aussieht und in Wahrheit "falsch gesucht" heisst.
-  const rows = await page
-    .evaluate((rowSelector) => {
-      const items = Array.from(document.querySelectorAll(rowSelector));
-      return items.map((item) => {
-        const rect = item.getBoundingClientRect();
-        return {
-          text: ((item as HTMLElement).innerText ?? item.textContent ?? "").trim().slice(0, 120),
-          box: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
-        };
-      });
-    }, LEGEND_SOURCE_ITEM_SELECTOR)
-    .catch(() => [] as LegendRowGeometry[]);
-  evidence.rowSource = rows.length > 0 ? "legend-source-item" : "visible-text";
-
-  if (rows.length === 0) {
-    const wrappers = await findLegendRowWrappersByVisibleText(page, scriptName).catch(() => []);
-    for (const wrapper of wrappers) {
-      const box = await wrapper.boundingBox().catch(() => null);
-      if (!box) continue;
-      const text = await wrapper.innerText().catch(() => "");
-      rows.push({ text: (text || scriptName).trim().slice(0, 120), box });
-    }
-  }
-
-  evidence.neighbourhood = selectLegendNeighbourhood(rows, scriptName);
-
-  const targetRow = evidence.neighbourhood.find((entry) => legendRowBelongsToScript(entry.text, scriptName));
-  if (targetRow && !legendBoxIsTooSmallToClick(targetRow.box)) {
-    const point = resolveLegendDoubleClickPoint(targetRow.box);
-    const topElement = await page
-      .evaluate((at) => {
-        const top = document.elementFromPoint(at.x, at.y);
-        if (!top) return "none";
-        const label = ((top as HTMLElement).innerText ?? top.textContent ?? "").trim();
-        return label.slice(0, 120) || top.nodeName;
-      }, point)
-      .catch(() => "unknown");
-    evidence.aim = { point, topElement };
-  }
-
-  return evidence;
-}
-
-/**
- * Write the evidence next to its screenshot and return the path.
- *
- * Same directory as `takeScreenshot`, so one upload step collects both and the
- * `.json` sits beside the `.png` it explains.
- */
-export function writeLegendFailureEvidence(evidence: LegendFailureEvidence): string {
-  const dir = process.env.TV_SCREENSHOT_DIR || "automation/tradingview/reports/screenshots";
-  fs.mkdirSync(dir, { recursive: true });
-  const base = evidence.screenshotPath
-    ? path.basename(evidence.screenshotPath).replace(/\.png$/, "")
-    : `settings-failure-${slugifyForPath(evidence.scriptName)}`;
-  const filePath = path.join(dir, `${base}.json`);
-  fs.writeFileSync(filePath, `${JSON.stringify(evidence, null, 2)}\n`, "utf-8");
-  return filePath;
-}
-
-export function resolveLegendDoubleClickPoint(
-  box: { x: number; y: number; width: number; height: number },
-): { x: number; y: number } {
-  // A degenerate box has no interior to aim at; the caller must not click it.
-  const insetX = Math.max(16, Math.min(56, box.width * 0.25));
-  const insetY = Math.max(6, Math.min(box.height / 2, Math.max(box.height - 6, 6)));
-  // Clamp strictly inside: an offset equal to the extent is already the first
-  // pixel of whatever is drawn next to this row.
-  const safeX = Math.min(insetX, Math.max(box.width / 2, box.width - 1));
-  const safeY = Math.min(insetY, Math.max(box.height / 2, box.height - 1));
-  return { x: box.x + safeX, y: box.y + safeY };
-}
-
-/** A box too small to aim into at all — clicking it can only hit a neighbour. */
-export function legendBoxIsTooSmallToClick(
-  box: { width: number; height: number },
-): boolean {
-  return box.width < 2 || box.height < 2;
-}
-
-/**
- * Ledger klasse-h, offene Messfrage (Lauf 32803019213): das BEWIESENE
- * Phaenomen ist ein stabiler Treffer auf den Legenden-NACHBARN, nicht ein
- * zufaelliger Fehlklick -- ob ein mehrzeiliger Wrapper die Klickgeometrie
- * verschiebt oder TradingView die Zeile intern falsch zuordnet, ist noch
- * NICHT geklaert. Beim naechsten natuerlichen Fehlschlag entscheidet die
- * Boxhoehe in dieser Spur: ~20px = Einzelzeile (TV-Fehlzuordnung), ~40px+ =
- * mehrzeiliger Wrapper (der Klick landet geometrisch auf dem Nachbarn).
- *
- * Reine Formatierung, ohne Browser beweisbar -- box und point kommen
- * unveraendert aus tryOpenScriptSettingsByDoubleClick herein. Kein
- * Verhaltenseingriff, nur ein zusaetzliches Detail an einer bestehenden
- * Trace-Zeile (dblclick-start).
- */
-export function formatLegendDblclickBoxDetail(
-  box: { x: number; y: number; width: number; height: number },
-  point: { x: number; y: number },
-): string {
-  const offsetX = Math.round(point.x - box.x);
-  const offsetY = Math.round(point.y - box.y);
-  return `${Math.round(box.width)}x${Math.round(box.height)}@${offsetX},${offsetY}`;
+  });
 }
 
 async function tryOpenScriptSettingsByDoubleClick(
@@ -6811,65 +4697,9 @@ async function tryOpenScriptSettingsByDoubleClick(
     return false;
   }
 
-  if (legendBoxIsTooSmallToClick(box)) {
-    // Clicking a degenerate box cannot hit it; the DOM gesture below still can.
-    tracePageEvent(
-      page,
-      `${traceStartEvent}-box-degenerate`,
-      `${traceDetail}:${Math.round(box.width)}x${Math.round(box.height)}`,
-    );
-    const domOnly = await dispatchDomMouseGesture(target, "dblclick").catch(() => false);
-    if (domOnly) {
-      tracePageEvent(page, `${traceStartEvent}-dom`, traceDetail);
-      await page.waitForTimeout(350);
-      if (await settleSettingsOpen()) {
-        tracePageEvent(page, `${traceOkEvent}-dom`, traceDetail);
-        return true;
-      }
-    }
-    return false;
-  }
-
-  const { x: doubleClickX, y: doubleClickY } = resolveLegendDoubleClickPoint(box);
-
-  // Does that point actually belong to this row? `page.mouse.dblclick` has no
-  // actionability check, so without this a covered, clipped or just-relaid-out
-  // row silently sends the double-click to whatever is painted on top — which
-  // is how targeting one script opened its neighbour's settings for a whole
-  // day. A foreign hit is now NAMED instead of surfacing as a 60s timeout.
-  const hitOwner = await target
-    .evaluate((element, point) => {
-      const top = document.elementFromPoint(point.x, point.y);
-      if (!top) return "none";
-      if (element === top || element.contains(top) || top.contains(element)) return "self";
-      const label = (top as HTMLElement).innerText ?? top.textContent ?? "";
-      return `foreign:${label.trim().slice(0, 60) || top.nodeName}`;
-    }, { x: doubleClickX, y: doubleClickY })
-    .catch(() => "unknown");
-  if (hitOwner !== "self") {
-    tracePageEvent(page, `${traceStartEvent}-hit-target-miss`, `${traceDetail}:${hitOwner}`);
-    // Re-measure once after scrolling it in: a row that merely drifted is
-    // cheap to recover, and the DOM gesture below covers what scrolling cannot.
-    await target.scrollIntoViewIfNeeded().catch(() => undefined);
-    const rebox = await target.boundingBox().catch(() => null);
-    if (rebox && !legendBoxIsTooSmallToClick(rebox)) {
-      const retry = resolveLegendDoubleClickPoint(rebox);
-      // Review I4: this retry is exactly the case a mislaid wrapper is most
-      // likely to explain (hit-target-miss already fired) — it must carry
-      // the same box/offset detail as the normal click, not go blind.
-      tracePageEvent(
-        page,
-        `${traceStartEvent}-hit-target-remeasured`,
-        `${traceDetail}:${formatLegendDblclickBoxDetail(rebox, retry)}`,
-      );
-      await page.mouse.dblclick(retry.x, retry.y).catch(() => undefined);
-      await page.waitForTimeout(350);
-      if (await settleSettingsOpen()) {
-        return true;
-      }
-    }
-  }
-  tracePageEvent(page, traceStartEvent, `${traceDetail}:${formatLegendDblclickBoxDetail(box, { x: doubleClickX, y: doubleClickY })}`);
+  const doubleClickX = box.x + Math.max(16, Math.min(56, box.width * 0.25));
+  const doubleClickY = box.y + Math.max(6, Math.min(box.height / 2, Math.max(box.height - 6, 6)));
+  tracePageEvent(page, traceStartEvent, traceDetail);
   await page.mouse.dblclick(doubleClickX, doubleClickY).catch(() => undefined);
   await page.waitForTimeout(350);
   if (await settleSettingsOpen()) {
@@ -7809,51 +5639,13 @@ async function restoreHistoricalScriptVersionIfNeeded(page: Page): Promise<void>
   tracePageEvent(page, stillReadOnly ? "pine-editor-read-only-still-visible" : "pine-editor-read-only-cleared");
 }
 
-/**
- * Best-effort: dismiss the Pine editor so it stops covering chart surfaces.
- *
- * Returns whether the editor is gone — `true` also when none was open.
- *
- * 2026-08-01, CORRECTION. This comment used to state that "TradingView serves
- * no close affordance for this panel at all". That is FALSE. The operator's
- * screenshot of the docked panel shows minimise / expand / X in the panel
- * chrome, and reports the X present on every chart and every layout. The
- * earlier claim generalised a single probe of one layout (vWgAWyfC, 2026-07-22)
- * into a statement about the product, and because it was written as settled
- * nobody looked again for ten days.
- *
- * What the traces actually said was never evidence for that claim either:
- * `pine-editor-close-candidate-miss-summary count:2` counts candidate LOCATORS
- * that yielded nothing visible, not elements found. Both families below match
- * on an English accessible name or `aria-label="Close"`; the real controls are
- * icon-only, so the helper has been searching for a button that was never the
- * one on screen.
- *
- * The fix is deliberately NOT a positional guess. The same panel chrome carries
- * Publish and Add-to-chart, and a mis-aimed click there is a live action on the
- * operator's account. The failed-close path therefore ENUMERATES the controls
- * into the trace instead of aiming at them. Callers still treat a `false` as
- * normal and stay correct with the editor open.
- *
- * MEASURED 2026-08-01, read-only run 30716530874. The inventory found eight
- * button-like elements inside the dialog subtree and NO close control among
- * them: the script-title dropdown, Add-to-chart, one untitled 34x34 button,
- * Publish, More, and three status-bar items. In the session the storage state
- * renders, the panel is right-docked WITHOUT the window chrome the operator's
- * own browser shows (back-arrow / "Pine Editor" / minimise / expand / X). Both
- * statements are true at once: the operator's X exists, and this session has
- * nothing to click. Scope honestly stated: the enumeration covered
- * `button, [role="button"], [data-name]` under the dialog root only — chrome
- * living outside that subtree, or rendered as plain icon divs, would not
- * appear. So this helper stays advisory-false by measurement, not by claim.
- */
-export async function closePineEditorIfVisible(page: Page): Promise<boolean> {
+async function closePineEditorIfVisible(page: Page): Promise<void> {
   const dialog = await firstVisibleLocator(
     page.locator('#pine-editor-dialog, [data-name="pine-dialog"], [id*="pine-editor" i]'),
     500,
   );
   if (!dialog) {
-    return true;
+    return;
   }
 
   tracePageEvent(page, "pine-editor-close-start");
@@ -7873,150 +5665,49 @@ export async function closePineEditorIfVisible(page: Page): Promise<boolean> {
       return !dialogStillVisible;
     },
   ).catch(() => false);
+  if (!clickedClose) {
+    await page.keyboard.press("Escape").catch(() => undefined);
+    await page.waitForTimeout(400);
+  }
 
   const dialogStillVisible = await dialog.isVisible({ timeout: 500 }).catch(() => false);
   if (!dialogStillVisible) {
     tracePageEvent(page, "pine-editor-close-ok");
-    return true;
+    return;
   }
 
-  // 2026-10-07: the dialog-scoped candidates above never reach the docked editor's own Close:
-  // it sits in the title bar above the dialog. Pinned by measurement, not aimed: exact
-  // aria-label AND title "Close", inside the editor's span (pineEditorTitleBarClose).
-  // It runs BEFORE the read-only inventory below, which stays click-free. Every producer
-  // refresh since 2026-10-06 timed out behind this ("pine-editor-docked-not-closeable",
-  // then the add-to-chart legend check saw a squeezed legend; tv-save run 37549435565).
-  const titleBarClose = await pineEditorTitleBarClose(page, dialog);
-  if (titleBarClose) {
-    await titleBarClose.click().catch(() => undefined);
-    await page.waitForTimeout(1_000);
-    if (!(await dialog.isVisible({ timeout: 500 }).catch(() => false))) {
-      tracePageEvent(page, "pine-editor-close-ok-titlebar");
-      return true;
-    }
+  const box = await dialog.boundingBox().catch(() => null);
+  if (box) {
+    await page.mouse.click(box.x + box.width - 18, box.y + 18).catch(() => undefined);
+    await page.waitForTimeout(400);
   }
 
-  // The selectors above missed. Rather than assert again that nothing exists,
-  // read the panel's controls out and put them in the trace. Attributes only --
-  // no click, no keyboard, nothing that could reach Publish or Add-to-chart.
-  // The next change pins the real control against THIS output instead of
-  // against a guess about how TradingView labels its buttons.
-  const controls = await dialog
-    .evaluate((root: Element) =>
-      Array.from(root.querySelectorAll('button, [role="button"], [data-name]'))
-        .slice(0, 40)
-        .map((element, index) => {
-          const box = element.getBoundingClientRect();
-          return {
-            i: index,
-            tag: element.tagName.toLowerCase(),
-            dataName: element.getAttribute("data-name"),
-            ariaLabel: element.getAttribute("aria-label"),
-            title: element.getAttribute("title"),
-            text: (element.textContent ?? "").trim().slice(0, 24),
-            cls: (element.getAttribute("class") ?? "").slice(0, 60),
-            x: Math.round(box.x),
-            y: Math.round(box.y),
-            w: Math.round(box.width),
-            h: Math.round(box.height),
-          };
-        }),
-    )
-    .catch(() => null);
-  tracePageEvent(
-    page,
-    "pine-editor-close-control-inventory",
-    controls ? JSON.stringify(controls) : "unreadable",
-  );
-
-  // Still unresolved and NOT to be assumed either way: whether the docked state
-  // lives in the saved layout (server-side, so a CI run could close it for the
-  // operator) or in the browser profile the storage state was captured from (in
-  // which case closing it here changes nothing on the operator's screen). The
-  // earlier comment asserted the former without measuring it.
-  //
-  // Evidence so far, 2026-08-01, listed without concluding: the operator closed
-  // the panel in their browser (~19:0xZ) and CI runs at 18:50Z and 19:5xZ both
-  // still saw it open — and both editors showed the SAME script (SMC HTF
-  // Confluence). Consistent with: which script is open is server-side, whether
-  // the panel shows (and its dock mode) is client-side per browser profile.
-  // Also consistent with the operator simply not having saved. Not settled.
-  tracePageEvent(page, "pine-editor-docked-not-closeable");
-  return false;
-}
-
-/**
- * Persist the current chart layout to the server so binding/source mutations
- * survive the session. The settings "submit" click only updates the in-memory
- * indicator instance — without this save, a fresh session (and the operator's
- * reloaded chart) reverts to the last SAVED layout, so a force-rebind that
- * reads back "bound" in its own session silently does not stick (2026-07-25:
- * consumers stayed on "Close" on the live chart while every rebind run
- * reported mismatches:0).
- *
- * The mechanics live in tv_layout_save.ts, shared with the onboarding package:
- * the save counts when TradingView answered `POST /api/v1/charts/save/`, not
- * when a header control changed its label. A button that reports nothing to
- * save is believed (measured, see that file), so this is a no-op on a layout
- * TradingView's autosave already persisted.
- */
-export async function saveChangedChartLayout(page: Page): Promise<void> {
-  await runTrackedStep(page, "saveChangedChartLayout", async () => {
-    await dismissPromotionOverlay(page);
-    const outcome = await saveChartLayout(page);
-    tracePageEvent(page, "chart-layout-saved", `${outcome.trigger} control=${outcome.control} http=${outcome.status}`);
-  });
+  const stillVisibleAfterCorner = await dialog.isVisible({ timeout: 500 }).catch(() => false);
+  tracePageEvent(page, stillVisibleAfterCorner ? "pine-editor-close-still-visible" : "pine-editor-close-ok");
 }
 
 export async function openExistingScript(
   page: Page,
   scriptName: string,
-  options: {
-    forceSelection?: boolean;
-    requireVisibleDeclarationIdentity?: boolean;
-    allowDeclarationDriftRepair?: boolean;
-  } = {},
+  options: { forceSelection?: boolean } = {},
 ): Promise<boolean> {
-  const timing = resolveOpenScriptTiming();
   return runTrackedStep(page, `openExistingScript:${scriptName}`, async () => {
     const identityNames = openScriptIdentityNames(scriptName);
-    const selectionAttempts = resolveOpenScriptSelectionAttempts(scriptName);
+    const searchNames = resolveOpenScriptSearchNames(scriptName);
+    const totalAttempts = Math.max(2, searchNames.length);
     // The title is not sufficient proof that the corresponding Monaco model is
     // active. TradingView can retain a previous script buffer while repainting
-    // the requested title after a publish/save transition. Worse, the identity
-    // families scan the whole page, so with the script ON THE CHART the legend
-    // row satisfies them while the editor sits on an untouched "Untitled
-    // script" draft — observed live 2026-07-31 during the CE10156 diagnosis,
-    // where this fast path returned true without touching the editor. The
-    // Monaco-model declaration can only come from the editor buffer, so the
-    // fast path requires it unconditionally; when it cannot be proven the
-    // function just proceeds to the picker, which is what it would do anyway.
-    const uiAlreadyOpen = options.forceSelection
+    // the requested title after a publish/save transition.
+    const alreadyOpen = options.forceSelection
       ? false
       : await waitForAnyOpenScriptIdentity(page, identityNames, 750).catch(() => false);
-    const alreadyOpen = uiAlreadyOpen
-      && await waitForVisiblePineDeclarationIdentity(page, identityNames, 1_500).catch(() => false);
     if (alreadyOpen) {
       tracePageEvent(page, "open-script-identity-current", scriptName);
       return true;
     }
 
-    for (let attempt = 0; attempt < selectionAttempts.length; attempt += 1) {
-      const selectionAttempt = selectionAttempts[attempt] ?? {
-        searchName: scriptName,
-        exactTitleOnly: true,
-      };
-      const { searchName, exactTitleOnly: exactTitleRetry } = selectionAttempt;
-      // A saved TradingView document can have the correct private-script
-      // title while its current Pine source declares another consumer. That
-      // is precisely the state this rollout must repair. Capture the visible
-      // source before opening the picker so repair authority can require an
-      // actual, stable Monaco-buffer transition in addition to the canonical
-      // document title and the closed picker. A repainted title alone remains
-      // insufficient.
-      const repairBaseline = options.allowDeclarationDriftRepair && searchName === scriptName
-        ? await readVisiblePineEditorSource(page)
-        : null;
+    for (let attempt = 0; attempt < totalAttempts; attempt += 1) {
+      const searchName = searchNames[Math.min(attempt, searchNames.length - 1)] ?? scriptName;
       const openedDialog = await openScriptSelectionSurface(page);
       if (!openedDialog) {
         if (attempt === 0) {
@@ -8030,13 +5721,10 @@ export async function openExistingScript(
       await activateOpenScriptMyScriptsSection(page);
       await fillOpenScriptSearch(page, searchName);
 
-      const rowCandidates = exactTitleRetry
-        ? tvSelectors.openScriptExactTitle(page, searchName)
-        : tvSelectors.openScriptRow(page, searchName);
       const clickedScript = await clickVisibleWithFallback(
         page,
-        rowCandidates,
-        exactTitleRetry ? "open-script-exact-title" : "open-script-row",
+        tvSelectors.openScriptRow(page, searchName),
+        "open-script-row",
         3_000,
         1_000,
       );
@@ -8045,13 +5733,7 @@ export async function openExistingScript(
       let dialogStillVisible = await hasVisibleOpenScriptSurface(page, 750);
 
       if (dialogStillVisible && clickedScript) {
-        await doubleClickVisible(
-          page,
-          rowCandidates,
-          exactTitleRetry ? "open-script-exact-title-confirm" : "open-script-row-confirm",
-          2_000,
-          1_000,
-        );
+        await doubleClickVisible(page, tvSelectors.openScriptRow(page, searchName), "open-script-row-confirm", 2_000, 1_000);
         dialogStillVisible = await hasVisibleOpenScriptSurface(page, 750);
       }
 
@@ -8062,49 +5744,13 @@ export async function openExistingScript(
       }
 
       const identityVerified = await waitForAnyOpenScriptIdentity(page, identityNames);
-      const canonicalIdentityVerified = options.allowDeclarationDriftRepair && searchName === scriptName
-        ? await waitForAnyOpenScriptIdentity(page, [scriptName], 1_500)
-        : false;
-      const declarationVerified = identityVerified
-        && options.requireVisibleDeclarationIdentity
-        && await waitForVisiblePineDeclarationIdentity(
-          page,
-          identityNames,
-          options.allowDeclarationDriftRepair ? 1_500 : timing.modelSettleTimeoutMs,
-        ).catch(() => false);
-      const sourceTransitionVerified = identityVerified
-        && canonicalIdentityVerified
-        && options.allowDeclarationDriftRepair
-        && repairBaseline !== null
-        && await waitForStableVisiblePineSourceTransition(
-          page,
-          repairBaseline,
-          timing.modelSettleTimeoutMs,
-        ).catch(() => false);
-      const modelIdentityVerified = !options.requireVisibleDeclarationIdentity
-        || declarationVerified
-        || sourceTransitionVerified;
-      if (identityVerified && modelIdentityVerified) {
-        if (sourceTransitionVerified && !declarationVerified) {
-          tracePageEvent(
-            page,
-            "open-script-declaration-drift-repair",
-            `${scriptName}:search=${searchName}`,
-          );
-        }
+      if (identityVerified) {
         if (searchName !== scriptName) {
           tracePageEvent(page, "open-script-legacy-alias", `${scriptName}<=${searchName}`);
         }
         return true;
       }
 
-      if (identityVerified && !modelIdentityVerified) {
-        tracePageEvent(
-          page,
-          "open-script-visible-declaration-retry",
-          `${scriptName}:attempt=${attempt + 1}:search=${searchName}`,
-        );
-      }
       tracePageEvent(page, "open-script-identity-retry", `${scriptName}:attempt=${attempt + 1}:search=${searchName}`);
       await page.keyboard.press("Escape").catch(() => undefined);
       await ensurePineEditor(page).catch(() => undefined);
@@ -8112,7 +5758,7 @@ export async function openExistingScript(
     }
 
     return false;
-  }, timing.stepTimeoutMs);
+  });
 }
 
 export async function addExistingScriptToChartViaIndicators(
@@ -8403,32 +6049,6 @@ export async function setEditorContent(
       await page.keyboard.press(`${mod}+V`).catch(() => undefined);
       await page.waitForTimeout(Math.min(2_500, 250 + Math.ceil(code.length / 100)));
 
-      // Re-seed the clipboard with a marker BEFORE copying the editor back.
-      // Without it the readback below compares `code` against the very value
-      // this function put on the clipboard 20 lines ago: a copy that never
-      // lands (focus lost, Monaco not focused, an overlay in front) leaves the
-      // original write in place and the comparison succeeds while the editor is
-      // untouched. The read path in this module has guarded against exactly
-      // this since it was written — "so a copy that never lands cannot
-      // masquerade as source".
-      const clipboardMarker = `tv-editor-write-probe-${Date.now()}-${code.length}`;
-      const seeded = await page
-        .evaluate(async (marker) => {
-          try {
-            await navigator.clipboard.writeText(marker);
-            return true;
-          } catch {
-            return false;
-          }
-        }, clipboardMarker)
-        .catch(() => false);
-      tracePageEvent(page, "editor-trace", `clipboard:seed:${seeded}`);
-      if (!seeded) {
-        // Cannot tell a stale readback from a real one — fail closed and let
-        // the next strategy try.
-        return false;
-      }
-
       await page.keyboard.press(`${mod}+A`).catch(() => undefined);
       await page.keyboard.press(`${mod}+C`).catch(() => undefined);
       await page.waitForTimeout(150);
@@ -8443,17 +6063,14 @@ export async function setEditorContent(
         })
         .catch(() => "");
 
-      const matches = clipboardReadbackProvesWrite({
-        expected: code,
-        seededMarker: clipboardMarker,
-        readback: copiedBack,
-        normalize: normalizeClipboardText,
-      });
-      tracePageEvent(
-        page,
-        "editor-trace",
-        `clipboard:readback:${copiedBack.length}:${copiedBack === clipboardMarker ? "marker" : "content"}:${matches}`,
-      );
+      const normalizedExpected = normalizeClipboardText(code);
+      const normalizedActual = normalizeClipboardText(copiedBack);
+      const matches =
+        normalizedActual === normalizedExpected ||
+        (normalizedActual.length === normalizedExpected.length &&
+          normalizedActual.slice(0, 200) === normalizedExpected.slice(0, 200) &&
+          normalizedActual.slice(-200) === normalizedExpected.slice(-200));
+      tracePageEvent(page, "editor-trace", `clipboard:readback:${normalizedActual.length}:${matches}`);
       return matches;
     };
 
@@ -8744,377 +6361,6 @@ export async function setEditorContent(
   }, editorContentTimeoutMs);
 }
 
-/**
- * Anchored Pine declaration matcher for a saved script title. Matches the
- * script's own `indicator("<title>"` / `strategy('<title>'` declaration only —
- * NOT incidental mentions of the title (e.g. a consumer's
- * `input.source(..., "SMC Long-Dip Suite: BUS Armed")` binding labels), so it
- * uniquely identifies the Monaco model that holds the requested script buffer.
- */
-export function pineDeclarationTitlePattern(title: string): RegExp {
-  const escaped = title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`\\b(?:indicator|strategy|library)\\s*\\(\\s*(["'])${escaped}\\1`);
-}
-
-/**
- * Build the in-page Monaco model picker as a PLAIN-JS source string.
- *
- * Why a string and not a function: tsx/esbuild compiles this file with
- * keep-names, wrapping named inner arrows in a `__name(...)` helper that only
- * exists in the compiled module scope. Playwright serializes a function-form
- * `page.evaluate` callback via toString, so inside the page every such closure
- * throws `ReferenceError: __name is not defined` — which is why the monaco
- * path of readEditorContent (and of the legacy models[0] reader) NEVER ran in
- * CI and every read silently fell through to the untargeted clipboard grab
- * (run 29888669703; reproduced locally with the raw error). A source string is
- * never transformed, so what we author is exactly what the page executes.
- *
- * Selection rules (unchanged from #3858): prefer visible/focused editor
- * instances, resolve by the anchored Pine declaration title when provided,
- * else accept only an unambiguous single buffer; never an arbitrary model.
- */
-export function buildPineEditorModelPickerSource(
-  patternSource: string,
-  requireVisibleEditor = false,
-): string {
-  return `(() => {
-  var patternSource = ${JSON.stringify(patternSource)};
-  var requireVisibleEditor = ${JSON.stringify(requireVisibleEditor)};
-  function findMonaco(value, seen) {
-    if (!value || (typeof value !== "object" && typeof value !== "function") || seen.has(value)) return null;
-    seen.add(value);
-    try {
-      if (value.editor && typeof value.editor.getModels === "function") return value;
-    } catch (error) {
-      return null;
-    }
-    var nested;
-    try {
-      nested = Object.values(value);
-    } catch (error) {
-      return null; // throwing getters (webpack TDZ namespaces) — skip object
-    }
-    for (var i = 0; i < nested.length; i += 1) {
-      var found = findMonaco(nested[i], seen);
-      if (found) return found;
-    }
-    return null;
-  }
-  function findMonacoViaWebpack() {
-    var chunk = window.webpackChunktradingview;
-    if (!chunk || typeof chunk.push !== "function") return null;
-    var moduleCache = {};
-    try {
-      chunk.push([["tv-monaco-read-" + Date.now()], {}, function (requireFn) { moduleCache = (requireFn && requireFn.c) || {}; }]);
-      if (typeof chunk.pop === "function") chunk.pop();
-    } catch (error) {
-      return null;
-    }
-    var seen = new Set();
-    var records = Object.values(moduleCache);
-    for (var i = 0; i < records.length; i += 1) {
-      var record = records[i];
-      try {
-        var found = findMonaco(record && record.exports, seen);
-        if (found) return found;
-      } catch (error) {
-        // tolerate modules whose exports enumeration throws
-      }
-    }
-    return null;
-  }
-  function safeValue(model) {
-    try {
-      var value = model && model.getValue();
-      return typeof value === "string" ? value : null;
-    } catch (error) {
-      return null;
-    }
-  }
-  function distinct(values) {
-    return Array.from(new Set(values));
-  }
-
-  var direct = null;
-  try {
-    if (window.monaco && window.monaco.editor && typeof window.monaco.editor.getModels === "function") direct = window.monaco;
-  } catch (error) {
-    direct = null;
-  }
-  var monaco = direct || findMonacoViaWebpack();
-  if (!monaco) return { value: null, reason: "monaco-not-found" };
-
-  // Visible/focused editor instances beat the bare model list: they are the
-  // buffers actually rendered to the operator.
-  var editorValues = [];
-  try {
-    var editors = (monaco.editor && typeof monaco.editor.getEditors === "function") ? monaco.editor.getEditors() : [];
-    for (var i = 0; i < editors.length; i += 1) {
-      var editor = editors[i];
-      var dom = editor && typeof editor.getDomNode === "function" ? editor.getDomNode() : null;
-      if (!dom || !dom.isConnected) continue;
-      var rect = dom.getBoundingClientRect();
-      if (rect.width <= 0 || rect.height <= 0) continue;
-      var editorValue = safeValue(editor && typeof editor.getModel === "function" ? editor.getModel() : null);
-      if (editorValue === null || !editorValue.trim()) continue;
-      var focused = false;
-      try { focused = typeof editor.hasTextFocus === "function" && editor.hasTextFocus() === true; } catch (error) { focused = false; }
-      editorValues.push({ value: editorValue, focused: focused });
-    }
-  } catch (error) {
-    // getEditors is unavailable on older Monaco builds; model fallback below.
-  }
-
-  var modelValues = [];
-  try {
-    var models = monaco.editor.getModels();
-    for (var j = 0; j < models.length; j += 1) {
-      var modelValue = safeValue(models[j]);
-      if (modelValue !== null && modelValue.trim() !== "") modelValues.push(modelValue);
-    }
-  } catch (error) {
-    return { value: null, reason: "get-models-threw:" + String(error).slice(0, 120) };
-  }
-
-  if (patternSource) {
-    var pattern = new RegExp(patternSource);
-    var matchingEditorValues = distinct(editorValues.filter(function (entry) { return pattern.test(entry.value); }).map(function (entry) { return entry.value; }));
-    if (matchingEditorValues.length === 1) return { value: matchingEditorValues[0], reason: "editor-declaration-match" };
-    if (requireVisibleEditor) return { value: null, reason: "visible-editor-declaration-unresolved:editors=" + matchingEditorValues.length + ":visibleEditors=" + editorValues.length + ":totalModels=" + modelValues.length };
-    var matchingModelValues = distinct(modelValues.filter(function (value) { return pattern.test(value); }));
-    if (matchingModelValues.length === 1) return { value: matchingModelValues[0], reason: "model-declaration-match" };
-    return { value: null, reason: "declaration-title-unresolved:editors=" + matchingEditorValues.length + ":models=" + matchingModelValues.length + ":totalModels=" + modelValues.length };
-  }
-
-  var focusedValues = editorValues.filter(function (entry) { return entry.focused; });
-  if (focusedValues.length === 1) return { value: focusedValues[0].value, reason: "focused-editor" };
-  var distinctEditorValues = distinct(editorValues.map(function (entry) { return entry.value; }));
-  if (distinctEditorValues.length === 1) return { value: distinctEditorValues[0], reason: "single-visible-editor" };
-  var distinctModelValues = distinct(modelValues);
-  if (distinctModelValues.length === 1) return { value: distinctModelValues[0], reason: "single-model" };
-  return { value: null, reason: "ambiguous-models:editors=" + distinctEditorValues.length + ":models=" + distinctModelValues.length };
-})()`;
-}
-
-export async function waitForVisiblePineDeclarationIdentity(
-  page: Page,
-  scriptNames: string[],
-  timeoutMs = 4_000,
-): Promise<boolean> {
-  const pickerSources = uniqueNormalizedTexts(scriptNames).map((name) =>
-    buildPineEditorModelPickerSource(pineDeclarationTitlePattern(name).source, true)
-  );
-  const deadline = Date.now() + timeoutMs;
-
-  while (Date.now() < deadline) {
-    for (const pickerSource of pickerSources) {
-      const picked = await page.evaluate(pickerSource).catch(() => null) as {
-        value?: unknown;
-        reason?: unknown;
-      } | null;
-      if (typeof picked?.value === "string" && picked.value.trim()) {
-        tracePageEvent(page, "visible-pine-declaration-identity", String(picked.reason ?? "resolved"));
-        return true;
-      }
-    }
-    await page.waitForTimeout(250);
-  }
-
-  return false;
-}
-
-async function readVisiblePineEditorSource(page: Page): Promise<string | null> {
-  const picked = await page.evaluate(
-    buildPineEditorModelPickerSource("", true),
-  ).catch(() => null) as { value?: unknown } | null;
-  return typeof picked?.value === "string" && picked.value.trim()
-    ? picked.value
-    : null;
-}
-
-export function visiblePineSourceTransitionVerified(
-  baseline: string | null,
-  candidate: string | null,
-): boolean {
-  return typeof baseline === "string"
-    && Boolean(baseline.trim())
-    && typeof candidate === "string"
-    && Boolean(candidate.trim())
-    && candidate !== baseline;
-}
-
-async function waitForStableVisiblePineSourceTransition(
-  page: Page,
-  baseline: string,
-  timeoutMs: number,
-): Promise<boolean> {
-  const deadline = Date.now() + timeoutMs;
-  let previousChangedSource: string | null = null;
-
-  while (Date.now() < deadline) {
-    const candidate = await readVisiblePineEditorSource(page);
-    if (visiblePineSourceTransitionVerified(baseline, candidate)) {
-      if (candidate === previousChangedSource) {
-        tracePageEvent(page, "visible-pine-source-transition", "stable");
-        return true;
-      }
-      previousChangedSource = candidate;
-    } else {
-      previousChangedSource = null;
-    }
-    await page.waitForTimeout(250);
-  }
-
-  return false;
-}
-
-/**
- * Read the complete source currently loaded in TradingView's Pine editor.
- *
- * Model targeting contract (2026-07-22, #3846 follow-up): `getModels()[0]` is
- * NOT the open script — after a save/producer-refresh transition the page holds
- * several Monaco models (console/snippet buffers of a few hundred bytes), and
- * TradingView can keep a previous buffer while already repainting the requested
- * title (see openExistingScript). Reading an arbitrary model made every source
- * verification compare garbage (735–1177-byte reads with duplicated hashes
- * across different scripts, run 29863161441). We therefore poll until a model
- * is unambiguously the requested script — matched via its anchored Pine
- * declaration title when provided, else a focused/visible editor or a single
- * surviving model — and require the value to be stable across two reads before
- * trusting it. The picker runs as a source string, see
- * buildPineEditorModelPickerSource for why function-form evaluate is unusable
- * here.
- */
-export async function readEditorContent(
-  page: Page,
-  options: {
-    editorAlreadyOpen?: boolean;
-    expectedDeclarationTitle?: string;
-    requireVisibleEditor?: boolean;
-  } = {},
-): Promise<string> {
-  return runTrackedStep(page, "readEditorContent", async () => {
-    await dismissCookieBanner(page);
-    if (!options.editorAlreadyOpen) await ensurePineEditor(page);
-
-    const declarationPatternSource = options.expectedDeclarationTitle
-      ? pineDeclarationTitlePattern(options.expectedDeclarationTitle).source
-      : "";
-    const pickerSource = buildPineEditorModelPickerSource(
-      declarationPatternSource,
-      options.requireVisibleEditor === true,
-    );
-
-    const readOnce = (): Promise<{ value: string | null; reason: string }> =>
-      page
-        .evaluate(pickerSource)
-        .then((raw) => {
-          const picked = raw as { value?: unknown; reason?: unknown } | null;
-          const value = typeof picked?.value === "string" ? picked.value : null;
-          const reason = typeof picked?.reason === "string" ? picked.reason : "malformed-picker-result";
-          return { value, reason };
-        })
-        .catch((error) => ({ value: null, reason: `evaluate-rejected:${String(error).slice(0, 160)}` }));
-
-    // Poll for the buffer swap (openExistingScript verifies the TITLE only; the
-    // model content can lag), then require two identical consecutive reads so a
-    // mid-swap snapshot is never reported as the saved source.
-    const pollDeadline = Date.now() + numEnv("TV_READ_EDITOR_POLL_MS", 20_000);
-    let lastReason = "not-attempted";
-    let previousValue: string | null = null;
-    while (Date.now() < pollDeadline) {
-      const attempt = await readOnce();
-      lastReason = attempt.reason;
-      if (attempt.value !== null) {
-        if (previousValue !== null && attempt.value === previousValue) {
-          tracePageEvent(page, "read-editor-content", `resolved:${attempt.reason}:${attempt.value.length}`);
-          return attempt.value;
-        }
-        previousValue = attempt.value;
-      } else {
-        previousValue = null;
-      }
-      await page.waitForTimeout(500);
-    }
-    tracePageEvent(page, "read-editor-content", `monaco-unresolved:${lastReason}`);
-
-    const declarationPattern = options.expectedDeclarationTitle
-      ? pineDeclarationTitlePattern(options.expectedDeclarationTitle)
-      : null;
-    const readClipboard = (): Promise<string> =>
-      page.evaluate("navigator.clipboard.readText().catch(() => \"\")").then((raw) => (typeof raw === "string" ? raw : "")).catch(() => "");
-    const mod = process.platform === "darwin" ? "Meta" : "Control";
-    const clipboardMarker = `__tv_editor_source_probe_${Date.now()}__`;
-    for (const host of tvSelectors.editorHosts(page)) {
-      const count = await host.count().catch(() => 0);
-      for (let index = 0; index < count; index += 1) {
-        const candidate = host.nth(index);
-        if (!(await candidate.isVisible({ timeout: 250 }).catch(() => false))) continue;
-        // Clicking a Monaco *container* does not reliably focus its hidden
-        // input. In that state Ctrl+A/C copies a visible viewport fragment or
-        // a stale page selection, so a healthy saved source reads back
-        // truncated (735-1,177 bytes for ~200KB scripts) or even identical
-        // across different scripts. Focus the actual textarea/contenteditable
-        // Monaco uses instead.
-        const tagName = await candidate.evaluate((node) => node.tagName.toLowerCase()).catch(() => "");
-        let input = candidate;
-        if (tagName !== "textarea" && !(await candidate.getAttribute("contenteditable").catch(() => null))) {
-          const descendant = candidate.locator('textarea, [contenteditable="true"]').first();
-          if (!(await descendant.isVisible({ timeout: 250 }).catch(() => false))) continue;
-          input = descendant;
-        }
-        const focused = await input.focus().then(() => true).catch(() => false);
-        if (!focused) continue;
-        await input.click({ force: true }).catch(() => undefined);
-        // Pre-seed a marker so a copy that never lands cannot masquerade as
-        // source: the clipboard otherwise keeps stale content, which the
-        // copy-until-stable check below reads as "stable" (it never changes)
-        // and — with no expected declaration title to reject it — would
-        // return as the saved source. Fail closed instead.
-        const seededClipboard = await page.evaluate(async (marker) => {
-          try {
-            await navigator.clipboard.writeText(marker);
-            return true;
-          } catch {
-            return false;
-          }
-        }, clipboardMarker).catch(() => false);
-        if (!seededClipboard) continue;
-        // Copy-until-stable: for a ~200KB document the editor may still be
-        // streaming the buffer in, and a single quick select-all/copy captured
-        // only the loaded head (552-byte suite grab, run 29888669703). Accept a
-        // grab only when two consecutive copies return the identical text.
-        let previousCopy = "";
-        for (let attempt = 0; attempt < 5; attempt += 1) {
-          await page.keyboard.press(`${mod}+A`).catch(() => undefined);
-          await page.keyboard.press(`${mod}+C`).catch(() => undefined);
-          await page.waitForTimeout(400);
-          const copied = await readClipboard();
-          tracePageEvent(
-            page,
-            "editor-source-readback",
-            `candidate:${index}:attempt:${attempt}:bytes:${Buffer.byteLength(copied, "utf-8")}`,
-          );
-          // The copy never landed — the marker is still all the clipboard
-          // holds. Retry; never let it stabilise into an accepted read.
-          if (copied === clipboardMarker) continue;
-          if (copied.trim() && copied === previousCopy) {
-            // The clipboard grab is as untargeted as the old models[0] read;
-            // with a known declaration title only accept this script's buffer.
-            if (!declarationPattern || declarationPattern.test(copied)) return copied;
-            break; // stable but wrong buffer — try the next host, not more copies
-          }
-          previousCopy = copied;
-        }
-      }
-    }
-
-    throw new Error(
-      `Could not read complete Pine editor source via Monaco or clipboard (last monaco state: ${lastReason})`,
-    );
-  }, Math.max(stepTimeoutMs(), 45_000));
-}
-
 export async function saveScript(page: Page, scriptName: string): Promise<void> {
   await runTrackedStep(page, `saveScript:${scriptName}`, async () => {
     await dismissSignInModal(page);
@@ -9385,54 +6631,8 @@ export async function assertNoVisibleCompileError(page: Page): Promise<void> {
  * generic body-text gate above cannot see an icon whose diagnostic lives in a
  * title/aria-label attribute (the CE10271 incident on 2026-07-16).
  */
-/**
- * Signals that the chart error channel could not LOOK, as opposed to having
- * looked and found nothing. Mirrors {@link COMPILE_PROBE_UNREADABLE} on the
- * body-text side, for the same reason: an unobservable probe must never be
- * conflated with a genuinely clean compile.
- */
-export const CHART_ERROR_PROBE_UNREADABLE = Symbol("chart-error-probe-unreadable");
-
-/**
- * Look for a Pine error on the script's legend row, and say whether the look
- * succeeded.
- *
- * This channel exists for errors that live ONLY in the legend badge's
- * `title`/`aria-label` (the CE10271 class); the body-text channel cannot see
- * them. The button-first finder can return `[]` while TradingView keeps legend
- * actions hidden until hover, so the hard gate follows it with the bounded
- * text-first hover probe already used by removal/refresh. Both finders require
- * one tight legend row with exactly one known action; if neither can observe
- * that row, the result remains explicitly unreadable rather than "clean".
- *
- * One bounded re-look of both strategies remains before giving up: a gate that
- * flakes red gets switched off by the humans it protects, and the legend row
- * is genuinely still painting right after an insert.
- */
-export async function probeVisibleChartScriptError(
-  page: Page,
-  scriptName: string,
-): Promise<string | typeof CHART_ERROR_PROBE_UNREADABLE | null> {
-  const discoverReadableWrappers = async (): Promise<Locator[]> => {
-    const buttonFirst = await findLegendRowWrappers(page, scriptName);
-    if (buttonFirst.length > 0) return buttonFirst;
-
-    const textFirst = await findLegendRowWrappersByVisibleText(page, scriptName).catch(() => []);
-    if (textFirst.length > 0) {
-      tracePageEvent(page, "chart-error-probe", `text-fallback:${scriptName}:${textFirst.length}`);
-    }
-    return textFirst;
-  };
-
-  let wrappers = await discoverReadableWrappers();
-  if (wrappers.length === 0) {
-    await page.waitForTimeout(750).catch(() => undefined);
-    wrappers = await discoverReadableWrappers();
-  }
-  if (wrappers.length === 0) {
-    tracePageEvent(page, "chart-error-probe", `unreadable:${scriptName}`);
-    return CHART_ERROR_PROBE_UNREADABLE;
-  }
+export async function getVisibleChartScriptError(page: Page, scriptName: string): Promise<string | null> {
+  const wrappers = await findLegendRowWrappers(page, scriptName);
   for (const wrapper of wrappers) {
     const candidates = wrapper.locator("[title], [aria-label]");
     const count = await candidates.count();
@@ -9451,52 +6651,11 @@ export async function probeVisibleChartScriptError(
   return null;
 }
 
-/**
- * Back-compatible view of {@link probeVisibleChartScriptError} for callers that
- * only want the error text. "Could not look" maps to `null` here, so this must
- * NOT be used by anything that gates on a clean compile — use the probe.
- */
-export async function getVisibleChartScriptError(page: Page, scriptName: string): Promise<string | null> {
-  const probed = await probeVisibleChartScriptError(page, scriptName);
-  return probed === CHART_ERROR_PROBE_UNREADABLE ? null : probed;
-}
-
-/**
- * Hard pre-publish gate. Deliberately built on {@link probeVisibleChartScriptError},
- * not {@link getVisibleChartScriptError}: that view maps "could not look" to
- * `null`, so gating on it would let a publish certify a compile it never
- * observed. Its own docstring says not to use it for gating.
- */
 export async function assertNoVisibleChartScriptError(page: Page, scriptName: string): Promise<void> {
-  const probed = await probeVisibleChartScriptError(page, scriptName);
-  if (probed === CHART_ERROR_PROBE_UNREADABLE) {
-    throw new Error(
-      `Chart legend unreadable for ${scriptName}: refusing to report a clean compile from a surface that could not be read.`,
-    );
+  const hit = await getVisibleChartScriptError(page, scriptName);
+  if (hit) {
+    throw new Error(`Visible chart error detected for ${scriptName}: ${hit}`);
   }
-  if (probed) {
-    throw new Error(`Visible chart error detected for ${scriptName}: ${probed}`);
-  }
-}
-
-/**
- * Materialize an indicator that is absent from the chart, then require a
- * readable, error-free legend row before its publish flow can continue.
- *
- * The Open-Prep publisher updates a saved script that is not necessarily
- * attached to the active layout.  A chart-error assertion before this step is
- * therefore impossible to satisfy: the publish helper has not yet had a chance
- * to add the script.  Keep the materialization inside the publish helper so the
- * caller records an attempted publish and so every exit remains fail-closed.
- */
-export async function ensureCleanChartScriptForPublish(page: Page, scriptName: string): Promise<void> {
-  const initialProbe = await probeVisibleChartScriptError(page, scriptName);
-  if (initialProbe === CHART_ERROR_PROBE_UNREADABLE) {
-    tracePageEvent(page, "publish-chart-prepare", `materialize:${scriptName}`);
-    await addCurrentScriptToChart(page, scriptName);
-  }
-
-  await assertNoVisibleChartScriptError(page, scriptName);
 }
 
 export async function hasAddToChartClickEffect(page: Page, scriptName?: string): Promise<boolean> {
@@ -9710,7 +6869,7 @@ export async function addCurrentScriptToChart(page: Page, scriptName?: string, o
       return;
     }
     throw new Error(errorMsg);
-  }, options.stepTimeoutMs ?? stepTimeoutMs());
+  });
 }
 
 async function openSettingsForScriptOnce(page: Page, scriptName: string): Promise<boolean> {
@@ -9783,137 +6942,12 @@ async function openSettingsForScriptOnce(page: Page, scriptName: string): Promis
   throw new Error(`Opened generic settings instead of indicator settings for script: ${scriptName}`);
 }
 
-/**
- * Ledger klasse-h, Fix (Lauf 32803019213, save-Job 2026-08-25 11:52:50Z):
- * called instead of another `openSettingsForScriptOnce` double-click round
- * once `shouldEscalateSettingsOpenPath` says the target has already
- * mismatched onto its legend neighbour twice — a third double-click on the
- * same spot proved to reproduce the same neighbour hit, not a fresh miss, and
- * only burns the 60s step budget the whole call runs under.
- *
- * Goes straight for the row-bound settings control
- * (`button[data-qa-id="legend-settings-action"]`, selectors.ts
- * `legendSettingsButtons`). Review I2 (Fix-Runde 1): this is NOT the only
- * place that clicks it — openSettingsFromVisibleLegendText/-LegendContainer
- * (twice)/-ScriptText each carry their own direct-settings-button fallback
- * (tv_shared.ts:6645/6693/6779/6896). The true, narrower claim: every
- * MEASURED klasse-h failure had its double-click OPEN a (wrong) dialog and
- * return via identity mismatch before the ladder ever reached one of those
- * fallbacks — they exist for "nothing opened at all", never fire for
- * "opened the wrong thing", so a mismatched target never reached them either.
- * `findLegendRowWrappersByVisibleText` re-resolves the target row by its text
- * (not by re-using whatever row the mismatched attempt aimed at), and the
- * extra `wrapper.hover()` before each button click mirrors
- * `openLegendRemovalMenu`'s pattern: these action buttons render only on
- * hover.
- *
- * Review C1 (CRITICAL, Fix-Runde 1): the "More" fallback originally used
- * `legendMenuButtons`, whose candidate list ends in bare `button` /
- * `[role="button"]` catch-alls (selectors.ts:652-653) — inside the SAME hover
- * strip as the row's Remove control, which this ledger's own evidence twice
- * caught the plain double-click landing on (`foreign:Remove`,
- * hit-target-miss). Clicked via `clickLegendControlWithFallback`'s
- * force+offset-position fallback ladder, that could have removed the
- * indicator from the live (or, worse, the readonly-verify) chart without
- * ever opening a dialog the identity guard could reject. Replaced with the
- * narrow `legendMoreActionLocators` (tv_shared.ts:5571 — the exact list
- * `openLegendRemovalMenu` already trusts to mean "this row's More trigger,
- * nothing else") and a plain actionable `clickFirst` click — no
- * `force: true`. If the opened menu has no "Settings" entry, the menu is
- * closed (Escape) right here in this branch instead of being left open for
- * the caller's catch (mirrors the closeModal-before-throw shape at the end of
- * `openSettingsForScriptOnce`).
- *
- * Review I6: the threshold is REACHABLE within one call (a legend-text
- * mismatch followed by a legend-container mismatch, each through
- * `verifyOpenedSettingsDialogIdentity`), but no real run has exercised this
- * escalation path yet — Lauf 32803019213 measured mismatches per RUN, not
- * per openSettingsForScript call. Effectiveness is UNPROVEN until a real run
- * shows `script-settings-open-button-escalation-armed` followed by success.
- *
- * Same arbiter as every other path: `verifyOpenedSettingsDialogIdentity`
- * decides match/mismatch here exactly as it does for the double-click ladder.
- * Browser-bound end to end (Locator/hover/click) — the decision to call this
- * function at all lives in the pure `shouldEscalateSettingsOpenPath`.
- */
-async function openSettingsForScriptViaLegendButton(page: Page, scriptName: string): Promise<boolean> {
-  tracePageEvent(page, "script-settings-open-button-escalation-start", scriptName);
-  await dismissSignInModal(page);
-  await closePineEditorIfVisible(page);
-
-  const wrappers = await findLegendRowWrappersByVisibleText(page, scriptName).catch(() => []);
-  tracePageEvent(page, "script-settings-open-button-escalation-rows", `${scriptName}:${wrappers.length}`);
-
-  for (const [index, wrapper] of wrappers.entries()) {
-    await wrapper.scrollIntoViewIfNeeded().catch(() => undefined);
-    // Legend action buttons render only on hover — same pattern
-    // openLegendRemovalMenu already uses for the remove path.
-    await wrapper.hover({ timeout: 1_000 }).catch(() => undefined);
-
-    // Settings-specific candidates only (review C1): every locator in
-    // legendSettingsButtons targets a settings control, never Remove.
-    const clickedDirectSettings = await clickLegendControlWithFallback(
-      page,
-      tvSelectors.legendSettingsButtons(wrapper),
-      "script-settings-open-button-escalation-settings",
-      600,
-      200,
-      async () => hasSettingsSurfaceDomHint(page),
-    );
-    if (clickedDirectSettings) {
-      tracePageEvent(page, "script-settings-open-button-escalation-settings-clicked", `${scriptName}:${index}`);
-      if (await waitForScriptSettingsInputsSurface(page, 750)) {
-        return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-open-button-escalation-surface");
-      }
-      if (await resolveOpenedSettingsSurfaceToIndicatorDialog(page, "script-settings-open-button-escalation-settings", 750)) {
-        return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-open-button-escalation-dialog");
-      }
-    }
-
-    await wrapper.hover({ timeout: 1_000 }).catch(() => undefined);
-    // Review C1: legendMoreActionLocators, NOT legendMenuButtons — the narrow
-    // "More" trigger list openLegendRemovalMenu already relies on, never a
-    // bare button/[role="button"] catch-all that could also resolve to
-    // Remove in the same hover strip. clickFirst does a plain actionable
-    // click (Playwright's own actionability wait), no force:true.
-    const clickedMenu = await clickFirst(legendMoreActionLocators(wrapper), 600);
-    if (clickedMenu) {
-      tracePageEvent(page, "script-settings-open-button-escalation-menu-clicked", `${scriptName}:${index}`);
-      const clickedMenuSettings = await clickFirst(tvSelectors.settingsAction(page), 1_500);
-      if (clickedMenuSettings) {
-        if (await waitForScriptSettingsInputsSurface(page, 1_500)) {
-          tracePageEvent(page, "script-settings-open-button-escalation-menu-action-clicked", `${scriptName}:${index}`);
-          return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-open-button-escalation-menu-dialog");
-        }
-        if (await resolveOpenedSettingsSurfaceToIndicatorDialog(page, "script-settings-open-button-escalation-menu", 750)) {
-          tracePageEvent(page, "script-settings-open-button-escalation-menu-action-clicked", `${scriptName}:${index}`);
-          return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-open-button-escalation-menu-dialog");
-        }
-      }
-      // Review C1/M7: close the menu HERE, in this branch, instead of
-      // leaving it open for the caller's catch to clean up later — mirrors
-      // the closeModal-before-throw shape at the end of
-      // openSettingsForScriptOnce (tv_shared.ts, just above this function).
-      tracePageEvent(page, "script-settings-open-button-escalation-menu-no-settings", `${scriptName}:${index}`);
-      await page.keyboard.press("Escape").catch(() => undefined);
-    }
-  }
-
-  tracePageEvent(page, "script-settings-open-button-escalation-miss", scriptName);
-  return false;
-}
-
 export async function openSettingsForScript(
   page: Page,
   scriptName: string,
   options: { allowChartRefresh?: boolean } = {},
 ): Promise<boolean> {
   const allowChartRefresh = options.allowChartRefresh === true;
-  // A promotion overlay can appear at any point in the session and then sits
-  // above or below the dialog this function opens (both seen in run
-  // 36859274386). Closing it here covers every caller that is about to work
-  // inside a settings dialog.
-  await dismissPromotionOverlay(page);
   // Both modes retry the settings-menu open once. The open is inherently flaky:
   // the TradingView chart legend races with pointer-intercepting overlays (e.g.
   // the "publish" menu item), so a single attempt fails transiently. The
@@ -9926,12 +6960,6 @@ export async function openSettingsForScript(
   const totalTimeoutMs = allowChartRefresh
     ? Math.max(stepTimeoutMs(), 70_000)
     : Math.max(stepTimeoutMs(), 60_000);
-
-  // Ledger klasse-h: the mismatch count is scoped to this call ("je
-  // openSettingsForScript-Aufruf") — a stale count from an earlier call for
-  // the same script on the same page must not trigger an escalation before
-  // this call has mismatched even once.
-  resetSettingsIdentityMismatchCount(settingsIdentityMismatchCountsForPage(page), scriptName);
 
   return runTrackedStep(page, `openSettingsForScript:${scriptName}`, async () => {
     let lastError: unknown;
@@ -9958,40 +6986,11 @@ export async function openSettingsForScript(
 
       try {
         tracePageEvent(page, "script-settings-open-attempt-start", `${scriptName}:attempt=${attempt + 1}`);
-        // Ledger klasse-h escalation: the double-click ladder proved to hit
-        // the same legend neighbour again on repeat, not a fresh miss — past
-        // the measured threshold, skip straight to the row-bound button path.
-        const mismatchCount = settingsIdentityMismatchCount(settingsIdentityMismatchCountsForPage(page), scriptName);
-        const escalate = shouldEscalateSettingsOpenPath(mismatchCount);
-        if (escalate) {
-          tracePageEvent(page, "script-settings-open-button-escalation-armed", `${scriptName}:mismatches=${mismatchCount}`);
-        }
-        // Review I5: the button path replacing the whole attempt ate the
-        // target's second rescue attempt outright when the row search itself
-        // came up empty (findLegendRowWrappersByVisibleText requires exactly
-        // one action button in the wrapper). Falling through to the plain
-        // ladder keeps that rescue attempt instead of trading it away.
-        const opened = escalate
-          ? (await openSettingsForScriptViaLegendButton(page, scriptName)) || (await openSettingsForScriptOnce(page, scriptName))
-          : await openSettingsForScriptOnce(page, scriptName);
+        const opened = await openSettingsForScriptOnce(page, scriptName);
         if (opened === true) {
           return true;
         }
-        // Diese Meldung hiess bis 2026-08-22 "Settings opened for the wrong
-        // TradingView script: <ziel>" — und log, denn `openSettingsForScriptOnce`
-        // liefert bei JEDEM Misserfolg `false`, auch wenn ueberhaupt kein Dialog
-        // aufging. Der genannte Name war das ZIEL, nicht ein fremder Dialog. Wer
-        // sie las, suchte eine Namensverwechslung, die es nicht gab: die Diagnose
-        // zu Klasse H lief deshalb zuerst in die falsche Richtung, und der
-        // eigentliche Befund (kein Dialog, Legende nicht getroffen) stand nur in
-        // den Trace-Events daneben.
-        //
-        // Ein echter Identitaets-Mismatch wirft weiter in
-        // verifyOpenedSettingsDialogIdentity und nennt dort BEIDE Namen.
-        throw new Error(
-          `Settings dialog never opened for: ${scriptName} (no dialog surfaced; see the ` +
-            `script-settings-* trace events of this attempt for which lookup failed)`,
-        );
+        throw new Error(`Settings opened for the wrong TradingView script: ${scriptName}`);
       } catch (error: unknown) {
         lastError = error;
         const message = error instanceof Error ? error.message : String(error);
@@ -10102,23 +7101,9 @@ export async function probeRuntimeSmoke(
   // smoke gate CLOSED instead of masquerading as a clean compile (`null`).
   const compileMarker = await getVisibleCompileErrorMarker(page).catch(() => "runtime_smoke_probe_failed" as const);
   const bodyCompileError = compileMarker === COMPILE_PROBE_UNREADABLE ? "runtime_smoke_probe_failed" : compileMarker;
-  // The chart channel now reports whether it could look at all. An unreadable
-  // look fails the gate CLOSED, exactly as the body channel already did — the
-  // two are not redundant: the body text cannot see an error that lives only in
-  // the legend badge's title attribute, which is the whole reason this second
-  // channel exists.
-  //
-  // This also closes the combination that made the gate certifiable-by-accident:
-  // `scriptVisible` below falls back to matching the script NAME anywhere on the
-  // page (its own comment two definitions up says that flag must not decide), so
-  // a script that never loaded could read as visible while the error channel
-  // reported clean. With no legend row there is now no clean verdict to have.
-  const chartProbe = bodyCompileError
+  const chartCompileError = bodyCompileError
     ? null
-    : await probeVisibleChartScriptError(page, scriptName).catch(() => "runtime_smoke_probe_failed" as const);
-  const chartCompileError = chartProbe === CHART_ERROR_PROBE_UNREADABLE
-    ? "runtime_smoke_probe_failed"
-    : chartProbe;
+    : await getVisibleChartScriptError(page, scriptName).catch(() => "runtime_smoke_probe_failed");
   const compileError = bodyCompileError || chartCompileError;
 
   return {
@@ -10150,469 +7135,12 @@ export async function closeModal(page: Page): Promise<void> {
   ).catch(() => undefined);
 }
 
-// Selector set behind tvSelectors.pinePublishButtons' `pineDialog` — kept here
-// so the absence diagnostic reports exactly what that locator resolves over.
-const PINE_DIALOG_SELECTOR = '[data-name="pine-dialog"], #pine-editor-dialog, [id*="pine-editor" i]';
-
-// 2026-07-31 (smc-library-refresh publish outage, issue #4238): a candidate miss
-// logs only a COUNT, never the DOM it looked at — which is why two days of
-// failures could not name their own cause. Run 30644048525 carried the #4251
-// fix, matched the relabelled control by title, opened the publish surface and
-// satisfied the "script is not on the chart" gate; 29s later the SAME candidate
-// list reported no-visible-candidate for all 11 entries while the editor header
-// still showed `smc_micro_profiles_generated`.
-//
-// The cause turned out to be the title strip fixed in #4261: the control carries
-// apply-common-tooltip, which removes its title attribute on click, so a
-// title-only match works exactly once per session. Reaching that answer needed a
-// DOM dump — the trace alone could not tell it apart from a `.last()` retarget
-// of PINE_DIALOG_SELECTOR, from TradingView removing the control, or from an
-// undismissed gate dialog. All three were plausible from the trace, and all
-// three were wrong.
-//
-// So this dumps, at the moment of the miss: every node the pineDialog set
-// resolves to (marking the .last() one), every share control in the document
-// with its attributes and computed visibility, and the text of any open overlay.
-// A stripped attribute, a retarget, a removal and a covering modal each leave a
-// different fingerprint here. Without it the next such regression costs another
-// ~2h CI cycle per guess.
-async function tracePublishSurfaceAbsence(page: Page, phase: string): Promise<void> {
-  const dialogs = await page
-    .locator(PINE_DIALOG_SELECTOR)
-    .evaluateAll((nodes) => nodes.map((node, index) => {
-      const element = node as HTMLElement;
-      const rect = element.getBoundingClientRect();
-      const style = window.getComputedStyle(element);
-      return {
-        index,
-        isLast: index === nodes.length - 1,
-        tag: element.tagName,
-        id: element.id || "",
-        dataName: element.getAttribute("data-name") || "",
-        className: String(element.className || "").slice(0, 80),
-        display: style.display,
-        visibility: style.visibility,
-        rect: { x: Math.round(rect.x), y: Math.round(rect.y), width: Math.round(rect.width), height: Math.round(rect.height) },
-        buttons: element.querySelectorAll('button, [role="button"]').length,
-        hasShareControl: Boolean(element.querySelector('[title*="hare your script"], [class*="publishButton" i]')),
-      };
-    }))
-    .catch(() => []);
-  tracePageEvent(page, "publish-absence-pine-dialogs", `${phase}:${JSON.stringify(dialogs).slice(0, 1_800)}`);
-
-  const shareControls = await page
-    .locator('[title*="hare your script"], [class*="publishButton" i]')
-    .evaluateAll((nodes, dialogSelector) => nodes.map((node, index) => {
-      const element = node as HTMLElement;
-      const rect = element.getBoundingClientRect();
-      const style = window.getComputedStyle(element);
-      const owner = element.closest(dialogSelector) as HTMLElement | null;
-      return {
-        index,
-        tag: element.tagName,
-        title: element.getAttribute("title") || "",
-        className: String(element.className || "").slice(0, 80),
-        display: style.display,
-        visibility: style.visibility,
-        opacity: style.opacity,
-        // A detached/collapsed control has no offsetParent — this separates
-        // "removed by TradingView" from "present but hidden".
-        hasOffsetParent: Boolean(element.offsetParent),
-        rect: { x: Math.round(rect.x), y: Math.round(rect.y), width: Math.round(rect.width), height: Math.round(rect.height) },
-        // Which pine-dialog node owns it, so a .last() retarget is visible as
-        // "control lives in dialog 0 while .last() points at dialog 1".
-        ownerId: owner ? (owner.id || owner.getAttribute("data-name") || String(owner.className || "").slice(0, 40)) : "none",
-      };
-    }), PINE_DIALOG_SELECTOR)
-    .catch(() => []);
-  tracePageEvent(page, "publish-absence-share-controls", `${phase}:${JSON.stringify(shareControls).slice(0, 1_800)}`);
-
-  const overlaySnippets = await collectVisibleOverlayTextSnippets(page, 250).catch(() => []);
-  tracePageEvent(page, "publish-absence-overlays", `${phase}:${JSON.stringify(overlaySnippets).slice(0, 1_200)}`);
-}
-
-/**
- * Elements the "Choose script" control could plausibly be, read out by
- * attribute. No click, no keyboard, nothing that could reach Continue.
- *
- * Deliberately scoped to the whole overlay root rather than to
- * `publishSurface`. If the surface is what mis-resolved, an inventory taken
- * inside it would report the same emptiness that caused the failure and would
- * read as proof the control is absent.
- */
-const PUBLISH_CHOOSER_INVENTORY_SELECTOR = [
-  "select",
-  "input",
-  "[role]",
-  "button",
-  "[data-name]",
-  '[class*="select" i]',
-  '[class*="dropdown" i]',
-  '[class*="combobox" i]',
-  '[class*="chooser" i]',
-].join(", ");
-
-export type PublishChooserInventoryEntry = {
-  i: number;
-  inDialog: boolean;
-  tag: string;
-  role: string;
-  ariaLabel: string;
-  ariaExpanded: string;
-  placeholder: string;
-  dataName: string;
-  title: string;
-  name: string;
-  text: string;
-  cls: string;
-  disabled: boolean;
-  display: string;
-  visibility: string;
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-};
-
-export async function collectPublishChooserInventory(page: Page): Promise<PublishChooserInventoryEntry[]> {
-  // Run 31850269023 (2026-08-14 23:24Z) proved the first cut of this
-  // inventory blind in practice: FOUR toast stacks ("orders", "alerts",
-  // "alertsFireControl", ...) sit at the front of #overlap-manager-root, and
-  // their expand/close buttons plus counter spans exhausted both the
-  // 60-element cap and the 6000-char trace budget before a single dialog
-  // control appeared. Two corrections, both measured against that run:
-  //
-  // - dialog-shaped containers are walked FIRST, the remaining overlay root
-  //   second, so the publish dialog can never again lose the budget race to
-  //   notification noise;
-  // - toast subtrees ([data-name^="toast-"]) and content-free nodes (no
-  //   text, no role, no label of any kind) are excluded entirely.
-  //
-  // Still deliberately NOT scoped to publishSurface(): if the surface
-  // fingerprint itself mis-resolves, the second phase keeps reporting what
-  // else the overlay holds.
-  return page
-    .locator("#overlap-manager-root")
-    .first()
-    .evaluate((root: Element, selector: string) => {
-      const seen = new Set<Element>();
-      const dialogish = Array.from(
-        root.querySelectorAll('[role="dialog"], [aria-modal="true"], [data-name*="dialog" i]'),
-      );
-      const ordered: Array<{ element: Element; inDialog: boolean }> = [];
-      for (const container of dialogish) {
-        for (const node of Array.from(container.querySelectorAll(selector))) {
-          if (!seen.has(node)) {
-            seen.add(node);
-            ordered.push({ element: node, inDialog: true });
-          }
-        }
-      }
-      for (const node of Array.from(root.querySelectorAll(selector))) {
-        if (!seen.has(node)) {
-          seen.add(node);
-          ordered.push({ element: node, inDialog: false });
-        }
-      }
-      return ordered
-        .filter(({ element }) => !element.closest('[data-name^="toast-"], [class*="toast" i]'))
-        .map(({ element, inDialog }) => ({ element: element as HTMLElement, inDialog }))
-        .filter(({ element }) =>
-          Boolean(
-            (element.textContent ?? "").trim()
-            || element.getAttribute("role")
-            || element.getAttribute("aria-label")
-            || element.getAttribute("placeholder")
-            || element.getAttribute("data-name")
-            || element.getAttribute("title")
-            || element.tagName.toLowerCase() === "select"
-            || element.tagName.toLowerCase() === "input",
-          ))
-        .slice(0, 60)
-        .map(({ element, inDialog }, index) => {
-          const box = element.getBoundingClientRect();
-          const style = window.getComputedStyle(element);
-          return {
-            i: index,
-            inDialog,
-            tag: element.tagName.toLowerCase(),
-            role: element.getAttribute("role") || "",
-            ariaLabel: element.getAttribute("aria-label") || "",
-            ariaExpanded: element.getAttribute("aria-expanded") || "",
-            placeholder: element.getAttribute("placeholder") || "",
-            dataName: element.getAttribute("data-name") || "",
-            title: element.getAttribute("title") || "",
-            name: element.getAttribute("name") || "",
-            text: (element.textContent ?? "").trim().slice(0, 48),
-            cls: (element.getAttribute("class") ?? "").slice(0, 60),
-            disabled: element.hasAttribute("disabled"),
-            display: style.display,
-            visibility: style.visibility,
-            x: Math.round(box.x),
-            y: Math.round(box.y),
-            w: Math.round(box.width),
-            h: Math.round(box.height),
-          };
-        });
-    }, PUBLISH_CHOOSER_INVENTORY_SELECTOR)
-    .catch((error) => {
-      // A crashed DOM readout must not read as "TradingView renders no
-      // matching controls" -- that corrupts exactly the inventory this
-      // function exists to collect (#4706/#4723 were built on it after five
-      // blind selector guesses). The empty result stays (the caller's
-      // absence semantics are unchanged) but the failure leaves a trace, so
-      // the next triage reads "probe failed", not "DOM is empty".
-      tracePageEvent(page, "publish-chooser-inventory-probe-failed", String(error).slice(0, 300));
-      return [] as PublishChooserInventoryEntry[];
-    });
-}
-
-/**
- * Five selector changes between 2026-08-09 and 2026-08-10 (#4585, #4587,
- * #4591, #4597, #4606) all aimed at this control and none moved the failure:
- * eight of the ten runs since carry the byte-identical error
- * "Could not select existing TradingView script: Open-Prep Daily Panel", and
- * the only evidence each one left was a screenshot. A sixth guess is not what
- * is missing -- the DOM is. This reads it out so the next change can be pinned
- * against what TradingView renders instead of against an assumption about it.
- */
-async function tracePublishChooserAbsence(
-  page: Page,
-  stage: string,
-): Promise<{ stage: string; surfaceCount: number; controls: PublishChooserInventoryEntry[] }> {
-  const surfaceCount = await tvSelectors.publishSurfaceProbe(page).count().catch(() => -1);
-  const controls = await collectPublishChooserInventory(page);
-  const evidence = { stage, surfaceCount, controls };
-  tracePageEvent(page, "publish-existing-script-absence", JSON.stringify(evidence).slice(0, 6_000));
-  return evidence;
-}
-
-/**
- * Darf der Neu-Publish-Rueckfall feuern?
- *
- * Nur bei POSITIV belegtem Nicht-Treffer, nie bei ausbleibender Evidenz --
- * dieser Zweig publiziert auf ein echtes Konto, und ein Rueckfall auf eine
- * leere Antwort erzeugt Duplikate. Zwei Belege muessen beide vorliegen:
- *
- *  1. der getippte Name steht wirklich im Chooser-Feld (die Keystrokes kamen
- *     an -- sonst waere die leere Liste eine Aussage ueber die Eingabe);
- *  2. die Optionsliste hat MINDESTENS EINEN Eintrag aufgeloest (die Liste
- *     existiert und filtert -- sonst waere sie nie geoeffnet, und "kein
- *     Treffer" waere ununterscheidbar von "nie gefragt").
- *
- * Gemessen 2026-08-20 (Lauf 32313143879): Feld trug "Open-Prep Daily Panel",
- * Liste fuehrte einen Eintrag ("EMA Suite - Trend & Breakout Monitor (v6)").
- * Beide Belege lagen also vor.
- */
-export async function gatherPublishNewFallbackEvidence(
-  page: Page,
-  scriptName: string,
-): Promise<{ eligible: boolean; typedValue: string | null; optionCount: number }> {
-  const chooser = await waitForFirstVisibleLocator(
-    tvSelectors.publishExistingScriptChooser(page),
-    1_500,
-    async (candidate) => (await candidate.evaluate((element) => element.tagName.toLowerCase())) === "input",
-  );
-  const typedValue = chooser ? await chooser.inputValue().catch(() => null) : null;
-
-  let optionCount = 0;
-  for (const locator of tvSelectors.publishAnyScriptOption(page)) {
-    optionCount = Math.max(optionCount, await locator.count().catch(() => 0));
-  }
-
-  return {
-    eligible: publishNewFallbackEligible(typedValue, optionCount, scriptName),
-    typedValue,
-    optionCount,
-  };
-}
-
-/**
- * Die Entscheidung, getrennt vom DOM-Sammeln -- damit die sicherheitskritische
- * Haelfte ohne Playwright-Page pruefbar ist. Ein Quelltext-Test kann "trifft
- * die Entscheidung" nicht von "erwaehnt sie" unterscheiden; diese Funktion
- * laesst sich direkt ausfuehren.
- *
- * `true` NUR bei zwei positiven Belegen. Jede Abwesenheit -- kein Feld, leeres
- * Feld, anderer Text, keine Optionen -- ist ein Sondenfehler und KEIN
- * Nicht-Treffer.
- */
-export function publishNewFallbackEligible(
-  typedValue: string | null,
-  optionCount: number,
-  scriptName: string,
-): boolean {
-  if (typeof typedValue !== "string") return false;
-  if (typedValue.trim() !== scriptName.trim()) return false;
-  if (!Number.isFinite(optionCount) || optionCount <= 0) return false;
-  return true;
-}
-
-export async function selectExistingPublishScript(page: Page, scriptName: string): Promise<boolean> {
-  const nativeChooser = await waitForFirstVisibleLocator(
-    tvSelectors.publishExistingScriptChooser(page),
-    3_000,
-    async (candidate) => (await candidate.evaluate((element) => element.tagName.toLowerCase())) === "select",
-  );
-  if (nativeChooser) {
-    const nativeSnapshot = () => nativeChooser
-      .evaluate((element) => {
-        const select = element as HTMLSelectElement;
-        return {
-          tag: select.tagName,
-          role: select.getAttribute("role") || "",
-          ariaLabel: select.getAttribute("aria-label") || "",
-          name: select.getAttribute("name") || "",
-          className: String(select.className || "").slice(0, 120),
-          options: Array.from(select.options)
-            .map((option) => (option.textContent || "").trim())
-            .filter(Boolean)
-            .slice(0, 20),
-        };
-      })
-      .catch(() => null);
-    tracePageEvent(
-      page,
-      "publish-existing-script-native-candidate",
-      JSON.stringify(await nativeSnapshot()),
-    );
-
-    const nativeDeadline = Date.now() + 3_000;
-    do {
-      const selectedValues = await nativeChooser
-        .selectOption({ label: scriptName }, { timeout: 250 })
-        .catch(() => [] as string[]);
-      if (selectedValues.length > 0) {
-        tracePageEvent(
-          page,
-          "publish-existing-script-native-selected",
-          `${scriptName}:${JSON.stringify(await nativeSnapshot())}`,
-        );
-        return true;
-      }
-      await page.waitForTimeout(100);
-    } while (Date.now() < nativeDeadline);
-
-    tracePageEvent(
-      page,
-      "publish-existing-script-native-fallback",
-      `${scriptName}:${JSON.stringify(await nativeSnapshot())}`,
-    );
-  }
-
-  const chooserControl = await waitForFirstVisibleLocator(
-    tvSelectors.publishExistingScriptChooser(page),
-    3_000,
-    async (candidate) => (await candidate.evaluate((element) => element.tagName.toLowerCase())) !== "select",
-  );
-  if (!chooserControl) {
-    // The observed stage. Runs 31805361109 and the seven before it spent
-    // 3s here and 3s in the native branch above, then returned false without
-    // recording anything about what WAS on the page.
-    await tracePublishChooserAbsence(page, "chooser-control-absent");
-    return false;
-  }
-  const openedChooser = await clickVisibleWithFallback(
-    page,
-    [chooserControl],
-    "publish-existing-script-chooser",
-    3_000,
-    350,
-  );
-  if (!openedChooser) {
-    await tracePublishChooserAbsence(page, "chooser-control-not-clickable");
-    return false;
-  }
-
-  let scriptOption = await waitForFirstVisibleLocator(
-    tvSelectors.publishExistingScriptOption(page, scriptName),
-    3_000,
-  );
-  if (!scriptOption) {
-    // 2026-08-18, Lauf 32141943180 (#4772): die Input-Form des Choosers ist
-    // ein Type-ahead — ein Klick allein öffnet keine Optionsliste. Stufe 1
-    // (fill + Optionssuche) kam aus dessen Absenz-Trace; Stufe 2 (echte
-    // Keystrokes) aus dem Folge-Lauf 32197059724: fill=true, Liste trotzdem
-    // leer — die Combobox filtert erst auf Tastatur-Events. Jede Stufe ist
-    // durch genau einen Lauf-Trace gedeckt; weitere erst mit neuer Evidenz.
-    const isTextInput = await chooserControl
-      .evaluate((element) => element.tagName.toLowerCase() === "input")
-      .catch(() => false);
-    if (isTextInput) {
-      const filled = await chooserControl
-        .fill(scriptName, { timeout: 1_000 })
-        .then(() => true)
-        .catch(() => false);
-      // Wert-Readback: value=="" trotz filled=true heißt "React hat den
-      // programmatischen Wert verworfen" (nächster Schritt pressSequentially),
-      // value==Name heißt "Wert steht, nur die Optionsliste fehlt" (Debounce/
-      // Keystrokes oder Skript nicht gelistet). Ohne Readback sind diese
-      // Mechanismen im Trace des Live-Laufs ununterscheidbar.
-      const typedValue = await chooserControl.inputValue().catch(() => null);
-      tracePageEvent(
-        page,
-        "publish-existing-script-typeahead",
-        `${scriptName}:filled=${filled}:value=${JSON.stringify(typedValue)}`,
-      );
-      if (!filled) {
-        // Eigene Stage: fehlgeschlagenes fill() (readonly, Re-Render-Detach)
-        // verlangt einen anderen nächsten Schritt als eine ausbleibende
-        // Optionsliste — der Stage-String allein muss den Schritt benennen.
-        await tracePublishChooserAbsence(page, "typeahead-fill-failed");
-        return false;
-      }
-      scriptOption = await waitForFirstVisibleLocator(
-        tvSelectors.publishExistingScriptOption(page, scriptName),
-        3_000,
-      );
-      if (!scriptOption) {
-        // Stufe 2 (Lauf 32197059724): Feld leeren, Namen als echte
-        // Keystrokes tippen — fill() dispatcht nur ein input-Event, die
-        // gemessene Combobox reagiert darauf nicht. Readback wieder dabei,
-        // damit der Live-Trace "Keys kamen an, Liste blieb leer" (Skript
-        // nicht gelistet?) von "Keys verworfen" unterscheiden kann.
-        const typed = await chooserControl
-          .fill("", { timeout: 1_000 })
-          .then(() => chooserControl.pressSequentially(scriptName, { delay: 60, timeout: 5_000 }))
-          .then(() => true)
-          .catch(() => false);
-        const keyedValue = await chooserControl.inputValue().catch(() => null);
-        tracePageEvent(
-          page,
-          "publish-existing-script-typeahead-keys",
-          `${scriptName}:typed=${typed}:value=${JSON.stringify(keyedValue)}`,
-        );
-        if (typed) {
-          scriptOption = await waitForFirstVisibleLocator(
-            tvSelectors.publishExistingScriptOption(page, scriptName),
-            3_000,
-          );
-        }
-      }
-    }
-  }
-  if (!scriptOption) {
-    await tracePublishChooserAbsence(page, "script-option-absent");
-    return false;
-  }
-
-  return clickVisibleWithFallback(
-    page,
-    [scriptOption],
-    "publish-existing-script-option",
-    3_000,
-    350,
-  );
-}
-
 export async function publishPrivateScript(
   page: Page,
   options: {
     scriptName?: string;
     title?: string;
     description?: string;
-    requireCleanChartBeforePublish?: boolean;
-    publishMode?: "auto" | "update_existing";
   } = {},
 ): Promise<{
   noChangeDetected: boolean;
@@ -10623,12 +7151,6 @@ export async function publishPrivateScript(
 }> {
   await dismissSignInModal(page).catch(() => undefined);
   await dismissSymbolSearchDialog(page).catch(() => undefined);
-  if (options.requireCleanChartBeforePublish) {
-    if (!options.scriptName) {
-      throw new Error("requireCleanChartBeforePublish requires scriptName");
-    }
-    await ensureCleanChartScriptForPublish(page, options.scriptName);
-  }
   await ensurePineEditor(page).catch(() => undefined);
   let noChangeDetected = false;
 
@@ -10638,7 +7160,6 @@ export async function publishPrivateScript(
     if (compileErrorDetails) {
       throw new Error(`Could not open publish flow because TradingView reported a compile error: ${compileErrorDetails}`);
     }
-    await tracePublishSurfaceAbsence(page, "open").catch(() => undefined);
     throw new Error("Could not open publish flow");
   }
 
@@ -10673,7 +7194,6 @@ export async function publishPrivateScript(
       if (compileErrorDetails) {
         throw new Error(`Could not reopen publish flow after adding script to chart because TradingView reported a compile error: ${compileErrorDetails}`);
       }
-      await tracePublishSurfaceAbsence(page, `reopen:dialog-add-clicked=${clickedDialogAdd}`).catch(() => undefined);
       throw new Error("Could not reopen publish flow after adding script to chart");
     }
   }
@@ -10681,118 +7201,15 @@ export async function publishPrivateScript(
   await page.waitForTimeout(750);
   const openSurfaceBodyText = await page.locator("body").innerText().catch(() => "");
 
-  let publishedViaNewFallback = false;
-
-  if (options.publishMode === "update_existing") {
-    if (!options.scriptName) {
-      throw new Error("Update existing script publish mode requires scriptName");
-    }
-
-    // Run 31381577126 opened TradingView directly on
-    // "Update '<name>' library" with the side-by-side diff and Continue
-    // button. That is already the exact update surface: it intentionally has
-    // neither the generic mode selector nor a Choose script control.
-    const directUpdateSurface = hasDirectUpdatePublishSurface(options.scriptName, openSurfaceBodyText);
-    if (directUpdateSurface) {
-      tracePageEvent(page, "publish-update-existing-direct-surface", options.scriptName);
-    } else {
-      const selectedUpdateMode = await clickVisibleWithFallback(
-        page,
-        tvSelectors.publishUpdateExistingMode(page),
-        "publish-update-existing-mode",
-        2_000,
-        350,
-      );
-      if (!selectedUpdateMode) {
-        throw new Error("Could not select Update existing script in TradingView publish flow");
-      }
-
-      const selectedExistingScript = await selectExistingPublishScript(page, options.scriptName);
-      if (!selectedExistingScript) {
-        // 2026-08-20: der Chooser IST nicht das Problem. Screenshot + Inventar
-        // aus Lauf 32313143879 (nach #4871) zeigen: Dialog offen, Modus
-        // "Update existing script" gewaehlt, `input[placeholder="Choose script"]`
-        // sichtbar, der getippte Name steht drin -- und die Liste darunter
-        // fuehrt EIN anderes Skript. "Open-Prep Daily Panel" ist schlicht nicht
-        // publiziert. Gespeichert (Pine-Editor) != publiziert (Publish-Liste),
-        // und `openedExistingScript:true` beschreibt nur das Erste. Damit kann
-        // "Update existing" es NIE finden: der Workflow hat seit Einfuehrung des
-        // Pfads nie erfolgreich publiziert, also fehlt der Eintrag, also
-        // scheitert der naechste Lauf genauso. Fuenf Selektor-Aenderungen
-        // konnten daran nichts bewegen.
-        //
-        // Der Rueckfall auf "Publish new script" bricht diesen Kreis -- EINMAL,
-        // danach traegt der Update-Pfad von selbst.
-        //
-        // ER FEUERT NUR BEI POSITIV BELEGTEM NICHT-TREFFER. Das ist die ganze
-        // Sicherheit dieser Stelle: dieser Zweig PUBLIZIERT auf ein echtes
-        // TradingView-Konto, und ein Rueckfall auf eine ausbleibende Antwort
-        // erzeugt Duplikate. Verlangt werden deshalb zwei positive Belege --
-        // der getippte Name steht im Feld UND die Optionsliste hat mindestens
-        // einen Eintrag aufgeloest. Fehlt einer davon, ist es ein Sondenfehler
-        // und kein Nicht-Treffer, und der alte Wurf bleibt.
-        const fallbackEvidence = await gatherPublishNewFallbackEvidence(page, options.scriptName);
-        if (fallbackEvidence.eligible) {
-          tracePageEvent(
-            page,
-            "publish-new-fallback",
-            `${options.scriptName}:typed=${JSON.stringify(fallbackEvidence.typedValue)}`
-              + `:options=${fallbackEvidence.optionCount}`,
-          );
-          const selectedNewMode = await clickVisibleWithFallback(
-            page,
-            tvSelectors.publishNewScriptMode(page),
-            "publish-new-script-mode",
-            2_000,
-            350,
-          );
-          if (!selectedNewMode) {
-            throw new Error(
-              `Could not select Publish new script after "${options.scriptName}" was found unpublished`
-                + `; chooser listed ${fallbackEvidence.optionCount} other script(s)`,
-            );
-          }
-          publishedViaNewFallback = true;
-        } else {
-        // The trace already carries the inventory, but the trace lives only in
-        // the run log. The error travels into the publish report, which is the
-        // uploaded artifact -- so put the DOM facts where the evidence is kept.
-          const evidence = await tracePublishChooserAbsence(page, "publish-throw");
-          throw new Error(
-            `Could not select existing TradingView script: ${options.scriptName}`
-            + `; publish surface nodes: ${evidence.surfaceCount}`
-            + `; chooser typed=${JSON.stringify(fallbackEvidence.typedValue)}`
-            + `; chooser options=${fallbackEvidence.optionCount}`
-            + `; overlay controls: ${JSON.stringify(evidence.controls).slice(0, 4_000)}`,
-          );
-        }
-      }
-    }
-  }
-
-  // Der Rueckfall publiziert NEU, auch wenn publishMode nominell
-  // "update_existing" ist -- ohne Titel endet das in "Script title is
-  // required", also im falschen Gruen vom 2026-08-08.
-  if (options.title && (options.publishMode !== "update_existing" || publishedViaNewFallback)) {
-    const titleFilled = await fillFirstAndVerify(options.title, tvSelectors.publishTitleInput(page), 1_000);
-    if (!titleFilled) {
-      throw new Error("Could not fill and verify the TradingView publish title");
-    }
+  if (options.title) {
+    await fillFirst(options.title, tvSelectors.publishTitleInput(page), 1_000);
   }
 
   if (options.description) {
-    const descriptionFilled = await fillFirstAndVerify(
-      options.description,
-      tvSelectors.publishDescriptionInput(page),
-      1_000,
-    );
-    if (!descriptionFilled) {
-      throw new Error("Could not fill and verify the TradingView publish description");
-    }
+    await fillFirst(options.description, tvSelectors.publishDescriptionInput(page), 1_000);
   }
 
   for (let stepIndex = 0; stepIndex < 8; stepIndex += 1) {
-    const beforeStep = await visiblePublishSurfaceFingerprint(page);
     const continued = await clickVisibleWithFallback(
       page,
       tvSelectors.publishContinue(page),
@@ -10806,35 +7223,15 @@ export async function publishPrivateScript(
 
     if (await handlePublishNoChangeDialog(page, 750)) {
       noChangeDetected = true;
-      const publishSurfaceClosed = !(await hasPublishSurface(page, 250));
-      if (!publishSurfaceClosed) {
-        throw new Error("TradingView no-change dialog closed without dismissing the publish surface");
-      }
       await ensurePineEditor(page).catch(() => undefined);
       return {
         noChangeDetected,
         publishConfirmed: false,
-        publishSurfaceClosedAfterConfirm: true,
+        publishSurfaceClosedAfterConfirm: false,
         versionContextTexts: [],
         bodyText: await page.locator("body").innerText().catch(() => ""),
       };
     }
-
-    const validationMessage = await visiblePublishValidationMessage(page, 500);
-    if (validationMessage) {
-      throw new Error(`TradingView publish validation blocked Continue: ${validationMessage}`);
-    }
-
-    const afterStep = await visiblePublishSurfaceFingerprint(page);
-    const continueStillVisible = await hasVisibleLocatorFast(tvSelectors.publishContinue(page), 250);
-    if (!publishStepMadeProgress({ beforeStep, afterStep, continueStillVisible })) {
-      throw new Error("TradingView publish Continue had no observable effect");
-    }
-  }
-
-  const validationMessage = await visiblePublishValidationMessage(page, 500);
-  if (validationMessage) {
-    throw new Error(`TradingView publish validation blocked confirmation: ${validationMessage}`);
   }
 
   const confirmed = await clickVisibleWithFallback(
@@ -10873,15 +7270,11 @@ export async function publishPrivateScript(
 
     if (await handlePublishNoChangeDialog(page, 750)) {
       noChangeDetected = true;
-      const publishSurfaceClosed = !(await hasPublishSurface(page, 250));
-      if (!publishSurfaceClosed) {
-        throw new Error("TradingView no-change dialog closed without dismissing the publish surface");
-      }
       await ensurePineEditor(page).catch(() => undefined);
       return {
         noChangeDetected,
         publishConfirmed: false,
-        publishSurfaceClosedAfterConfirm: true,
+        publishSurfaceClosedAfterConfirm: false,
         versionContextTexts: [],
         bodyText: await page.locator("body").innerText().catch(() => ""),
       };
@@ -10890,597 +7283,11 @@ export async function publishPrivateScript(
   }
 
   const evidence = await capturePublishConfirmationEvidence(page, options.scriptName, 12_000);
-  const publishConfirmed = publishConfirmationIsAuthoritative({
-    publishSurfaceClosed: evidence.publishSurfaceClosed,
-    versionContextTexts: evidence.versionContextTexts,
-    scriptName: options.scriptName,
-  });
-  if (!publishConfirmed) {
-    const postConfirmValidation = await visiblePublishValidationMessage(page, 500);
-    const suffix = postConfirmValidation ? `: ${postConfirmValidation}` : "";
-    throw new Error(`TradingView publish confirmation produced no authoritative evidence${suffix}`);
-  }
   return {
     noChangeDetected,
-    publishConfirmed,
+    publishConfirmed: true,
     publishSurfaceClosedAfterConfirm: evidence.publishSurfaceClosed,
     versionContextTexts: evidence.versionContextTexts,
     bodyText: evidence.bodyText || openSurfaceBodyText,
   };
-}
-
-// ── Bar Replay driver + on-chart table reader ───────────────────────────────
-// Added 2026-07-31. Before this, the repository had no Bar Replay automation:
-// the R2.4 evidence was produced by driving TradingView by hand, which left
-// nothing reusable and cost a full reconstruction cycle later. The decision
-// layer (case plans, expectation matching, table parsing) lives in
-// tv_validation_model.ts and is unit-tested; this file owns only the DOM.
-
-/** Open the Object-tree/Data-window panel if it is not already visible. */
-export async function openDataWindow(page: Page): Promise<boolean> {
-  return runTrackedStep(page, "openDataWindow", async () => {
-    const already = await page.locator("[data-test-id-value-title]").first().isVisible().catch(() => false);
-    if (already) return true;
-    const clicked = await page.evaluate(`(() => {
-      const nodes = document.querySelectorAll('button,[role="button"]');
-      for (const n of nodes) {
-        const label = (n.getAttribute('aria-label') || n.getAttribute('data-tooltip') || n.getAttribute('title') || '');
-        if (/data window|object tree/i.test(label)) { n.click(); return label; }
-      }
-      return null;
-    })()`).catch(() => null);
-    tracePageEvent(page, "data-window-toggle", String(clicked));
-    await page.waitForTimeout(4_000);
-    return page.locator("[data-test-id-value-title]").first().isVisible().catch(() => false);
-  });
-}
-
-/**
- * Read every Data Window row as a label/value pair.
- *
- * Pine tables are canvas-rendered and therefore unreadable; the Data Window is
- * the readable channel. `data-test-id-value-title` is TradingView's own test
- * hook, so this does not depend on hashed class names.
- */
-export async function readDataWindowValues(page: Page): Promise<DataWindowItem[]> {
-  return runTrackedStep(page, "readDataWindowValues", async () => {
-    await openDataWindow(page);
-    const items = await page.evaluate(`(() => {
-      const out = [];
-      const rows = document.querySelectorAll('[data-test-id-value-title]');
-      for (const row of rows) {
-        const title = row.getAttribute('data-test-id-value-title') || '';
-        let value = '';
-        const cells = row.querySelectorAll('div');
-        for (const c of cells) {
-          if (String(c.className).indexOf('valueValue') === 0 || String(c.className).indexOf('valueValue') > -1) {
-            value = (c.innerText || '').trim();
-          }
-        }
-        if (title) out.push({ title: title, value: value });
-      }
-      return out;
-    })()`) as DataWindowItem[];
-    tracePageEvent(page, "data-window-items", String(items.length));
-    return items;
-  });
-}
-
-async function clickFirstVisible(page: Page, selectors: string[], label: string): Promise<boolean> {
-  for (const selector of selectors) {
-    const candidate = page.locator(selector).first();
-    if (await candidate.isVisible().catch(() => false)) {
-      await candidate.click().catch(() => undefined);
-      tracePageEvent(page, `${label}-clicked`, selector);
-      return true;
-    }
-  }
-  tracePageEvent(page, `${label}-miss`, selectors.join("|"));
-  return false;
-}
-
-const REPLAY_TOGGLE_SELECTORS = [
-  '[data-name="replay"]',
-  'button[aria-label*="Replay" i]',
-  'button[data-tooltip*="Replay" i]',
-  '#header-toolbar-replay',
-];
-
-const REPLAY_TOOLBAR = '[data-name="replay-bottom-toolbar"]';
-
-/**
- * Wait for the Bar Replay toolbar itself — the surface every replay control
- * lives on.
- *
- * {@link isBarReplayActive} accepts a body-text fallback, and that is not good
- * enough to drive from: measured 2026-07-31, enterBarReplay returned true
- * 2.5s after the toggle click while the toolbar had not rendered, so the
- * checkpoint jump found no "Select date" control and every DST case failed
- * with "checkpoint did not apply". Anything that intends to CLICK a replay
- * control must wait for the control's own surface.
- */
-export async function waitForBarReplayToolbar(page: Page, timeoutMs = 20_000): Promise<boolean> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    if (await page.locator(REPLAY_TOOLBAR).first().isVisible({ timeout: 500 }).catch(() => false)) {
-      return true;
-    }
-    await page.waitForTimeout(250);
-  }
-  tracePageEvent(page, "bar-replay-toolbar-timeout", String(timeoutMs));
-  return false;
-}
-
-/** Enter Bar Replay. Idempotent: a chart already in replay mode is left alone. */
-export async function enterBarReplay(page: Page): Promise<boolean> {
-  return runTrackedStep(page, "enterBarReplay", async () => {
-    if (await page.locator(REPLAY_TOOLBAR).first().isVisible({ timeout: 500 }).catch(() => false)) {
-      tracePageEvent(page, "bar-replay-already-active");
-      return true;
-    }
-    if (!(await clickFirstVisible(page, REPLAY_TOGGLE_SELECTORS, "bar-replay-toggle"))) return false;
-    // Settle on the toolbar, not on the loose activity probe: returning true
-    // before the controls exist strands every caller that wants to use them.
-    const ready = await waitForBarReplayToolbar(page);
-    tracePageEvent(page, "bar-replay-entered", `toolbar=${ready}`);
-    return ready;
-  }, Math.max(stepTimeoutMs(), 60_000));
-}
-
-/** Leave Bar Replay so the chart is handed back in its ordinary state. */
-export async function exitBarReplay(page: Page): Promise<boolean> {
-  return runTrackedStep(page, "exitBarReplay", async () => {
-    if (!(await isBarReplayActive(page))) return true;
-    await clickFirstVisible(page, REPLAY_TOGGLE_SELECTORS, "bar-replay-exit");
-    await page.waitForTimeout(2_000);
-    return !(await isBarReplayActive(page));
-  });
-}
-
-export async function isBarReplayActive(page: Page): Promise<boolean> {
-  return page.evaluate(() => {
-    // Measured 2026-07-31 on the private validation layout: entering Bar
-    // Replay adds [data-name="replay-bottom-toolbar"] (text "Select date 1x
-    // <tf>"), and neither replay-play-pause nor replay-step-forward exists
-    // under those names. The structural marker is therefore the authority.
-    // The body-text fallback stays for older/other TradingView surfaces, but
-    // it is a substring grep over the first 400 characters and would answer
-    // "yes" to any chrome that merely says "Replay" — so it must never be the
-    // reason a caller believes replay is active when the toolbar is absent.
-    const toolbar = document.querySelector(
-      '[data-name="replay-bottom-toolbar"], [data-name="replay-play-pause"], [data-name="replay-step-forward"]',
-    );
-    if (toolbar) return true;
-    const text = document.body?.innerText ?? "";
-    return /replay/i.test(text.slice(0, 400));
-  }).catch(() => false);
-}
-
-const CHART_TIMEZONE_CONTROL = '[aria-label="Timezone"]';
-
-/**
- * Put the chart on a named timezone (measured menu entries: a bare "UTC",
- * "Exchange", then "(UTC±N) City" rows).
- *
- * The R5 DST cases pin their checkpoints as UTC instants, while the Bar Replay
- * date/time dialog reads in CHART-LOCAL time. Typing a UTC instant into a
- * UTC+2 chart silently lands on the wrong bar — exactly the confusion these
- * cases exist to detect — so the driver puts the chart on UTC first and the
- * two clocks coincide.
- */
-export async function setChartTimezone(page: Page, label: string): Promise<boolean> {
-  return runTrackedStep(page, `setChartTimezone:${label}`, async () => {
-    const control = page.locator(CHART_TIMEZONE_CONTROL).first();
-    if (!(await control.count())) {
-      tracePageEvent(page, "chart-timezone-control-missing", label);
-      return false;
-    }
-    const before = ((await control.innerText().catch(() => "")) ?? "").trim();
-    await control.click({ timeout: 5_000, force: true }).catch(() => undefined);
-    await page.waitForTimeout(2_000);
-
-    const picked = await page.evaluate((wanted) => {
-      for (const el of Array.from(document.querySelectorAll("div,span,button,[role='menuitem']"))) {
-        const node = el as HTMLElement;
-        const rect = node.getBoundingClientRect();
-        if (rect.width === 0 || rect.height === 0) continue;
-        const own = Array.from(node.childNodes)
-          .filter((child) => child.nodeType === Node.TEXT_NODE)
-          .map((child) => child.textContent ?? "")
-          .join("")
-          .trim();
-        if (own === wanted) {
-          node.click();
-          return true;
-        }
-      }
-      return false;
-    }, label).catch(() => false);
-
-    await page.waitForTimeout(2_500);
-    const after = ((await control.innerText().catch(() => "")) ?? "").trim();
-    tracePageEvent(page, "chart-timezone", `${label}:picked=${picked}:${before}->${after}`);
-    return picked && after.includes(label);
-  });
-}
-
-export type ReplayCheckpoint = { dateIso: string; timeHhMm: string };
-
-/**
- * Drive Bar Replay to a checkpoint. `dateIso` is YYYY-MM-DD and `timeHhMm` is
- * HH:mm, both read in the chart's current timezone — call
- * {@link setChartTimezone} with "UTC" first when the checkpoint is a UTC
- * instant.
- *
- * Measured dialog (2026-07-31): the replay toolbar carries a "Select date"
- * control which opens [data-name="select-date-dialog"] holding an input with
- * placeholder YYYY-MM-DD and a second input holding HH:mm.
- */
-export async function jumpToReplayCheckpoint(page: Page, checkpoint: ReplayCheckpoint): Promise<boolean> {
-  return runTrackedStep(page, `jumpToReplayCheckpoint:${checkpoint.dateIso}T${checkpoint.timeHhMm}`, async () => {
-    if (!(await waitForBarReplayToolbar(page))) {
-      tracePageEvent(page, "replay-checkpoint-not-in-replay", checkpoint.dateIso);
-      return false;
-    }
-
-    const toolbar = page.locator(REPLAY_TOOLBAR);
-    // After a checkpoint has been chosen once, the control shows that date
-    // instead of the "Select date" placeholder, so accept either.
-    //
-    // Poll rather than probe once: the toolbar element becomes visible before
-    // its contents render. Measured 2026-07-31 — with a single count() check
-    // straight after enterBarReplay every case failed with
-    // "no-select-date", while the same query 4s later returned 1.
-    const selectDate = toolbar.getByText(/select date|^\d{4}-\d{2}-\d{2}/i).first();
-    const controlDeadline = Date.now() + 20_000;
-    let controlReady = false;
-    while (Date.now() < controlDeadline) {
-      if (await selectDate.isVisible({ timeout: 500 }).catch(() => false)) {
-        controlReady = true;
-        break;
-      }
-      await page.waitForTimeout(250);
-    }
-    if (!controlReady) {
-      tracePageEvent(page, "replay-checkpoint-no-select-date", checkpoint.dateIso);
-      return false;
-    }
-    await selectDate.click({ timeout: 5_000 }).catch(() => undefined);
-    await page.waitForTimeout(2_000);
-
-    const dialog = page.locator('[data-name="select-date-dialog"]');
-    if (!(await dialog.first().isVisible({ timeout: 5_000 }).catch(() => false))) {
-      tracePageEvent(page, "replay-checkpoint-no-dialog", checkpoint.dateIso);
-      return false;
-    }
-
-    const dateInput = dialog.locator('input[placeholder="YYYY-MM-DD"]').first();
-    const timeInput = dialog.locator("input").nth(1);
-    if (!(await dateInput.count()) || !(await timeInput.count())) {
-      tracePageEvent(page, "replay-checkpoint-no-inputs", checkpoint.dateIso);
-      return false;
-    }
-
-    await dateInput.fill(checkpoint.dateIso).catch(() => undefined);
-    await timeInput.fill(checkpoint.timeHhMm).catch(() => undefined);
-    await page.waitForTimeout(500);
-
-    // Read the fields back before committing: a rejected date silently keeps
-    // the previous value, and a checkpoint that never applied must not be
-    // reported as reached.
-    const echoedDate = (await dateInput.inputValue().catch(() => "")) ?? "";
-    const echoedTime = (await timeInput.inputValue().catch(() => "")) ?? "";
-    if (echoedDate !== checkpoint.dateIso || echoedTime !== checkpoint.timeHhMm) {
-      tracePageEvent(
-        page,
-        "replay-checkpoint-input-rejected",
-        `${checkpoint.dateIso}T${checkpoint.timeHhMm}!=${echoedDate}T${echoedTime}`,
-      );
-      await page.keyboard.press("Escape").catch(() => undefined);
-      return false;
-    }
-
-    // Enter does NOT submit this dialog — measured 2026-07-31, the fields
-    // accepted the checkpoint and the dialog stayed open, so every case
-    // reported "did not apply". The dialog's own footer buttons are "Cancel"
-    // and "Select"; the latter is the commit.
-    const confirm = dialog.getByRole("button", { name: /^select$/i }).first();
-    if (!(await confirm.isVisible({ timeout: 5_000 }).catch(() => false))) {
-      tracePageEvent(page, "replay-checkpoint-no-confirm", checkpoint.dateIso);
-      await page.keyboard.press("Escape").catch(() => undefined);
-      return false;
-    }
-    await confirm.click({ timeout: 5_000 }).catch(() => undefined);
-
-    const closeDeadline = Date.now() + 20_000;
-    let dialogGone = false;
-    while (Date.now() < closeDeadline) {
-      if (!(await dialog.first().isVisible({ timeout: 500 }).catch(() => false))) {
-        dialogGone = true;
-        break;
-      }
-      await page.waitForTimeout(250);
-    }
-    // Give the chart time to reload history at the checkpoint before any
-    // caller reads diagnostics off it.
-    if (dialogGone) await page.waitForTimeout(6_000);
-    tracePageEvent(page, "replay-checkpoint-applied", `${checkpoint.dateIso}T${checkpoint.timeHhMm}:closed=${dialogGone}`);
-    return dialogGone;
-  }, Math.max(stepTimeoutMs(), 90_000));
-}
-
-/**
- * Read the chart timeframe the Bar Replay toolbar is stepping in ("5m", "1h").
- * Returns the raw label; callers convert with `timeframeLabelToMinutes`.
- */
-export async function readReplayTimeframeLabel(page: Page, timeoutMs = 20_000): Promise<string | null> {
-  if (!(await waitForBarReplayToolbar(page, timeoutMs))) return null;
-  const toolbar = page.locator(REPLAY_TOOLBAR).first();
-  // Poll for CONTENT, not just for the element. The toolbar becomes visible
-  // before it renders its children — the same race that made the first
-  // checkpoint attempts fail, observed a third time here as an empty label.
-  const deadline = Date.now() + timeoutMs;
-  let text = "";
-  while (Date.now() < deadline) {
-    text = ((await toolbar.innerText().catch(() => "")) ?? "").trim();
-    if (text) break;
-    await page.waitForTimeout(250);
-  }
-  // Measured layout: "Select date\n1x\n5m" — speed then timeframe.
-  const match = /(\d+\s*[smhdwSMHDW])\s*$/.exec(text);
-  const label = match ? match[1].replace(/\s+/g, "") : null;
-  tracePageEvent(page, "replay-timeframe-label", `${JSON.stringify(text)}->${label ?? "none"}`);
-  return label;
-}
-
-/**
- * Set the chart's data session mode.
- *
- * Measured 2026-07-31: chart settings (`[data-name="header-toolbar-properties"]`)
- * -> Symbol tab -> "DATA MODIFICATION" -> a "Session" dropdown whose options are
- * exactly "Regular", "Extended" and "24 hours". This is what an extended-hours
- * case needs; without it the requested instant simply has no bar and Bar Replay
- * clamps to the last regular-session bar.
- *
- * Applies with the dialog's "Ok" button and reports whether the control ended
- * up on the requested value, so a caller can fail closed instead of driving a
- * chart that never changed mode.
- */
-export async function setChartSessionMode(page: Page, mode: "Regular" | "Extended" | "24 hours"): Promise<boolean> {
-  return runTrackedStep(page, `setChartSessionMode:${mode}`, async () => {
-    const opened = await page.locator('[data-name="header-toolbar-properties"]').first()
-      .click({ timeout: 5_000 }).then(() => true).catch(() => false);
-    if (!opened) {
-      tracePageEvent(page, "chart-session-no-settings", mode);
-      return false;
-    }
-    await page.waitForTimeout(2_000);
-    await page.getByText(/^Symbol$/).first().click({ timeout: 5_000 }).catch(() => undefined);
-    await page.waitForTimeout(1_500);
-
-    const current = await page.evaluate(() => {
-      for (const el of Array.from(document.querySelectorAll("span,div"))) {
-        const node = el as HTMLElement;
-        const own = Array.from(node.childNodes)
-          .filter((child) => child.nodeType === Node.TEXT_NODE)
-          .map((child) => child.textContent ?? "")
-          .join("")
-          .trim();
-        if (own === "Regular" || own === "Extended" || own === "24 hours") {
-          const rect = node.getBoundingClientRect();
-          if (rect.width > 0 && rect.height > 0) return own;
-        }
-      }
-      return null;
-    }).catch(() => null);
-
-    if (current === mode) {
-      tracePageEvent(page, "chart-session-already", mode);
-      await page.getByText(/^Cancel$/).first().click({ timeout: 3_000 }).catch(() => undefined);
-      return true;
-    }
-    if (current === null) {
-      tracePageEvent(page, "chart-session-no-control", mode);
-      await page.keyboard.press("Escape").catch(() => undefined);
-      return false;
-    }
-
-    await page.getByText(new RegExp(`^${current}$`)).first().click({ timeout: 5_000 }).catch(() => undefined);
-    await page.waitForTimeout(1_500);
-    // The closed control still shows the old value, so the OPTION is the second
-    // match; pick the lowest one on screen, which is the list entry.
-    const picked = await page.evaluate((wanted) => {
-      const hits: HTMLElement[] = [];
-      for (const el of Array.from(document.querySelectorAll("span,div,[role='option']"))) {
-        const node = el as HTMLElement;
-        const own = Array.from(node.childNodes)
-          .filter((child) => child.nodeType === Node.TEXT_NODE)
-          .map((child) => child.textContent ?? "")
-          .join("")
-          .trim();
-        if (own !== wanted) continue;
-        const rect = node.getBoundingClientRect();
-        if (rect.width > 0 && rect.height > 0) hits.push(node);
-      }
-      if (!hits.length) return false;
-      hits.sort((a, b) => b.getBoundingClientRect().top - a.getBoundingClientRect().top);
-      hits[0].click();
-      return true;
-    }, mode).catch(() => false);
-    await page.waitForTimeout(1_500);
-
-    await page.getByText(/^Ok$/).first().click({ timeout: 5_000 }).catch(() => undefined);
-    await page.waitForTimeout(6_000);
-    tracePageEvent(page, "chart-session-mode", `${current}->${mode}:picked=${picked}`);
-    return picked;
-  }, Math.max(stepTimeoutMs(), 60_000));
-}
-
-/**
- * Step Bar Replay forward by one chart bar.
- *
- * The control must NOT be addressed by `[title="Forward"]`. TradingView's
- * `apply-common-tooltip` machinery strips the `title` attribute while its own
- * tooltip is up and does not restore it while the pointer remains on the
- * button — so a title-based locator finds it exactly ONCE and never again.
- * Measured 2026-07-31 by diffing the toolbar around a click: the element stays
- * at the same position with the same classes, only `title="Forward"` becomes
- * `title=""`. That single-use behaviour is what made every multi-step run
- * report "the frame never advanced", on 5m and 15m alike.
- *
- * The stable identity is structural: inside the replay toolbar the interactive
- * `controls__button` elements are, in order, Play, Forward, Replay speed,
- * Update interval, Jump to real-time chart. Forward is index 1.
- */
-export async function stepReplayForward(page: Page, bars = 1, settleMs = 2_500): Promise<number> {
-  return runTrackedStep(page, `stepReplayForward:${bars}`, async () => {
-    if (!(await waitForBarReplayToolbar(page))) return 0;
-
-    const controls = page.locator(`${REPLAY_TOOLBAR} [class*="controls__button"]`);
-    const deadline = Date.now() + 25_000;
-    let ready = false;
-    while (Date.now() < deadline) {
-      if ((await controls.count().catch(() => 0)) >= 2) {
-        ready = true;
-        break;
-      }
-      await page.waitForTimeout(250);
-    }
-    if (!ready) {
-      tracePageEvent(page, "replay-forward-missing", String(bars));
-      return 0;
-    }
-    const forward = controls.nth(1);
-
-    // Guard the ordinal against a toolbar reshuffle: on the first pass the
-    // title is still present, so it can be confirmed once. A later pass sees
-    // an empty title by design and must not treat that as a mismatch.
-    const firstTitle = await forward.getAttribute("title").catch(() => null);
-    if (firstTitle !== null && firstTitle !== "" && !/forward/i.test(firstTitle)) {
-      tracePageEvent(page, "replay-forward-ordinal-mismatch", firstTitle);
-      return 0;
-    }
-
-    let stepped = 0;
-    for (let index = 0; index < bars; index += 1) {
-      const clicked = await forward.click({ timeout: 8_000 }).then(() => true).catch(() => false);
-      if (!clicked) break;
-      stepped += 1;
-      await page.waitForTimeout(settleMs);
-    }
-    tracePageEvent(page, "replay-forward-stepped", `${stepped}/${bars}`);
-    return stepped;
-  }, Math.max(stepTimeoutMs(), 180_000));
-}
-
-/**
- * Put the chart on a timeframe ("5", "15", "60", "240").
- *
- * FAIL-CLOSED needs the chart moved ONTO the requested frames so the script's
- * strictly-higher rule can be observed rejecting equal and lower ones; that is
- * a chart-level change, not a replay one.
- *
- * Reports whether the interval control ended up showing the requested value,
- * so a caller can fail closed rather than measure the previous timeframe.
- */
-export async function setChartInterval(page: Page, interval: string): Promise<boolean> {
-  return runTrackedStep(page, `setChartInterval:${interval}`, async () => {
-    const control = page.locator('[data-tooltip="Change interval"], [aria-label="Change interval"]').first();
-    if (!(await control.isVisible({ timeout: 5_000 }).catch(() => false))) {
-      tracePageEvent(page, "chart-interval-control-missing", interval);
-      return false;
-    }
-    // The control shows "1h" for 60 and "4h" for 240, not the typed number.
-    const expected = chartIntervalDisplayLabel(interval);
-    if (expected === null) {
-      tracePageEvent(page, "chart-interval-unmappable", interval);
-      return false;
-    }
-    const before = ((await control.innerText().catch(() => "")) ?? "").trim();
-    if (before === expected) {
-      tracePageEvent(page, "chart-interval-already", interval);
-      return true;
-    }
-    // The keyboard route is TradingView's own and avoids depending on the
-    // menu's hashed rows: type the interval, then Enter.
-    await page.locator("body").click({ position: { x: 400, y: 400 } }).catch(() => undefined);
-    await page.waitForTimeout(300);
-    for (const character of interval) {
-      await page.keyboard.press(character).catch(() => undefined);
-      await page.waitForTimeout(120);
-    }
-    await page.keyboard.press("Enter").catch(() => undefined);
-    await page.waitForTimeout(6_000);
-    const after = ((await control.innerText().catch(() => "")) ?? "").trim();
-    tracePageEvent(page, "chart-interval", `${before}->${after} (wanted ${interval} shown as ${expected})`);
-    return after === expected;
-  }, Math.max(stepTimeoutMs(), 60_000));
-}
-
-/**
- * Read the chart state R5-REBUILD-ROLLBACK restores, from measured selectors.
- *
- * Measured 2026-07-31 on the R5 validation layout:
- *   symbol    `#header-toolbar-symbol-search`            -> "AAPL"
- *   interval  `[aria-label="Change interval"]`           -> "5" / "1h" / "4h"
- *   layout    `#header-toolbar-save-load`                -> "SMC HTF Context
- *                                                           R5 Validation\nSave"
- *   timezone  `[data-name="time-zone-menu"]`             -> "14:30:13 UTC"
- *   studies   `[class*="sourcesWrapper"] [class*="item"]`-> ["Vol", "SMC
- *                                                           Session Context",
- *                                                           "SMC HTF Confluence"]
- *
- * The interval control is the same one `setChartInterval` verifies against, so
- * it is already proven to report the display label rather than the typed value.
- *
- * Every field is nullable and nothing is defaulted: `compareChartState` treats
- * an unreadable field as a difference, so a broken reader fails the drill
- * instead of certifying a rollback nobody observed.
- */
-export async function readChartStateSnapshot(page: Page): Promise<ChartStateSnapshot> {
-  return runTrackedStep(page, "readChartStateSnapshot", async () => {
-    const raw = await page.evaluate(`(() => {
-      function text(sel) {
-        var el = document.querySelector(sel);
-        if (!el) return null;
-        var t = (el.innerText || '').trim();
-        return t.length > 0 ? t : null;
-      }
-      var studies = [];
-      var rows = document.querySelectorAll('[class*="sourcesWrapper"] [class*="item"]');
-      for (var i = 0; i < rows.length; i++) {
-        var s = (rows[i].innerText || '').trim().replace(/\\s+/g, ' ');
-        if (s && studies.indexOf(s) === -1) studies.push(s);
-      }
-      return {
-        layoutRaw: text('#header-toolbar-save-load'),
-        symbol: text('#header-toolbar-symbol-search'),
-        interval: text('[aria-label="Change interval"]') || text('[data-tooltip="Change interval"]'),
-        clock: text('[data-name="time-zone-menu"]'),
-        studies: studies
-      };
-    })()`) as {
-      layoutRaw: string | null;
-      symbol: string | null;
-      interval: string | null;
-      clock: string | null;
-      studies: string[];
-    };
-
-    // "SMC HTF Context R5 Validation\nSave" -> the layout name is the first line.
-    const layoutName = raw.layoutRaw === null ? null : (raw.layoutRaw.split("\n")[0] ?? "").trim() || null;
-    // "14:30:13 UTC" -> the zone is the trailing token; the time itself moves and
-    // is deliberately not part of the state.
-    const timezone = raw.clock === null ? null : (raw.clock.trim().split(/\s+/).pop() ?? null);
-
-    const snapshot: ChartStateSnapshot = {
-      layoutName,
-      symbol: raw.symbol,
-      interval: raw.interval,
-      timezone,
-      studies: raw.studies,
-    };
-    tracePageEvent(page, "chart-state", JSON.stringify(snapshot));
-    return snapshot;
-  });
 }

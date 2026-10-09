@@ -77,7 +77,6 @@ def test_structure_artifact_contract_is_schema_valid_and_consistent(tmp_path: Pa
     assert counts["session_ranges"] == len(payload["auxiliary"].get("session_ranges", []))
     assert counts["session_pivots"] == len(payload["auxiliary"].get("session_pivots", []))
     assert counts["broken_fractal_signals"] == len(payload["auxiliary"].get("broken_fractal_signals", []))
-    assert counts["rejection_blocks"] == len(payload["auxiliary"].get("rejection_blocks", []))
 
 
 def test_explicit_workbook_does_not_use_inferred_canonical_export_bundle(

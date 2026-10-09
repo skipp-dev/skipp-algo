@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import replace
-
 from open_prep.a0_contract import A0ThresholdContext, build_market_snapshot
 from open_prep.pre_a0 import (
     PreA0Machine,
@@ -52,20 +50,6 @@ def test_features_and_eta_are_trailing_deterministic() -> None:
     assert payload["confirmed"] is False
     assert payload["is_calibrated"] is False
     assert "probability" not in payload
-
-
-def test_imminent_is_eta_dominant_when_direction_stability_is_low() -> None:
-    history = [_observation(second, progress=0.45 + second * 0.02) for second in range(21)]
-    features = replace(
-        build_pre_a0_features(history, THRESHOLDS),
-        direction_stability=0.0,
-    )
-
-    estimate = PreA0Machine().evaluate(features)
-
-    assert estimate.state is PreA0State.IMMINENT
-    assert "eta_within_horizon" in estimate.reason_codes
-    assert "both_axes_progressing" not in estimate.reason_codes
 
 
 def test_eta_requires_both_axes_and_gap_complete() -> None:

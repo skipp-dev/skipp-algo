@@ -1,0 +1,77 @@
+{
+  "ts": "2026-10-09T13:09:56.523174+00:00",
+  "regime": "NEUTRAL",
+  "market_weather": "RED",
+  "candidates": [
+    {
+      "symbol": "PEP",
+      "gap_pct": 0.0,
+      "score": 5.5028,
+      "confidence_tier": "STANDARD",
+      "sector": "Consumer Defensive"
+    },
+    {
+      "symbol": "MCD",
+      "gap_pct": 0.0,
+      "score": 5.0079,
+      "confidence_tier": "STANDARD",
+      "sector": "Consumer Cyclical"
+    },
+    {
+      "symbol": "CMG",
+      "gap_pct": 0.0,
+      "score": 4.9195,
+      "confidence_tier": "STANDARD",
+      "sector": "Consumer Cyclical"
+    },
+    {
+      "symbol": "PLTR",
+      "gap_pct": 0.0,
+      "score": 4.7464,
+      "confidence_tier": "STANDARD",
+      "sector": "Technology"
+    },
+    {
+      "symbol": "ROL",
+      "gap_pct": 0.0,
+      "score": 4.6046,
+      "confidence_tier": "STANDARD",
+      "sector": "Industrials"
+    },
+    {
+      "symbol": "HD",
+      "gap_pct": 0.0,
+      "score": 4.421,
+      "confidence_tier": "STANDARD",
+      "sector": "Consumer Cyclical"
+    },
+    {
+      "symbol": "RBA",
+      "gap_pct": 0.0,
+      "score": 4.3577,
+      "confidence_tier": "STANDARD",
+      "sector": "Industrials"
+    },
+    {
+      "symbol": "RTX",
+      "gap_pct": 0.0,
+      "score": 4.3438,
+      "confidence_tier": "STANDARD",
+      "sector": "Industrials"
+    },
+    {
+      "symbol": "NFLX",
+      "gap_pct": 0.0,
+      "score": 4.2,
+      "confidence_tier": "STANDARD",
+      "sector": "Communication Services"
+    },
+    {
+      "symbol": "GFS",
+      "gap_pct": 0.0,
+      "score": 4.1808,
+      "confidence_tier": "STANDARD",
+      "sector": "Technology"
+    }
+  ]
+}

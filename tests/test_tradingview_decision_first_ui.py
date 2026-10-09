@@ -53,16 +53,16 @@ def test_core_has_decision_first_hero_contract() -> None:
 
 
 def test_dashboard_has_companion_summary_and_pro_diagnostics() -> None:
-    source = _read("SMC_Decision_Board.pine")
+    source = _read("SMC_Long_Dip_Dashboard.pine")
 
     assert 'var string g_surface = "1. Product Surface"' in source
-    assert 'var string g_bus_lifecycle = "2. Chart Link - Decision State"' in source
-    assert 'var string g_local_debug = "10. Advanced - Debug Mirrors"' in source
+    assert 'var string g_bus_lifecycle = "2. Operator Only - Lifecycle BUS"' in source
+    assert 'var string g_local_debug = "10. Operator Only - Local Debug Mirrors"' in source
     assert 'surface_mode = input.string("Decision Brief"' in source
     assert source.index('surface_mode = input.string("Decision Brief"') < source.index('src_zone_active = input.source(close, "BUS ZoneActive"')
     assert "dashboard_product_state_text(" in source
-    assert 'dashboard_row(smc_dashboard, 0, "SMC Decision Board v7", "Decision Brief | Linked setup active"' in source
-    assert 'dashboard_row(smc_dashboard, 0, "SMC Decision Board v7", "Audit View | Expert review only", header_bg, txt)' in source
+    assert 'dashboard_row(smc_dashboard, 0, "SMC Long-Dip Dashboard v7", "Decision Brief | Linked setup active"' in source
+    assert 'dashboard_row(smc_dashboard, 0, "SMC Long-Dip Dashboard v7", "Audit View | Expert review only", header_bg, txt)' in source
     assert 'dashboard_row(smc_dashboard, 1, "Market"' in source
     assert 'dashboard_row(smc_dashboard, 2, "Structure"' in source
     assert 'dashboard_row(smc_dashboard, 3, "Session / Market"' in source
@@ -98,9 +98,9 @@ def test_dashboard_hero_surface_pins_one_liner_row_and_shifted_row_order() -> No
     to 9. Pin every row so a future row insert/shift fails fast and
     forces the author to update the IA contract together.
     """
-    source = _read("SMC_Decision_Board.pine")
+    source = _read("SMC_Long_Dip_Dashboard.pine")
 
-    assert 'dashboard_row(smc_dashboard, 0, "SMC Decision Board v7", "Hero | Decision-first surface"' in source
+    assert 'dashboard_row(smc_dashboard, 0, "SMC Long-Dip Dashboard v7", "Hero | Decision-first surface"' in source
     assert 'dashboard_row_tt(smc_dashboard, 1, "Hero", _hero_one_display, _hero_one_bg, txt, _hero_one_tt)' in source
     assert 'dashboard_row(smc_dashboard, 2, "Market", h_market_line,' in source
     assert 'dashboard_row(smc_dashboard, 3, "Action", h_action_line,' in source
@@ -127,7 +127,7 @@ def test_dashboard_explain_popup_tooltips_cover_zone_priority_and_per_family() -
     tooltip explaining family / calibrated weight / tier / source. The
     helper itself must trim long strings to stay under Pine's tooltip
     char limit."""
-    source = _read("SMC_Decision_Board.pine")
+    source = _read("SMC_Long_Dip_Dashboard.pine")
 
     # Helper exists and trims defensively.
     assert "dashboard_row_tt(table tbl, int row, string label_text, string value_text, color bg, color txt, string tt) =>" in source
@@ -161,7 +161,7 @@ def test_dashboard_explain_popup_tooltips_cover_zone_priority_and_per_family() -
 def test_dashboard_visual_consolidation_publishes_tier_and_icon_tokens() -> None:
     """Plan 1.6 — single source of truth for tier colours and icon glyphs.
     Hero one-liner must paint its background from these tokens."""
-    source = _read("SMC_Decision_Board.pine")
+    source = _read("SMC_Long_Dip_Dashboard.pine")
 
     assert "var color CLR_TIER_T1" in source
     assert "var color CLR_TIER_T2" in source
@@ -242,7 +242,7 @@ def test_core_engine_quickstart_preset_rvol_floor_is_wired_into_effective_gate()
         f"before its consumer (idx {consumer_idx}) — Pine forward refs do not compile"
     )
     # User-facing input tooltip must explain that the preset can raise the floor.
-    assert "the preset may raise this floor, never lower it. Effective value is published as the hidden PresetRvolMin chart output." in source
+    assert "Plan 1.4: when a Quickstart Preset other than Custom is active, the preset may raise this floor" in source
 
 
 def test_core_engine_quickstart_preset_htf_bias_floor_is_wired_into_context_quality() -> None:
@@ -281,7 +281,7 @@ def test_dashboard_audit_view_has_why_this_tier_drilldown() -> None:
     feature matrix at rows 76/77 so the existing audit-row pin tests keep
     working.
     """
-    source = _read("SMC_Decision_Board.pine")
+    source = _read("SMC_Long_Dip_Dashboard.pine")
 
     # Table size + final clear range must accommodate the new rows.
     # Grew 78 → 80 rows when Universe Status rows were appended above the
@@ -306,7 +306,7 @@ def test_long_strategy_has_wrapper_controls_and_core_plan_outputs() -> None:
 
     assert 'strategy("SMC Long-Dip Strategy", overlay = true' in source
     assert 'var string g_setup = "1. Execution Setup"' in source
-    assert 'var string g_bus_entry = "3. Chart Link - Entry States"' in source
+    assert 'var string g_bus_entry = "3. Expert Mapping - Entry States"' in source
     assert source.index('entry_mode = input.string("Strict", "Execution Stage"') < source.index('src_armed = input.source(close, "BUS Armed"')
     assert source.index('use_take_profit = input.bool(true, "Use Take Profit"') < source.index('src_trigger = input.source(close, "BUS Trigger"')
     assert 'src_armed = input.source(close, "BUS Armed"' in source
@@ -320,7 +320,7 @@ def test_long_strategy_has_wrapper_controls_and_core_plan_outputs() -> None:
     assert 'Minimum quality score required before the linked core setup can stage an execution plan.' in source
     # Tooltip now names the renamed product (SMC Long-Dip Suite, not the legacy
     # "SMC Core") and states that the rows follow the Suite's dropdown order.
-    assert 'Bind these chart-link inputs top-to-bottom to the matching linked core outputs from SMC Long-Dip Suite.' in source
+    assert 'Bind these expert-mapping inputs top-to-bottom to the matching linked core outputs from SMC Long-Dip Suite.' in source
     assert 'Bind these plan inputs after the state group so the linked execution plan stays deterministic.' in source
     assert 'plot(src_trigger, "Execution Trigger"' in source
     assert 'plot(src_invalidation, "Execution Invalidation"' in source
@@ -351,7 +351,7 @@ def test_r11_migration_and_operator_guide_is_linked_and_explicit() -> None:
 
 def test_core_and_dashboard_trust_tier_values_are_consistent() -> None:
     core = _read("SMC++/smc_engine_private.pine")
-    dashboard = _read("SMC_Decision_Board.pine")
+    dashboard = _read("SMC_Long_Dip_Dashboard.pine")
 
     for tier in ["High", "Guarded", "Degraded", "Insufficient"]:
         assert f"'{tier}'" in core, f"Core must contain trust tier '{tier}'"
@@ -361,8 +361,6 @@ def test_core_and_dashboard_trust_tier_values_are_consistent() -> None:
 
     assert "export resolve_trust_tier(" in core
     assert "resolve_dashboard_trust_tier(" in dashboard
-    assert "dashboard_provider_state_text(mp.EVENT_PROVIDER_STATUS)" in dashboard
-    assert "dashboard_provider_state_text(int volume_data_row_code" not in dashboard
 
     resolvers = _read("SMC++/smc_context_resolvers.pine")
 
@@ -377,9 +375,8 @@ def test_core_and_dashboard_trust_tier_values_are_consistent() -> None:
 def test_core_trust_resolution_defaults_to_insufficient() -> None:
     core = _read("SMC++/smc_engine_private.pine")
 
-    func_start = core.index("export resolve_trust_tier(")
-    func_end = core.index("\nexport ", func_start + 1)
-    func_body = core[func_start:func_end]
+    func_start = core.index("resolve_trust_tier(")
+    func_body = core[func_start:func_start + 600]
 
     assert "'Insufficient'" in func_body
     assert func_body.index("'Insufficient'") < func_body.index("'High'"), \
@@ -387,7 +384,7 @@ def test_core_trust_resolution_defaults_to_insufficient() -> None:
 
 
 def test_dashboard_trust_resolution_defaults_to_insufficient() -> None:
-    dashboard = _read("SMC_Decision_Board.pine")
+    dashboard = _read("SMC_Long_Dip_Dashboard.pine")
 
     func_start = dashboard.index("resolve_dashboard_trust_tier(")
     func_body = dashboard[func_start:func_start + 600]
@@ -606,9 +603,9 @@ def test_dashboard_subscribes_to_preset_bus_contract() -> None:
     contract via input.source bindings, otherwise the onboarding tooltip
     has no way to detect CUSTOM preset state.
     """
-    source = _read("SMC_Decision_Board.pine")
+    source = _read("SMC_Long_Dip_Dashboard.pine")
 
-    assert 'var string g_bus_preset = "9. Chart Link - Preset Contract"' in source
+    assert 'var string g_bus_preset = "9. Operator Only - Preset Contract"' in source
     assert 'src_preset_class_code = input.source(close, "BUS PresetClassCode"' in source
     assert 'src_preset_rvol_min = input.source(close, "BUS PresetRvolMin"' in source
     assert 'src_preset_htf_bias_min = input.source(close, "BUS PresetHtfBiasMin"' in source
@@ -621,7 +618,7 @@ def test_dashboard_hero_row_carries_h5_onboarding_tooltip() -> None:
     Hero row shows a 4-Click onboarding nudge, otherwise it shows a
     calibrated-defaults hint citing the BUS Preset contract.
     """
-    source = _read("SMC_Decision_Board.pine")
+    source = _read("SMC_Long_Dip_Dashboard.pine")
 
     assert "int _hero_preset_code = int(math.round(src_preset_class_code))" in source
     assert "_hero_preset_code == 0 ?" in source
@@ -637,7 +634,7 @@ def test_dashboard_calibration_sha_input_and_hero_sha_token() -> None:
     must accept the SHA argument and emit a 'sha:<7chars>' segment when
     the SHA token is present in Hero Token Order.
     """
-    source = _read("SMC_Decision_Board.pine")
+    source = _read("SMC_Long_Dip_Dashboard.pine")
 
     assert 'calibration_sha = input.string("", "Calibration SHA"' in source
     # Composer signature now carries an optional sha argument; SHA token
@@ -649,10 +646,7 @@ def test_dashboard_calibration_sha_input_and_hero_sha_token() -> None:
     assert 'compose_hero_one_liner(hero_token_order, mp.HERO_BIAS, mp.HERO_TRUST, _hero_fam, _hero_fam_pct, mp.ZONE_PRIORITY_RANK, _hero_blocker, calibration_sha)' in source
     # Hero Token Order tooltip must document the new SHA token so the
     # surface stays self-explanatory.
-    # 2026-08-12: the input moved out of "1. Product Surface" into
-    # "12. Advanced - Manual Overrides", so "below" became false — the tooltip
-    # now names the group it actually lives in.
-    assert "SHA (calibration reference, requires the Calibration SHA input under Manual Overrides)" in source
+    assert "SHA (calibration SHA, requires Calibration SHA input below)" in source
 
 
 def test_dashboard_calibration_breach_banner_overrides_hero_blocker() -> None:
@@ -662,7 +656,7 @@ def test_dashboard_calibration_breach_banner_overrides_hero_blocker() -> None:
     The override is unconditional (not gated on existing blocker text)
     so a 30-day SLO violation cannot be hidden by an empty risk field.
     """
-    source = _read("SMC_Decision_Board.pine")
+    source = _read("SMC_Long_Dip_Dashboard.pine")
 
     assert 'calibration_breach_banner = input.bool(false, "Calibration Breach Banner"' in source
     assert "if calibration_breach_banner" in source
@@ -677,7 +671,7 @@ def test_dashboard_calibration_breach_banner_overrides_hero_blocker() -> None:
 
 def test_universe_status_is_exact_and_user_visible_across_surfaces() -> None:
     core = _read("SMC_Long_Dip_Suite.pine")
-    dashboard = _read("SMC_Decision_Board.pine")
+    dashboard = _read("SMC_Long_Dip_Dashboard.pine")
     strategy = _read("SMC_Long_Dip_Strategy.pine")
     utils = _read("SMC++/smc_utils.pine")
     resolvers = _read("SMC++/smc_context_resolvers.pine")
@@ -716,27 +710,3 @@ def test_universe_status_is_exact_and_user_visible_across_surfaces() -> None:
     assert 'strict_universe_entries = input.bool(false, "Strict Universe Mode"' in strategy
     assert 'bool universe_gate_ok = not strict_universe_entries or not snapshot_gates_live or strategy_universe_status_code == 3 or strategy_universe_status_code == 2' in strategy
     assert 'bool can_stage_entry = selected_state and quality_ok and risk_levels_ok and regime_gate_ok and universe_gate_ok' in strategy
-
-
-def test_lib_freshness_warning_threshold_absorbs_t1_cadence() -> None:
-    """The suite's on-chart "Library Xd alt" warning must not structurally
-    false-fire: ASOF_DATE stamps the last completed TRADING day (T-1) and only
-    advances with the ~09-13Z refresh, so over a weekend the NORMAL age peaks
-    at ~4d13h and a Monday holiday pushes floor(days) to 5. The original
-    `> 2` threshold showed a red warning label every single Monday on healthy
-    data. Threshold must be `> 5`, mirroring lo-pine-library-data-stale
-    (432000s = 5d, PR #3878) so chart and alerting agree on what stale means.
-    """
-    source = _read("SMC_Long_Dip_Suite.pine")
-    assert "lib_days_old > 5" in source, (
-        "suite freshness warning must use the 5-day T-1-cadence threshold"
-    )
-    assert "lib_days_old > 2" not in source, (
-        "the structurally-false 2-day threshold must not come back"
-    )
-    # The label must carry the FIX, not just the symptom: an applied chart
-    # instance is frozen by TradingView and only re-adding it picks up the
-    # current library — four escalation rounds were spent discovering that.
-    assert "neu hinzuf" in source, (
-        "staleness label must tell the operator to re-add the indicator"
-    )

@@ -47,30 +47,6 @@ from scripts.smc_microstructure_base_runtime import generate_pine_library_from_b
 from scripts.smc_provider_policy import ProviderResult
 from scripts.smc_schema_resolver import resolve_microstructure_schema_path
 
-# 2026-10-08: the news domain is Benzinga-only (operator stopped every FMP news query).
-# The e2e runs simulate a successful Benzinga fetch at its adapter, so the real
-# scoring path (compute_news_sentiment + diagnostics) still runs.
-_BZ_NEWS_ITEMS: list = []
-
-
-@pytest.fixture
-def benzinga_news(monkeypatch):
-    from types import SimpleNamespace
-
-    def _set(*pairs):
-        _BZ_NEWS_ITEMS[:] = [SimpleNamespace(headline=h, tickers=list(t)) for h, t in pairs]
-
-    class _Adapter:
-        def __init__(self, api_key):
-            self.client = SimpleNamespace(close=lambda: None)
-
-        def fetch_news(self, page_size=100):
-            return list(_BZ_NEWS_ITEMS)
-
-    monkeypatch.setattr("newsstack_fmp.ingest_benzinga.BenzingaRestAdapter", _Adapter)
-    _set(("Apple beats earnings, strong growth outlook", ["AAPL"]))
-    return _set
-
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_PATH = resolve_microstructure_schema_path()
 CONTRACT_PINE_PATH = ROOT / "tests" / "fixtures" / "generated_seed" / "pine" / "generated" / "smc_micro_profiles_generated.pine"
@@ -283,11 +259,10 @@ class TestBuildEnrichmentE2E:
         assert prov["provider_count"] >= 1
 
     @patch("scripts.generate_smc_micro_base_from_databento._make_fmp_client")
-    def test_provenance_records_per_domain(self, mock_make, benzinga_news):
+    def test_provenance_records_per_domain(self, mock_make):
         mock_make.return_value = _make_mock_fmp()
         result = build_enrichment(
             fmp_api_key="test-key",
-            benzinga_api_key="bz-key",
             symbols=["AAPL"],
             enrich_regime=True,
             enrich_news=True,
@@ -296,16 +271,15 @@ class TestBuildEnrichmentE2E:
         )
         prov = result["providers"]
         assert prov.get("regime_provider") == "fmp"
-        assert prov.get("news_provider") == "benzinga"  # 2026-10-08: no FMP news
+        assert prov.get("news_provider") == "fmp"
         assert prov.get("calendar_provider") == "fmp"
         assert prov.get("technical_provider") == "fmp"
 
     @patch("scripts.generate_smc_micro_base_from_databento._make_fmp_client")
-    def test_stale_providers_empty_on_full_success(self, mock_make, benzinga_news):
+    def test_stale_providers_empty_on_full_success(self, mock_make):
         mock_make.return_value = _make_mock_fmp()
         result = build_enrichment(
             fmp_api_key="test-key",
-            benzinga_api_key="bz-key",
             symbols=["AAPL"],
             enrich_regime=True,
             enrich_news=True,
@@ -400,17 +374,24 @@ class TestBuildEnrichmentE2E:
         assert 0.0 <= result["ensemble_quality"]["score"] <= 1.0
 
     @patch("scripts.generate_smc_micro_base_from_databento._make_fmp_client")
-    def test_build_enrichment_exposes_news_payload_diagnostics(self, mock_make, benzinga_news):
+    def test_build_enrichment_exposes_news_payload_diagnostics(self, mock_make):
         fmp = _make_mock_fmp()
-        benzinga_news(
-            ("Apple beats earnings, strong growth outlook", ["AAPL"]),
-            ("Tesla misses estimates, weak outlook warning", ["TSLA"]),
-        )
+        fmp.get_stock_latest_news.return_value = [
+            {
+                "title": "Apple beats earnings, strong growth outlook",
+                "tickers": ["AAPL"],
+                "symbol": "AAPL",
+            },
+            {
+                "title": "Tesla misses estimates, weak outlook warning",
+                "tickers": ["TSLA"],
+                "symbol": "TSLA",
+            },
+        ]
         mock_make.return_value = fmp
 
         result = build_enrichment(
             fmp_api_key="test-key",
-            benzinga_api_key="bz-key",
             symbols=["AAPL", "TSLA", "META"],
             enrich_news=True,
             base_snapshot=_snapshot_df(),
@@ -766,15 +747,15 @@ class TestFinalizePipelineE2E:
         mock_news_newsapi.assert_not_called()
         assert report["report_kind"] == "library_provider_diagnostics"
         assert report["overall_status"] == "warn"
-        assert report["stale_providers"] == ["benzinga"]  # FMP news out of the chain since 2026-10-08
+        assert report["stale_providers"] == ["benzinga", "fmp"]
 
         news_diag = next(row for row in report["provider_domain_results"] if row["domain"] == "news")
         assert news_diag["selected_provider"] == "none"
         assert news_diag["provider_status"] == "no_data"
-        # 2026-10-08: FMP news out of the chain -- Benzinga is the only attempt.
-        assert news_diag["stale_providers"] == ["benzinga"]
-        assert [attempt["provider"] for attempt in news_diag["attempts"]] == ["benzinga"]
+        assert news_diag["stale_providers"] == ["fmp", "benzinga"]
+        assert [attempt["provider"] for attempt in news_diag["attempts"]] == ["fmp", "benzinga"]
         assert news_diag["attempts"][0]["provider_status"] == "timeout"
+        assert news_diag["attempts"][1]["provider_status"] == "timeout"
 
 
 # ── 4. generate_pine_library_from_base with real enrichment ─────────
@@ -1156,7 +1137,7 @@ class TestSmokeFullV4Pipeline:
             assert expected in blocks, f"Manifest missing enrichment block: {expected}"
 
     @patch("scripts.generate_smc_micro_base_from_databento._make_fmp_client")
-    def test_finalize_pipeline_full_round_trip(self, mock_make, base_result, tmp_path, benzinga_news):
+    def test_finalize_pipeline_full_round_trip(self, mock_make, base_result, tmp_path):
         """Exercises the complete finalize_pipeline → Pine → artifact round-trip."""
         mock_make.return_value = _make_mock_fmp()
         result = finalize_pipeline(
@@ -1164,7 +1145,6 @@ class TestSmokeFullV4Pipeline:
             schema_path=SCHEMA_PATH,
             output_root=tmp_path,
             fmp_api_key="test-key",
-            benzinga_api_key="bz-key",
             enrich_regime=True,
             enrich_news=True,
             enrich_calendar=True,

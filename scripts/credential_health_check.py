@@ -20,14 +20,6 @@ Design:
   probe (``metadata.get_dataset_range``, free): billing failures (HTTP
   402 / suspended account) keep the auth probe green while data silently
   stops flowing — post-mortem 2026-06-12, unpaid invoice unnoticed 12 days.
-* Composio gets a *connected-account* probe per declared toolkit/access pin
-  for the same reason one layer up: the project API key keeps working while
-  an individual OAuth connection expires underneath it, and consumers then
-  fail with ``HTTP 410 ... is in EXPIRED state``. Post-mortem 2026-08-03:
-  the weekly Notion digest died on 2026-07-20 and stayed dead for two weeks
-  while this check reported green, because Composio was not probed at all.
-  The pin list comes from ``configs/composio_auth_policy.json``, so a
-  declared-but-unconfigured account is a finding rather than silence.
 * Pure stdlib (json / datetime / urllib / sys / os) so it works on any
   Python the daily runner provisions.
 * Returns a structured report on stdout (JSON) and exits 0 / 1 / 2:
@@ -49,13 +41,11 @@ import gzip
 import json
 import os
 import sys
-import time
 import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any
 
 # Warn at 80% of TTL, fail (error) at 100%.
@@ -68,48 +58,6 @@ class ProbeResult:
     severity: str  # "ok" | "warn" | "error"
     message: str
     details: dict[str, Any] = field(default_factory=dict)
-
-
-# Per-request HTTP budget for the credential probes.
-#
-# 2026-08-04 (#4382): hist.databento.com answers its metadata calls with a
-# bimodal time-to-first-byte. Measured that morning against the production key,
-# 5 samples: TTFB 0.44s / 0.90s / 17.4s / 24.3s / 29.4s, while TCP connect was
-# 0.12s, TLS 0.24s and the payload 14 KB — so the wait is server-side, neither
-# the network nor the response size. Against a single 10s attempt a *valid*
-# key came back as `warn` and filed a cron issue on four separate days (#4382,
-# #4196, #4075, #3804), and in each of them the SECOND Databento probe of the
-# same run was `ok`. Nothing was ever wrong with the credential.
-#
-# Two levers, both measured: give Databento a timeout that covers its observed
-# slow branch, and re-roll the inconclusive network/timeout class once. Keep
-# both small — the daily cron probes ~14 endpoints serially inside one job
-# timeout, and tests/test_credential_probe_consumers.py holds that arithmetic.
-HTTP_TIMEOUT_SECONDS = 10.0
-DATABENTO_TIMEOUT_SECONDS = 30.0
-TRANSIENT_RETRY_ATTEMPTS = 2
-TRANSIENT_RETRY_SLEEP_SECONDS = 1.0
-
-
-def _open_with_transient_retry(opener: Any, req: Any, *, timeout: float) -> Any:
-    """Open ``req``, re-rolling only the inconclusive network/timeout class.
-
-    ``urllib.error.HTTPError`` subclasses ``URLError`` but carries a real
-    server verdict (401 revoked, 402 unpaid, 429 quota, 5xx outage). Those are
-    answers, not flakes — they are re-raised on the first attempt so the
-    severity mapping and the operator's wall clock stay untouched.
-    """
-    last_exc: BaseException = TimeoutError("no attempt was made")
-    for attempt in range(TRANSIENT_RETRY_ATTEMPTS):
-        try:
-            return opener.open(req, timeout=timeout)  # nosec B310 - URL is literal per call site
-        except urllib.error.HTTPError:
-            raise
-        except (urllib.error.URLError, TimeoutError) as exc:
-            last_exc = exc
-            if attempt + 1 < TRANSIENT_RETRY_ATTEMPTS:
-                time.sleep(TRANSIENT_RETRY_SLEEP_SECONDS)
-    raise last_exc
 
 
 def _parse_iso(value: str) -> datetime | None:
@@ -248,7 +196,7 @@ def probe_github_pat(token: str, opener: Any = None) -> ProbeResult:
     )
     _opener = opener or urllib.request.build_opener()
     try:
-        with _open_with_transient_retry(_opener, req, timeout=HTTP_TIMEOUT_SECONDS) as resp:
+        with _opener.open(req, timeout=10) as resp:  # nosec B310 - URL is literal
             status = resp.getcode()
             github_token_expiration = (
                 resp.headers.get("github-authentication-token-expiration")
@@ -413,7 +361,7 @@ def _probe_http_vendor(
     url: str,
     headers: dict[str, str],
     opener: Any = None,
-    timeout: float = HTTP_TIMEOUT_SECONDS,
+    timeout: float = 10.0,
 ) -> ProbeResult:
     """Generic vendor-credential probe.
 
@@ -435,7 +383,7 @@ def _probe_http_vendor(
     req = urllib.request.Request(url, headers=base_headers)
     _opener = opener or urllib.request.build_opener()
     try:
-        with _open_with_transient_retry(_opener, req, timeout=timeout) as resp:
+        with _opener.open(req, timeout=timeout) as resp:  # nosec B310 - URL is literal per call site
             status = resp.getcode()
     except urllib.error.HTTPError as exc:
         return _map_vendor_http_error(name, label, exc)
@@ -478,7 +426,6 @@ def probe_databento(key: str, opener: Any = None) -> ProbeResult:
         url="https://hist.databento.com/v0/metadata.list_publishers",
         headers={"Authorization": f"Basic {token}"} if token else {},
         opener=opener,
-        timeout=DATABENTO_TIMEOUT_SECONDS,
     )
 
 
@@ -497,7 +444,7 @@ def probe_databento_delivery(
     dataset: str = DATABENTO_DELIVERY_DATASET,
     max_staleness_days: float = DATABENTO_DELIVERY_MAX_STALENESS_DAYS,
     now: datetime | None = None,
-    timeout: float = DATABENTO_TIMEOUT_SECONDS,
+    timeout: float = 10.0,
 ) -> ProbeResult:
     """Probe Databento DELIVERY health, not just auth.
 
@@ -534,7 +481,7 @@ def probe_databento_delivery(
     )
     _opener = opener or urllib.request.build_opener()
     try:
-        with _open_with_transient_retry(_opener, req, timeout=timeout) as resp:
+        with _opener.open(req, timeout=timeout) as resp:  # nosec B310 - URL is literal
             status = resp.getcode()
             body = resp.read()
     except urllib.error.HTTPError as exc:
@@ -685,216 +632,6 @@ def probe_newsapi(key: str, opener: Any = None) -> ProbeResult:
     )
 
 
-COMPOSIO_AUTH_POLICY_PATH = Path(__file__).resolve().parents[1] / "configs" / "composio_auth_policy.json"
-COMPOSIO_HEALTHY_STATUS = "ACTIVE"
-
-
-def _composio_declared_pins(policy_path: Path | None = None) -> list[tuple[str, str]]:
-    """Return the ``(toolkit, access)`` pairs the repo declares it depends on.
-
-    Driven by ``configs/composio_auth_policy.json`` rather than by scanning
-    the environment. That direction is the whole point: an account pin that
-    is *supposed* to exist but was never configured is a finding, and an
-    env-scan would render exactly that case invisible.
-    """
-    path = policy_path or COMPOSIO_AUTH_POLICY_PATH
-    with path.open(encoding="utf-8") as handle:
-        payload = json.load(handle)
-    configs = payload.get("auth_configs")
-    if not isinstance(configs, dict):
-        return []
-    pins: list[tuple[str, str]] = []
-    for key in configs:
-        toolkit, _, access = str(key).rpartition("_")
-        if toolkit and access in {"read", "write"}:
-            pins.append((toolkit, access))
-    return sorted(set(pins))
-
-
-def _composio_account_result(
-    *,
-    name: str,
-    toolkit: str,
-    access: str,
-    account_id: str,
-    payload: Any,
-) -> ProbeResult:
-    """Turn one connected-account payload into a ProbeResult."""
-    if not isinstance(payload, dict):
-        return ProbeResult(
-            name,
-            "warn",
-            f"Composio returned an unreadable body for {toolkit}/{access} — probe inconclusive",
-            {"account_id": account_id},
-        )
-    status = str(payload.get("status") or "").upper()
-    disabled = bool(payload.get("is_disabled"))
-    reason = payload.get("status_reason")
-    live_toolkit = payload.get("toolkit")
-    live_slug = str(live_toolkit.get("slug") or "").lower() if isinstance(live_toolkit, dict) else ""
-    details = {
-        "account_id": account_id,
-        "toolkit": toolkit,
-        "access": access,
-        "status": status or "unknown",
-        "is_disabled": disabled,
-        "status_reason": reason,
-    }
-    if live_slug and live_slug != toolkit.lower():
-        return ProbeResult(
-            name,
-            "error",
-            f"Composio account pin for {toolkit}/{access} points at a '{live_slug}' account "
-            f"({account_id}) — COMPOSIO_{toolkit.upper()}_{access.upper()}_ACCOUNT_ID is wired to the wrong toolkit",
-            {**details, "live_toolkit": live_slug},
-        )
-    if disabled:
-        return ProbeResult(
-            name,
-            "error",
-            f"Composio account {toolkit}/{access} ({account_id}) is DISABLED — "
-            "re-enable it in the Composio dashboard; consuming automations fail with HTTP 410",
-            details,
-        )
-    if status != COMPOSIO_HEALTHY_STATUS:
-        return ProbeResult(
-            name,
-            "error",
-            f"Composio account {toolkit}/{access} ({account_id}) is in {status or 'UNKNOWN'} state"
-            + (f" ({reason})" if reason else "")
-            + " — re-authorise the connection in Composio; consuming automations fail with HTTP 410",
-            details,
-        )
-    return ProbeResult(
-        name,
-        "ok",
-        f"Composio account {toolkit}/{access} is {COMPOSIO_HEALTHY_STATUS}",
-        details,
-    )
-
-
-def probe_composio_accounts(
-    api_key: str,
-    *,
-    pins: list[tuple[str, str]],
-    account_ids: dict[tuple[str, str], str],
-    base_url: str,
-    opener: Any = None,
-    timeout: float = HTTP_TIMEOUT_SECONDS,
-) -> list[ProbeResult]:
-    """Probe every declared Composio connected account for liveness.
-
-    Auth alone is not the failure mode worth catching here. A Composio
-    project API key keeps working while an individual OAuth *connection*
-    expires underneath it, and every consuming automation then fails with
-    ``HTTP 410 ... is in EXPIRED state`` — which is exactly how the weekly
-    Notion digest died unnoticed between 2026-07-13 and 2026-08-03 while
-    this very check reported green, because it probed no Composio surface
-    at all.
-
-    ``pins`` comes from the repo's auth policy, so a declared-but-unset
-    account pin surfaces as an error rather than as silence.
-    """
-    if not pins:
-        return [
-            ProbeResult(
-                "composio_accounts",
-                "error",
-                "Composio auth policy declares no connected accounts — this probe would "
-                "report green while verifying nothing",
-            )
-        ]
-    if not api_key or not api_key.strip():
-        return [
-            ProbeResult(
-                "composio_accounts",
-                "error",
-                f"Composio API key is empty or missing — {len(pins)} declared connected-account "
-                "pins are UNVERIFIED (an expired connection would stay invisible)",
-                {"declared_pins": len(pins)},
-            )
-        ]
-
-    _opener = opener or urllib.request.build_opener()
-    results: list[ProbeResult] = []
-    for toolkit, access in pins:
-        name = f"composio_account_{toolkit}_{access}"
-        account_id = (account_ids.get((toolkit, access)) or "").strip()
-        if not account_id:
-            results.append(
-                ProbeResult(
-                    name,
-                    "error",
-                    f"auth policy declares {toolkit}/{access} but "
-                    f"COMPOSIO_{toolkit.upper()}_{access.upper()}_ACCOUNT_ID is unset — "
-                    "that connection is unprobed and unusable",
-                    {"toolkit": toolkit, "access": access},
-                )
-            )
-            continue
-        url = f"{base_url.rstrip('/')}/api/v3/connected_accounts/{urllib.parse.quote(account_id, safe='')}"
-        req = urllib.request.Request(
-            url,
-            headers={
-                "User-Agent": "skipp-algo-credential-health-check/1",
-                "x-api-key": api_key.strip(),
-            },
-        )
-        try:
-            with _open_with_transient_retry(_opener, req, timeout=timeout) as resp:
-                status = resp.getcode()
-                body = resp.read()
-        except urllib.error.HTTPError as exc:
-            if exc.code == 404:
-                results.append(
-                    ProbeResult(
-                        name,
-                        "error",
-                        f"Composio does not know account {account_id} pinned for {toolkit}/{access} "
-                        "(HTTP 404) — the pin is stale or points at another project",
-                        {"account_id": account_id, "toolkit": toolkit, "access": access},
-                    )
-                )
-            else:
-                results.append(_map_vendor_http_error(name, f"Composio ({toolkit}/{access})", exc))
-            continue
-        except (urllib.error.URLError, TimeoutError) as exc:
-            results.append(
-                ProbeResult(
-                    name,
-                    "warn",
-                    f"could not reach Composio for {toolkit}/{access}: {exc} — probe inconclusive",
-                    {"account_id": account_id},
-                )
-            )
-            continue
-
-        if status != 200:
-            results.append(
-                ProbeResult(
-                    name,
-                    "warn",
-                    f"Composio returned HTTP {status} for {toolkit}/{access} — probe inconclusive",
-                    {"status": status, "account_id": account_id},
-                )
-            )
-            continue
-        try:
-            payload = json.loads(body)
-        except (json.JSONDecodeError, UnicodeDecodeError):
-            payload = None
-        results.append(
-            _composio_account_result(
-                name=name,
-                toolkit=toolkit,
-                access=access,
-                account_id=account_id,
-                payload=payload,
-            )
-        )
-    return results
-
-
 def _build_report(results: list[ProbeResult]) -> dict[str, Any]:
     severities = [r.severity for r in results]
     if "error" in severities:
@@ -919,17 +656,6 @@ def main(argv: list[str] | None = None) -> int:
         help=(
             "Env var name holding TV storage_state as raw JSON or gzip+base64 JSON "
             "(default: TV_STORAGE_STATE)"
-        ),
-    )
-    parser.add_argument(
-        "--tv-storage-state-file",
-        default=None,
-        help=(
-            "Read the TV storage_state (raw JSON or gzip+base64 JSON) from this file instead "
-            "of the env var. Use it for a fresh capture: Linux caps one environment string at "
-            "128 KiB, and a larger capture passed as TV_STORAGE_STATE=\"$(cat ...)\" fails "
-            "before Python starts ('Argument list too long', exit 126 — the refresh broke "
-            "this way from 2026-09-08)."
         ),
     )
     parser.add_argument(
@@ -1004,19 +730,6 @@ def main(argv: list[str] | None = None) -> int:
         help="Skip the Finnhub API-key probe",
     )
     parser.add_argument(
-        "--skip-composio",
-        action="store_true",
-        help="Skip the Composio connected-account probes",
-    )
-    parser.add_argument(
-        "--composio-auth-policy",
-        default=str(COMPOSIO_AUTH_POLICY_PATH),
-        help=(
-            "Path to the auth policy declaring which connected accounts must exist "
-            f"(default: {COMPOSIO_AUTH_POLICY_PATH.name})"
-        ),
-    )
-    parser.add_argument(
         "--output",
         help="Write JSON report to this path (in addition to stdout)",
     )
@@ -1025,34 +738,17 @@ def main(argv: list[str] | None = None) -> int:
     results: list[ProbeResult] = []
 
     if not args.skip_tv:
-        tv_secret: str | None
-        if args.tv_storage_state_file:
-            source = f"file {args.tv_storage_state_file}"
-            try:
-                tv_secret = Path(args.tv_storage_state_file).read_text(encoding="utf-8")
-            except OSError as exc:
-                tv_secret = None
-                results.append(
-                    ProbeResult(
-                        "tv_storage_state_age",
-                        "error",
-                        f"cannot read {source} ({type(exc).__name__}) — cannot probe TV cookie age",
-                    )
+        tv_secret = os.environ.get(args.tv_storage_state_secret_env, "")
+        if not tv_secret.strip():
+            results.append(
+                ProbeResult(
+                    "tv_storage_state_age",
+                    "error",
+                    f"env {args.tv_storage_state_secret_env} is empty — cannot probe TV cookie age",
                 )
+            )
         else:
-            source = f"env {args.tv_storage_state_secret_env}"
-            tv_secret = os.environ.get(args.tv_storage_state_secret_env, "")
-        if tv_secret is not None:
-            if not tv_secret.strip():
-                results.append(
-                    ProbeResult(
-                        "tv_storage_state_age",
-                        "error",
-                        f"{source} is empty — cannot probe TV cookie age",
-                    )
-                )
-            else:
-                results.append(probe_tv_storage_state(tv_secret, args.tv_max_age_hours))
+            results.append(probe_tv_storage_state(tv_secret, args.tv_max_age_hours))
 
     if not args.skip_gh_pat:
         token = os.environ.get(args.gh_pat_env, "")
@@ -1081,40 +777,6 @@ def main(argv: list[str] | None = None) -> int:
         if finnhub_key:
             results.append(probe_finnhub(finnhub_key))
 
-    if not args.skip_composio:
-        # Resolve key / base-url / account pins through composio_ops so the probe
-        # reads exactly what the consuming automations read. A second, private
-        # copy of that resolution is how a probe drifts into checking a surface
-        # production no longer uses.
-        try:  # `python scripts/foo.py` puts scripts/ on sys.path[0]
-            import composio_ops
-        except ImportError:  # imported as scripts.credential_health_check (pytest pythonpath=".")
-            from scripts import composio_ops
-
-        try:
-            pins = _composio_declared_pins(Path(args.composio_auth_policy))
-        except (OSError, json.JSONDecodeError) as exc:
-            results.append(
-                ProbeResult(
-                    "composio_accounts",
-                    "error",
-                    f"could not read Composio auth policy {args.composio_auth_policy}: {exc} — "
-                    "connected accounts are UNVERIFIED",
-                )
-            )
-        else:
-            results.extend(
-                probe_composio_accounts(
-                    composio_ops._api_key(),
-                    pins=pins,
-                    account_ids={
-                        (toolkit, access): composio_ops._account_for_toolkit(toolkit, access) or ""
-                        for toolkit, access in pins
-                    },
-                    base_url=composio_ops._base_url(),
-                )
-            )
-
     if not results:
         # All probes disabled. That is a configuration error.
         report = _build_report([])
@@ -1134,6 +796,8 @@ def main(argv: list[str] | None = None) -> int:
     rendered = json.dumps(report, indent=2)
     print(rendered)
     if args.output:
+        from pathlib import Path
+
         Path(args.output).parent.mkdir(parents=True, exist_ok=True)
         # ATOMIC-WRITE-EXEMPT: monitoring probe output to operator-supplied path; not a production dataset
         Path(args.output).write_text(rendered + "\n", encoding="utf-8")

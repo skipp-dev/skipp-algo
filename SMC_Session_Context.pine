@@ -3,133 +3,81 @@
 
 //@version=6
 
-// Product role: companion_operator_only. Pro-only confirmed session context.
+// Product role: companion_operator_only. Pro-only session-context companion outside the Lite default surface.
+
+// ─────────────────────────────────────────────────────────────────
+// SMC Session Context Overlay — lightweight companion to SMC Core
 //
-// Session membership is evaluated in each market's IANA timezone. TradingView
-// therefore applies US and European daylight-saving transitions independently.
+// Visualizes session context fields from the v5.2 enrichment layer:
+//   • Current session label (ASIA / LONDON / NY_AM / NY_PM)
+//   • Killzone highlight background
+//   • Session MSS markers (bull / bear)
+//   • Direction bias label
+//   • Context score bar
+//
+// Reads mp.* fields from the generated micro-profiles library.
+// Keep on a separate pane — independent of trade signals.
+// ─────────────────────────────────────────────────────────────────
 
-indicator("SMC Session Context", overlay = false, max_labels_count = 20)
+indicator("SMC Session Context", overlay = false, max_labels_count = 50)
 
-const int SESSION_OUTSIDE = 0
-const int SESSION_ASIA = 1
-const int SESSION_LONDON = 2
-const int SESSION_NY_AM = 3
-const int SESSION_NY_PM = 4
+import preuss_steffen/smc_micro_profiles_generated/157 as mp
 
-const string TZ_NEW_YORK = "America/New_York"
-const string TZ_LONDON = "Europe/London"
-const string TZ_TOKYO = "Asia/Tokyo"
+// ── Inputs ──────────────────────────────────────────────────────
 
-string GROUP_VIEW = "Session Context"
-bool show_session_table = input.bool(true, "Show session status", group = GROUP_VIEW)
-bool show_killzone_bg = input.bool(true, "Show active-session background", group = GROUP_VIEW)
-bool show_mss_markers = input.bool(true, "Show confirmed MSS markers", group = GROUP_VIEW)
-bool show_context_score = input.bool(true, "Show context score", group = GROUP_VIEW)
-int opening_minutes = input.int(30, "Opening-range minutes", minval = 15, maxval = 60, step = 15, group = GROUP_VIEW)
+var g_sc = "Session Context"
+var bool show_session_label  = input.bool(true,  "Show session label",     group = g_sc)
+var bool show_killzone_bg    = input.bool(true,  "Show killzone background", group = g_sc)
+var bool show_mss_markers    = input.bool(true,  "Show MSS markers",       group = g_sc)
+var bool show_context_score  = input.bool(true,  "Show context score bar", group = g_sc)
+var color col_bullish        = input.color(color.new(color.green, 30), "Bullish color",  group = g_sc)
+var color col_bearish        = input.color(color.new(color.red, 30),   "Bearish color",  group = g_sc)
+var color col_neutral        = input.color(color.new(color.gray, 50),  "Neutral color",  group = g_sc)
+var color col_killzone       = input.color(color.new(color.yellow, 85), "Killzone bg",   group = g_sc)
 
-_in_session(string session_spec, string timezone) =>
-    not na(time(timeframe.period, session_spec, timezone))
+// ── Library fields ──────────────────────────────────────────────
 
-_session_code() =>
-    bool ny_am = _in_session("0930-1200:23456", TZ_NEW_YORK)
-    bool ny_pm = _in_session("1300-1600:23456", TZ_NEW_YORK)
-    bool london = _in_session("0800-1200:23456", TZ_LONDON)
-    bool asia = _in_session("0000-0900:23456", TZ_TOKYO)
-    ny_am ? SESSION_NY_AM : ny_pm ? SESSION_NY_PM : london ? SESSION_LONDON : asia ? SESSION_ASIA : SESSION_OUTSIDE
+string sc_session       = mp.SESSION_CONTEXT
+bool   sc_killzone      = mp.IN_KILLZONE
+bool   sc_mss_bull      = mp.SESSION_MSS_BULL
+bool   sc_mss_bear      = mp.SESSION_MSS_BEAR
+string sc_direction     = mp.SESSION_DIRECTION_BIAS
+int    sc_score         = mp.SESSION_CONTEXT_SCORE
 
-_session_label(int code) =>
-    code == SESSION_ASIA ? "Asia" : code == SESSION_LONDON ? "London" : code == SESSION_NY_AM ? "NY AM" : code == SESSION_NY_PM ? "NY PM" : "Outside"
+// Library freshness check (shared pattern across all companions)
+var label stale_badge = na
+if barstate.islast
+    float asof_year  = str.tonumber(str.substring(mp.ASOF_DATE, 0, 4))
+    float asof_month = str.tonumber(str.substring(mp.ASOF_DATE, 5, 7))
+    float asof_day   = str.tonumber(str.substring(mp.ASOF_DATE, 8, 10))
+    int asof_ts      = timestamp(int(asof_year), int(asof_month), int(asof_day))
+    int days_old     = math.floor((timenow - asof_ts) / 86400000)
+    if days_old > 2
+        if not na(stale_badge)
+            label.delete(stale_badge)
+        stale_badge := label.new(bar_index, low,
+            "⚠ Library " + str.tostring(days_old) + "d old",
+            color = color.new(color.red, 40), textcolor = color.white,
+            style = label.style_label_up, size = size.tiny)
 
-int detected_session = _session_code()
+// ── Context score plot ──────────────────────────────────────────
 
-var int active_session = SESSION_OUTSIDE
-var int session_start = na
-var int source_close = na
-var float session_high = na
-var float session_low = na
-var float previous_session_high = na
-var float previous_session_low = na
-var float cumulative_volume = 0.0
-var float cumulative_price_volume = 0.0
-var float opening_high = na
-var float opening_low = na
-var bool opening_active = false
-var bool session_mss_bull = false
-var bool session_mss_bear = false
-var int direction_bias = 0
-var int context_score = 0
+color score_color = sc_score >= 4 ? col_bullish : sc_score >= 2 ? col_neutral : col_bearish
+plot(show_context_score ? sc_score : na, "Context Score", score_color, 2, plot.style_columns)
+hline(3, "Score mid", color.new(color.gray, 70), hline.style_dotted)
 
-bool session_changed = detected_session != active_session
+// ── Killzone background ─────────────────────────────────────────
 
-if barstate.isconfirmed
-    session_mss_bull := false
-    session_mss_bear := false
-    if session_changed
-        if active_session != SESSION_OUTSIDE
-            previous_session_high := session_high
-            previous_session_low := session_low
-        active_session := detected_session
-        session_start := detected_session == SESSION_OUTSIDE ? na : time
-        session_high := detected_session == SESSION_OUTSIDE ? na : high
-        session_low := detected_session == SESSION_OUTSIDE ? na : low
-        cumulative_volume := detected_session == SESSION_OUTSIDE ? 0.0 : volume
-        cumulative_price_volume := detected_session == SESSION_OUTSIDE ? 0.0 : hlc3 * volume
-        opening_high := detected_session == SESSION_OUTSIDE ? na : high
-        opening_low := detected_session == SESSION_OUTSIDE ? na : low
-    else if active_session != SESSION_OUTSIDE
-        session_high := math.max(nz(session_high, high), high)
-        session_low := math.min(nz(session_low, low), low)
-        cumulative_volume += volume
-        cumulative_price_volume += hlc3 * volume
+bgcolor(show_killzone_bg and sc_killzone ? col_killzone : na, title = "Killzone BG")
 
-    opening_active := active_session != SESSION_OUTSIDE and time - nz(session_start, time) < opening_minutes * 60000
-    if active_session != SESSION_OUTSIDE and opening_active
-        opening_high := math.max(nz(opening_high, high), high)
-        opening_low := math.min(nz(opening_low, low), low)
+// ── MSS markers ─────────────────────────────────────────────────
 
-    session_mss_bull := active_session != SESSION_OUTSIDE and not na(previous_session_high) and close > previous_session_high and close[1] <= previous_session_high
-    session_mss_bear := active_session != SESSION_OUTSIDE and not na(previous_session_low) and close < previous_session_low and close[1] >= previous_session_low
+plotshape(show_mss_markers and sc_mss_bull ? sc_score : na, "MSS Bull", shape.triangleup, location.bottom, col_bullish, size = size.tiny)
+plotshape(show_mss_markers and sc_mss_bear ? sc_score : na, "MSS Bear", shape.triangledown, location.top, col_bearish, size = size.tiny)
 
-    float session_vwap = cumulative_volume > 0 ? cumulative_price_volume / cumulative_volume : na
-    direction_bias := active_session == SESSION_OUTSIDE or na(session_vwap) ? 0 : close > session_vwap and close > open ? 1 : close < session_vwap and close < open ? -1 : 0
-    context_score := active_session == SESSION_OUTSIDE ? 0 : direction_bias * 2 + (session_mss_bull ? 2 : 0) - (session_mss_bear ? 2 : 0) + (opening_active ? 1 : 0)
-    source_close := time_close
+// ── Status line ─────────────────────────────────────────────────
 
-bool in_killzone = active_session != SESSION_OUTSIDE
-float confirmed_session_vwap = cumulative_volume > 0 ? cumulative_price_volume / cumulative_volume : na
-color score_color = context_score > 0 ? color.new(color.green, 20) : context_score < 0 ? color.new(color.red, 20) : color.new(color.gray, 55)
-
-plot(show_context_score ? context_score : na, "Session Context Score", score_color, 2, plot.style_columns)
-hline(0, "Neutral", color.new(color.gray, 70), hline.style_dotted)
-bgcolor(show_killzone_bg and in_killzone ? color.new(score_color, 88) : na, title = "Confirmed session")
-plotshape(show_mss_markers and session_mss_bull, "Session MSS Bull", shape.triangleup, location.bottom, color.new(color.green, 10), size = size.tiny)
-plotshape(show_mss_markers and session_mss_bear, "Session MSS Bear", shape.triangledown, location.top, color.new(color.red, 10), size = size.tiny)
-
-plot(active_session, "Session Code", display = display.data_window)
-plot(source_close, "Session Source Close", display = display.data_window)
-plot(session_start, "Session Start", display = display.data_window)
-plot(session_high, "Session High", display = display.data_window)
-plot(session_low, "Session Low", display = display.data_window)
-plot(opening_high, "Opening Range High", display = display.data_window)
-plot(opening_low, "Opening Range Low", display = display.data_window)
-plot(confirmed_session_vwap, "Session VWAP", display = display.data_window)
-plot(cumulative_volume, "Session Cumulative Volume", display = display.data_window)
-plot(direction_bias, "Session Direction Bias", display = display.data_window)
-plot(session_mss_bull ? 1 : 0, "Session MSS Bull Confirmed", display = display.data_window)
-plot(session_mss_bear ? 1 : 0, "Session MSS Bear Confirmed", display = display.data_window)
-
-string direction_label = direction_bias > 0 ? "Bullish" : direction_bias < 0 ? "Bearish" : "Neutral"
-string freshness_label = barstate.isconfirmed ? "confirmed" : "waiting for close"
-
-var table status = table.new(position.top_right, 2, 5, border_width = 1)
-if barstate.islast and show_session_table
-    table.cell(status, 0, 0, "Session", bgcolor = color.new(color.gray, 75))
-    table.cell(status, 1, 0, _session_label(active_session), bgcolor = color.new(score_color, 75))
-    table.cell(status, 0, 1, "State")
-    table.cell(status, 1, 1, freshness_label)
-    table.cell(status, 0, 2, "Bias")
-    table.cell(status, 1, 2, direction_label, text_color = score_color)
-    table.cell(status, 0, 3, "Score")
-    table.cell(status, 1, 3, str.tostring(context_score))
-    table.cell(status, 0, 4, "Timezone")
-    table.cell(status, 1, 4, active_session == SESSION_LONDON ? TZ_LONDON : active_session == SESSION_ASIA ? TZ_TOKYO : active_session == SESSION_OUTSIDE ? "—" : TZ_NEW_YORK)
+var string status_line = ""
+if barstate.islast and show_session_label
+    status_line := sc_session + " | " + sc_direction + " | Score:" + str.tostring(sc_score)
+    label.new(bar_index, sc_score + 0.5, status_line, color = color.new(color.black, 80), textcolor = chart.fg_color, size = size.small, style = label.style_label_down)

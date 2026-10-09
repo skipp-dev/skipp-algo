@@ -36,7 +36,6 @@ if str(REPO_ROOT) not in sys.path:
 
 from scripts.load_databento_export_bundle import load_export_bundle
 from scripts.smc_atomic_write import atomic_write_text
-from smc_integration import stale_batch_guard
 from smc_integration.artifact_resolution import resolve_structure_artifact_inputs
 from smc_integration.release_policy import (
     RELEASE_REFERENCE_SYMBOLS,
@@ -50,46 +49,6 @@ from smc_integration.structure_batch import write_structure_artifacts_from_workb
 
 def _iso_utc(ts: float) -> str:
     return datetime.fromtimestamp(float(ts), tz=UTC).isoformat()
-
-
-def _evaluate_reference_batch_freshness(
-    artifacts_dir: Path, timeframes: list[str], *, now: datetime
-) -> dict[str, Any] | None:
-    """OBSERVE-ONLY staleness verdict for the reference structure manifests.
-
-    Reads each on-disk per-timeframe manifest and classifies its
-    ``generated_at`` age via :mod:`smc_integration.stale_batch_guard`, so the
-    refresh report shows the cause + reach (fresh/aging/stale band per batch)
-    of any stale reference lay.
-
-    This is strictly observe-only: the verdict is emitted into the report but
-    is NOT consulted for the refresh exit code or overall status. Returns
-    ``None`` if the verdict cannot be computed — a freshness-audit error must
-    never break the refresh.
-
-    Enforce after the shadow window: once the bands are confirmed, fail the
-    refresh (rc=1) when the verdict is STALE/UNKNOWN.
-    """
-    try:
-        batches: list[dict[str, str | None]] = []
-        for timeframe in timeframes:
-            manifest_path = artifacts_dir / f"manifest_{timeframe}.json"
-            timestamp: str | None = None
-            if manifest_path.exists():
-                try:
-                    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
-                except (OSError, ValueError):
-                    payload = None
-                if isinstance(payload, dict):
-                    generated_at = payload.get("generated_at")
-                    if isinstance(generated_at, (int, float)):
-                        timestamp = _iso_utc(float(generated_at))
-            batches.append({"name": f"structure_manifest_{timeframe}", "timestamp": timestamp})
-        verdict = stale_batch_guard.evaluate(batches, now=now)
-        return verdict.as_dict()
-    except Exception:
-        # Observe-only: never let a freshness-audit error break the refresh.
-        return None
 
 
 def _render(report: dict[str, Any], output: str) -> None:
@@ -184,9 +143,6 @@ def _discover_available_reference_symbols(
                 export_bundle_root,
                 required_frames=required_frames,
                 manifest_prefix="databento_volatility_production_",
-                # This function reads exactly frames[required_frames[0]] (see
-                # _ingest below), so the declared need IS the read set.
-                only_frames=required_frames,
             )
         except Exception:
             bundle = None
@@ -485,15 +441,6 @@ def main() -> int:
         overall_status = "warn"
     else:
         overall_status = "ok"
-
-    # ENG-WS5-02 (OBSERVE-ONLY): classify the freshness of the resulting
-    # reference structure manifests and surface cause + reach. Emitted for a
-    # shadow window only; exit_code / overall_status above are unaffected.
-    # Enforce after the shadow window (see docstring).
-    stale_batch_verdict = _evaluate_reference_batch_freshness(
-        artifacts_dir, timeframes, now=datetime.fromtimestamp(checked_at, tz=UTC)
-    )
-
     report = {
         "report_kind": "pre_release_refresh",
         "checked_at": checked_at,
@@ -510,8 +457,6 @@ def main() -> int:
         "warnings": warnings,
         "failures": failures,
         "refresh_manifests": refresh_reports,
-        # ENG-WS5-02 observe-only reference-manifest freshness verdict (may be None).
-        "stale_batch_verdict": stale_batch_verdict,
         "runner": {
             "script": "scripts/run_smc_pre_release_artifact_refresh.py",
             "mode": "pre_release_refresh",

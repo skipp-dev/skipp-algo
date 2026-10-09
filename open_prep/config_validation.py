@@ -4,15 +4,8 @@ Ported from IB_MON's config_validation.py — prevents silent misconfiguration.
 
 Provides:
   validate_weights()     — sanity-checks scoring weight dicts
+  validate_config()      — type-checks pipeline configuration values
   compute_config_diff()  — detect changes between two config snapshots
-
-A third helper, ``validate_config()`` (+ its ``_CONFIG_SCHEMA``), was removed
-2026-07-29 (Verdrahtungs-Sweep): it had ZERO callers repo-wide — not even
-tests — and its schema (``top_n`` / ``poll_interval`` / ``reload_interval``)
-type-checked a pipeline-config dict that no code ever builds or reads.
-Re-introduce it only together with a production caller AND a real config
-source; a validator without either is a dead knob that makes unsupported
-configuration look supported.
 """
 
 from __future__ import annotations
@@ -86,8 +79,7 @@ _WEIGHT_BOUNDS: dict[str, tuple[float, float]] = {
     #   repo (neither static estimates nor revisions are ever computed).
     # Both still appear as c10b feature columns: interpret a 0 importance as
     # "data was never there", NOT as "no edge in this signal". Keys are kept
-    # for the schema/feature contract. A3/A4 are retained unchanged until
-    # the next versioned feature/weight contract with an explicit migration.
+    # for the schema/feature contract; wire-or-remove is an open decision.
     "institutional_quality": (0.0, 3.0),
     "estimate_revision": (0.0, 3.0),
     # "liquidity_penalty" is a price<$5 proxy that is UNREACHABLE for tradable
@@ -98,9 +90,8 @@ _WEIGHT_BOUNDS: dict[str, tuple[float, float]] = {
     "risk_off_penalty_multiplier": (0.0, 5.0),
     # "ewma" = ENERGY-weighted (volume × true-range) moving-average zone score,
     # not the industry-standard exponentially-weighted MA. Currently a constant
-    # 0.5 in live scoring because quote["daily_bars"] is never populated. The
-    # ATR candles emit ewma_score_shadow into a separate outcome/FI cohort; it
-    # has no live weight mapping until its own versioned recalibration decision.
+    # 0.5 for every symbol because quote["daily_bars"] is never populated in
+    # open_prep — ranking-neutral offset; also absent from outcomes.FEATURE_KEYS.
     "ewma": (0.0, 3.0),
 }
 
@@ -185,14 +176,41 @@ def validate_weights(
 
 
 # ---------------------------------------------------------------------------
+# General config validation
+# ---------------------------------------------------------------------------
+
+_CONFIG_SCHEMA: dict[str, type | tuple[type, ...]] = {
+    "top_n": (int,),
+    "poll_interval": (int, float),
+    "reload_interval": (int, float),
+    "weight_label": (str,),
+}
+
+
+def validate_config(config: dict[str, Any]) -> list[str]:
+    """Type-check pipeline configuration values.
+
+    Returns list of warning messages (empty = all ok).
+    """
+    issues: list[str] = []
+    for key, expected_types in _CONFIG_SCHEMA.items():
+        if key not in config:
+            continue
+        val = config[key]
+        if not isinstance(val, expected_types):
+            issues.append(
+                f"Config '{key}' should be {expected_types} but got {type(val).__name__}: {val!r}"
+            )
+
+    for msg in issues:
+        logger.warning("Config validation: %s", msg)
+
+    return issues
+
+
+# ---------------------------------------------------------------------------
 # Config diff
 # ---------------------------------------------------------------------------
-# 2026-07-27 (wiring audit): ``"weight_label": (str,)`` was removed from the
-# then-existing ``_CONFIG_SCHEMA`` — nothing read ``config["weight_label"]``,
-# and the live pipeline hardcodes ``weight_label="_regime_adjusted"`` at the
-# ``rank_candidates_v2`` calls in ``run_open_prep``.
-# 2026-07-29 (Verdrahtungs-Sweep): ``validate_config`` + ``_CONFIG_SCHEMA``
-# removed entirely — zero callers repo-wide (see module docstring).
 
 def compute_config_diff(
     old: dict[str, Any],

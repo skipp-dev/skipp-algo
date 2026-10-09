@@ -53,12 +53,12 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 1
 
       - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6
         with:
           python-version: "3.12"
 
@@ -78,108 +78,26 @@ jobs:
           # job fails. The final `exit $rc` re-surfaces the failure --
           # this is the explicit-exit-check pattern that Bundle D's
           # global invariant test enforces.
-          # 2026-08-19 (Beobachtungsluecken-Sweep): Neun Crons ergaenzt, deren
-          # stiller Ausfall eine DATENFOLGE hat. Budgets = Kadenz + Jitter-
-          # Reserve (GHA-Cron-Jitter reicht unter Last bis ~5h). Ein eigener
-          # Issue-Opener ersetzt KEINE Zeile hier: er laeuft nicht, wenn der
-          # Workflow nicht laeuft.
-          #   evidence-freshness-snapshot 30h  taeglich; Produkt speist den
-          #     live_overlay_daemon -- eingefroren heisst: die Oberflaeche
-          #     behauptet Frische, die es nicht gibt.
-          #   tradingview-storage-refresh 48:any  taeglich; Inhalt deckt der
-          #     eigene Issue-Opener, hier zaehlt nur das Lebenszeichen. 48h =
-          #     die im Workflow dokumentierte Marge vor der 72h-Cookie-TTL.
-          #   tv-save-consumer-source     30:any  2x taeglich; rote Laeufe sind
-          #     hier by design selbstheilend (savedWithoutAttestation), daher
-          #     :any -- success-only waere Dauer-Rot.
-          #   live-overlay-deploy-trigger-guard 30h  taeglich; Deploy-Gate.
-          #   pre-a0-mlflow-health        12:any  2x/Stunde; 12h toleriert ~24
-          #     verpasste Fires, faengt aber echten Stillstand. Diese Sonde hat
-          #     KEIN issues:write und war gegen beide Ausfallarten blind.
-          #   smc-deeper-integration-gates 30:any  taeglich 03:15.
-          #   vendor-billing-watch        30h  taeglich; stiller Ausfall =
-          #     Kostenueberraschung ohne Vorwarnung.
-          #   pine-library-version-monitor 30h  taeglich; Versionsdrift.
-          #   fvg-quality-quartile-gate   72:weekday  Mo-Fr Gate.
-          # 2026-08-24 (Beweis-Ledger pre-push fix wave): proof-ledger-monitor
-          #   30:any  taeglich 06:47Z. `:any`, weil `conclusion: failure` hier
-          #   das RICHTIGE Ergebnis ist, sobald ein Ledger-Eintrag OFFEN und
-          #   ueberfaellig ist (siehe scripts/proof_ledger.py Docstring) --
-          #   success-only wuerde genau dann Dauer-Rot melden, wenn der Monitor
-          #   korrekt einen echten Befund meldet. Ein Monitor, der selbst still
-          #   ausfaellt, waere der bittere Fall: er ist die einzige Stelle, die
-          #   ueberfaellige Beweise sichtbar macht.
-          # Die Vollstaendigkeit ueber ALLE scheduled Workflows haelt
-          # tests/test_scheduled_workflow_observation_inventory.py.
-          # 2026-08-22: openprep-pine-panel-publish traegt eine DATIERTE
-          # expected-stale-Deklaration: letzter Success 8.8., bekannter
-          # Vorfall (haengende TV-Save-Kette + offener Operator-Entscheid
-          # "erster Publish muss 'new' sein"), dessen EIGENE Alarme brennen
-          # (beide TV-Drift-Alerts). Das taegliche by-design-Rot hier
-          # fuetterte nur den generischen "latest run failed"-Alarm und
-          # wuerde die NAECHSTE, unabhaengige stale-Zeile ertraenken.
-          # Ablauf 2026-09-04 (Operator 24.-28.8. abwesend, erste volle
-          # Woche danach): ab dann faellt die Zeile wieder hart rot aus —
-          # Tripwire, kein Mute. Verlaengern heisst: Datum UND Begruendung
-          # hier erneuern.
-          # 2026-10-01 PRODUKT-Zeile (--product): alle Zeilen darueber fragen
-          # "endete der Workflow gruen?". Das ist die falsche Frage, sobald
-          # gruen und leer gleich aussehen: promotion-gate-daily endete vom
-          # 31.8. bis 30.9. in 17 von 18 Laeufen `success` und uebersprang
-          # dabei alles (kein Upstream-Artefakt); der Rolling-Benchmark
-          # meldete `success` fuer jeden Fire, den sein eigenes Kadenz-Gate
-          # uebersprang. Beide Zeilen blieben frisch, der juengste Gate-Bericht
-          # auf main war fuenf Wochen alt (2026-08-27).
-          #   docs/calibration/gates/returns_series_*.json  72:weekday
-          #     (bis 2026-10-02: track_record_gate_*.json. Seit der neuen
-          #     Ertragsregel entsteht an einem Tag ohne Trades kein Urteil,
-          #     die Serie aber an jedem Tag mit Pool — sie ist der Bericht,
-          #     dessen Ausbleiben diese Zeile melden soll. Die Variante-A-
-          #     Urteile liegen unter variant_a_frozen/ und zaehlen hier nicht.)
-          #     Alter des juengsten DATIERTEN Berichts im Checkout, gezaehlt ab
-          #     00:00 UTC des Datums im Dateinamen. Normal: 30,5 Werktags-
-          #     stunden (Vortag, Sonde 06:30). Ein fehlender Werktag: 54,5 h —
-          #     frisch. Zwei fehlende Werktage in Folge: 78,5 h — rot. Die
-          #     Zeile ist egal dagegen, WARUM der Bericht fehlt (Producer
-          #     uebersprang, Upstream tot, Bot-PR nie gemergt).
-          #     Kein expected-stale-until mehr: die Reparatur (#5584) hat
-          #     geliefert, die Serie vom 2026-10-02 liegt auf main.
           set +e
           python scripts/check_workflow_freshness.py \
             --output artifacts/ci/workflow_freshness.json \
             smc-library-refresh.yml=72:weekday \
             credential-health-check.yml=30 \
             c13-daily-cron.yml=72:weekday \
-            ats-baseline-daily.yml=72:weekday \
             run-open-prep-daily.yml=72:weekday \
             open-prep-outcome-backfill.yml=72:weekday \
-            openprep-pine-panel-publish.yml=72:weekday:expected-stale-until=2026-09-04 \
+            openprep-pine-panel-publish.yml=72:weekday \
             promotion-gate-daily.yml=72:weekday \
             f2-promotion-gate-daily.yml=72:any:weekday \
             fvg-quality-recal-shadow-daily.yml=72:weekday \
             feature-importance-daily.yml=30 \
             meta-watchdog.yml=30:any \
-            smc-measurement-benchmark-rolling.yml=72:success:weekday \
+            smc-measurement-benchmark-rolling.yml=72:any:weekday \
             adr0023-magnitude-shadow-daily.yml=72:any:weekday \
             sweep-trap-shadow-daily.yml=72:any:weekday \
             adr0023-magnitude-stage1-weekly.yml=192 \
             g23-ab-watchdog.yml=72:any:weekday \
-            smc-live-news-refresh.yml=72:weekday \
-            smc-r1-reattest.yml=72:any:weekday \
-            pine-release-notes-watch.yml=192 \
-            evidence-freshness-snapshot.yml=30 \
-            tradingview-storage-refresh.yml=48:any \
-            tv-save-consumer-source.yml=30:any \
-            live-overlay-deploy-trigger-guard.yml=30 \
-            pre-a0-mlflow-health.yml=12:any \
-            smc-deeper-integration-gates.yml=30:any \
-            vendor-billing-watch.yml=30 \
-            pine-library-version-monitor.yml=30 \
-            fvg-quality-quartile-gate.yml=72:weekday \
-            proof-ledger-monitor.yml=30:any \
-            runner-label-variable-watch.yml=12:any \
-            stuck-run-watch.yml=6:any \
-            --product "docs/calibration/gates/returns_series_*.json=72:weekday"
+            smc-live-news-refresh.yml=72:weekday
           rc=$?
           set -e
           echo "rc=$rc" >> "$GITHUB_OUTPUT"
@@ -208,12 +126,10 @@ jobs:
               if status == "fresh":
                   age = wf.get("age_hours")
                   print(f"::notice title=workflow-freshness::{name}: fresh ({age}h ago)")
-              elif status == "expected_stale":
-                  print(f"::warning title=workflow-freshness::{name}: stale as DECLARED -- {wf.get('detail')}")
               elif status == "stale":
                   print(f"::error title=workflow-freshness::{name}: STALE -- last success {wf.get('age_hours')}h ago, budget {wf.get('budget_hours')}h")
               elif status == "missing":
-                  print(f"::error title=workflow-freshness::{name}: MISSING -- {wf.get('detail') or 'no successful runs in API window'}")
+                  print(f"::error title=workflow-freshness::{name}: NO successful runs in API window")
               else:
                   print(f"::error title=workflow-freshness::{name}: api_error -- {wf.get('detail')}")
           PY

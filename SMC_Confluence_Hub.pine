@@ -4,7 +4,7 @@
 //@version=6
 
 // ────────────────────────────────────────────────────────────────
-// SMC Confluence Hub v1
+// SkippALGO Confluence Hub v1
 //
 // Aggregates SMC zone lifecycle (via BUS) with built-in trend,
 // momentum, and mean-reversion signals into a single traffic-light
@@ -14,11 +14,11 @@
 //   Short-parity scoring requires a separate confluence track.
 //
 // Requirements:
-//   - SMC Long-Dip Suite must be on the same chart with its Chart Link rows connected
+//   - SMC Core Engine must be on the same chart with BUS bound
 //   - No additional indicators required — trend/momentum computed internally
 // ────────────────────────────────────────────────────────────────
 
-import preuss_steffen/smc_micro_profiles_generated/569 as mp
+import preuss_steffen/smc_micro_profiles_generated/157 as mp
 
 indicator("SMC Confluence Hub", overlay = true)
 
@@ -33,7 +33,7 @@ show_bg      = input.bool(true, "Highlight Confluence BG", group = g_display, to
 var string g_alerts = "6. Alerts"
 barCloseOnly = input.bool(true, "Alerts nur am Bar-Close", group = g_alerts, tooltip = "Wenn aktiv, feuern Alerts nur auf bestätigten (geschlossenen) Bars. Verhindert Repaint/Flicker während der laufenden Bar.")
 
-var string g_bus = "2. Chart Link - SMC Long-Dip Suite"
+var string g_bus = "2. SMC Core Link"
 // Declared in the Suite's BUS plot() order. TradingView lists a source study's
 // outputs in that plot order, so matching it here means each row's dropdown pick
 // moves strictly downwards while binding — no scrolling back up.
@@ -78,9 +78,8 @@ if smc_connected
         smc_score := 20.0
     else if smc_state == 2 // armed
         smc_score := 10.0
-    // BUS QualityScore is 0..100. Normalize it to a genuine max +5 bonus.
-    float quality_bonus = math.min(5.0, math.max(0.0, smc_quality) * 0.05)
-    smc_score := math.min(40.0, smc_score + quality_bonus)
+    // Quality bonus (max +5 within the 40 cap)
+    smc_score := math.min(40.0, smc_score + math.max(0.0, smc_quality) * 2.0)
 
 // ═══════════════════════════════════════════════════════════════
 //  3. TREND (EMA crossover + slope) — 0–25 points
@@ -162,19 +161,17 @@ if smc_connected
 
 float raw_score = smc_score + trend_score + momentum_score + mr_score + regime_modifier
 float confluence = math.max(0.0, math.min(100.0, raw_score))
-bool regime_blocks_trade = smc_connected and mp.TRADE_STATE == "BLOCKED"
-bool trade_zone = confluence >= 70 and not regime_blocks_trade
 
 // Traffic light
-string traffic = regime_blocks_trade ? "🔴  BLOCKED" : trade_zone ? "🟢  TRADE" : confluence >= 45 ? "🟡  WATCH" : "🔴  STAY AWAY"
-color  traffic_color = trade_zone ? color.new(color.green, 70) : confluence >= 45 and not regime_blocks_trade ? color.new(color.orange, 70) : color.new(color.red, 70)
+string traffic = confluence >= 70 ? "🟢  TRADE" : confluence >= 45 ? "🟡  WATCH" : "🔴  STAY AWAY"
+color  traffic_color = confluence >= 70 ? color.new(color.green, 70) : confluence >= 45 ? color.new(color.orange, 70) : color.new(color.red, 70)
 
 // ═══════════════════════════════════════════════════════════════
 //  8. RENDER
 // ═══════════════════════════════════════════════════════════════
 
 // Background tint
-bgcolor(show_bg and trade_zone ? color.new(color.green, 92) : show_bg and (regime_blocks_trade or confluence < 30) ? color.new(color.red, 95) : na)
+bgcolor(show_bg and confluence >= 70 ? color.new(color.green, 92) : show_bg and confluence < 30 ? color.new(color.red, 95) : na)
 
 // Confluence table
 var table conf_tbl = table.new(position.top_right, 2, 9, border_width = 0)
@@ -235,5 +232,5 @@ plot(smc_score,  "SMC Component",   display = display.none)
 
 // ── Alert Conditions ──
 _alertGate = barCloseOnly ? barstate.isconfirmed : true
-alertcondition(trade_zone and not trade_zone[1] and _alertGate, "Confluence: Trade Zone", "Confluence score entered the unblocked trade zone — conditions favor a long setup.")
+alertcondition(confluence >= 70 and confluence[1] < 70 and _alertGate, "Confluence: Trade Zone", "Confluence score crossed above 70 — conditions favor a long setup.")
 alertcondition(confluence < 30 and confluence[1] >= 30 and _alertGate, "Confluence: Stay Away",  "Confluence score dropped below 30 — conditions deteriorated.")

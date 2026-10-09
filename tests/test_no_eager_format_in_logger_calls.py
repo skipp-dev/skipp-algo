@@ -25,8 +25,6 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from tests._guard_corpus import iter_production_py_files
-
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 
 _DIR_EXCLUDE = frozenset(
@@ -54,7 +52,12 @@ _LOG_METHODS = frozenset(
 
 
 def _iter_prod_files() -> list[Path]:
-    return iter_production_py_files(_DIR_EXCLUDE)
+    out: list[Path] = []
+    for path in _REPO_ROOT.rglob("*.py"):
+        if any(part in _DIR_EXCLUDE for part in path.relative_to(_REPO_ROOT).parts):
+            continue
+        out.append(path)
+    return sorted(out)
 
 
 def _is_logger_call(node: ast.Call) -> tuple[bool, str]:

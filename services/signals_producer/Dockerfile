@@ -15,44 +15,17 @@ COPY open_prep/ /app/open_prep/
 # newsstack_fmp — multi-source news pipeline consumed by AsyncNewsstackPoller.
 # terminal_tradingview_news — free TradingView headlines (unofficial endpoint,
 #   no API key required; uses urllib + Browser UA, already in stdlib).
-# smc_core.resilient — the single local utility used by the news adapters.
-# Keep the package initializer empty in this lean image: the repository's full
-# smc_core/__init__.py eagerly imports the scoring stack, which is unrelated to
-# the producer and pulls in modules that are intentionally absent here.
+# smc_core — local utilities used by newsstack_fmp._bz_http (resilient retry).
 # databento_utils — local helper used by terminal_tradingview_news.
 COPY newsstack_fmp/ /app/newsstack_fmp/
 COPY terminal_tradingview_news.py /app/terminal_tradingview_news.py
-COPY terminal_fmp_insights.py /app/terminal_fmp_insights.py
-COPY cisco_ai_defense.py /app/cisco_ai_defense.py
-COPY open_prep_boundary.py /app/open_prep_boundary.py
-# terminal_technicals + terminal_fmp_technicals — the RealtimeEngine's
-# TechnicalScorer chain (tradingview_ta primary, FMP fallback). Without these
-# the deferred import in realtime_signals._get_fetch_fn silently degraded to
-# _noop_fetch: every prod signal scored technical_score=0.5 NEUTRAL and the
-# RSI A1->A0 upgrades / STRONG_SELL A0 blocks were inert (audit finding).
-COPY terminal_technicals.py /app/terminal_technicals.py
-COPY terminal_fmp_technicals.py /app/terminal_fmp_technicals.py
-RUN mkdir -p /app/smc_core && touch /app/smc_core/__init__.py
-COPY smc_core/resilient.py /app/smc_core/resilient.py
+COPY smc_core/ /app/smc_core/
 COPY databento_utils.py /app/databento_utils.py
 # scripts/smc_newsapi_ai.py — NewsAPI.ai / Event Registry client imported by
 #   newsstack_fmp.pipeline._fetch_newsapi_provider_items.  Only this one script
 #   module is needed; copying the whole scripts/ dir keeps the image lean and
 #   avoids pulling in Streamlit/heavy dashboard deps from other scripts.
 COPY scripts/smc_newsapi_ai.py /app/scripts/smc_newsapi_ai.py
-# atomic_write_text — used by open_prep.quote_reference (the RT_QUOTE_SOURCE=
-# databento path); self-contained (stdlib only). Missing until the shadow
-# deploy surfaced ModuleNotFoundError: No module named 'scripts.smc_atomic_write'.
-COPY scripts/smc_atomic_write.py /app/scripts/smc_atomic_write.py
-# calibrate_signal_followthrough — the nightly in-process calibration
-# (open_prep.calibration_scheduler, RT_CALIBRATION_UTC_HHMM) imports this
-# module to write calibration_latest.json onto the volume. Missing from
-# 2026-07-09 to 2026-08-04: the fail-soft scheduler swallowed the nightly
-# ModuleNotFoundError at debug level, so no table was ever produced and
-# rt_notify's calibrated ⭐P..% path could never arm (same class as the
-# smc_atomic_write miss above). Stdlib-only apart from a lazy
-# open_prep.macro.FMPClient import, which this image already carries.
-COPY scripts/calibrate_signal_followthrough.py /app/scripts/calibrate_signal_followthrough.py
 RUN touch /app/scripts/__init__.py
 
 # Run as a non-root user for security (D1).

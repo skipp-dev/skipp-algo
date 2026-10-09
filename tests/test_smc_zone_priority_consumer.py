@@ -24,7 +24,7 @@ from scripts.smc_zone_priority_consumer import (
 
 def test_defaults_have_required_keys() -> None:
     assert set(DEFAULTS) == {
-        "ZONE_CAL_RELIABILITY_SCORE",
+        "ZONE_CAL_CONFIDENCE",
         "ZONE_HR_OB",
         "ZONE_HR_FVG",
         "ZONE_HR_BOS",
@@ -35,7 +35,7 @@ def test_defaults_have_required_keys() -> None:
 
 
 def test_defaults_are_neutral() -> None:
-    assert DEFAULTS["ZONE_CAL_RELIABILITY_SCORE"] == 0.0
+    assert DEFAULTS["ZONE_CAL_CONFIDENCE"] == 0.0
     assert DEFAULTS["ZONE_HR_OB"] == 0.0
     assert DEFAULTS["ZONE_CAL_TREND"] == "STABLE"
     assert DEFAULTS["ZONE_CAL_TRUST"] == TRUST_UNAVAILABLE
@@ -224,7 +224,7 @@ def test_build_consumer_exports_full_payload() -> None:
     # Keys complete.
     assert set(out) == set(DEFAULTS)
     # 1000/1000 events, no ECE penalty -> confidence 1.0.
-    assert out["ZONE_CAL_RELIABILITY_SCORE"] == pytest.approx(1.0, abs=1e-4)
+    assert out["ZONE_CAL_CONFIDENCE"] == pytest.approx(1.0, abs=1e-4)
     assert out["ZONE_CAL_TRUST"] == TRUST_FRESH
     # Hit rates pass through unchanged.
     assert out["ZONE_HR_OB"] == 0.8636
@@ -246,7 +246,7 @@ def test_build_consumer_exports_defaults_on_empty() -> None:
         family_stats=None, total_events=None, smooth_ece=None, history=None
     )
     # Non-HR / non-trust keys still fall back to the static defaults.
-    assert out["ZONE_CAL_RELIABILITY_SCORE"] == DEFAULTS["ZONE_CAL_RELIABILITY_SCORE"]
+    assert out["ZONE_CAL_CONFIDENCE"] == DEFAULTS["ZONE_CAL_CONFIDENCE"]
     assert out["ZONE_CAL_TREND"] == DEFAULTS["ZONE_CAL_TREND"]
     assert out["ZONE_CAL_TRUST"] == TRUST_UNAVAILABLE
     # Family HRs degrade to the sentinel under UNAVAILABLE.
@@ -311,7 +311,7 @@ def test_aggregator_degrades_ob_hr_on_subsaturation_sample() -> None:
         smooth_ece=0.0833,
         history=None,
     )
-    assert out["ZONE_CAL_RELIABILITY_SCORE"] < 0.30
+    assert out["ZONE_CAL_CONFIDENCE"] < 0.30
     assert out["ZONE_CAL_TRUST"] == TRUST_DEGRADED
     # The critical assertion — the user MUST NOT see 0.8636 here.
     assert out["ZONE_HR_OB"] == HR_SENTINEL_DEGRADED
@@ -362,7 +362,7 @@ def test_aggregator_unavailable_degrades_family_hrs() -> None:
         smooth_ece=0.0,
         history=None,
     )
-    assert out["ZONE_CAL_RELIABILITY_SCORE"] == 0.0
+    assert out["ZONE_CAL_CONFIDENCE"] == 0.0
     assert out["ZONE_CAL_TRUST"] == TRUST_UNAVAILABLE
     # The critical assertion inversion — must NOT leak 0.8636.
     assert out["ZONE_HR_OB"] == HR_SENTINEL_DEGRADED
@@ -410,7 +410,7 @@ def test_trust_fresh_constant_matches_pine_glyph_literal() -> None:
 
 def test_trust_vocabulary_is_distinct_and_uppercase() -> None:
     """Pine's string-comparison guard uses literal uppercase tokens
-    (see ``SMC_Decision_Board.pine::zone_cal_trust_glyph`` and the
+    (see ``SMC_Long_Dip_Dashboard.pine::zone_cal_trust_glyph`` and the
     ``ex_trust_ok`` gate). Pin the full surface.
     """
     assert TRUST_FRESH == "OK"
@@ -440,7 +440,7 @@ def test_build_consumer_exports_emits_ok_literal_on_healthy_corpus() -> None:
 
 def test_compute_calibration_trend_returns_value_in_frozen_vocab() -> None:
     """Any trend string reaching Pine MUST belong to ``TREND_VOCAB`` —
-    otherwise the Dashboard tooltip (SMC_Decision_Board.pine:1440-1444)
+    otherwise the Dashboard tooltip (SMC_Long_Dip_Dashboard.pine:1440-1444)
     silently concatenates arbitrary text, because there is no literal
     gate on the Pine side.
     """

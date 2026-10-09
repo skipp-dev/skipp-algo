@@ -1,7 +1,0 @@
-{
-  "day": "2026-07-28",
-  "reason": "weights_candidate.json not present \u2014 run `python -m open_prep.candidate_weights` (see STRATEGY_2026_Q3 \u00a7G2)",
-  "regime": "RISK_ON",
-  "schema_version": 1,
-  "status": "arm_b_unavailable"
-}

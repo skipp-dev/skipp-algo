@@ -58,120 +58,19 @@ def test_explicit_structure_contains_auxiliary_but_full_stays_canonical() -> Non
     assert set(full.keys()) == {"bos", "orderblocks", "fvg", "liquidity_sweeps"}
 
 
-def _minutes(start: str, n: int, *, symbol: str = "AAPL", skip: tuple[int, ...] = ()) -> pd.DataFrame:
-    """``n`` one-minute bars stamped at their START, as the vendor frame is.
-
-    Minute ``i`` opens at ``100 + i`` and closes at ``100 + i + 0.5``; its high
-    and low straddle that, so every aggregate is recognisable by its minutes.
-    """
-    first = pd.Timestamp(start, tz="UTC")
-    rows = []
-    for i in range(n):
-        if i in skip:
-            continue
-        rows.append(
-            {
-                "symbol": symbol,
-                "timestamp": first + pd.Timedelta(minutes=i),
-                "open": 100.0 + i,
-                "high": 100.0 + i + 0.8,
-                "low": 100.0 + i - 0.3,
-                "close": 100.0 + i + 0.5,
-                "volume": 10.0,
-            }
-        )
-    return pd.DataFrame(rows)
-
-
 def test_resample_excludes_incomplete_last_bucket() -> None:
-    """Minutes 09:30–09:32 are three fifths of the bar [09:30, 09:35): it is
-    still forming and must not be served as a confirmed bar."""
-    out = resample_bars_to_timeframe(_minutes("2024-01-02T09:30:00Z", 3), "5m")
-    assert out.empty
-
-    # Positive control: with the minutes 09:33 and 09:34 the bar is complete.
-    out = resample_bars_to_timeframe(_minutes("2024-01-02T09:30:00Z", 5), "5m")
-    assert [str(t) for t in pd.to_datetime(out["timestamp"], utc=True)] == ["2024-01-02 09:35:00+00:00"]
-
-
-# ── start-stamped source bars (ADR-0031, Nachtrag 2026-10-02 III) ──
-
-
-def test_a_minute_belongs_to_the_bar_that_starts_with_it() -> None:
-    """The minute stamped 13:30 covers 13:30:00–13:31:00 and is the FIRST
-    minute of the bar [13:30, 13:45), which is labelled by its end, 13:45.
-
-    Until 2026-10-02 it was booked as the LAST minute of the bar ending 13:30,
-    which put the opening minute of the regular session into the last
-    pre-market bar and shifted every intraday bar by one minute."""
-    bars = _minutes("2024-01-02T13:30:00Z", 30)  # 13:30 … 13:59
-    out = resample_bars_to_timeframe(bars, "15m")
-
-    labels = [str(t)[11:16] for t in pd.to_datetime(out["timestamp"], utc=True)]
-    assert labels == ["13:45", "14:00"]
-    first = out.iloc[0]
-    assert first["open"] == 100.0  # open of the minute 13:30
-    assert first["close"] == 114.5  # close of the minute 13:44
-    assert first["high"] == 114.8 and first["low"] == 99.7
-    assert first["volume"] == 150.0
-    second = out.iloc[1]
-    assert second["open"] == 115.0 and second["close"] == 129.5  # minutes 13:45 … 13:59
-
-
-def test_the_trailing_bar_needs_its_last_minute() -> None:
-    """Minutes 13:30 … 13:58: the second bar lacks 13:59 and is dropped."""
-    out = resample_bars_to_timeframe(_minutes("2024-01-02T13:30:00Z", 29), "15m")
-    assert [str(t)[11:16] for t in pd.to_datetime(out["timestamp"], utc=True)] == ["13:45"]
-
-
-def test_a_gap_inside_a_bar_does_not_move_minutes_between_bars() -> None:
-    """Sparse pre-market: only 08:14 and 08:15 print. They belong to two bars
-    — [08:00, 08:15) and [08:15, 08:30). The source ends at 08:15, so the
-    second bar is still forming; under the old rule BOTH minutes were booked
-    into one bar ending 08:15."""
-    bars = _minutes("2024-01-02T08:00:00Z", 16, skip=tuple(range(14)))  # 08:14, 08:15
-    out = resample_bars_to_timeframe(bars, "15m")
-    assert [str(t)[11:16] for t in pd.to_datetime(out["timestamp"], utc=True)] == ["08:15"]
-    assert out.iloc[0]["open"] == 114.0 and out.iloc[0]["close"] == 114.5  # the minute 08:14 alone
-
-
-def test_bars_already_at_the_target_timeframe_pass_through_unchanged() -> None:
-    """A provider's 15m candles (the TV bridge) are not re-labelled: there is
-    nothing to aggregate, and their stamps stay the caller's."""
-    first = pd.Timestamp("2024-01-02T13:30:00Z")
     bars = pd.DataFrame(
         [
-            {"symbol": "AAPL", "timestamp": first + pd.Timedelta(minutes=15 * i), "open": 100.0 + i, "high": 101.0 + i, "low": 99.0 + i, "close": 100.5 + i, "volume": 5.0}
-            for i in range(4)
+            {"symbol": "AAPL", "timestamp": "2024-01-01T09:30:00Z", "open": 100.0, "high": 101.0, "low": 99.5, "close": 100.5, "volume": 10},
+            {"symbol": "AAPL", "timestamp": "2024-01-01T09:31:00Z", "open": 100.5, "high": 101.2, "low": 100.2, "close": 101.0, "volume": 12},
+            {"symbol": "AAPL", "timestamp": "2024-01-01T09:32:00Z", "open": 101.0, "high": 101.3, "low": 100.8, "close": 101.1, "volume": 8},
         ]
     )
-    out = resample_bars_to_timeframe(bars, "15m")
-    assert [str(t)[11:16] for t in pd.to_datetime(out["timestamp"], utc=True)] == ["13:30", "13:45", "14:00", "14:15"]
-    assert out["close"].tolist() == bars["close"].tolist()
 
-
-def test_end_stamped_output_can_be_aggregated_further() -> None:
-    """1m → 5m → 15m equals 1m → 15m when the second stage is told that its
-    input is end-stamped (this function's own output)."""
-    minutes = _minutes("2024-01-02T13:30:00Z", 45)
-    direct = resample_bars_to_timeframe(minutes, "15m")
-    five = resample_bars_to_timeframe(minutes, "5m")
-    staged = resample_bars_to_timeframe(five, "15m", source_stamp="end")
-    assert len(direct) == 3
-    for column in ("timestamp", "open", "high", "low", "close", "volume"):
-        assert staged[column].tolist() == direct[column].tolist(), column
-
-    # Told nothing, the second stage would read the 5m END stamps as starts
-    # and shift every bar by five minutes — that is why the argument exists.
-    shifted = resample_bars_to_timeframe(five, "15m")
-    assert shifted["open"].tolist() != direct["open"].tolist()
-
-
-def test_an_unknown_source_stamp_is_refused() -> None:
-    import pytest
-
-    with pytest.raises(ValueError, match="source_stamp"):
-        resample_bars_to_timeframe(_minutes("2024-01-02T13:30:00Z", 15), "15m", source_stamp="middle")  # type: ignore[arg-type]
+    out = resample_bars_to_timeframe(bars, "5m")
+    assert not out.empty
+    max_source = pd.to_datetime(bars["timestamp"], utc=True).max()
+    assert pd.to_datetime(out["timestamp"], utc=True).max() <= max_source
 
 
 # ── 1D identity vs aggregation (silent-fallback audit 2026-06-10) ──

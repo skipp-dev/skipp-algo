@@ -1,4 +1,4 @@
-"""Pine-library bridge — serves data age and Repo↔TradingView pin drift.
+"""Pine-library version bridge — serves Repo↔TradingView pin drift.
 
 Consumer half of the monitoring layer added after the 2026-07-13 incident chain
 (#3599/#3603): the ``import preuss_steffen/<lib>/<N>`` pins in the repo drifted
@@ -8,8 +8,7 @@ symbol. The producer (``scripts/build_pine_library_version_snapshot.ts``) probes
 each library's published version via the pine-facade ``filter=published`` listing
 and writes a compact snapshot; this bridge fetches it (runtime URL, local-file
 fallback) and normalizes it into the fields ``metrics.render_metrics`` turns into
-Prometheus gauges, including the generated library's ``ASOF_DATE`` age. It
-never raises — a missing / unreadable snapshot yields
+Prometheus gauges. It never raises — a missing / unreadable snapshot yields
 ``loaded=0``; the separate ``Pine-library snapshot unloadable`` alert catches
 that case. A loaded snapshot without a ``generated_at_unix`` timestamp exports
 ``snapshot_age_known=0`` and ``snapshot_age_seconds=0`` so the stale alert must
@@ -74,18 +73,8 @@ def _coerce(raw: dict[str, Any]) -> dict[str, Any]:
                 # so the gauge can emit it, gated by tv_version_known.
                 "tv_version": _num(lib.get("tvVersion")),
                 "tv_version_known": 1.0 if tv_version_known else 0.0,
-                "data_asof": str(lib.get("dataAsOf", "") or ""),
-                "data_asof_unix": _num(lib.get("dataAsOfUnix")),
-                "data_asof_known": 1.0 if bool(lib.get("dataAsOfKnown")) else 0.0,
                 "consumers": consumers,
                 "any_consumer_drift": 1.0 if bool(lib.get("anyConsumerDrift")) else 0.0,
-                # ADR-0029 payload volume. Absent in snapshots written before
-                # the producer carried it — those default to unknown, never to
-                # a measured zero, so an old snapshot cannot read as "empty".
-                "payload_known": 1.0 if bool(lib.get("payloadKnown")) else 0.0,
-                "payload_universe_size": _num(lib.get("payloadUniverseSize")),
-                "payload_universe_symbols": _num(lib.get("payloadUniverseSymbols")),
-                "payload_list_symbols": _num(lib.get("payloadListSymbols")),
             }
         )
 

@@ -1,7 +1,7 @@
 """Pine consumer scripts: user functions must be DEFINED before referenced.
 
 Incident 2026-07-13 (CE10271 / "Could not find function or function
-reference"): ``SMC_Decision_Board.pine``'s ``dashboard_compact_main_blocker_text``
+reference"): ``SMC_Long_Dip_Dashboard.pine``'s ``dashboard_compact_main_blocker_text``
 referenced ``decode_event_risk_text`` and ``decode_volume_data_text`` ~250
 lines ABOVE their definitions. Pine resolves user-function references
 lexically at compile time, so the script failed to compile on TradingView —
@@ -76,7 +76,7 @@ def test_root_pine_scripts_define_functions_before_use() -> None:
 def test_dashboard_decode_helpers_stay_above_blocker_text() -> None:
     # Regression pin for the concrete incident: the two decoders must stay
     # ABOVE dashboard_compact_main_blocker_text.
-    source = (REPO_ROOT / "SMC_Decision_Board.pine").read_text(encoding="utf-8")
+    source = (REPO_ROOT / "SMC_Long_Dip_Dashboard.pine").read_text(encoding="utf-8")
     blocker = source.index("dashboard_compact_main_blocker_text(int")
     assert source.index("decode_volume_data_text(int row_code) =>") < blocker
     assert source.index("decode_event_risk_text(int row_code) =>") < blocker
@@ -91,14 +91,6 @@ def test_consumer_library_imports_pin_one_real_version() -> None:
     repin step read the generator manifest's HARDCODED `library_version: 1` and
     rewrote all imports back to the 2026-03 first publish. All consumers must
     pin the SAME version and never the stale-sentinel 1."""
-    from scripts.hold_r1_attested_sources import attested_paths
-
-    # R1-attested companions are held at their attested content by #4435's
-    # hold step and only move with a deliberate re-attestation PR, so they lag
-    # by design between a refresh and that PR. The stale-v1 half of this test
-    # still covers them: v1 is the 2026-03 sentinel the CE10272 incident wrote
-    # everywhere, and no evidence attests it.
-    attested = frozenset(Path(p).name for p in attested_paths())
     versions: dict[str, int] = {}
     for path in sorted(REPO_ROOT.glob(CONSUMER_PINE_GLOB)):
         match = _IMPORT_RE.search(path.read_text(encoding="utf-8"))
@@ -109,12 +101,7 @@ def test_consumer_library_imports_pin_one_real_version() -> None:
         f"consumers pinned to the stale v1 March library: "
         f"{[n for n, v in versions.items() if v == 1]}"
     )
-    unheld = {name: v for name, v in versions.items() if name not in attested}
-    assert unheld, "every consumer is attested -- the check below would be vacuous"
-    assert len(set(unheld.values())) == 1, (
-        f"consumers pin diverging library versions: {unheld} "
-        f"(attested and therefore exempt: {sorted(attested & versions.keys())})"
-    )
+    assert len(set(versions.values())) == 1, f"consumers pin diverging library versions: {versions}"
 
 
 def test_root_pine_shorttitles_within_tradingview_limit() -> None:

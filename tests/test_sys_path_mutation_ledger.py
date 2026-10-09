@@ -26,8 +26,6 @@ from pathlib import Path
 
 import pytest
 
-from tests._guard_corpus import iter_production_py_files
-
 ROOT = Path(__file__).resolve().parent.parent
 
 _DIR_EXCLUDE = frozenset(
@@ -60,10 +58,6 @@ _FROZEN_SITES: dict[str, int] = {
     "open_prep/streamlit_monitor.py": 1,
     "scripts/analyze_smc_contextual_calibration_history.py": 1,
     "scripts/build_phase_a_inputs.py": 1,
-    # 2026-07-22 (CI full-suite green): REPO_ROOT bootstrap so the atomic-write
-    # import resolves under the by-path invocation used by
-    # live-overlay-dashboard-publish.yml (mirrors analyze_smc_… F-01 pattern).
-    "scripts/build_pre_a0_dashboard.py": 1,
     "scripts/check_environment.py": 1,
     # Rebaselined 2026-05-03 (after PR #2035): bumped 1 → 2 because the
     # cross-process import-order fix added a module-level
@@ -86,8 +80,7 @@ _FROZEN_SITES: dict[str, int] = {
     # Rebaselined 2026-05-03 (after PR #2035): see check_pine_legacy_drift.py.
     "scripts/e2e_smoke_ci.py": 2,
     # Rebaselined 2026-05-03 (after PR #2035): see check_pine_legacy_drift.py.
-    # 2026-07-28: scripts/emit_fvg_context_pine.py entry dropped — file removed
-    # with the stranded FVG-context chain.
+    "scripts/emit_fvg_context_pine.py": 2,
     # 2026-07-04 (plan B1): repo-root bootstrap so the Open-Prep Pine panel
     # generator works under both `python -m scripts.X` and `python scripts/X.py`.
     "scripts/generate_openprep_pine_panel.py": 1,
@@ -143,7 +136,16 @@ _FROZEN_TOTAL = sum(_FROZEN_SITES.values())
 
 
 def _iter_first_party_py_files() -> list[Path]:
-    return iter_production_py_files(_DIR_EXCLUDE)
+    out: list[Path] = []
+    for path in ROOT.rglob("*.py"):
+        try:
+            rel_parts = path.relative_to(ROOT).parts
+        except ValueError:
+            continue
+        if any(part in _DIR_EXCLUDE for part in rel_parts):
+            continue
+        out.append(path)
+    return sorted(out)
 
 
 def _is_sys_path_mutation(node: ast.Call) -> bool:

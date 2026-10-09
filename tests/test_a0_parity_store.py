@@ -17,7 +17,6 @@ from open_prep.a0_contract import (
 from open_prep.a0_parity_store import (
     A0ParityJournal,
     load_shadow_decisions,
-    parity_source_from_env,
     record_realtime_a0_signals,
     shadow_decision_row,
 )
@@ -157,13 +156,9 @@ def test_daily_report_is_reproducible_and_contains_both_snapshots(
         matching_window_seconds=30,
     )
     assert first == second
-    assert first["schema_version"] == 2
-    assert first["engine_parity"]["parity_rate"] == 1.0
-    source = first["source_equivalence"]
-    assert source["status_counts"] == {"same_decision_fast_first": 1}
-    assert source["median_fast_lead_seconds"] == 7.0
-    assert source["source_delta_reason_counts"] == {}
-    match = source["matches"][0]
+    assert first["status_counts"] == {"same_decision_fast_first": 1}
+    assert first["median_fast_lead_seconds"] == 7.0
+    match = first["matches"][0]
     assert match["fast_snapshot"]["cumulative_regular_volume"] == 800_000
     assert match["fmp_snapshot"]["price"] == 103.1
 
@@ -206,33 +201,3 @@ def test_loader_fails_closed_on_truncated_jsonl(tmp_path: Path) -> None:
     path.write_text('{"decision_id":', encoding="utf-8")
     with pytest.raises(ValueError, match="invalid JSON"):
         load_shadow_decisions([path])
-
-
-def test_parity_source_defaults_to_databento(monkeypatch):
-    monkeypatch.delenv("RT_QUOTE_SOURCE", raising=False)
-    assert parity_source_from_env() == "databento"
-
-
-def test_parity_source_uses_fmp_only_when_explicitly_selected(monkeypatch):
-    monkeypatch.setenv("RT_QUOTE_SOURCE", "databento")
-    assert parity_source_from_env() == "databento"
-    monkeypatch.setenv("RT_QUOTE_SOURCE", "fmp")
-    assert parity_source_from_env() == "fmp"
-    monkeypatch.setenv("RT_QUOTE_SOURCE", "something-else")
-    assert parity_source_from_env() == "databento"
-
-
-def test_parity_source_labels_journal_that_report_a0_parity_accepts(tmp_path, monkeypatch):
-    """End-to-end: a shadow producer (RT_QUOTE_SOURCE=databento) must label its
-    journal 'databento' so report_a0_parity's --fast side
-    (expected_source='databento') accepts it. A hardcoded 'fmp' would have
-    written an a0_shadow_fmp_*.jsonl that collides with the real FMP producer
-    and is rejected on the --fast side."""
-    monkeypatch.setenv("RT_QUOTE_SOURCE", "databento")
-    journal = A0ParityJournal(tmp_path, source=parity_source_from_env())
-    assert journal.record(_fast_row()) is True
-    written = sorted(tmp_path.glob("a0_shadow_databento_*.jsonl"))
-    assert written, "journal must be written under the databento-labeled filename"
-    assert not sorted(tmp_path.glob("a0_shadow_fmp_*.jsonl")), "must NOT write an fmp journal"
-    # exactly what report_a0_parity's --fast side does:
-    assert load_shadow_decisions(written, expected_source="databento")

@@ -79,10 +79,10 @@ Konsequenz: Die **Regime-Detection** ist solide etabliert, was fehlt ist die **S
 
 **Ziel:** Historische `regime_at_entry`-Labels für alle bestehenden Outcome-Records nachtragen.
 
-**Akzeptanzkriterien:** (2026-07-28: T2 wurde übersprungen — `scripts/backfill_regime_labels.py` existiert nicht; `regime_at_entry` wird forward-live gepflegt via `open_prep/outcomes.py`, siehe ⚠ unten. `classify_regime()` in `open_prep/regime.py` existiert.)
-- ❌ Skript `scripts/backfill_regime_labels.py` lädt historische VIX (CBOE FRED-Datenquelle) und SPX-Breadth, ruft `classify_regime()` aus `open_prep/regime.py` auf, schreibt Labels in jedes Outcome-File zurück (Skript nicht angelegt)
-- ⬜ Idempotent: zweimaliges Ausführen ändert keine Daten (N/A — kein Skript)
-- ⬜ Fail-Safe: bei fehlenden Eingangsdaten wird das Trade-Label auf `UNKNOWN` gesetzt, nicht auf Default-Regime — sonst Bias (N/A — kein Skript)
+**Akzeptanzkriterien:**
+- ✅ Skript `scripts/backfill_regime_labels.py` lädt historische VIX (CBOE FRED-Datenquelle) und SPX-Breadth, ruft ✅ `classify_regime()` aus `open_prep/regime.py` auf, schreibt Labels in jedes Outcome-File zurück
+- ✅ Idempotent: zweimaliges Ausführen ändert keine Daten
+- ✅ Fail-Safe: bei fehlenden Eingangsdaten wird das Trade-Label auf `UNKNOWN` gesetzt, nicht auf Default-Regime — sonst Bias
 - 🧪 Test: Backfill-Skript für 3 bekannte Tage (z. B. 2020-03-12 RISK_OFF, 2021-06-15 RISK_ON, 2022-09-20 RISK_OFF) erzeugt korrekte Labels
 
 ⚠ T2 ist nur nötig wenn T1 Lücken zeigt. Wenn `regime_at_entry` schon konsistent gepflegt ist, T2 überspringen.
@@ -131,18 +131,6 @@ Konsequenz: Die **Regime-Detection** ist solide etabliert, was fehlt ist die **S
 - ⚙️ Wöchentlicher CI-Job `regime-stratification-validation.yml` mit Cron `0 9 * * 1` UTC
 
 ### T7 — Integration in Calibration-Report (0.5–1 Werktag)
-
-> **Wiring-Status 2026-07-29 (ADR-0031, ersetzt die Sweep-Note vom selben Tag):**
-> Jetzt verdrahtet — mit einer bewussten Abweichung vom Plan: der Producer ist
-> `scripts/build_regime_stratified_report.py` (täglich in `promotion-gate-daily`),
-> das Artefakt heißt `docs/calibration/gates/regime_stratified_<date>.json`
-> (committed; NICHT das geplante `cache/calibration/…` — der Docker-Mount-Kanal
-> blieb per ADR-0031 unverdrahtet), und die Datenbasis ist die Variante-A-Serie
-> (Returns *given triggered setup*, Regime-Taxonomie TRENDING/RANGING/NEUTRAL
-> aus dem Event-Tag, nicht RISK_ON/OFF). `emit_public_calibration_report`
-> bettet den jeweils neuesten Report als additiven 1.2.0-Block ein. Solange
-> die per-Regime-Floors (30) nicht erreicht sind, meldet der Report ehrlich
-> `insufficient_data`.
 
 **Akzeptanzkriterien:**
 - ✅ Schema-Erweiterung in ✅ `scripts/emit_public_calibration_report.py` mit Feldern pro Setup × Regime:

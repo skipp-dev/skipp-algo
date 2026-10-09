@@ -28,11 +28,11 @@ Score composition (0-100):
 - Event risk penalty  (-15 to 0) — from Event Risk Light
 - Compression regime  (0-15)  — squeeze/ATR-based expansion potential
 
-Tier mapping (inclusive label caps; Pine gates use inclusive lower edges):
-- 0-25:  low  (Pine Ready gate opens at 25)
-- 26-50: ok   (Pine Best gate opens at 50)
-- 51-75: good (Pine Strict gate opens at 75)
-- 76-100: high (top label; no higher Pine gate)
+Tier mapping:
+- 0-25:  low
+- 26-50: ok
+- 51-75: good
+- 76-100: high
 
 All fields safe-default to neutral when inputs are unavailable.
 
@@ -118,7 +118,7 @@ def _prefer_lean_value(primary: dict[str, Any], fallback: dict[str, Any], key: s
     return fallback.get(key, default)
 
 
-def _score_tier(score: int) -> str:  # Inclusive label caps; Pine gates use inclusive lower edges.
+def _score_tier(score: int) -> str:
     if score <= TIER_LOW:
         return "low"
     if score <= TIER_OK:
@@ -330,7 +330,7 @@ def build_signal_quality_v1(
     sweep_direction = str(ls.get("SWEEP_DIRECTION", "NONE"))
 
     if has_bull_sweep or has_bear_sweep:
-        sweep_contrib = min(MAX_LIQUIDITY, int(sweep_quality * MAX_LIQUIDITY / 5))  # 2026-07-25: SWEEP_QUALITY_SCORE is 0-5 (was /10 stale-scale, capped at 7/15); matches v2
+        sweep_contrib = min(MAX_LIQUIDITY, int(sweep_quality * MAX_LIQUIDITY / 10))
         score += sweep_contrib
     # No warning for missing sweep — it's optional support
 

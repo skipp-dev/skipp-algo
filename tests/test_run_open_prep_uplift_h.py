@@ -16,7 +16,7 @@ Targets pure helpers and externally-mockable fetchers:
 from __future__ import annotations
 
 import json
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -154,16 +154,6 @@ def test_save_then_load_atr_cache_roundtrip(
         atr_map={"AAPL": 1.5, "msft": 2.5, "ZERO": 0.0},  # ZERO filtered out
         momentum_map={"AAPL": 0.1, "MSFT": -0.2},
         prev_close_map={"AAPL": 100.0, "MSFT": 200.0},
-        technical_features_by_symbol={
-            symbol: {
-                "source": "atr_eod_candles",
-                "bars_through": "2026-04-22",
-                "adx": 25.0,
-                "bb_width_pct": 4.0,
-                "ewma_data": None,
-            }
-            for symbol in ("AAPL", "MSFT")
-        },
     )
     atr, mom, prev = rop._load_atr_cache(date(2026, 4, 23), period=14)
     assert set(atr) == {"AAPL", "MSFT"}
@@ -279,16 +269,6 @@ def test_atr14_by_symbol_returns_from_cache_when_complete(
         atr_map={"AAPL": 1.5, "MSFT": 2.5},
         momentum_map={"AAPL": 0.0, "MSFT": 0.0},
         prev_close_map={"AAPL": 100.0, "MSFT": 200.0},
-        technical_features_by_symbol={
-            symbol: {
-                "source": "atr_eod_candles",
-                "bars_through": "2026-04-22",
-                "adx": 25.0,
-                "bb_width_pct": 4.0,
-                "ewma_data": None,
-            }
-            for symbol in ("AAPL", "MSFT")
-        },
     )
 
     class _Client:
@@ -301,7 +281,7 @@ def test_atr14_by_symbol_returns_from_cache_when_complete(
         def get_batch_quotes(self, _syms: list[str]) -> list[dict[str, Any]]:
             return []
 
-    atr, _mom, vwap, _avg_vol_fb, _pdh, _pdl, _rsi, technical, errors = rop._atr14_by_symbol(
+    atr, _mom, vwap, _avg_vol_fb, _pdh, _pdl, errors = rop._atr14_by_symbol(
         client=_Client(),
         symbols=["AAPL", "MSFT"],
         as_of=as_of,
@@ -310,30 +290,7 @@ def test_atr14_by_symbol_returns_from_cache_when_complete(
     )
     assert atr == {"AAPL": 1.5, "MSFT": 2.5}
     assert vwap == {"AAPL": None, "MSFT": None}
-    assert technical["AAPL"]["adx"] == 25.0
     assert errors == {}
-
-
-def test_atr_candles_compute_adx_bb_and_ewma_together() -> None:
-    start = date(2026, 1, 1)
-    candles = []
-    for index in range(80):
-        close = 100.0 + index * 0.4
-        candles.append({
-            "date": (start + timedelta(days=index)).isoformat(),
-            "open": close - 0.2,
-            "high": close + 1.0,
-            "low": close - 1.0,
-            "close": close,
-            "volume": 1_000_000 + index * 10_000,
-        })
-
-    technical = rop._technical_features_from_eod(candles)
-    assert technical["source"] == "atr_eod_candles"
-    assert technical["bars_through"] == candles[-1]["date"]
-    assert technical["adx"] is not None
-    assert technical["bb_width_pct"] is not None
-    assert technical["ewma_data"]["bars_used"] == 50
 
 
 # ---------------------------------------------------------------------------

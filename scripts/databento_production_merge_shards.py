@@ -67,30 +67,6 @@ MERGED_BASENAME = "databento_volatility_production_merged"
 # acceptable because the planner guarantees shard windows are calendar-
 # day-disjoint, so cross-shard duplicates are not expected.
 _DEDUPE_KEY_CANDIDATES: tuple[tuple[str, ...], ...] = (
-    # Sub-day grain FIRST. A frame that carries a timestamp holds many rows per
-    # symbol-day, so reducing it on ("symbol", "trade_date") keeps one arbitrary
-    # minute and discards the rest. Export run 29989844567 lost ~50M rows that
-    # way across five frames — green workflow, gutted payload — because the
-    # symbol-day key sat at the top of this list.
-    ("symbol", "trade_date", "timestamp"),
-    ("symbol", "trade_date", "ts_event"),
-    ("symbol", "date", "timestamp"),
-    ("symbol", "timestamp"),
-    # Multi-window grain. premarket_window_features_full_universe carries NO
-    # timestamp/ts_event column but up to six rows per symbol-day — one per
-    # configured premarket window_tag (bullish_quality_config.
-    # build_default_premarket_window_definitions: pm_0400_0500 … pm_0900_0930).
-    # Without window_tag in the key, ("symbol", "trade_date") kept only the last
-    # window and discarded the other five (2026-07-24: the merged manifest
-    # recorded 6 configured tags while the merged parquet retained 1 →
-    # ~762k window-rows destroyed per merge). Keeping window_tag in the key still
-    # collapses genuine cross-shard repeats (same symbol-day-window) while
-    # distinct windows survive.
-    ("symbol", "trade_date", "window_tag"),
-    ("symbol", "date", "window_tag"),
-    # Symbol-day grain: correct for frames with exactly one row per symbol per
-    # day, where per-shard columns like *_fetched_at differ and the coarse key
-    # is what collapses genuine cross-shard repeats.
     ("symbol", "trade_date"),
     ("symbol", "date"),
     ("symbol", "ts_event"),

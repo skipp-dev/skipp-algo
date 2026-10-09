@@ -43,7 +43,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from tests._guard_corpus import iter_production_py_files, parse_module
+from tests._guard_corpus import parse_module
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -64,7 +64,13 @@ _DIR_EXCLUDE = {
 
 
 def _iter_py_files() -> list[Path]:
-    return iter_production_py_files(_DIR_EXCLUDE)
+    out: list[Path] = []
+    for path in ROOT.rglob("*.py"):
+        rel = path.relative_to(ROOT)
+        if any(part in _DIR_EXCLUDE or part.startswith(".") for part in rel.parts):
+            continue
+        out.append(path)
+    return out
 
 
 def _flock_operation(node: ast.Call) -> str:
@@ -183,22 +189,18 @@ FCNTL_FLOCK_ALLOWED: set[tuple[str, int, str]] = {
     # Realtime-signals daemon PID-file singleton lock.
     # 2026-07-15 (reconcile): 294/321 -> 310/337. Pure drift -- the file still holds
     # exactly 2 flock legs and the EX/UN pairing is intact; #3584/#3587 edited above.
-    ("open_prep/realtime_signals.py", 312, "LOCK_EX|LOCK_NB"),  # 2026-07-25 (databento-signal-migration): 311->312
-    ("open_prep/realtime_signals.py", 339, "LOCK_UN"),  # 2026-07-25 (databento-signal-migration): 338->339
+    ("open_prep/realtime_signals.py", 311, "LOCK_EX|LOCK_NB"),  # 2026-07-16 market-session import: 310->311
+    ("open_prep/realtime_signals.py", 338, "LOCK_UN"),  # 2026-07-16 market-session import: 337->338
     # Watchlist read/write critical section.
-    ("open_prep/watchlist.py", 47, "LOCK_EX"),  # 2026-07-27 (docstring adoption/persistence note above): 41->47
-    ("open_prep/watchlist.py", 50, "LOCK_UN"),  # 2026-07-27 (docstring adoption/persistence note above): 44->50
+    ("open_prep/watchlist.py", 41, "LOCK_EX"),
+    ("open_prep/watchlist.py", 44, "LOCK_UN"),
     # IBKR client-id registry lease lock (guarded; random fallback on no fcntl).
     # 2026-07-15 (reconcile): 151/195/215/227 -> 175/219/239/251. Pure drift -- still
     # exactly 4 legs, still two EX/UN pairs in the same order.
-    # 2026-08-18 (B7 reaper keeps live pids): 175/219/239/251 -> 188/232/252/264.
-    # Pure drift from the longer _reap_stale body above; legs unchanged.
-    # 2026-08-19 (Doppelgaenger K9, Reservierungs-Block +14 Zeilen): 188->202,
-    # 232->246, 252->266, 264->278.
-    ("scripts/ib_client_id.py", 202, "LOCK_EX|LOCK_NB"),
-    ("scripts/ib_client_id.py", 246, "LOCK_UN"),
-    ("scripts/ib_client_id.py", 266, "LOCK_EX|LOCK_NB"),
-    ("scripts/ib_client_id.py", 278, "LOCK_UN"),
+    ("scripts/ib_client_id.py", 175, "LOCK_EX|LOCK_NB"),
+    ("scripts/ib_client_id.py", 219, "LOCK_UN"),
+    ("scripts/ib_client_id.py", 239, "LOCK_EX|LOCK_NB"),
+    ("scripts/ib_client_id.py", 251, "LOCK_UN"),
     # Corpus deduplication writer: POSIX-guarded try/except ImportError;
     # LOCK_EX acquired before checking existing keys, LOCK_UN in finally.
     # Line numbers updated 2026-06-17: written=0 initialised before the
@@ -206,8 +208,8 @@ FCNTL_FLOCK_ALLOWED: set[tuple[str, int, str]] = {
     ("scripts/collect_drift_calibration_corpus.py", 171, "LOCK_EX"),
     ("scripts/collect_drift_calibration_corpus.py", 189, "LOCK_UN"),
     # Databento reference-cache interprocess lock (advisory, POSIX-guarded exception/import).
-    ("databento_reference.py", 163, "LOCK_EX"),  # 2026-08-18 (D7 retry helper above): 127->163
-    ("databento_reference.py", 167, "LOCK_UN"),  # 2026-08-18 (D7 retry helper above): 131->167
+    ("databento_reference.py", 127, "LOCK_EX"),
+    ("databento_reference.py", 131, "LOCK_UN"),
     # Monthly Databento usage snapshot: POSIX-guarded advisory lock around
     # read/merge/atomic-replace, with release in the context manager finally.
     ("databento_usage.py", 189, "LOCK_EX"),

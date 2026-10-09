@@ -38,8 +38,7 @@ logger = logging.getLogger(__name__)
 # ``python -m scripts.X`` and ``python scripts/X.py``. The unconditional
 # literal ``sys.path.insert`` also satisfies
 # tests/test_workflow_invoked_scripts_import_order.py (mirrors
-# scripts/fvg_quality_quartile_gate.py; the former example
-# emit_fvg_context_pine was removed 2026-07-28).
+# scripts/emit_fvg_context_pine.py).
 import os as _bootstrap_os
 import sys as _bootstrap_sys_mod
 

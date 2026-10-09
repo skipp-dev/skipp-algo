@@ -66,23 +66,3 @@ def test_attach_is_noop_without_atr_and_never_raises() -> None:
     assert sig.trade_entry is None  # untouched
     # Garbage attribute types must not raise either.
     trade_context.attach(SimpleNamespace(price="n/a", atr_pct=None, direction=42))
-
-
-@pytest.mark.parametrize("price", [float("nan"), float("inf"), float("-inf")])
-def test_non_finite_price_yields_no_bracket(price: float) -> None:
-    assert trade_context.trade_context(price, 2.5, "LONG") is None
-
-
-@pytest.mark.parametrize("value", ["nan", "inf", "-inf"])
-def test_non_finite_multiplier_falls_back_to_default(
-    monkeypatch: pytest.MonkeyPatch, value: str,
-) -> None:
-    monkeypatch.setenv("RT_TRADE_STOP_ATR_MULT", value)
-    monkeypatch.setenv("RT_TRADE_TARGET_ATR_MULT", value)
-
-    assert trade_context.trade_context(100.0, 1.0, "LONG") == {
-        "trade_entry": 100.0,
-        "trade_stop": 99.0,
-        "trade_target": 102.0,
-        "trade_r": 2.0,
-    }

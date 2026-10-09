@@ -565,67 +565,19 @@ def _normalize_contextual_calibration(raw: Any) -> dict[str, Any]:
     }
 
 
-def _extract_measurement_entries(
+def _extract_measurement_entry(
     report: dict[str, Any],
     path: Path,
     *,
     checked_at: float | None,
     commit: str | None,
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """Extract one measurement entry per checked pair from a gate report.
-
-    2026-08-18 (Verdrahtungs-Sweep B/G-1): the scheduled release-gate run
-    writes ONE aggregate ``measurement_lane`` row whose ``details`` carry
-    ``pair_results`` (run_smc_release_gates.py) — the previous flat reader
-    silently returned ``None`` on that shape, so every baseline roll since
-    the 2026-07-28 wiring transported zero rows and all six
-    ``MEASUREMENT_*_REGRESSION`` codes were constructively dead. Each pair
-    result inside the aggregate is exactly the flat per-pair shape.
-    """
+) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
     gate = _measurement_gate_row(report)
     if gate is None:
-        return [], []
+        return None, []
 
     raw_details = gate.get("details")
     details: dict[str, Any] = raw_details if isinstance(raw_details, dict) else {}
-    gate_status = str(gate.get("status", "unknown"))
-    pair_results = details.get("pair_results")
-    if isinstance(pair_results, list):
-        entries: list[dict[str, Any]] = []
-        errors: list[dict[str, Any]] = []
-        for pair_details in pair_results:
-            if not isinstance(pair_details, dict):
-                continue
-            entry, pair_errors = _extract_single_measurement_entry(
-                pair_details,
-                path,
-                checked_at=checked_at,
-                commit=commit,
-                default_status=gate_status,
-            )
-            if entry is not None:
-                entries.append(entry)
-            errors.extend(pair_errors)
-        return entries, errors
-
-    entry, errors = _extract_single_measurement_entry(
-        details,
-        path,
-        checked_at=checked_at,
-        commit=commit,
-        default_status=gate_status,
-    )
-    return ([entry] if entry is not None else []), errors
-
-
-def _extract_single_measurement_entry(
-    details: dict[str, Any],
-    path: Path,
-    *,
-    checked_at: float | None,
-    commit: str | None,
-    default_status: str = "unknown",
-) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
     symbol = str(details.get("symbol", "")).strip().upper()
     timeframe = str(details.get("timeframe", "")).strip()
     if not symbol or not timeframe:
@@ -808,7 +760,7 @@ def _extract_single_measurement_entry(
         "pair": f"{symbol}/{timeframe}",
         "symbol": symbol,
         "timeframe": timeframe,
-        "status": str(details.get("status", default_status)).strip().lower() or "unknown",
+        "status": str(gate.get("status", "unknown")).strip().lower() or "unknown",
         "checked_at": checked_at,
         "checked_at_iso": _iso_utc(checked_at),
         "git_commit": commit,
@@ -999,20 +951,15 @@ def main() -> int:
         if domain_visibility is not None:
             run_row["domain_visibility"] = domain_visibility
 
-        measurement_pair_entries, measurement_errors = _extract_measurement_entries(
+        measurement_entry, measurement_errors = _extract_measurement_entry(
             payload,
             path,
             checked_at=checked_at,
             commit=commit,
         )
-        if len(measurement_pair_entries) == 1:
-            run_row["measurement"] = measurement_pair_entries[0]
-        elif measurement_pair_entries:
-            # Aggregate multi-pair run (B/G-1): the single-entry key has no
-            # honest value here; the full list is additive and the history
-            # below consumes measurement_entries either way.
-            run_row["measurements"] = measurement_pair_entries
-        measurement_entries.extend(measurement_pair_entries)
+        if measurement_entry is not None:
+            run_row["measurement"] = measurement_entry
+            measurement_entries.append(measurement_entry)
         measurement_artifact_failures.extend(measurement_errors)
 
         runs.append(run_row)

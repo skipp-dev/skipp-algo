@@ -1,5 +1,4 @@
 """Tests for scripts/build_evidence_freshness_snapshot.py (pure functions)."""
-
 from __future__ import annotations
 
 from scripts.build_evidence_freshness_snapshot import (
@@ -58,12 +57,8 @@ def test_build_snapshot_samples_section_tags_classification():
 def test_build_snapshot_samples_missing_family_defaults_to_zero():
     rows = [{"date": "2026-07-08", "family": "BOS", "n_oos": 5, "plane": "1D"}]
     snap = build_snapshot(
-        ledger_rows=rows,
-        incubation_records=[],
-        audit_commit_date="",
-        newest_incubation_date="",
-        wsh_date="",
-        wsh_status="",
+        ledger_rows=rows, incubation_records=[], audit_commit_date="",
+        newest_incubation_date="", wsh_date="", wsh_status="",
         generated_at_unix=1_783_000_000.0,
     )
     assert snap["samples"]["per_family"]["SWEEP"]["usable"] == 0
@@ -75,12 +70,8 @@ def test_build_snapshot_samples_clamped_to_target():
     bar' instead of a confusing '2370/40' (post-review finding)."""
     rows = [{"date": "2026-07-08", "family": "BOS", "n_oos": 2370, "plane": "1D", "status": "PASS"}]
     snap = build_snapshot(
-        ledger_rows=rows,
-        incubation_records=[],
-        audit_commit_date="",
-        newest_incubation_date="",
-        wsh_date="",
-        wsh_status="",
+        ledger_rows=rows, incubation_records=[], audit_commit_date="",
+        newest_incubation_date="", wsh_date="", wsh_status="",
         generated_at_unix=1_783_000_000.0,
     )
     assert snap["samples"]["per_family"]["BOS"]["usable"] == SAMPLES_TARGET == 40
@@ -214,58 +205,6 @@ def test_build_snapshot_shape():
     assert snap["submitter"] == {"submit_code_behind_commits": 0, "known": 0}
 
 
-def test_build_snapshot_includes_portfolio_shadow_integrity_and_reconciliation() -> None:
-    ts = "2026-08-08T13:28:00+00:00"
-    incubation = [
-        {
-            "ts": ts,
-            "phase": "paper",
-            "action": "portfolio_risk_evaluated",
-            "portfolio_risk": {
-                "verdict": "allow",
-                "reasons": [],
-                "snapshot_age_seconds": 3.5,
-                "max_snapshot_age_seconds": 120.0,
-                "projection": {
-                    "candidate_gross_pct": 5.0,
-                    "projected_gross_pct": 15.0,
-                    "correlation_coverage_pct": 100.0,
-                },
-            },
-        },
-        {"ts": ts, "phase": "paper", "action": "paper_submitted"},
-    ]
-    reconciliations = [
-        {
-            "after_captured_at": "2026-08-08T21:05:00+00:00",
-            "max_abs_quantity_delta": 0.0,
-            "reconciled": True,
-        }
-    ]
-
-    snap = build_snapshot(
-        ledger_rows=[],
-        incubation_records=incubation,
-        audit_commit_date="2026-08-08",
-        newest_incubation_date="2026-08-08",
-        wsh_date="",
-        wsh_status="",
-        generated_at_unix=1_783_000_000.0,
-        portfolio_reconciliations=reconciliations,
-    )
-
-    portfolio = snap["portfolio_shadow"]
-    assert portfolio["risk_relevant_sessions_observed"] == 1
-    assert portfolio["risk_relevant_sessions_missing_reconciliation"] == 0
-    assert portfolio["submission_attempts_without_prior_evaluation"] == 0
-    assert portfolio["newest_risk_relevant_session"] == "2026-08-08"
-    assert portfolio["verdict_counts"] == {"allow": 1}
-    assert portfolio["latest_snapshot_age_seconds"] == 3.5
-    assert portfolio["latest_snapshot_max_age_seconds"] == 120.0
-    assert portfolio["latest_reconciliation_max_abs_quantity_delta"] == 0.0
-    assert portfolio["latest_reconciliation_reconciled"] is True
-
-
 def test_build_snapshot_submitter_behind_commits():
     # A published reading surfaces as known=1 with the count carried through.
     snap = build_snapshot(
@@ -292,57 +231,3 @@ def test_build_snapshot_submitter_behind_commits():
         submit_code_behind_commits=0,
     )
     assert snap_zero["submitter"] == {"submit_code_behind_commits": 0, "known": 1}
-
-
-def test_audit_branch_freshness_ignores_commercial_campaign_commits(
-    tmp_path, monkeypatch
-):
-    """A campaign-report commit (Databento-only producer) must NOT refresh the
-    TWS-chain freeze signal — an unscoped `git log -1` re-armed the invisible
-    2026-06-12 freeze once the commercial-shadow driver started committing up
-    to 6x/day (Grenzgänger-Sweep B1, 2026-08-18)."""
-    import subprocess as sp
-
-    from scripts.build_evidence_freshness_snapshot import (
-        _audit_branch_last_commit_date,
-    )
-
-    repo = tmp_path / "repo"
-    repo.mkdir()
-
-    def _run(*args, date=None):
-        env = {
-            "GIT_AUTHOR_NAME": "t",
-            "GIT_AUTHOR_EMAIL": "t@t.invalid",
-            "GIT_COMMITTER_NAME": "t",
-            "GIT_COMMITTER_EMAIL": "t@t.invalid",
-            "PATH": "/usr/bin:/bin",
-        }
-        if date is not None:
-            env["GIT_AUTHOR_DATE"] = f"{date}T12:00:00Z"
-            env["GIT_COMMITTER_DATE"] = f"{date}T12:00:00Z"
-        sp.run(["git", *args], cwd=repo, env=env, check=True, capture_output=True)
-
-    _run("init", "-q", "-b", "audit")
-    incubation = repo / "cache" / "live" / "incubation_2026-08-14.jsonl"
-    incubation.parent.mkdir(parents=True)
-    incubation.write_text("{}\n", encoding="utf-8")
-    _run("add", "-A")
-    _run("commit", "-q", "-m", "chore(c13): phase-a audit", date="2026-08-14")
-
-    report = repo / "cache" / "live" / "commercial_campaign" / "campaign_report.json"
-    report.parent.mkdir(parents=True)
-    report.write_text("{}\n", encoding="utf-8")
-    _run("add", "-A")
-    _run("commit", "-q", "-m", "chore(c13): commercial shadow", date="2026-08-18")
-
-    monkeypatch.chdir(repo)
-    # The newest COMMIT is the campaign report (2026-08-18); the freshness
-    # signal must still report the TWS-session artifact date.
-    assert _audit_branch_last_commit_date("audit") == "2026-08-14"
-
-    fills = repo / "cache" / "live" / "reconciled_fills_2026-08-19.json"
-    fills.write_text("{}\n", encoding="utf-8")
-    _run("add", "-A")
-    _run("commit", "-q", "-m", "chore(c13): reconciled fills", date="2026-08-19")
-    assert _audit_branch_last_commit_date("audit") == "2026-08-19"

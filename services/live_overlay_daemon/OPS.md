@@ -125,16 +125,23 @@ up{job="live_overlay"} == 1
 
 ### Service configuration
 
-File: `services/live_overlay_daemon/railway.toml` — read the file itself; its
-header explains that it is NOT currently in effect (Railway reads no
-config-as-code for this service; the effective build is the root `Dockerfile`
-+ `requirements.lock`, guarded by
-`tests/test_live_overlay_daemon_deploy_artifact_contract.py`).
+File: `services/live_overlay_daemon/railway.toml`
 
-Do not mirror the file's contents into this runbook: the copy that used to sit
-here had drifted on 3 of 6 fields (`dockerfilePath`, `startCommand`,
-`healthcheckTimeout`) by 2026-08-18 (Doppelgänger-Sweep) and pointed operators
-at the dead service-local Dockerfile. One truth, one file.
+```toml
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "services/live_overlay_daemon/Dockerfile"
+
+[deploy]
+startCommand = "python -m services.live_overlay_daemon.main"
+healthcheckPath = "/health"
+healthcheckTimeout = 60
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
+
+[[services]]
+name = "live_overlay_daemon"
+```
 
 ### Deployment
 
@@ -158,80 +165,7 @@ failure fails CI instead of silently leaving the old container running.
   2026-07-06.
 - **Verify a deploy** in Grafana via the **Deployed build (commit @ branch)**
   panel / `live_overlay_build_info{commit,branch}` — it must show the intended
-  commit (`unknown` = an image without a git stamp). From a shell:
-  `railway ssh --project 0616a3b7-… --environment production --service
-  live_overlay_daemon 'sh -lc "cat /app/services/live_overlay_daemon/build_stamp.txt"'`
-- **The path filter has a consequence that bit us on 2026-09-01:** anything the
-  daemon reads out of the repo image but that lives *outside*
-  `services/live_overlay_daemon/**` can never trigger its own redeploy, so the
-  baked copy only refreshes by accident, when some unrelated change to the
-  service directory happens to ship. Measured: `library_context_bridge` parsed
-  `pine/generated/smc_micro_profiles_generated.pine` from the image, and between
-  the 08-21 and 08-30 deploys main moved that file 87 times — nine days of stale
-  `library_asof_*` and `provider_trust_status`.
-  Fixed by giving that bridge a runtime source (`LIBRARY_CONTEXT_PINE_URL`).
-  **A second, worse defect surfaced while measuring that one:** the parser had
-  never matched the generator's ticker declarations (`const string
-  UNIVERSE_TICKERS_PART_n`, no `export`; the exported name is a concatenation,
-  not a literal), so `universe_member` and `universe_size` were `None` for every
-  symbol since the bridge was born — indistinguishable from an honest "static
-  library". It survived because the test fixture used a form the generator never
-  writes. **Lesson: pin a parser against its PRODUCER's real output, not against
-  a fixture you wrote yourself** (`test_parses_the_real_generated_library`).
-  **Before adding another image-read of a repo file, check whether it lives
-  inside the trigger path; if not, give it a runtime source instead.**
-
-#### The Railway service must have NO native GitHub deploy trigger
-
-"Source is `none`" above is load-bearing and **drifts silently** — it lives in
-Railway config, not the repo. A native Railway GitHub trigger has **no path
-filter**, so it redeploys the daemon on *every* push to `main`, not just the
-ones touching `services/live_overlay_daemon/**`. Each redeploy is a full
-container swap: the bar cache is wiped (requested symbols then need ~20 min to
-re-accumulate the depth the rolling features want) and `uptime_seconds` resets.
-
-This actually happened. On **2026-07-24** the service carried a native trigger
-(`repository: skipp-dev/skipp-algo`, `branch: main`, `provider: github`,
-`checkSuites: false`) — reconnected sometime after the 2026-07-07 note in
-`deploy-live-overlay-daemon.yml` that the old `skippALGO`-slug connection was
-broken. With ~23 merges/day to `main`, the daemon was redeploying ~20×/day, the
-vast majority for commits that changed nothing in it, and `checkSuites: false`
-meant Railway deployed `main` HEAD *before* CI validated it. It was removed the
-same day, restoring the CI-only model. Symptom to recognise: `uptime_seconds`
-sawtooth resetting several times a day with **every** feed/worker/supervisor
-health metric clean across each reset (not a crash, not OOM — a redeploy).
-
-**Check for the trigger (read-only):**
-
-```bash
-railway whoami >/dev/null   # refresh local creds
-TOKEN=$(python -c "import json,os;print(json.load(open(os.path.expanduser('~/.railway/config.json')))['user']['accessToken'])")
-curl -s https://backboard.railway.app/graphql/v2 \
-  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-  -d '{"query":"query($p:String!,$e:String!,$s:String!){deploymentTriggers(projectId:$p,environmentId:$e,serviceId:$s){edges{node{id repository branch provider}}}}","variables":{"p":"0616a3b7-7b7f-41d1-8fac-a0b8922c94ca","e":"470fbd0f-894d-46cd-8722-6b072d255d99","s":"705582c5-ba8b-4c6e-848c-33bffe0a61b0"}}'
-# Expect: {"data":{"deploymentTriggers":{"edges":[]}}}  (empty = CI-only, healthy)
-```
-
-**Remove it if present** — either disconnect the repo in the Railway dashboard
-(Service → Settings → Source), or delete the trigger by id:
-
-```bash
-curl -s https://backboard.railway.app/graphql/v2 \
-  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-  -d '{"query":"mutation($id:String!){deploymentTriggerDelete(id:$id)}","variables":{"id":"<TRIGGER_ID>"}}'
-```
-
-The scheduled workflow **`live-overlay-deploy-trigger-guard.yml`** runs
-`scripts/check_live_overlay_deploy_trigger.py` daily and fails if a native
-trigger reappears. It reuses the read-capable Railway API secrets the
-`railway_metrics` bridge already needs (`RAILWAY_API_TOKEN`,
-`RAILWAY_PROJECT_ID`, `RAILWAY_ENVIRONMENT_ID`; optional
-`RAILWAY_LIVE_OVERLAY_SERVICE_ID`). The script declares this deployment
-configured (`_DEPLOYMENT_IS_CONFIGURED = True`), so a missing secret is now
-exit 2 (fails, "verified NOTHING") rather than a silent `SKIP` — a deleted
-secret is not a healthy state. `SKIP`/exit 0 is only reachable by flipping
-that declaration to `False` in a reviewed PR, which is the correct move if
-the deployment itself is retired.
+  commit (`unknown` = an image without a git stamp).
 
 ### Environment variables
 
@@ -241,15 +175,12 @@ the deployment itself is retired.
 |----------|----------|---------|---------|
 | `DATABENTO_API_KEY` | yes | — | Databento live feed API key |
 | `OVERLAY_SECRET_TOKEN` | yes | — | HMAC + `/metrics` basic-auth secret |
-| `HOLD_MANAGER_SHADOW_ACCEPTING` | no | `0` | Hold Manager receiver kill switch. Keep `0` during deploy, configuration, and empty-ledger verification |
-| `HOLD_MANAGER_SHADOW_WEBHOOK_TOKEN` | no | — | Dedicated random token of at least 32 characters; sent in the private TradingView JSON body, never in the URL |
-| `HOLD_MANAGER_SHADOW_LEDGER_PATH` | no | — | Persistent SQLite ledger path; production uses `/app/data/smc-hold-manager-shadow.sqlite3` on the existing service volume |
-| `HOLD_MANAGER_SHADOW_CONTRACT_PATH` | no | `artifacts/governance/smc_hold_manager_shadow_contract.json` | Source-pinned R2 shadow contract |
-| `HOLD_MANAGER_SHADOW_MAX_EVENT_AGE_SECS` | no | `900` (code default), production `86400` | Maximum accepted bar age in seconds. Effective value: metric `live_overlay_hold_manager_shadow_max_event_age_secs` |
-| `HOLD_MANAGER_SHADOW_MAX_FUTURE_SKEW_SECS` | no | `120` | Maximum accepted future clock skew in seconds |
 | `PORT` | yes | `8080` (production pin) | HTTP listen port |
-| `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC` | no | `0` (production: `1` since 2026-07-23) | Arms first-zero traffic alerts for a verified external `/smc_live` consumer. Keep `0` while none exists; see [Expected market traffic alert rollout](#expected-market-traffic-alert-rollout). |
-| `LIVE_OVERLAY_INGEST_QUEUE_MAX` | no | 20000 | Max queued bars before drop (clamped 1000–200000) |
+| `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC` | no | `0` | Set to `1` only for a verified external `/smc_live` consumer; no supported Pine REST consumer exists |
+| `LIVE_OVERLAY_INGEST_QUEUE_MAX` | no | 10000 | Max queued bars before drop |
+| `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC` | no | `0` | Arms first-zero traffic alerts for a verified external `/smc_live` consumer. Keep `0` while none exists. |
+| `LIVE_OVERLAY_INGEST_QUEUE_MAX` | no | 10000 | Max queued bars before drop |
+| `LIVE_OVERLAY_RESTART_CAUSE` | no | — | Label for `live_overlay_daemon_restart_cause_*_total` |
 | `LOG_LEVEL` | no | `INFO` | Python log level |
 | `OVERLAY_FLOW_REFRESH_SECS` | no | — | Flow refresh interval |
 | `OVERLAY_MAX_FEED_FAILURES` | no | — | Circuit breaker threshold |
@@ -280,13 +211,13 @@ the deployment itself is retired.
 | `PROVIDER_USAGE_SNAPSHOT_URL_TOKEN` | no | repo monitor token for canonical URL | Optional explicit bearer token for `PROVIDER_USAGE_SNAPSHOT_URL` |
 | `OVERLAY_SWEEP_TRAP_SHADOW_CACHE_TTL_SECS` | no | — | Sweep-trap shadow snapshot cache TTL (default 900) |
 | `OVERLAY_SWEEP_TRAP_SHADOW_MAX_AGE_SECS` | no | — | Sweep-trap shadow snapshot staleness threshold (default 96h; powers `lo-sweep-trap-shadow-stale`) |
-| `PINE_LIBRARY_VERSIONS_SNAPSHOT_PATH` | no | `artifacts/monitoring/pine_library_versions.json` | Local Repo↔TradingView Pine-library snapshot path (import-pin drift and generated-library data age) |
+| `PINE_LIBRARY_VERSIONS_SNAPSHOT_PATH` | no | `artifacts/monitoring/pine_library_versions.json` | Local Repo↔TradingView Pine-library version snapshot path (per-consumer import-pin drift gauges) |
 | `PINE_LIBRARY_VERSIONS_SNAPSHOT_URL` | no | canonical bot-branch URL | HTTPS URL for the `bot/live-pine-library-versions` snapshot; explicit empty disables remote loading |
 | `PINE_LIBRARY_VERSIONS_SNAPSHOT_URL_TOKEN` | no | repo monitor token for canonical URL | Optional explicit bearer token for `PINE_LIBRARY_VERSIONS_SNAPSHOT_URL` |
-| `TRADINGVIEW_BINDINGS_SNAPSHOT_PATH` | no | `artifacts/monitoring/tradingview_consumer_bindings.json` | Local snapshot of saved-source SHA-256 checks and measured TradingView dropdown assignments |
+| `TRADINGVIEW_BINDINGS_SNAPSHOT_PATH` | no | `artifacts/monitoring/tradingview_consumer_bindings.json` | Local snapshot of measured TradingView dropdown assignments |
 | `TRADINGVIEW_BINDINGS_SNAPSHOT_URL` | no | canonical bot-branch URL | HTTPS URL for the `bot/live-tradingview-bindings` snapshot; explicit empty disables remote loading |
 | `TRADINGVIEW_BINDINGS_SNAPSHOT_URL_TOKEN` | no | repo monitor token for canonical URL | Optional explicit bearer token for the binding snapshot URL |
-| `EXPERIMENT_HISTORY_PATH` | no | `artifacts/live_overlay/plan_2_8_history.jsonl` | Local daily experiment history JSONL path |
+| `EXPERIMENT_HISTORY_PATH` | no | — | Local daily experiment history JSONL path |
 | `EXPERIMENT_HISTORY_URL` | no | canonical bot-branch URL | HTTPS URL for experiment history JSONL; explicit empty disables remote loading |
 | `EXPERIMENT_HISTORY_URL_TOKEN` | no | repo monitor token for canonical URL | Optional explicit bearer token for `EXPERIMENT_HISTORY_URL` |
 | `OVERLAY_EXPERIMENT_CACHE_TTL_SECS` | no | — | Experiment rollup/history cache TTL |
@@ -304,7 +235,7 @@ the deployment itself is retired.
 | Variable | Bridge | Purpose |
 |----------|--------|---------|
 | `UPTIMEROBOT_API_KEY` | UptimeRobot | Free-tier API key |
-| `UPTIMEROBOT_MONITOR_IDS` | UptimeRobot | Comma-separated monitor IDs to poll; production allowlist: `803309701,803341452,803343155,803343156,803362511,803555263,803555264` |
+| `UPTIMEROBOT_MONITOR_IDS` | UptimeRobot | Comma-separated monitor IDs to poll; production allowlist: `803309701,803341452,803343155,803343156,803362511` |
 | `UPTIMEROBOT_POLL_TTL_SECS` | UptimeRobot | Cache TTL (default 30) |
 | `UPTIMEROBOT_TIMEOUT_SECS` | UptimeRobot | HTTP timeout (default 5) |
 | `GITHUB_WORKFLOW_MONITOR_TOKEN` | GitHub | PAT with `repo` + `actions:read` |
@@ -313,22 +244,6 @@ the deployment itself is retired.
 | `GITHUB_WORKFLOW_MONITOR_POLL_TTL_SECS` | GitHub | Cache TTL |
 | `GITHUB_WORKFLOW_MONITOR_TIMEOUT_SECS` | GitHub | HTTP timeout |
 | `GITHUB_WORKFLOW_MONITOR_PER_PAGE` | GitHub | Pagination page size |
-| `RAILWAY_VOLUME_BACKUP_INSTANCES` | Railway volume backups | `name=volumeInstanceId` pairs, comma-separated. Also the opt-in — empty disables the bridge. **The deployed list is the truth; this doc does not copy it** — query `live_overlay_railway_volume_backup_schedule_count` for one series per configured volume. It spans projects on purpose (the hosted customer plane's `/data` lives in **skipp-live-lab**), see below |
-| `RAILWAY_VOLUME_BACKUP_MAX_AGE_SECS` | Railway volume backups | Age at which the newest backup counts as stale (default 129600 = 36 h; exported as a gauge so the alert compares against it rather than a second copy) |
-| `RAILWAY_VOLUME_BACKUP_POLL_TTL_SECS` | Railway volume backups | Cache TTL (default 600) |
-| `RAILWAY_VOLUME_BACKUP_TIMEOUT_SECS` | Railway volume backups | HTTP timeout (default 10) |
-
-The volume-backup bridge reuses `RAILWAY_API_TOKEN`; it needs no credential of
-its own. That token is workspace-scoped, which is what lets it read a volume in
-another project — verified 2026-08-13 against
-`volumeInstanceBackupScheduleList` for `lab-worker-volume`.
-
-**Why this lives in the overlay daemon and not in the service that owns the
-volume.** The question the gauges answer is "can the customer plane be restored".
-A worker that exports its own backup health stops exporting it in exactly the
-incident where the answer matters — volume gone, service down, metric absent.
-Watching from a different project and a different service keeps the observer
-alive when the observed is not.
 
 ### Expected market traffic alert rollout
 
@@ -352,160 +267,6 @@ live_overlay_expected_market_traffic{job="live_overlay"} == 1
 ```
 
 If the deployment is local, dev, or warm-standby, leave the value at `0`.
-
-**Production is armed as of 2026-07-23.** It ran with the flag at `0` while a
-real consumer was already polling: `/metrics` reported 110 `/smc_live` requests
-over 1707s of uptime, a measured 3.9 req/min across a 77s window (lifetime
-average 3.8), with `auth_denied=0` and `errors=0`. Because
-`lo-request-rate-absent-open` is multiplied by `expected_market_traffic`, that
-whole period had **no** coverage for a client outage. The flag was set to `1` on
-the Railway `live_overlay` service, the gauge verified at `1` after the
-redeploy, and the consumer confirmed back at 4.0 req/min; the
-`lo-expected-traffic-not-armed` reminder was then unpaused, so a silent revert
-to `0` now pages within 15 minutes. Set it back to `0` only together with
-re-pausing that rule, and record why.
-
-**Who the consumer is.** Repo `skipp-live-lab`,
-`sidecar_server/technical_poller.py` — the shared `POLLER` owns the cadence and
-calls `sidecar_server/technical.py::fetch`, which was itself the direct caller
-before that module existed (2026-07-23). It runs as the `lab-worker` service in
-the `skipp-live-lab` Railway project. It builds
-`<origin>/<token>/smc_live?symbol=X&tf=1m` from
-`SKIPP_LAB_TECHNICAL_OVERLAY_ORIGIN` / `_TOKEN`, validates the reply against the
-`smc-live-overlay/1` schema, and identifies itself as
-`User-Agent: skipp-sidecar/<version>`. Verified 2026-07-23 in this daemon's
-Railway HTTP logs: 12 of 12 `/smc_live` requests in the 14:14–14:17Z sample
-carried `clientUa="skipp-sidecar/0.3.0"` from one source IP, all HTTP 200, on a
-15.4s cadence. Re-identify any future consumer with
-`railway logs --http --json` grouped by `clientUa`. (`smc_tv_bridge` and
-`terminal_access_proxy` are *not* callers — the first is a library in this repo;
-`realtime_signals.py` and `trade_context.py` mention `/smc_live` in comments
-only.)
-
-**2026-07-23 — the panel dependency is gone; a firing alert is now an
-incident.** Until that date the traffic was panel-driven: the Chrome side panel
-refreshed the 1m technical feed every 15s only *while it was connected*, so a
-**closed** panel during US market hours drove the rate to zero and fired
-`lo-request-rate-absent-open`. The alert measured "is the panel open", not "is
-the infrastructure healthy". `skipp-live-lab` PR #43 (merged 2026-07-23 15:05Z)
-moved the cadence server-side:
-
-- A poller owns the interval in **both** servers that serve this overlay — the
-  local Sidecar (ASGI lifespan task) and the hosted Layer-B read API
-  (`cloud_worker/main.py`, thread `technical-feed`). Both start it
-  unconditionally; there is no feature flag to forget.
-- Its due-symbol set is never empty. With no panel connected it keeps polling
-  the **last pinned symbol**, persisted via `SKIPP_LAB_TECHNICAL_STATE` so a
-  restart does not silence the feed. Only if no symbol was ever pinned does it
-  fall back to `SPY`.
-- Cadence is 15s per tracked symbol; a symbol leaves the active set 90s after
-  the last panel request, and at most 32 symbols are polled concurrently.
-
-**Operational consequence.** From the deploy of that revision onward, treat a
-firing `lo-request-rate-absent-open` as a **real infra signal** — the consuming
-service is down, or this overlay is unreachable from it — and no longer as
-"nobody had the panel open". The market-open floor is one request per 15s
-(~40 per 10 minutes) against the rule's ~0.6 threshold, so a sustained zero
-means the poller is not running. Confirm with `railway logs --http --json`
-grouped by `clientUa`: absent `skipp-sidecar/` entries now indicate a dead
-consumer, not an idle operator.
-
-**2026-07-23 drill — the firing path is proven end-to-end (both directions).**
-This closes the test #3954 left open: firing under real stopped traffic, and
-self-resolution when it returns. Method: both `/smc_live` consumers stopped at
-once during US market open — the hosted poller by pointing
-`SKIPP_LAB_TECHNICAL_OVERLAY_ORIGIN` at an invalid value, the local Sidecar via
-`launchctl disable` + kill. Stopping both is required, and is itself the
-finding below.
-
-- **Fire.** Consumers stopped 17:15:24Z. The daemon ran continuously through
-  the whole drill (uptime climbed monotonically 47s → 3526s across 56 samples,
-  no reset), so the `uptime_seconds > 600` guard cleared cleanly and the
-  request counter stayed flat once traffic stopped. `pending` observed from
-  17:31:10Z; the rule went to `firing` (Alertmanager `active`, `sev=warning`,
-  `since 2026-07-23T17:40:40Z`) — exactly the 10-minute `for:` after pending
-  began — and stayed active continuously for ~32 min through 18:13Z. (One
-  isolated `inactive` read at 17:52:20Z was a polling artifact of the
-  state-dump script: the `since 17:40:40Z` timestamp was identical before and
-  after, so Alertmanager treated it as one uninterrupted episode.)
-- **Resolve.** Consumers restored 18:13:20Z; `/smc_live` traffic resumed
-  immediately (counter 6 → 9 → 13 → 18). The rule self-resolved at 18:16:27Z,
-  ~3 min after restore, once `rate[10m]` climbed back above the threshold — no
-  manual intervention.
-- **Total time to fire is ~30 min, not 10.** The daemon must run >600s AND the
-  10-minute rate window must empty AND the 10-minute `for:` must elapse, all
-  continuously. A daemon restart resets the first two clocks; budget for it
-  when running this drill.
-- **Caveat — the rule sums all consumers.** The drill only fired because
-  **both** consumers were stopped. `rate(live_overlay_smc_live_requests_total)`
-  is the aggregate across every caller, so while any one consumer polls — e.g.
-  one open Chrome panel on an operator's Mac (seen as the `aapl` hotspot during
-  this drill) — the rule cannot fire even if the hosted service is dead. It
-  detects "no one is calling", not "the service that matters is gone". The
-  daemon already exports per-symbol counters
-  (`live_overlay_hotspot_symbol_<sym>_requests_total`), so a sharper rule
-  targeting the hosted poller's idle symbol is possible; tracked in the
-  skipp-live-lab plan as A6, not armed here.
-
-**2026-07-24 drill — re-confirmed with the hosted poller as the sole active
-consumer.** An independent re-run during US market open, this time stopping
-**only** the hosted `lab-worker` poller (deleted
-`SKIPP_LAB_TECHNICAL_OVERLAY_ORIGIN`, then `railway redeploy`; the local Sidecar
-was not polling). It reproduced the full
-fire-and-self-resolve cycle and adds a single-consumer data point to the
-aggregate-sum caveat above. State edges are from the Grafana rule state-history
-API (`/api/v1/rules/history?ruleUID=lo-request-rate-absent-open`), not a polled
-snapshot.
-
-- **Fire.** `ORIGIN` deleted 16:51:08Z; because Railway rolls deployments, the
-  old poller kept calling until the new (origin-less) process cut over, so the
-  last `/smc_live` request was 16:53:25Z (`skipp-sidecar/0.5.14`, HTTP 200, clean
-  15s cadence) — then aggregate traffic was **zero**. Since stopping only the
-  hosted poller drove the aggregate to zero, `lab-worker` was the **only** active
-  consumer this session (contrast 2026-07-23, when a local Sidecar/panel also had
-  to be stopped). Rate-based `pending` began 17:05:40Z (~10-min `rate[10m]`
-  window emptying after the last request) and the rule went to **`Alerting`**
-  (`sev=warning`) at 17:15:40Z — exactly the 10-minute `for:` later — firing the
-  real Slack warning. ~22 min from traffic stop to fire; the daemon did not
-  restart, so the `uptime_seconds > 600` gate held throughout (reaching
-  `Alerting` requires it).
-- **Resolve.** `ORIGIN` restored 17:16:12Z and `lab-worker` redeployed 17:16:17Z
-  (deploy `74170860`, `SUCCESS`). Traffic resumed after the cutover and the rule
-  self-resolved to **`Normal`** at 17:20:40Z once `rate[10m]` climbed back above
-  threshold — ~5 min of `Alerting`, no manual clear. Continuous HTTP-200
-  `/smc_live` traffic verified from 17:53:40Z onward. Technical-overlay data gap
-  ≈ 16:53:25Z → ~17:19Z (~26 min).
-- **Benign NoData blip from redeploying the consumer.** The stop-redeploy caused
-  a brief scrape gap that tripped the rule's NoData handling: `Normal` →
-  `Pending (NoData)` at 16:50:40Z → back to `Normal (MissingSeries)` at 16:55:40Z.
-  It self-cleared well inside the 10-minute `for:` and never reached `Alerting`,
-  so **it did not page** — but expect this transient whenever the consumer
-  service is redeployed, distinct from the real rate-based path that fired later.
-
-**Second consumer relationship — `/signals` (documented, not armed).**
-`skipp-live-lab` PR #45 (merged 2026-07-23 15:15Z) added
-`sidecar_server/signal_subscriber.py`, which polls the
-`smc-signals-producer` `/signals` endpoint (`open_prep/realtime_signals.py` in
-this repo) every 5s server-side, with the same `User-Agent: skipp-sidecar/*`.
-This is recorded so a future reader can attribute that traffic, **not** as a
-reason to arm anything. No `/signals` traffic watchdog exists today, and none
-may be armed until two conditions hold:
-
-1. **The subscriber runs permanently.** It is opt-in — it only starts when
-   `SKIPP_LAB_SIGNALS_ORIGIN` is set (`signal_subscriber.configured()`), in
-   both the local Sidecar and the hosted read API. While it is unset there is
-   no `/signals` consumer traffic at all, so a watchdog would page on a
-   configuration state, repeating exactly the mistake the panel-driven
-   `lo-request-rate-absent-open` made.
-2. **The producer exposes an inbound request counter.** It does not:
-   `realtime_signals.py` serves `/signals` and `/signals.json` but exports no
-   counter for inbound requests (`signals_producer_*_requests_total` covers
-   outbound FMP calls only), so there is currently no metric such a rule could
-   evaluate.
-
-Existing producer alerts (`up{job="signals_producer"}` scrape health, RSS, and
-the `lo-trading-signals-snapshot-*` family) are unaffected — they watch the
-producer and its snapshot, not consumer traffic.
 
 #### Alloy service
 
@@ -540,7 +301,6 @@ custom URLs never receive that generic token.
 | Realtime signals | _host helper (no CI producer)_ | `bot/live-signals-snapshot` | `artifacts/open_prep/latest/latest_realtime_signals.json` | `artifacts/open_prep/latest/latest_realtime_signals.json` |
 | Sweep-trap shadow (WS4a) | `sweep-trap-shadow-daily.yml` | `bot/live-sweep-trap-shadow` | `artifacts/monitoring/latest/sweep_trap_shadow.json` | `artifacts/monitoring/sweep_trap_shadow.json` |
 | Pine-library versions | `pine-library-version-monitor.yml` | `bot/live-pine-library-versions` | `artifacts/monitoring/latest/pine_library_versions.json` | `artifacts/monitoring/pine_library_versions.json` |
-| TradingView saved sources + bindings | `tv-save-consumer-source.yml` | `bot/live-tradingview-bindings` | `artifacts/monitoring/latest/tradingview_consumer_bindings.json` | `artifacts/monitoring/tradingview_consumer_bindings.json` |
 
 `smc-measurement-benchmark-rolling.yml` writes temporary per-timeframe
 `structure_export_*.json` files only for inline notices and deletes them in the
@@ -653,9 +413,7 @@ Source JSON:
 ### Success Rate panel and no-traffic semantics
 
 The **Success Rate (%)** panel shows the percentage of recent `/smc_live`
-HTTP requests that completed without errors (`smc_live_success_total` over
-`smc_live_requests_total` — request-level, NOT compute cycles; the dashboard
-contract test pins that wording on the panel itself).
+compute cycles that completed without errors.
 
 #### Historical bug: "0.00 %" with no traffic
 
@@ -711,11 +469,10 @@ unless on()
 sum(rate(live_overlay_smc_live_requests_total{job=~"$job"}[$__rate_interval])) == 0
 ```
 
-The panel's field config sets `noValue: "NO REQUESTS"`, so Grafana displays
-**NO REQUESTS** instead of `0.00 %` when the query returns no data. As soon as
+The panel's field config sets `noValue: "NO TRAFFIC"`, so Grafana displays
+**NO TRAFFIC** instead of `0.00 %` when the query returns no data. As soon as
 traffic appears, the series becomes non-zero and the panel shows the real
-success rate again. (The contract test pins that the label is NOT the
-ambiguous "NO TRAFFIC" — that wording collided with the market-traffic tile.)
+success rate again.
 
 #### External Consumer Traffic wiring
 
@@ -779,55 +536,17 @@ Production also has a guard alert:
 live_overlay_expected_market_traffic{job="live_overlay"} == bool 0
 ```
 
-This reminder stays paused only while no supported consumer exists. Set
+This reminder is paused while no supported consumer exists. Set
 `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=1` only after a real client has been deployed
 and end-to-end requests are verified.
 
-#### Current production mode: external consumer verified and armed
+#### Current production mode: no supported external consumer
 
-**Superseded 2026-07-23.** This section previously read "no supported external
-consumer" and told on-call to keep `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=0` with
-`lo-expected-traffic-not-armed` paused. That is no longer the production state:
-a real consumer was identified and verified, the flag is `1`, and the reminder
-is unpaused (`isPaused: false`) — see
-[Expected market traffic alert rollout](#expected-market-traffic-alert-rollout).
-
-Pine still cannot call `/smc_live` directly; the consumer is the
-`skipp-live-lab` Sidecar, not TradingView. The API's own health, latency,
-error, and auth-denied alerts remain active regardless of this flag. Revert to
-`0` only together with re-pausing `lo-expected-traffic-not-armed`, and record
-why.
-
-### Bar cache depth — "too shallow" alert (`lo-bar-cache-depth-low`)
-
-The rolling features (squeeze, relative volume, ATS z-score) need 20 aggregated
-bars. The raw 1-minute requirement therefore depends on the requested
-timeframe: from 20 bars for `1m` through 9,600 retained minutes for the
-RTH-anchored `4H` view. `lo-bar-cache-depth-low` fires while that
-timeframe-specific requirement is breached **for any symbol a consumer reads**.
-
-**Read the right metric.** The alert evaluates
-`live_overlay_requested_bar_history_readiness_ratio` — the minimum retained
-depth divided by the requested timeframe's raw-history requirement, capped at
-1 — gated on `live_overlay_requested_bar_history_symbols > 0`. Do **not**
-diagnose from the global
-`live_overlay_bars_per_symbol` (`bar_count / bar_symbols`): the feed subscribes
-to `ALL_SYMBOLS` and the cache caps at `OVERLAY_MAX_SYMBOLS` (default 2000), so
-demand-aware retention (#3903) deliberately pins the cache at the cap with the
-unrequested majority holding a single bar. That makes the global mean sit at
-~1.0 during every open session **by design** — it is not a health signal, and
-alerting on it flagged a healthy system every market-open minute until
-2026-07-24.
-
-**When it fires, first distinguish warmup from eviction.** A newly selected
-higher timeframe must accumulate its expanded history after the first request.
-If the ratio stops rising, the requested symbol may be getting evicted before
-it can accumulate history — i.e. live demand exceeds the cap. Confirm with
-`increase(live_overlay_bar_requested_symbols_evicted_total[30m]) > 0` (the
-leading-indicator alert `lo-bar-cache-protected-evictions`). Remedy: raise
-`OVERLAY_MAX_SYMBOLS` so demand fits, or narrow the requested universe. A shallow
-cache in the first ~15 min after a restart or a freshly pinned symbol is
-expected warmup, not a defect (the 900 s uptime gate + 15 m `for` absorb it).
+Pine cannot call `/smc_live` directly. Keep
+`LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=0` and
+`lo-expected-traffic-not-armed` paused (`isPaused: true`). The API's own health,
+latency, error, and auth-denied alerts remain active. Arm a future watchdog only
+after a real external API client is deployed and verified.
 
 ### Dashboard masking semantics
 
@@ -866,30 +585,6 @@ chase false reds:
   family even though the daemon is still scraped.
 
 
-### Why `degraded` has no alert rule of its own
-
-`health_status_code == 4` (`degraded`) is a dashboard rollup, not an
-independent failure mode, and **no alert rule references
-`live_overlay_health_status_code`**. That is deliberate.
-
-`compute_daemon_health_status` returns `degraded` when — past a 900 s warmup,
-during an open US session — any of `feed_healthy`, `workers_healthy` or
-`overlay_fresh` is false. Each of those three already has a rule that fires
-*before* the 900 s gate opens:
-
-| input | rule | fires after |
-|---|---|---|
-| `feed_healthy` | `lo-feed-down-market-open` | 5 min |
-| `workers_healthy` | `lo-workers-degraded` | 3 min |
-| `overlay_fresh` (no symbols) | `lo-no-symbols` | 5 min |
-| `overlay_fresh` (stale) | `lo-overlay-stale` | 5 min |
-
-A dedicated `degraded` rule could therefore never page first — it would be
-pure duplicate noise. The cost of that choice is that the coverage is
-*implicit*: delete one component rule and the gap opens with nothing red.
-`tests/test_degraded_status_alert_coverage.py` pins the invariant, including
-the "fires before 900 s" property, so such an edit fails CI.
-
 ### Generic bridge troubleshooting contract
 
 | State | Expected metrics | Operational meaning |
@@ -900,25 +595,6 @@ the "fires before 900 s" property, so such an edit fails CI.
 | Stale success | `live_overlay_bridge_last_success_age_seconds` exceeds threshold | Bridge may be failing or unable to refresh successful data. |
 | Slow scrape | `live_overlay_bridge_last_scrape_duration_seconds` rises unexpectedly | Bridge requests are completing but taking longer than normal. |
 | Absent bridge metrics | no `live_overlay_bridge_*` series | Exporter or metrics path may be broken; check `Bridge Metrics Present`, `Core Metrics Present`, and collector targets. |
-
-### Volume-backup alerts (customer plane)
-
-Three rules, deliberately separate because they are three different faults:
-
-| Alert | Fires when | First thing to check |
-|-------|-----------|----------------------|
-| `lo-volume-backup-schedule-missing` | `..._schedule_count < 1` | Railway dashboard → volume → Backups, or `volumeInstanceBackupScheduleUpdate(volumeInstanceId, kinds: [DAILY])`. **The CLI has no backup command at all** — `railway volume update` only renames/remounts. |
-| `lo-volume-backup-never-taken` | a schedule exists but `..._count < 1`, or a backup exists whose timestamp will not parse (`..._age_known == 0`), for 26 h | `volumeInstanceBackupList` for the instance; take one by hand with `volumeInstanceBackupCreate` to see whether the volume can be backed up at all. |
-| `lo-volume-backup-stale` | `..._age_seconds` exceeds `..._max_age_seconds` | schedule still present? volume recreated (a new volume starts with no history)? |
-| `lo-volume-backup-retention-too-short` | `..._retention_seconds` < `..._max_age_seconds` | Backups would expire before the stale alert could fire — the window where the gap is both real and visible never opens. Lengthen retention or shorten the threshold. |
-
-`age_known` is the load-bearing gauge. Without it a volume that has *never*
-been backed up renders as age 0 — the youngest possible backup — and reads
-healthier than one backed up an hour ago. Never alert on `age_seconds` alone.
-
-A failing poll is **not** one of these alerts: it surfaces as
-`lo-bridge-scrape-failed` for `bridge="railway_volume_backups"`, and all three
-rules above are gated so a Railway outage cannot invent a backup verdict.
 
 The alert **`lo-bridge-contract-missing`** fires when any required generic
 bridge contract family disappears for any configured bridge for more than five
@@ -1177,44 +853,6 @@ editable in the UI.
 Auth: `GRAFANA_API_KEY` env var (CI) or the macOS Keychain entry
 `skipp.grafana.api` (local). The token is never printed.
 
-### Reading the live firing state (read-only)
-
-The reader is the missing half of the upsert flow — "is anything firing?"
-without opening the UI (same auth chain, GET-only):
-
-```bash
-python -m scripts.grafana_alert_state                   # firing/pending/unhealthy + active instances
-python -m scripts.grafana_alert_state --all             # include inactive rules
-python -m scripts.grafana_alert_state --rule vix        # filter by rule-name substring
-python -m scripts.grafana_alert_state --json            # machine-readable
-python -m scripts.grafana_alert_state --fail-on-firing  # exit 1 if anything fires (scripts/CI)
-```
-
-Rules with `health=error` (unevaluable) are always surfaced in the default
-view — an unevaluable rule is operationally worse than a firing one. Run in
-module form (`-m`) from the repo root; the script reuses the upsert module's
-keychain/HTTP helpers and adds no credentials of its own.
-
-### macOS APFS filesystem-alert deduplication
-
-Grafana's stock macOS integration evaluates every writable APFS system volume.
-Because `Data`, `VM`, `Update`, and `Preboot` share one APFS container, a single
-low-space condition otherwise produces four equivalent alerts. Apply the
-idempotent per-rule patch after installing or upgrading that integration:
-
-```bash
-python -m scripts.grafana_macos_node_filesystem_alert_patch --dry-run
-python -m scripts.grafana_macos_node_filesystem_alert_patch
-```
-
-The patch excludes only `/System/Volumes/VM`, `/System/Volumes/Update`, and
-`/System/Volumes/Preboot`. The canonical writable Data-volume signal and any
-independent external filesystem remain monitored. Grafana marks stock
-integration rules with `converted_prometheus` provenance, which rejects
-per-rule updates. The script therefore rewrites the six-rule group atomically,
-changes only the warning and critical expressions, and verifies that the four
-non-target rules remain unchanged.
-
 > ⚠️ Do **not** `curl --data-binary @alert-rules.yaml` to
 > `POST /api/v1/provisioning/alert-rules`. That endpoint creates a _single_ rule
 > and ignores the `groups:` file-provisioning envelope, so it silently fails to
@@ -1283,30 +921,17 @@ changes(live_overlay_process_start_time_seconds{job=~"$job"}[1m]) > 0
 Restart-cause breakdown (per-cause counts over a window):
 
 ```promql
-sum(changes(live_overlay_process_start_time_seconds{job=~"$job"}[24h]))
+sum by (cause) (
+  changes(live_overlay_daemon_start_time_seconds{job=~"$job"}[24h])
+)
 ```
 
-> The `live_overlay_daemon_restart_cause_*_total` and
-> `live_overlay_daemon_restarts_total` counters no longer exist. They were reset
-> to `1` on every process start and stayed constant, so Prometheus saw `1,1,…`,
-> detected no reset, and `increase()` was always `0` — measured 2026-07-23, the
-> series read `1` against 51 real restarts in the same 24h.
-> 2026-07-28 (B-sweep): the cause-labeled
-> `live_overlay_daemon_start_time_seconds{cause}` gauge was removed as well —
-> `LIVE_OVERLAY_RESTART_CAUSE` was never set anywhere, so the label was the
-> constant `unknown`, and a statically-set env cannot distinguish deploy from
-> crash. Restart counting stays on `changes()` of the process start-time gauge;
-> Railway deployment/restart logs are the cause source.
-
-**F-1 drill evidence (2026-07-23, one-night practice test, PR #3875/#3884/#3892):**
-the `lo-restart-data-loss-closed` firing path was exercised against production —
-dead-zone restart dispatched 00:52:51Z (deploy run 29970302656, success); rule
-`Overlay data lost after restart (market closed)` observed `state=firing
-health=ok` at 03:17:22Z; self-resolved to `state=inactive health=ok` at
-08:17:10Z after the 6h-uptime window. The quiet path was live-confirmed
-2026-07-22 (09:13Z restart, premarket repopulated, rule stayed silent). The
-temporary drill workflow and its contract test were removed in #3892 — this
-line is the surviving record.
+> Do **not** use `increase(live_overlay_daemon_restart_cause_*_total[…])`: those
+> per-cause counters are reset to `1` on every process start and stay constant,
+> so Prometheus sees `1,1,…` across restarts and `increase()` is always `0` (the
+> same inert class already fixed for `live_overlay_daemon_restarts_total`).
+> `live_overlay_daemon_start_time_seconds{cause}` carries the start epoch as its
+> value, so `changes()` counts real restarts per cause.
 
 ---
 
@@ -1328,8 +953,6 @@ UptimeRobot-specific detail series.
 
 | Metric | Type | Labels | Description |
 |--------|------|--------|-------------|
-| `live_overlay_uptimerobot_monitors_total` | gauge | — | Count returned by the UptimeRobot API |
-| `live_overlay_uptimerobot_monitors_expected` | gauge | — | Expected count derived from `UPTIMEROBOT_MONITOR_IDS` |
 | `live_overlay_uptimerobot_monitors_up_total` | gauge | — | Count of monitors currently UP |
 | `live_overlay_uptimerobot_monitors_down_total` | gauge | — | Count of monitors currently DOWN |
 | `live_overlay_uptimerobot_monitors_paused_total` | gauge | — | Count of monitors currently PAUSED |
@@ -1357,26 +980,20 @@ UptimeRobot-specific detail series.
    currently monitors:
 
    ```env
-   UPTIMEROBOT_MONITOR_IDS=803309701,803341452,803343155,803343156,803362511,803555263,803555264
+   UPTIMEROBOT_MONITOR_IDS=803309701,803341452,803343155,803343156,803362511
    ```
-
-   The final two IDs monitor the public Terminal AI and MLflow `/health`
-   endpoints with HEAD every five minutes.
 
 4. Restart the daemon.
 
 ### Production guards
 
-Production expects the UptimeRobot API result to match the configured bridge
-allowlist. Grafana derives the expected count from `UPTIMEROBOT_MONITOR_IDS`
-instead of duplicating a hard-coded number. The alerts gate on the generic
-bridge contract while keeping the UptimeRobot-specific monitor count gauges as
-the domain signal:
+Production expects exactly five UptimeRobot monitors in the bridge allowlist.
+Grafana alerts enforce both the count and the external-down state. These alerts
+gate on the generic bridge contract while keeping the UptimeRobot-specific
+monitor count gauges as the domain signal:
 
 ```promql
-(live_overlay_uptimerobot_monitors_total{job="live_overlay"}
- != bool on(job)
- live_overlay_uptimerobot_monitors_expected{job="live_overlay"})
+(live_overlay_uptimerobot_monitors_total{job="live_overlay"} != bool 5)
 and on(job)
 (live_overlay_bridge_enabled{job="live_overlay",bridge="uptimerobot"} == 1)
 ```
@@ -1435,46 +1052,6 @@ are GitHub-workflow-specific detail series.
 
 ---
 
-## Portfolio shadow evidence triage
-
-F4 remains shadow-only. Grafana's **Portfolio Shadow Readiness** tile reports
-whether the evidence is ready for human review; it never promotes the policy.
-The evidence snapshot is rebuilt daily from C13 incubation rows and sanitized
-`reconciliation_<DATE>.monitoring.json` reports on `data/phase-a-audit`.
-
-| Alert | First response |
-|---|---|
-| `lo-portfolio-evidence-section-missing` | Inspect `evidence-freshness-snapshot.yml`; confirm the published JSON contains `portfolio_shadow`. |
-| `lo-portfolio-submit-no-risk-eval` | Stop the C13 submit schedule and verify the same timestamp/phase has an earlier `portfolio_risk_evaluated` row before any `paper_submitted` or `submit_failed` row. |
-| `lo-portfolio-snapshot-age-invalid` | Inspect the latest risk audit row. The recorded decision-time snapshot age must be non-negative and no greater than its recorded maximum. Repair IBKR capture or workstation clock sync. |
-| `lo-portfolio-risk-rejection` | Inspect the new reject verdict and its reason counts. It remains shadow evidence and must not be bypassed or treated as an automatic promotion decision. |
-| `lo-portfolio-reconcile-missing` | Check the 23:05 reconcile LaunchAgent, TWS paper port 7497 and the sanitized monitoring report on the audit branch. |
-| `lo-portfolio-reconciliation-failed` | Keep enforcement disabled when the latest sanitized report says `reconciled=0` or has a non-zero maximum absolute quantity delta; compare the local raw before/after snapshots and individual execution fills. Do not publish those raw files. |
-| `lo-portfolio-decision-incomplete` | Inspect decision reasons for stale/future/incomplete snapshots or unknown working-order roles; rebuild a clean evidence window. |
-
-On the C13 workstation the private diagnostic files are:
-
-- `cache/live/portfolio_before_<DATE>.json`
-- `cache/live/portfolio_after_<DATE>.json`
-- `cache/live/portfolio_fills_<DATE>.json`
-- `cache/live/portfolio_reconciliation_<DATE>.json`
-
-Only `artifacts/portfolio/reconciliation_<DATE>.monitoring.json` and the
-incubation audit are copied to the data branch. If TWS exposes multiple managed
-accounts, set `C13_IBKR_ACCOUNT`; never select one implicitly.
-
-The corresponding Prometheus contract is:
-
-| Metric | Meaning |
-|---|---|
-| `live_overlay_portfolio_snapshot_age_seconds` | Broker snapshot age at the latest portfolio decision; evaluate only with `live_overlay_portfolio_snapshot_age_known=1`. |
-| `live_overlay_portfolio_snapshot_max_age_seconds` | Maximum age recorded alongside that same decision. |
-| `live_overlay_portfolio_risk_decisions_total{verdict}` | Cumulative shadow decisions split into `allow`, `resize` and `reject`. |
-| `live_overlay_portfolio_reconciliation_max_abs_quantity_delta` | Latest sanitized reconciliation's maximum absolute position-quantity drift. |
-| `live_overlay_portfolio_reconciliation_reconciled` | One only when that latest reconciliation passed; evaluate only with `live_overlay_portfolio_reconciliation_known=1`. |
-
----
-
 ## Platform Interaction Matrix
 
 | Source | Destination | Protocol | Auth | Direction | Data |
@@ -1488,95 +1065,6 @@ The corresponding Prometheus contract is:
 | Daemon | GitHub API | HTTPS | `GITHUB_WORKFLOW_MONITOR_TOKEN` | Outbound | Workflow run status |
 | Railway healthcheck | Daemon `/health` | HTTP | none | Inbound | 200 OK liveness |
 | UptimeRobot probe | Daemon `/health` | HTTP/HTTPS | none | Inbound | HEAD/GET probe |
-| Private TradingView alerts | Daemon `/tradingview/hold-manager-shadow` | HTTPS/JSON | Dedicated body token | Inbound | Six source-pinned Hold Manager edge events (legacy shape, rollback path) |
-| Private TradingView alert | Daemon `/{token}/tradingview/hold-manager-shadow` | HTTPS/JSON | Dedicated path token | Inbound | One build-pinned alert carrying all six channels |
-
-### Hold Manager R2 controlled receiver activation
-
-This is a staged, two-authorization operation. Repository publication,
-production deployment/configuration, and TradingView alert creation are
-external mutations; do not infer any of them from a request to continue local
-implementation.
-
-1. Publish and deploy the receiver code to `live_overlay_daemon` while
-   `HOLD_MANAGER_SHADOW_ACCEPTING=0`.
-2. Reuse the existing `live_overlay_daemon` Railway volume mounted at
-   `/app/data`; do not remount or wipe it. Set
-   `HOLD_MANAGER_SHADOW_LEDGER_PATH=/app/data/smc-hold-manager-shadow.sqlite3`.
-   Generate a dedicated random `HOLD_MANAGER_SHADOW_WEBHOOK_TOKEN` with at
-   least 32 characters. Do not display it in tickets, PR text, logs, commands
-   captured as evidence, or URL paths.
-3. With the switch still off, verify normal `/health` and `/ready`, then query:
-
-   ```bash
-   curl -s \
-     -H "X-Hold-Manager-Shadow-Token: ${HOLD_MANAGER_SHADOW_WEBHOOK_TOKEN}" \
-     https://liveoverlaydaemon-production.up.railway.app/tradingview/hold-manager-shadow/state \
-     | jq .
-   ```
-
-   Expected state is `accepting=false`, zero unique events, zero attempts, zero
-   duplicates, and `lastReceivedAt=null`.
-
-   The inactive production verification passed on 2026-07-28 under deployment
-   `fb998ea6-4773-460b-bd66-8bdbfe977eef`. The authenticated state was empty,
-   `/health` and `/ready` returned HTTP 200, and the persistent parent was
-   writable. The SQLite file is created lazily on the first accepted event.
-   Redacted evidence is retained in
-   `artifacts/governance/smc_hold_manager_shadow_receiver_railway_2026-07-28.json`.
-4. Obtain a separate, exact authorization for six private TradingView alert
-   creations. Render the messages from
-   `artifacts/governance/smc_hold_manager_shadow_alert_templates.json` only in
-   the private alert UI by replacing
-   `<HOLD_MANAGER_SHADOW_WEBHOOK_TOKEN>`. The webhook URL contains no secret:
-   `https://liveoverlaydaemon-production.up.railway.app/tradingview/hold-manager-shadow`.
-
-   **This step describes the legacy shape, which is being retired.** It stays
-   here because it is the rollback procedure while
-   `alertWireShape.cutOver` is false in the shadow contract. After the cutover
-   there is **one** alert, not six: condition *"Any alert() function call"*, an
-   empty message field because the Pine source writes the whole body, and a
-   webhook URL that *does* carry the token:
-   `https://liveoverlaydaemon-production.up.railway.app/<token>/tradingview/hold-manager-shadow`.
-   That URL is a secret and must be handled like one; it is protected in the
-   same way as the four other `/{token}/…` routes, by `access_log=False` in
-   `main.py`.
-5. Verify the six alert definitions while the receiver still rejects
-   deliveries. Immediately before the agreed observation boundary, set
-   `HOLD_MANAGER_SHADOW_ACCEPTING=1`, record the activation object and ordered
-   session ledger, and start the first complete XNYS observation session.
-
-   Executed 2026-07-28T22:41Z at the post-close boundary under the separate
-   operator authorization: deployment `059b2883-3e5e-44ad-a781-d3f12c46fb51`,
-   state readback `accepting=true` with an empty ledger, `/health` and
-   `/ready` HTTP 200. Evidence:
-   `artifacts/governance/smc_hold_manager_shadow_activation_2026-07-28.json`;
-   the activation object is recorded in
-   `artifacts/governance/smc_hold_manager_shadow_observations.json`. First
-   evaluable XNYS session: 2026-07-29. Delivered counts per session are
-   reconciled with
-   `scripts/reconcile_smc_hold_manager_shadow_deliveries.py`; the rollback
-   drill is operator-pre-authorized and runs only after the observation
-   criteria pass.
-
-   Daily cadence during the window (mechanical half automated): the local
-   LaunchAgent `com.skippalgo.hold-manager-shadow-daily` (16:15 ET Mon-Fri,
-   `automation/launchd/run-hold-manager-shadow-daily.sh`) snapshots the
-   authenticated receiver state, runs the reconciliation in `--check` mode
-   against the checked-in observations, and posts a reminder notification.
-   The operator then scaffolds the session row with
-   `scripts/scaffold_smc_hold_manager_shadow_session.py --date <ET date>`,
-   fills the TradingView-side fields, runs the reconcile without `--check`,
-   re-runs the evaluator, and moves the pinned checked-in-state test
-   expectations in the same PR.
-
-Rollback is fail-closed: set `HOLD_MANAGER_SHADOW_ACCEPTING=0` first, disable
-all six Hold alerts, and retain the SQLite ledger as evidence. Alerts were
-created (2026-07-28, operator-attested) and activation was recorded
-(2026-07-28T22:41Z), so the requirement is `in_progress`; it passes only when
-five complete sessions, the required edges, and the rollback drill are
-evidenced — local implementation or an inactive deploy alone is not shadow
-evidence.
 
 ### `/smc_live` synthetic canary plan
 
@@ -1618,7 +1106,6 @@ Future safe options, in order of preference:
 |----------|----------------|
 | `DATABENTO_API_KEY` | 1. Create new key in Databento portal.<br>2. Update Railway variable.<br>3. Redeploy daemon.<br>4. Revoke old key after health OK. |
 | `OVERLAY_SECRET_TOKEN` | 1. Generate new random secret.<br>2. Update in Railway for both daemon and Alloy services.<br>3. Redeploy both services.<br>4. Update any authenticated server-side `/smc_live` clients. |
-| `HOLD_MANAGER_SHADOW_WEBHOOK_TOKEN` | 1. Set `HOLD_MANAGER_SHADOW_ACCEPTING=0`.<br>2. Generate and set a new dedicated token in Railway.<br>3. Replace `authToken` in all six private TradingView alert messages.<br>4. Verify the empty/inactive state endpoint with the new header token.<br>5. Re-enable acceptance only at a documented observation boundary.<br>6. Revoke the old token by confirming no alert retains it. |
 | `UPTIMEROBOT_API_KEY` | 1. Regenerate in UptimeRobot dashboard.<br>2. Update Railway variable.<br>3. Redeploy. |
 | `GITHUB_WORKFLOW_MONITOR_TOKEN` | 1. Create new GitHub PAT with `repo` + `actions:read`.<br>2. Update Railway variable.<br>3. Redeploy.<br>4. Delete old PAT. |
 | `GRAFANA_CLOUD_API_KEY` | 1. Create new MetricsPublisher/API key in Grafana Cloud.<br>2. Update Railway Alloy service variable.<br>3. Redeploy Alloy.<br>4. Revoke old key. |

@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 import {
@@ -11,9 +10,6 @@ import {
 } from "../../../scripts/tv_publish_openprep_panel.js";
 
 const SCRIPT_NAME = "Open-Prep Daily Panel";
-const _dir = path.dirname(fileURLToPath(import.meta.url));
-const _publisherPath = path.resolve(_dir, "..", "..", "..", "scripts", "tv_publish_openprep_panel.ts");
-const _workflowPath = path.resolve(_dir, "..", "..", "..", ".github", "workflows", "openprep-pine-panel-publish.yml");
 
 const VALID_PANEL_TEXT = [
   "//@version=6",
@@ -63,63 +59,4 @@ test("verifyPanelPublishContract rejects a library() header (must be an indicato
 test("verifyPanelPublishContract rejects a missing version directive", () => {
   const noVersion = VALID_PANEL_TEXT.replace("//@version=6\n", "");
   assert.throws(() => verifyPanelPublishContract(writeFixture(noVersion)), /@version=6/);
-});
-
-test("panel publisher delegates the chart gate to publishPrivateScript", () => {
-  const source = fs.readFileSync(_publisherPath, "utf-8");
-  const compileGate = source.indexOf("await assertNoVisibleCompileError(");
-  const publishCall = source.indexOf("await publishPrivateScript(", compileGate);
-
-  assert.ok(
-    compileGate >= 0 && publishCall > compileGate,
-    "the compile gate must remain before publishPrivateScript",
-  );
-  assert.doesNotMatch(
-    source.slice(compileGate, publishCall),
-    /addCurrentScriptToChart\(|assertNoVisibleChartScriptError\(/,
-    "the panel must not probe an absent chart row before publishPrivateScript materializes it",
-  );
-  assert.match(
-    source.slice(publishCall, publishCall + 500),
-    /requireCleanChartBeforePublish:\s*true/,
-    "the delegated publish must require chart materialization followed by the hard legend gate",
-  );
-});
-
-test("panel publisher captures current evidence when the delegated publish gate rejects", () => {
-  const source = fs.readFileSync(_publisherPath, "utf-8");
-  const publishCall = source.indexOf("publishResult = await publishPrivateScript(");
-  const failureScreenshot = source.indexOf("publish-failed", publishCall);
-  const rethrow = source.indexOf("throw publishError", failureScreenshot);
-
-  assert.ok(publishCall >= 0, "the delegated publish call must remain present");
-  assert.ok(
-    failureScreenshot > publishCall && rethrow > failureScreenshot,
-    "a rejected materialization or legend gate must capture its current chart before rethrowing",
-  );
-});
-
-test("panel publisher requires authoritative publish confirmation before reporting success", () => {
-  const source = fs.readFileSync(_publisherPath, "utf-8");
-
-  assert.match(source, /publishMode:\s*openedExistingScript\s*\?\s*"update_existing"\s*:\s*"auto"/);
-  assert.match(source, /!publishSurfaceClosedAfterConfirm\s*\|\|\s*\(!noChangeDetected\s*&&\s*!publishConfirmed\)/);
-  assert.doesNotMatch(source, /dialogStillVisible:\s*false/);
-  assert.match(source, /publishConfirmed,/);
-  assert.match(source, /publishSurfaceClosedAfterConfirm,/);
-});
-
-test("workflow artifact excludes unrelated historical screenshots", () => {
-  const source = fs.readFileSync(_workflowPath, "utf-8");
-
-  assert.match(
-    source,
-    /automation\/tradingview\/reports\/screenshots\/\*Open-Prep\*\.png/,
-    "the artifact must include current Open-Prep screenshots",
-  );
-  assert.doesNotMatch(
-    source,
-    /automation\/tradingview\/reports\/screenshots\/\*\*/,
-    "the artifact must not sweep unrelated checked-in library screenshots",
-  );
 });

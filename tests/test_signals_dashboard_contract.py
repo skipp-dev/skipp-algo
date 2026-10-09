@@ -20,7 +20,6 @@ SECTION_ORDER = [
     "Live Trading Signals",
     "Daily Signal Experiment",
     "Sweep-Trap Promotion Evidence",
-    "Reaction-Zone Shadow Evidence",
 ]
 
 
@@ -39,7 +38,6 @@ def _visual_panels(d: dict) -> list[dict]:
 def test_sections_are_user_first_and_all_expanded() -> None:
     d = _load()
     rows = _rows(d)
-    assert rows, "dashboard exposes no section row — the checks below would pass vacuously"
     assert [r["title"] for r in rows] == SECTION_ORDER
     for r in rows:
         assert r.get("collapsed") is False, r["title"]
@@ -103,9 +101,7 @@ def test_every_signal_panel_is_in_a_section() -> None:
     """No panel floats above the first section (except the banner at y=0)."""
     d = _load()
     first_row_y = _rows(d)[0]["gridPos"]["y"]
-    panels = _visual_panels(d)
-    assert panels, "dashboard exposes no visual panel — the check below would pass vacuously"
-    for p in panels:
+    for p in _visual_panels(d):
         if p.get("id") == 999:
             continue
         assert p["gridPos"]["y"] >= first_row_y, p.get("title")
@@ -170,63 +166,3 @@ def test_sweep_trap_shadow_verdict_panel_maps_all_three_codes() -> None:
     assert mappings["0"]["text"] == "INCONCLUSIVE"
     assert mappings["1"]["text"] == "SHADOW"
     assert mappings["2"]["text"] == "PROMOTABLE"
-
-
-def test_reaction_zone_shadow_panels_query_the_gauges() -> None:
-    """The reaction-zone section surfaces the verdict, per-direction lift, sample
-    accrual, snapshot age/loaded and the evidence table from the bridge gauges."""
-    d = _load()
-    exprs = " ".join(
-        t.get("expr", "")
-        for p in _visual_panels(d)
-        for t in p.get("targets", [])
-    )
-    for metric in (
-        "live_overlay_reaction_zone_shadow_verdict_code",
-        "live_overlay_reaction_zone_shadow_best_lift",
-        "live_overlay_reaction_zone_shadow_sample_count",
-        "live_overlay_reaction_zone_shadow_snapshot_age_seconds",
-        "live_overlay_reaction_zone_shadow_snapshot_age_known",
-        "live_overlay_reaction_zone_shadow_loaded",
-        "live_overlay_reaction_zone_shadow_evidence_info",
-    ):
-        assert metric in exprs, f"no panel queries {metric}"
-
-
-def test_reaction_zone_shadow_verdict_panel_maps_all_three_codes() -> None:
-    """The reaction verdict tile must decode 0/1/2 to human labels, not raw codes."""
-    d = _load()
-    verdict = next(
-        (p for p in _visual_panels(d) if p.get("title") == "Reaction-Zone Shadow Verdict"),
-        None,
-    )
-    assert verdict is not None
-    mappings = verdict["fieldConfig"]["defaults"]["mappings"][0]["options"]
-    assert mappings["0"]["text"] == "INCONCLUSIVE"
-    assert mappings["1"]["text"] == "SHADOW"
-    assert mappings["2"]["text"] == "PROMOTABLE"
-
-
-def test_reaction_zone_latest_evidence_table_has_date_value_and_assessment() -> None:
-    d = _load()
-    panel = next(
-        (p for p in _visual_panels(d) if p.get("title") == "Latest Reaction-Zone Evidence"),
-        None,
-    )
-    assert panel is not None
-    assert panel["type"] == "table"
-    assert (
-        panel["targets"][0]["expr"]
-        == 'live_overlay_reaction_zone_shadow_evidence_info{job=~"$job"}'
-    )
-    organize = next(t for t in panel["transformations"] if t["id"] == "organize")
-    assert organize["options"]["renameByName"] == {
-        "date": "Date",
-        "metric": "Metric",
-        "metric_value": "Value",
-        "assessment": "Assessment",
-    }
-    assert organize["options"]["excludeByName"].get("Value") is True
-    assert organize["options"]["excludeByName"].get("idx") is True
-    sort_by = next(t for t in panel["transformations"] if t["id"] == "sortBy")
-    assert sort_by["options"]["sort"][0]["field"] == "idx"

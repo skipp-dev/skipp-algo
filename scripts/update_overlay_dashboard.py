@@ -30,23 +30,14 @@ _DEFAULT_RAILWAY_ENVIRONMENT_ID = "470fbd0f-894d-46cd-8722-6b072d255d99"
 _DEFAULT_RAILWAY_LIVE_OVERLAY_SERVICE_ID = "705582c5-ba8b-4c6e-848c-33bffe0a61b0"
 _DEFAULT_RAILWAY_SIGNALS_PRODUCER_SERVICE_ID = "81f8c6b5-ffe2-4646-a978-e62143192a9a"
 
-# `or`, not a fallback argument. Three of these four names are fed from Actions
-# secrets elsewhere in this repo, and an env var bound to a MISSING secret
-# arrives as "" — a value, so the fallback argument never fires and the URLs
-# below would be built from empty ids. Latent today (no workflow that runs this
-# script sets them, so the defaults do apply) and one `env:` block away from
-# being the bug that kept the deploy-trigger guard red for a week (#4359).
-_RAILWAY_PROJECT_ID = os.getenv("RAILWAY_PROJECT_ID") or _DEFAULT_RAILWAY_PROJECT_ID
-_RAILWAY_ENVIRONMENT_ID = (
-    os.getenv("RAILWAY_ENVIRONMENT_ID") or _DEFAULT_RAILWAY_ENVIRONMENT_ID
+_RAILWAY_PROJECT_ID = os.getenv("RAILWAY_PROJECT_ID", _DEFAULT_RAILWAY_PROJECT_ID)
+_RAILWAY_ENVIRONMENT_ID = os.getenv("RAILWAY_ENVIRONMENT_ID", _DEFAULT_RAILWAY_ENVIRONMENT_ID)
+_RAILWAY_LIVE_OVERLAY_SERVICE_ID = os.getenv(
+    "RAILWAY_LIVE_OVERLAY_SERVICE_ID", _DEFAULT_RAILWAY_LIVE_OVERLAY_SERVICE_ID
 )
-_RAILWAY_LIVE_OVERLAY_SERVICE_ID = (
-    os.getenv("RAILWAY_LIVE_OVERLAY_SERVICE_ID")
-    or _DEFAULT_RAILWAY_LIVE_OVERLAY_SERVICE_ID
-)
-_RAILWAY_SIGNALS_PRODUCER_SERVICE_ID = (
-    os.getenv("RAILWAY_SIGNALS_PRODUCER_SERVICE_ID")
-    or _DEFAULT_RAILWAY_SIGNALS_PRODUCER_SERVICE_ID
+_RAILWAY_SIGNALS_PRODUCER_SERVICE_ID = os.getenv(
+    "RAILWAY_SIGNALS_PRODUCER_SERVICE_ID",
+    _DEFAULT_RAILWAY_SIGNALS_PRODUCER_SERVICE_ID,
 )
 
 RAILWAY_LINKS: dict[str, str] = {
@@ -89,14 +80,7 @@ COLOR_WARN = "dark-yellow"
 COLOR_DEGRADED = "dark-orange"
 COLOR_NEUTRAL = "gray"
 
-# Kept in step with metrics._append_bridge_metrics call sites; the dashboard
-# contract test derives the same list from there and fails if one is missing.
-BRIDGE_CONTRACT_BRIDGES = (
-    "uptimerobot",
-    "github_workflow",
-    "railway_metrics",
-    "railway_volume_backups",
-)
+BRIDGE_CONTRACT_BRIDGES = ("uptimerobot", "github_workflow", "railway_metrics")
 BRIDGE_CONTRACT_FAMILIES = (
     "live_overlay_bridge_enabled",
     "live_overlay_bridge_configured",
@@ -250,363 +234,6 @@ TRAFFIC_ALERT_ARMED_PANEL: dict[str, Any] = {
         },
     },
 }
-
-_SIGNAL_SUMMARY_TITLES = (
-    "Active Signals",
-    "Strongest Signal",
-    "Signal Snapshot Age",
-)
-_SIGNAL_SUMMARY_Y = 46
-_SIGNAL_SUMMARY_H = 4
-_SIGNALS_DASHBOARD_URL = "/d/smc-live-overlay-signals-v1?orgId=1"
-_SIGNALS_DASHBOARD_LINK = {
-    "targetBlank": True,
-    "title": "Open Signals & Experiments",
-    "type": "link",
-    "url": _SIGNALS_DASHBOARD_URL,
-}
-
-SIGNAL_SUMMARY_PANELS: tuple[dict[str, Any], ...] = (
-    {
-        "id": 2165782576,
-        "title": "Active Signals",
-        "type": "stat",
-        "datasource": PROMETHEUS_DATASOURCE,
-        "description": (
-            "Compact mirror of the Signals & Experiments dashboard. Counts current "
-            "A0, A1, and A2 signals only when snapshot age is known. Zero means a "
-            "fresh, quiet snapshot; N/A means freshness cannot be established."
-        ),
-        "gridPos": {"x": 0, "y": _SIGNAL_SUMMARY_Y, "w": 8, "h": _SIGNAL_SUMMARY_H},
-        "links": [_SIGNALS_DASHBOARD_LINK],
-        "targets": [
-            {
-                "expr": (
-                    'live_overlay_trading_signals_active{job=~"$job"} '
-                    'and on(job,instance) '
-                    '(live_overlay_trading_signals_snapshot_age_known{job=~"$job"} == 1)'
-                ),
-                "instant": True,
-                "legendFormat": "active signals",
-                "refId": "A",
-                "datasource": PROMETHEUS_DATASOURCE,
-            }
-        ],
-        "fieldConfig": {
-            "defaults": {
-                "color": {"mode": "thresholds"},
-                "noValue": "N/A",
-                "thresholds": {
-                    "mode": "absolute",
-                    "steps": [
-                        {"color": COLOR_NEUTRAL, "value": None},
-                        {"color": COLOR_OK, "value": 1},
-                    ],
-                },
-                "unit": "short",
-            },
-            "overrides": [],
-        },
-        "options": {
-            "colorMode": "value",
-            "graphMode": "none",
-            "justifyMode": "auto",
-            "reduceOptions": {
-                "calcs": ["lastNotNull"],
-                "fields": "",
-                "values": False,
-            },
-            "textMode": "auto",
-        },
-    },
-    {
-        "id": 2165782577,
-        "title": "Strongest Signal",
-        "type": "stat",
-        "datasource": PROMETHEUS_DATASOURCE,
-        "description": (
-            "Highest current signal-ranking score. The label shows symbol, level, "
-            "and direction. NO ACTIVE SIGNAL is a valid quiet state; use the adjacent "
-            "snapshot-age tile to distinguish quiet from unavailable data."
-        ),
-        "gridPos": {"x": 8, "y": _SIGNAL_SUMMARY_Y, "w": 8, "h": _SIGNAL_SUMMARY_H},
-        "links": [_SIGNALS_DASHBOARD_LINK],
-        "targets": [
-            {
-                "expr": 'topk(1, live_overlay_trading_signal_score{job=~"$job"})',
-                "instant": True,
-                "legendFormat": "{{symbol}} · {{level}} · {{direction}}",
-                "refId": "A",
-                "datasource": PROMETHEUS_DATASOURCE,
-            }
-        ],
-        "fieldConfig": {
-            "defaults": {
-                "color": {"mode": "thresholds"},
-                "decimals": 1,
-                "noValue": "NO ACTIVE SIGNAL",
-                "thresholds": {
-                    "mode": "absolute",
-                    "steps": [
-                        {"color": COLOR_NEUTRAL, "value": None},
-                        {"color": "dark-blue", "value": 1},
-                        {"color": COLOR_OK, "value": 5},
-                    ],
-                },
-                "unit": "short",
-            },
-            "overrides": [],
-        },
-        "options": {
-            "colorMode": "value",
-            "graphMode": "none",
-            "justifyMode": "auto",
-            "reduceOptions": {
-                "calcs": ["lastNotNull"],
-                "fields": "",
-                "values": False,
-            },
-            "textMode": "value_and_name",
-        },
-    },
-    {
-        "id": 2165782578,
-        "title": "Signal Snapshot Age",
-        "type": "stat",
-        "datasource": PROMETHEUS_DATASOURCE,
-        "description": (
-            "Seconds since the realtime engine wrote its signal snapshot. N/A means "
-            "the timestamp is unknown. Yellow at 4 minutes and red at 8 minutes; "
-            "open Signals & Experiments for the full signal detail."
-        ),
-        "gridPos": {"x": 16, "y": _SIGNAL_SUMMARY_Y, "w": 8, "h": _SIGNAL_SUMMARY_H},
-        "links": [_SIGNALS_DASHBOARD_LINK],
-        "targets": [
-            {
-                "expr": (
-                    'live_overlay_trading_signals_snapshot_age_seconds{job=~"$job"} '
-                    'and on(job,instance) '
-                    '(live_overlay_trading_signals_snapshot_age_known{job=~"$job"} == 1)'
-                ),
-                "instant": True,
-                "legendFormat": "snapshot age",
-                "refId": "A",
-                "datasource": PROMETHEUS_DATASOURCE,
-            }
-        ],
-        "fieldConfig": {
-            "defaults": {
-                "color": {"mode": "thresholds"},
-                "noValue": "N/A",
-                "thresholds": {
-                    "mode": "absolute",
-                    "steps": [
-                        {"color": COLOR_OK, "value": None},
-                        {"color": COLOR_WARN, "value": 240},
-                        {"color": COLOR_ERROR, "value": 480},
-                    ],
-                },
-                "unit": "s",
-            },
-            "overrides": [],
-        },
-        "options": {
-            "colorMode": "value",
-            "graphMode": "none",
-            "justifyMode": "auto",
-            "reduceOptions": {
-                "calcs": ["lastNotNull"],
-                "fields": "",
-                "values": False,
-            },
-            "textMode": "auto",
-        },
-    },
-)
-
-
-def _portfolio_evidence_panel(
-    panel_id: int,
-    title: str,
-    x: int,
-    description: str,
-    targets: tuple[tuple[str, str], ...],
-    *,
-    mappings: dict[str, dict[str, str]] | None = None,
-) -> dict[str, Any]:
-    thresholds = {
-        "mode": "absolute",
-        "steps": [
-            {"color": COLOR_OK, "value": None},
-            {"color": COLOR_ERROR, "value": 1},
-        ],
-    }
-    return {
-        "id": panel_id,
-        "title": title,
-        "type": "stat",
-        "description": description,
-        "datasource": PROMETHEUS_DATASOURCE,
-        "gridPos": {"x": x, "y": 28, "w": 4, "h": 6},
-        "links": [],
-        "targets": [
-            {
-                "expr": expr,
-                "legendFormat": legend,
-                "datasource": PROMETHEUS_DATASOURCE,
-                "instant": True,
-                "range": False,
-            }
-            for expr, legend in targets
-        ],
-        "options": {
-            "colorMode": "background" if mappings else "value",
-            "graphMode": "none",
-            "reduceOptions": {
-                "calcs": ["lastNotNull"],
-                "fields": "",
-                "values": False,
-            },
-        },
-        "fieldConfig": {
-            "defaults": {
-                "unit": "short",
-                "mappings": (
-                    [{"type": "value", "options": mappings}] if mappings else []
-                ),
-                "thresholds": thresholds,
-                "noValue": "EVIDENCE UNAVAILABLE",
-            },
-            "overrides": [],
-        },
-    }
-
-
-def _ensure_portfolio_evidence_panels(data: dict[str, Any]) -> bool:
-    """Show F4 portfolio evidence without implying automatic promotion."""
-    if data.get("uid") != "smc-live-overlay-v1":
-        return False
-    ready_expr = (
-        'live_overlay_portfolio_shadow_ready_for_human_review{job=~"$job"} '
-        'and on(job,instance) '
-        '(live_overlay_portfolio_shadow_evidence_known{job=~"$job"} == 1)'
-    )
-    desired = (
-        _portfolio_evidence_panel(
-            950010052,
-            "Portfolio Shadow Readiness",
-            12,
-            "Manual-review gate for the F4 portfolio shadow. OBSERVING is the expected "
-            "state while clean risk-relevant sessions accumulate; this tile never enables "
-            "enforcement automatically.",
-            ((ready_expr, "portfolio shadow"),),
-            mappings={
-                "0": {"text": "OBSERVING", "color": COLOR_WARN},
-                "1": {"text": "REVIEW READY", "color": COLOR_OK},
-            },
-        ),
-        _portfolio_evidence_panel(
-            950010053,
-            "Portfolio Evidence Progress",
-            16,
-            "Risk-relevant shadow sessions toward the 20-session human-review floor, "
-            "plus evaluated decisions and reconciliation coverage. Missing means a "
-            "session has risk evidence but no matching after-session reconciliation.",
-            (
-                ('live_overlay_portfolio_shadow_risk_relevant_sessions{job=~"$job"}', "sessions"),
-                ('live_overlay_portfolio_shadow_min_sessions{job=~"$job"}', "target"),
-                (
-                    'live_overlay_portfolio_shadow_risk_relevant_decisions_total{job=~"$job"}',
-                    "decisions",
-                ),
-                (
-                    '(live_overlay_portfolio_shadow_newest_risk_relevant_session_age_seconds{job=~"$job"} '
-                    'and on(job,instance) (live_overlay_portfolio_shadow_newest_risk_relevant_session_age_known{job=~"$job"} == 1)) / 86400',
-                    "newest session age (d)",
-                ),
-                (
-                    'live_overlay_portfolio_shadow_reconciliation_sessions{job=~"$job"}',
-                    "reconciled",
-                ),
-                (
-                    'live_overlay_portfolio_snapshot_age_seconds{job=~"$job"} '
-                    'and on(job,instance) '
-                    '(live_overlay_portfolio_snapshot_age_known{job=~"$job"} == 1)',
-                    "snapshot age at decision (s)",
-                ),
-                (
-                    'live_overlay_portfolio_risk_decisions_total{job=~"$job",verdict="reject"}',
-                    "reject decisions",
-                ),
-                (
-                    'live_overlay_portfolio_risk_decisions_total{job=~"$job",verdict="resize"}',
-                    "resize decisions",
-                ),
-                (
-                    'live_overlay_portfolio_shadow_missing_reconciliation_sessions{job=~"$job"}',
-                    "missing",
-                ),
-                (
-                    'live_overlay_portfolio_shadow_dispositioned_sessions{job=~"$job"}',
-                    "dispositioned (evidence unobtainable)",
-                ),
-            ),
-        ),
-        _portfolio_evidence_panel(
-            950010054,
-            "Portfolio Audit Integrity",
-            20,
-            "Integrity counters for the F4 evidence contract. Every value must stay zero: "
-            "submit attempts without an earlier same-run risk evaluation, incomplete "
-            "portfolio decisions, and failed before/after reconciliation reports.",
-            (
-                (
-                    'live_overlay_portfolio_shadow_submission_attempts_total{job=~"$job"}',
-                    "submission attempts",
-                ),
-                (
-                    'live_overlay_portfolio_shadow_submission_attempts_without_prior_evaluation_total{job=~"$job"}',
-                    "submit without evaluation",
-                ),
-                (
-                    'live_overlay_portfolio_shadow_incomplete_decisions_total{job=~"$job"}',
-                    "incomplete decisions",
-                ),
-                (
-                    'live_overlay_portfolio_shadow_reconciliation_failures_total{job=~"$job"}',
-                    "reconciliation failures",
-                ),
-                (
-                    'live_overlay_portfolio_reconciliation_max_abs_quantity_delta{job=~"$job"} '
-                    'and on(job,instance) '
-                    '(live_overlay_portfolio_reconciliation_known{job=~"$job"} == 1)',
-                    "latest max quantity delta",
-                ),
-                (
-                    'live_overlay_portfolio_reconciliation_reconciled{job=~"$job"} '
-                    'and on(job,instance) '
-                    '(live_overlay_portfolio_reconciliation_known{job=~"$job"} == 1)',
-                    "latest reconciled",
-                ),
-            ),
-        ),
-    )
-    panels = data.setdefault("panels", [])
-    anchor = next(
-        (index for index, panel in enumerate(panels) if panel.get("title") == "Evidence Chain Age (days)"),
-        len(panels) - 1,
-    )
-    changed = False
-    for offset, wanted in enumerate(desired, start=1):
-        current = _v1_panel_by_title(data, wanted["title"])
-        if current is None:
-            panels.insert(anchor + offset, copy.deepcopy(wanted))
-            changed = True
-        elif current != wanted:
-            current.clear()
-            current.update(copy.deepcopy(wanted))
-            changed = True
-    return changed
 
 
 def _resolve_dashboard_path(argv: list[str] | None = None) -> tuple[Path, bool]:
@@ -1771,64 +1398,6 @@ def _ensure_signal_pipeline_links(data: dict[str, Any]) -> bool:
     return changed
 
 
-def _ensure_signal_summary_panels(data: dict[str, Any]) -> bool:
-    """Keep a compact signal summary on the main operations dashboard.
-
-    The detailed ranking and per-signal tables stay on Signals & Experiments.
-    This main-dashboard mirror deliberately contains only current count,
-    strongest signal, and snapshot age, with every tile linking to the detail
-    dashboard.
-    """
-    if data.get("uid") != "smc-live-overlay-v1":
-        return False
-
-    changed = False
-    panels = data.setdefault("panels", [])
-    existing = {panel.get("title"): panel for panel in panels}
-    missing = [title for title in _SIGNAL_SUMMARY_TITLES if title not in existing]
-
-    # On the pre-feature layout, Global Market Sessions occupied y=46..49.
-    # Shift that panel and every later section exactly once to reserve the
-    # summary band. If a summary tile is later deleted, the already-reserved
-    # band remains empty and self-healing re-adds it without shifting again.
-    if missing:
-        summary_titles = set(_SIGNAL_SUMMARY_TITLES)
-        band_bottom = _SIGNAL_SUMMARY_Y + _SIGNAL_SUMMARY_H
-        band_occupied = any(
-            panel.get("title") not in summary_titles
-            and isinstance(panel.get("gridPos"), dict)
-            and isinstance(panel["gridPos"].get("y"), int)
-            and isinstance(panel["gridPos"].get("h"), int)
-            and panel["gridPos"]["y"] < band_bottom
-            and panel["gridPos"]["y"] + panel["gridPos"]["h"] > _SIGNAL_SUMMARY_Y
-            for panel in panels
-        )
-        if band_occupied:
-            changed = (
-                _shift_v1_panels_at_or_after_y(
-                    data,
-                    _SIGNAL_SUMMARY_Y,
-                    _SIGNAL_SUMMARY_H,
-                    exclude_titles=summary_titles,
-                )
-                or changed
-            )
-
-    for desired in SIGNAL_SUMMARY_PANELS:
-        title = desired["title"]
-        panel = existing.get(title)
-        if panel is None:
-            panels.append(copy.deepcopy(desired))
-            changed = True
-            continue
-        if panel != desired:
-            panel.clear()
-            panel.update(copy.deepcopy(desired))
-            changed = True
-
-    return changed
-
-
 def _fix_triage_guide_signal_path(data: dict[str, Any]) -> bool:
     """Ensure the triage guide mentions the signals-producer readiness path."""
     changed = False
@@ -1872,13 +1441,8 @@ def _fix_market_data_freshness_panel(data: dict[str, Any]) -> bool:
             expr = target.get("expr", "")
             if "live_overlay_overlay_fresh" not in expr:
                 continue
-            # The closed-market case resolves to the presence-gated -1
-            # sentinel (mapped MARKET CLOSED, gray). noValue is then reserved
-            # for "no exporter series at all", which must NOT read as a
-            # benign closed market (audit finding: noValue did double duty
-            # for closed AND dead).
             new_expr = (
-                "(100 * (\n"
+                "100 * (\n"
                 "  sum_over_time(\n"
                 "    (\n"
                 '      live_overlay_overlay_fresh{job=~"$job"}\n'
@@ -1890,20 +1454,14 @@ def _fix_market_data_freshness_panel(data: dict[str, Any]) -> bool:
                 ")\n"
                 "unless on() (\n"
                 '  sum_over_time(live_overlay_market_us_open{job=~"$job"}[1h:]) == 0\n'
-                "))\n"
-                'or on() ((count(live_overlay_uptime_seconds{job=~"$job"}) > bool 0) - 2)'
+                ")"
             )
             if expr != new_expr:
                 target["expr"] = new_expr
                 changed = True
         defaults = panel.setdefault("fieldConfig", {}).setdefault("defaults", {})
-        if defaults.get("noValue") != "NO DATA":
-            defaults["noValue"] = "NO DATA"
-            changed = True
-        closed_mapping = _value_mapping(-1, "MARKET CLOSED", COLOR_NEUTRAL)
-        mappings = defaults.setdefault("mappings", [])
-        if closed_mapping not in mappings:
-            mappings.insert(0, closed_mapping)
+        if defaults.get("noValue") != "MARKET CLOSED":
+            defaults["noValue"] = "MARKET CLOSED"
             changed = True
     return changed
 
@@ -1932,13 +1490,6 @@ def _fix_core_metrics_present_panel(data: dict[str, Any]) -> bool:
                 ") + (\n"
                 '  absent(live_overlay_overlay_fresh{job=~"$job"}) or vector(0)\n'
                 ") + (\n"
-                # feed_healthy/workers_healthy are the other two readiness
-                # inputs; a selective export bug in either was invisible here
-                # and in lo-core-signal-missing until 2026-07-23.
-                '  absent(live_overlay_feed_healthy{job=~"$job"}) or vector(0)\n'
-                ") + (\n"
-                '  absent(live_overlay_workers_healthy{job=~"$job"}) or vector(0)\n'
-                ") + (\n"
                 '  absent(live_overlay_market_us_open{job=~"$job"}) or vector(0)\n'
                 ") + (\n"
                 '  absent(live_overlay_last_bar_age_known{job=~"$job"}) or vector(0)\n'
@@ -1965,9 +1516,7 @@ def _fix_core_metrics_present_panel(data: dict[str, Any]) -> bool:
             _value_mapping(5, "5 MISSING", COLOR_ERROR),
             _value_mapping(6, "6 MISSING", COLOR_ERROR),
             _value_mapping(7, "7 MISSING", COLOR_ERROR),
-            _value_mapping(8, "8 MISSING", COLOR_ERROR),
-            _value_mapping(9, "9 MISSING", COLOR_ERROR),
-            _value_mapping(10, "ALL MISSING", COLOR_ERROR),
+            _value_mapping(8, "ALL MISSING", COLOR_ERROR),
         ]
         if defaults.get("mappings") != desired_mappings:
             defaults["mappings"] = desired_mappings
@@ -2040,21 +1589,14 @@ def _fix_market_traffic_health_description(data: dict[str, Any]) -> bool:
     if panel.get("description") != wanted:
         panel["description"] = wanted
         changed = True
-    # Presence-gated: the inner vector(0) fallbacks make "exporter dead" sum
-    # to the same 0 as a weekend night, so the tile showed benign gray MARKET
-    # CLOSED mid-session while everything was down (audit finding C3). The
-    # gate collapses to empty when no exporter series exists, and the outer
-    # vector(-1) maps that to an explicit red NO DATA state.
     expected_expr = (
-        '(max((live_overlay_market_us_open{job=~"$job"} or on() vector(0)) '
+        'max((live_overlay_market_us_open{job=~"$job"} or on() vector(0)) '
         '+ ((live_overlay_market_us_open{job=~"$job"} or on() vector(0)) '
         '* (live_overlay_expected_market_traffic{job=~"$job"} or on() vector(0))) '
         '+ ((live_overlay_market_us_open{job=~"$job"} or on() vector(0)) '
         '* (live_overlay_expected_market_traffic{job=~"$job"} or on() vector(0)) '
         '* (((rate(live_overlay_smc_live_requests_total{job=~"$job"}[5m]) '
-        'or on() vector(0)) > bool 0.001))))) '
-        'and on() (count(live_overlay_uptime_seconds{job=~"$job"}) > bool 0) '
-        'or on() vector(-1)'
+        'or on() vector(0)) > bool 0.001))))'
     )
     targets = panel.get("targets", [])
     if targets and targets[0].get("expr") != expected_expr:
@@ -2062,7 +1604,6 @@ def _fix_market_traffic_health_description(data: dict[str, Any]) -> bool:
         changed = True
     defaults = panel.setdefault("fieldConfig", {}).setdefault("defaults", {})
     desired_mappings = [
-        _value_mapping(-1, "NO DATA", "red"),
         _value_mapping(0, "MARKET CLOSED", COLOR_NEUTRAL),
         _value_mapping(1, "NO CONSUMER EXPECTED", COLOR_NEUTRAL),
         _value_mapping(2, "EXPECTED · NO REQUESTS", COLOR_WARN),
@@ -2079,27 +1620,6 @@ def _fix_market_traffic_health_description(data: dict[str, Any]) -> bool:
     if defaults.setdefault("thresholds", {}).get("steps") != desired_steps:
         defaults["thresholds"] = {"mode": "absolute", "steps": desired_steps}
         changed = True
-    return changed
-
-
-def _force_instant_on_sparkline_free_stats(data: dict[str, Any]) -> bool:
-    """Stat panels reduce with lastNotNull; over a range query that keeps
-    rendering the last pre-death sample as current for up to the dashboard
-    window after the exporter dies (audit finding C6). Panels without a
-    sparkline (graphMode none) have no use for range data — force their
-    Prometheus queries to instant so absent data becomes NO DATA immediately.
-    Sparkline panels keep range queries (the trend needs them)."""
-    changed = False
-    for panel in _iter_v1_panels(data):
-        if panel.get("type") != "stat":
-            continue
-        if panel.get("options", {}).get("graphMode", "area") != "none":
-            continue
-        for target in panel.get("targets", []):
-            if "expr" in target and not target.get("instant"):
-                target["instant"] = True
-                target["range"] = False
-                changed = True
     return changed
 
 
@@ -2145,11 +1665,9 @@ def _apply_user_facing_semantics(data: dict[str, Any]) -> bool:
         _v1_panel_by_title(data, "Overall Health"),
         description=(
             "Core daemon runtime health only. HEALTHY means the market-data feed, worker "
-            "threads, and overlay output are healthy. DEGRADED means a non-healthy state "
-            "has persisted past warmup (15 min) during an open US session — a sustained "
-            "outage, not a boot. It does not include provider quotas, workflow results, "
-            "credentials, or external integrations; review Active Alerts for those "
-            "systems. IDLE means the market is closed before the first bar."
+            "threads, and overlay output are healthy. It does not include provider quotas, "
+            "workflow results, credentials, or external integrations; review Active Alerts "
+            "for those systems. IDLE means the market is closed before the first bar."
         ),
     ) or changed
 
@@ -2361,9 +1879,9 @@ def _apply_user_facing_semantics(data: dict[str, Any]) -> bool:
     binding = _v1_panel_by_title(data, "TradingView Binding Status")
     if binding is not None:
         wanted_description = (
-            "Latest TradingView saved-source and dropdown-binding verification. Healthy means the "
-            "snapshot loaded, all 8 saved Pine sources match the repo, all 108 bindings were checked, "
-            "the snapshot is less than 24 hours old, and both drift and mismatch counts are zero."
+            "Latest TradingView dropdown-binding verification. Healthy means the snapshot loaded, "
+            "all 108 bindings were checked, the snapshot is less than 24 hours old, and both drift "
+            "and mismatch counts are zero. Each value has its own health threshold."
         )
         if binding.get("description") != wanted_description:
             binding["description"] = wanted_description
@@ -2450,70 +1968,6 @@ def _apply_user_facing_semantics(data: dict[str, Any]) -> bool:
                     }
                     for field in ("Drift", "Mismatches")
                 ],
-                {
-                    "matcher": {"id": "byName", "options": "Binding check known"},
-                    "properties": [
-                        {
-                            "id": "mappings",
-                            "value": [
-                                {
-                                    "type": "value",
-                                    "options": {
-                                        "0": {"text": "MISSING", "color": "red"},
-                                        "1": {"text": "VERIFIED", "color": "green"},
-                                    },
-                                }
-                            ],
-                        }
-                    ],
-                },
-                {
-                    "matcher": {"id": "byName", "options": "Source check known"},
-                    "properties": [
-                        {
-                            "id": "mappings",
-                            "value": [
-                                {
-                                    "type": "value",
-                                    "options": {
-                                        "0": {"text": "MISSING", "color": "red"},
-                                        "1": {"text": "VERIFIED", "color": "green"},
-                                    },
-                                }
-                            ],
-                        }
-                    ],
-                },
-                {
-                    "matcher": {"id": "byName", "options": "Sources checked"},
-                    "properties": [
-                        {
-                            "id": "thresholds",
-                            "value": {
-                                "mode": "absolute",
-                                "steps": [
-                                    {"color": "red", "value": None},
-                                    {"color": "green", "value": 8},
-                                ],
-                            },
-                        }
-                    ],
-                },
-                {
-                    "matcher": {"id": "byName", "options": "Source drift"},
-                    "properties": [
-                        {
-                            "id": "thresholds",
-                            "value": {
-                                "mode": "absolute",
-                                "steps": [
-                                    {"color": "green", "value": None},
-                                    {"color": "red", "value": 1},
-                                ],
-                            },
-                        }
-                    ],
-                },
             ],
         }
         if binding.get("fieldConfig") != wanted_config:
@@ -2730,15 +2184,12 @@ def main(argv: list[str] | None = None) -> int:
         changed = _ensure_v1_incident_drilldown_links(data) or changed
         changed = _ensure_v1_service_owner_row_descriptions(data) or changed
         changed = _ensure_signal_pipeline_links(data) or changed
-        changed = _ensure_signal_summary_panels(data) or changed
-        changed = _ensure_portfolio_evidence_panels(data) or changed
         changed = _fix_triage_guide_signal_path(data) or changed
         changed = _fix_market_traffic_health_description(data) or changed
         changed = _ensure_traffic_alert_armed_panel(data) or changed
         changed = _fix_market_data_freshness_panel(data) or changed
         changed = _fix_core_metrics_present_panel(data) or changed
         changed = _fix_railway_bridge_panel(data) or changed
-        changed = _force_instant_on_sparkline_free_stats(data) or changed
         changed = _keep_all_rows_expanded(data) or changed
         changed = _apply_user_facing_semantics(data) or changed
         changed = _co_locate_external_integration_details(data) or changed

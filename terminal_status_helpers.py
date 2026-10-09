@@ -16,42 +16,18 @@ def api_key_status(
     benzinga_key: str,
     databento_available: bool,
     openai_key: str,
-    producer_feed_configured: bool = False,
-    direct_news_configured: bool | None = None,
-    producer_ai_configured: bool = False,
-    direct_provider_names: tuple[str, ...] = (),
 ) -> list[dict[str, Any]]:
     """Return per-provider status dicts suitable for sidebar rendering.
 
     Each dict has ``name``, ``configured`` (bool), ``icon``, ``message``.
-
-    The news row is an INGEST ROUTE, not one vendor: it covers the private
-    signals-producer feed plus the direct providers the terminal can poll
-    itself.  It has never meant newsapi.ai (decommissioned — see
-    ``terminal_newsapi.py``), so it is labelled "News Ingest" and the message
-    names the actual sources.  ``direct_provider_names`` carries those names
-    from the call site, which is the only place that knows which direct keys
-    are live.
     """
     results: list[dict[str, Any]] = []
 
-    direct_news = bool(benzinga_key) if direct_news_configured is None else direct_news_configured
-    direct_label = ", ".join(direct_provider_names) or (
-        "Benzinga" if benzinga_key else "direct providers"
-    )
-    if producer_feed_configured and direct_news:
-        news_message = f"signals producer primary, {direct_label} as direct fallback"
-    elif producer_feed_configured:
-        news_message = "signals producer only (no direct fallback configured)"
-    elif direct_news:
-        news_message = f"{direct_label} direct only (no signals producer configured)"
-    else:
-        news_message = "no live news source configured"
     results.append({
-        "name": "News Ingest",
-        "configured": direct_news or producer_feed_configured,
-        "icon": "✅" if direct_news or producer_feed_configured else "❌",
-        "message": news_message,
+        "name": "News API",
+        "configured": bool(benzinga_key),
+        "icon": "✅" if benzinga_key else "❌",
+        "message": "configured" if benzinga_key else "No BENZINGA_API_KEY found",
     })
     results.append({
         "name": "Databento",
@@ -61,17 +37,9 @@ def api_key_status(
     })
     results.append({
         "name": "OpenAI",
-        "configured": producer_ai_configured,
-        "icon": "✅" if producer_ai_configured else "—",
-        "message": (
-            "configured via signals producer"
-            if producer_ai_configured
-            else (
-                "local key ignored; Producer AI route not configured"
-                if openai_key
-                else "not configured (AI Insights disabled)"
-            )
-        ),
+        "configured": bool(openai_key),
+        "icon": "✅" if openai_key else "—",
+        "message": "configured" if openai_key else "not configured (AI Insights disabled)",
     })
     return results
 

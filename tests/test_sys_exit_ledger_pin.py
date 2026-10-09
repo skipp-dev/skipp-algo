@@ -42,13 +42,13 @@ _DIR_EXCLUDE = frozenset({
 _SYS_EXIT_LEDGER: frozenset[tuple[str, int]] = frozenset({
     # 2026-07-03 (WP-3 holdout rescoring): helper additions shifted CLI
     # guard exit from 244 -> 566.
-    ("open_prep/candidate_weights.py", 580),  # 2026-07-28 (Arm-B eligible-date split): 573->580
+    ("open_prep/candidate_weights.py", 573),  # 2026-07-10: eps_surprise_pct→recent_eps_surprise_pct reconstruction swap +1 (573->574)
     # 2026-06-13 (audit-e2/aw7-reader-observability, PR #2759): _load_previous_latest
     #   DEBUG log insertion shifted CLI exit from 358 → 359.
     # 2026-07-15 (ops-digest truth): _DIAGNOSTIC_COUNTERS constant + the top-level
     #   counter copy in generate_report shifted the CLI exit 360 → 380 (pure shift;
     #   still the `if __name__ == "__main__": sys.exit(main())` entry point).
-    ("open_prep/feature_importance_report.py", 427),  # 2026-07-28 (dedicated EWMA recalibration status): 380->427
+    ("open_prep/feature_importance_report.py", 380),
     # 2026-06-12 (backlog-resilience): main() exits non-zero when
     # store_daily_outcomes failed — the daily workflow's primary artifact
     # (outcomes_<date>.json) must not fail silently green.
@@ -56,7 +56,7 @@ _SYS_EXIT_LEDGER: frozenset[tuple[str, int]] = frozenset({
     # 2026-06-25: feature-flag helper addition shifted 6045 -> 6049.
     # 2026-07-04 (market-microstructure observe-only): import + snapshot
     # block + row-loop fields shifted 6065 -> 6091.
-    ("open_prep/run_open_prep.py", 6442),  # 2026-07-28 (§15 + split-safe integration): 6359->6442
+    ("open_prep/run_open_prep.py", 6096),  # 2026-07-19 remove retired TradingView news lane
     # 2026-06-02 (#2497): +68 lines after the `provenance` subcommand block
     # was inserted above the lint dispatch (was 400, 402).
     # 2026-07-15 (provenance v2): active_root_pine_scripts() + its docstring

@@ -22,18 +22,6 @@ from typing import Any
 from . import config
 
 _cache_lock = threading.Lock()
-#: Eigener Zustand fuer die Praesenz-Sonde: andere Kadenz, anderes Ausfallbild.
-#: Faellt sie aus, darf das den Haupt-Snapshot NICHT mitreissen -- deshalb
-#: getrennte Sperre, getrennter Cache, getrenntes try am Aufrufort.
-_presence_lock = threading.Lock()
-_presence_cache: dict[str, float | None] | None = None
-_presence_at_monotonic = 0.0
-_workflow_ids_cache: dict[str, int] | None = None
-_workflow_ids_at_monotonic = 0.0
-#: Die Namen->ID-Tabelle aendert sich nur, wenn jemand eine Workflow-Datei
-#: anlegt, umbenennt oder loescht. Eine Stunde ist reichlich und spart pro
-#: Praesenz-Runde die Paginierung ueber /actions/workflows.
-_WORKFLOW_IDS_TTL_SECONDS = 3600.0
 _cached_snapshot: dict[str, Any] | None = None
 _cached_at_monotonic = 0.0
 
@@ -90,7 +78,7 @@ def _iso_age_seconds(iso_ts: str | None) -> float | None:
         epoch = parsed.timestamp()
     except Exception:
         return None
-    return age if (age := time.time() - epoch) >= 0.0 else None
+    return max(0.0, time.time() - epoch)
 
 
 def _duration_seconds(started_at: str | None, updated_at: str | None) -> float | None:
@@ -245,17 +233,6 @@ def _fetch_snapshot(token: str) -> dict[str, Any]:
     for row in workflows_latest.values():
         row.pop("latest_success_final", None)
 
-    # Praesenz jedes DEKLARIERTEN Workflows. 2026-08-31 umgestellt: frueher
-    # gegen die Lauf-Seite dieses Polls geurteilt -- und die deckte an dem Tag
-    # neun Stunden ab (am 2026-08-20 fuenf; sie schrumpft mit der Aktivitaet).
-    # Ein taeglicher Workflow fehlte darauf zwei Drittel des Tages, "gestoppt"
-    # und "lief heute frueh" waren also nicht unterscheidbar. Die Regel darueber
-    # laeuft mit `for: 6h` -- sie haette bei gesetzter Erwartungsliste JEDEN TAG
-    # fuer JEDEN Daily gefeuert. Die Praesenz kommt jetzt aus einer eigenen
-    # Abfrage je Workflow mit eigener, langsamerer Kadenz (presence_snapshot).
-    alter = presence_snapshot()
-    expected_present = {name: (0 if alter.get(name) is None else 1) for name in alter}
-
     return {
         "enabled": 1,
         "configured": 1,
@@ -266,113 +243,7 @@ def _fetch_snapshot(token: str) -> dict[str, Any]:
         "latest_run_age_seconds": latest_age,
         "latest_run_duration_seconds": latest_duration,
         "workflows": list(workflows_latest.values()),
-        "expected_present": expected_present,
     }
-
-
-def _workflow_ids_by_name(token: str, timeout: int) -> dict[str, int]:
-    """Anzeigename -> Workflow-ID, ueber alle Seiten, stundenweise gecacht."""
-    global _workflow_ids_cache, _workflow_ids_at_monotonic
-
-    now_mono = time.monotonic()
-    if (
-        _workflow_ids_cache is not None
-        and (now_mono - _workflow_ids_at_monotonic) < _WORKFLOW_IDS_TTL_SECONDS
-    ):
-        return dict(_workflow_ids_cache)
-
-    owner, repo = config.github_workflow_repo()
-    safe_owner = urllib.parse.quote(owner, safe="")
-    safe_repo = urllib.parse.quote(repo, safe="")
-    tabelle: dict[str, int] = {}
-    page = 1
-    while page <= 10:  # harte Obergrenze: 1000 Workflows sind mehr als real
-        url = (
-            f"https://api.github.com/repos/{safe_owner}/{safe_repo}/actions/workflows"
-            f"?per_page=100&page={page}"
-        )
-        parsed = _github_request_json(url, token, timeout)
-        seite = list(parsed.get("workflows") or [])
-        for eintrag in seite:
-            name = str(eintrag.get("name") or "").strip()
-            wid = eintrag.get("id")
-            if name and isinstance(wid, int):
-                tabelle.setdefault(name, wid)
-        if len(seite) < 100:
-            break
-        page += 1
-
-    _workflow_ids_cache = dict(tabelle)
-    _workflow_ids_at_monotonic = now_mono
-    return tabelle
-
-
-def _presence_ages(token: str) -> dict[str, float | None]:
-    """Alter des neuesten Laufs je DEKLARIERTEM Workflow, eigene Abfrage je Name.
-
-    ``None`` heisst "kein Lauf gefunden" -- entweder gibt es den Workflow nicht
-    (Name falsch geschrieben, Datei geloescht) oder er hat auf dem beobachteten
-    Branch noch nie gelaufen. Beides ist ein Befund, kein fehlendes Datum.
-
-    Bewusst NICHT aus der geteilten Lauf-Seite abgeleitet: die deckt nur wenige
-    Stunden ab, und genau daran scheiterte die alte Fassung.
-    """
-    erwartet = config.github_workflow_expected()
-    if not erwartet:
-        return {}
-
-    timeout = config.github_workflow_timeout_secs()
-    ids = _workflow_ids_by_name(token, timeout)
-    owner, repo = config.github_workflow_repo()
-    safe_owner = urllib.parse.quote(owner, safe="")
-    safe_repo = urllib.parse.quote(repo, safe="")
-    branch = config.github_workflow_branch()
-
-    raus: dict[str, float | None] = {}
-    for name in erwartet:
-        wid = ids.get(name)
-        if wid is None:
-            raus[name] = None
-            continue
-        query = "per_page=1"
-        if branch:
-            query += f"&branch={urllib.parse.quote(branch, safe='')}"
-        url = (
-            f"https://api.github.com/repos/{safe_owner}/{safe_repo}"
-            f"/actions/workflows/{wid}/runs?{query}"
-        )
-        parsed = _github_request_json(url, token, timeout)
-        runs = list(parsed.get("workflow_runs") or [])
-        raus[name] = _iso_age_seconds(runs[0].get("created_at")) if runs else None
-    return raus
-
-
-def presence_snapshot() -> dict[str, float | None]:
-    """Gecachte Praesenz-Alter. Wirft nicht; bei Fehlschlag der letzte Stand.
-
-    Der zuletzt bekannte Stand ist hier die richtige Degradation: eine leere
-    Antwort waere von "alle Workflows verschwunden" nicht zu unterscheiden und
-    wuerde einen Alarm ausloesen, den ein API-Schluckauf verursacht hat.
-    """
-    global _presence_cache, _presence_at_monotonic
-
-    token = config.github_workflow_token()
-    if not token:
-        return {}
-    ttl = config.github_workflow_presence_ttl_secs()
-    with _presence_lock:
-        now_mono = time.monotonic()
-        if _presence_cache is not None and (now_mono - _presence_at_monotonic) < ttl:
-            return dict(_presence_cache)
-        try:
-            frisch = _presence_ages(token)
-        except (OSError, ValueError, KeyError, TypeError):
-            # Kein blankes `except`: der Repo-Waechter gegen breite Except-
-            # Stellen gilt auch hier. Transport, kaputtes JSON, fehlende Felder.
-            return dict(_presence_cache) if _presence_cache is not None else {}
-        _presence_cache = dict(frisch)
-        _presence_at_monotonic = now_mono
-        return frisch
 
 
 def snapshot() -> dict[str, Any]:
@@ -397,9 +268,6 @@ def snapshot() -> dict[str, Any]:
             "latest_run_age_seconds": None,
             "latest_run_duration_seconds": None,
             "workflows": [],
-            # No fetch happened, so presence is UNKNOWN, not "missing": emit no
-            # series rather than a fabricated 0 that would page a disabled bridge.
-            "expected_present": {},
             # Disabled bridge (no token → enabled=0) is NOT an error — the
             # missing-token state is already conveyed by configured=0. Emit
             # error=None so bridge_error_info stays 0, consistent with railway's
@@ -442,10 +310,6 @@ def snapshot() -> dict[str, Any]:
                 "latest_run_age_seconds": None,
                 "latest_run_duration_seconds": None,
                 "workflows": [],
-                # Scrape failed — presence is UNKNOWN. The keep-last-good path below
-                # preserves the previous truthful map; this empty one only takes effect
-                # when the very first poll failed, where silence beats a false "missing".
-                "expected_present": {},
                 "error": type(exc).__name__,
                 "error_code": error_code,
                 "error_message": str(exc),
@@ -453,15 +317,5 @@ def snapshot() -> dict[str, Any]:
 
         if fresh.get("ok") == 1 or _cached_snapshot is None:
             _cached_snapshot = fresh
-        else:
-            # Keep last-good DATA but carry the truthful last-attempt STATUS
-            # (see uptimerobot_bridge: retaining ok=1/error=none froze
-            # bridge_scrape_success/error_info green during persistent
-            # failures). A later success replaces the snapshot wholesale.
-            _cached_snapshot = {
-                **_cached_snapshot,
-                "last_attempt_ok": 0,
-                "last_attempt_error_code": str(fresh.get("error_code") or "unknown"),
-            }
         _cached_at_monotonic = time.monotonic()
         return dict(_cached_snapshot)

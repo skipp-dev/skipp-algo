@@ -39,11 +39,7 @@ def test_trend_tf3_tooltip_references_ipda_adaptive_layer() -> None:
     assert m is not None
     t = m.group(1)
     assert "IPDA" in t
-    # 2026-08-12: this used to pin the Python symbol `select_ipda_htf` inside a
-    # tooltip a customer reads. The behaviour is what the tooltip owes them, so
-    # assert the behaviour: an adaptive umbrella timeframe sits above layer 3.
-    assert "adaptive" in t.lower()
-    assert "D -> W -> M" in t
+    assert "select_ipda_htf" in t
 
 
 def test_all_three_trend_tfs_have_tooltips() -> None:

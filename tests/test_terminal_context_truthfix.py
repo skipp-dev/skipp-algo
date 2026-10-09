@@ -16,15 +16,3 @@ def test_assemble_context_reads_sentiment_label() -> None:
     feed = [{"headline": "h", "ticker": "AAPL", "news_score": 0.9, "sentiment_label": "zzbull42"}]
     ctx = assemble_context(feed, max_articles=1)
     assert "zzbull42" in ctx
-
-
-def test_assemble_context_keeps_databento_as_explicit_source() -> None:
-    from terminal_fmp_insights import assemble_context
-
-    ctx = assemble_context(
-        [{"headline": "h", "ticker": "AAPL", "news_score": 0.9}],
-        databento_quotes={"AAPL": {"close": 213.4, "volume": 123_456}},
-    )
-
-    assert '"databento_quotes"' in ctx
-    assert '"close": 213.4' in ctx

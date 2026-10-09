@@ -276,28 +276,13 @@ def average_precision(probabilities: Sequence[float], labels: Sequence[int]) -> 
     positives = sum(labels)
     if positives == 0:
         return 0.0
-    ranked = sorted(
-        zip(probabilities, labels, strict=True),
-        key=lambda item: item[0],
-        reverse=True,
-    )
+    ranked = sorted(zip(probabilities, labels, strict=True), reverse=True)
     true_positives = 0
-    rows_seen = 0
     precision_sum = 0.0
-    index = 0
-    while index < len(ranked):
-        score = ranked[index][0]
-        group_rows = 0
-        group_positives = 0
-        while index < len(ranked) and ranked[index][0] == score:
-            group_rows += 1
-            group_positives += ranked[index][1]
-            index += 1
-        rows_seen += group_rows
-        true_positives += group_positives
-        if group_positives:
-            # Equal scores are one threshold; labels must not break their tie.
-            precision_sum += group_positives * true_positives / rows_seen
+    for rank, (_, label) in enumerate(ranked, start=1):
+        if label:
+            true_positives += 1
+            precision_sum += true_positives / rank
     return precision_sum / positives
 
 

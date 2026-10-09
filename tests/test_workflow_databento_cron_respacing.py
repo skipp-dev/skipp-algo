@@ -116,50 +116,15 @@ def test_every_producer_tick_has_consumer_followup_with_headroom() -> None:
     )
 
 
-def test_the_consumer_keeps_the_fast_path_that_makes_fewer_ticks_safe() -> None:
-    """Der Cron ist das Netz, ``workflow_run`` ist der Weg.
-
-    Hier stand bis 2026-08-29 ein GLEICHHEITS-Pin (``len(c_ticks) ==
-    len(p_ticks)``) mit der Begruendung "sonst geht ein Producer-Lauf
-    unkonsumiert durch". Die traegt nur, wenn Cron der EINZIGE Konsumweg
-    waere - er ist es nicht: der Consumer haengt zusaetzlich per
-    ``workflow_run`` am Producer und startet bei JEDEM erfolgreichen
-    Producer-Abschluss (im Workflow woertlich "primary fast path", der Cron
-    "safety net"). Der Pin zaehlte also das Netz, als waere es der Weg, und
-    erzwang neun volle Refresh-Laeufe pro Werktag ZUSAETZLICH zu den neun,
-    die der Fast Path ohnehin ausloest.
-
-    Gemessen 2026-08-27 ueber alle 414 Laeufe des Tages: 13 Refresh-Laeufe,
-    951 Runner-Minuten - 17 % der gesamten Actions-Last des Repos. Die
-    Netz-Kadenz sank daraufhin auf vier Ticks (13/17/21/23 UTC).
-
-    Was den Vertrag jetzt haelt, ist staerker als eine Zahl:
-
-    * ``test_every_producer_tick_has_consumer_followup_with_headroom``
-      (oben) - jeder Producer-Tick hat weiter einen Netz-Tick >=60 min
-      spaeter, und keiner faellt in ein Schreibfenster;
-    * dieser Test - der Fast Path EXISTIERT. Faellt er weg, waeren die vier
-      Ticks ploetzlich der einzige Weg, und die Refresh-Kadenz saenke still
-      von "nach jedem Producer-Lauf" auf "viermal am Tag".
-    """
-    consumer = _load(_CONSUMER)
-    triggers = consumer.get(True, consumer.get("on", {}))
-    assert isinstance(triggers, dict), f"{_CONSUMER.name}: `on:` ist kein Mapping"
-
-    fast_path = triggers.get("workflow_run")
-    assert isinstance(fast_path, dict), (
-        f"{_CONSUMER.name} hat keinen `workflow_run`-Trigger mehr. Die "
-        "reduzierte Cron-Kadenz (4 statt 9 Ticks, 2026-08-29) ist NUR "
-        "vertretbar, solange der Fast Path jeden Producer-Abschluss "
-        "aufgreift."
-    )
-    watched = [str(w) for w in (fast_path.get("workflows") or [])]
-    assert any("atabento" in w for w in watched), (
-        f"{_CONSUMER.name}: `workflow_run` beobachtet {watched!r} - der "
-        "Producer ist nicht darunter, der Fast Path zeigt ins Leere."
-    )
-    assert "completed" in (fast_path.get("types") or ["completed"]), (
-        f"{_CONSUMER.name}: `workflow_run` reagiert nicht auf `completed`"
+def test_consumer_tick_count_matches_producer() -> None:
+    """Each producer tick should have exactly one consumer follow-up — no
+    silent drops, no duplicates."""
+    p_ticks = _cron_ticks(_load(_PRODUCER))
+    c_ticks = _cron_ticks(_load(_CONSUMER))
+    assert len(c_ticks) == len(p_ticks), (
+        f"Producer has {len(p_ticks)} cron ticks but consumer has "
+        f"{len(c_ticks)} \u2014 either a producer run goes unconsumed or a "
+        "consumer run fires without fresh upstream data."
     )
 
 

@@ -2,11 +2,7 @@ from __future__ import annotations
 
 import re
 
-from tests.smc_manifest_test_utils import (
-    ROOT,
-    load_manifest,
-    published_micro_profiles_import_line,
-)
+from tests.smc_manifest_test_utils import ROOT, load_manifest
 
 CORE_PATH = ROOT / 'SMC_Long_Dip_Suite.pine'
 ENGINE_PRIVATE_PATH = ROOT / 'SMC++' / 'smc_engine_private.pine'
@@ -62,7 +58,7 @@ def test_core_engine_header_restores_import_prelude_and_blocks_stray_method_body
     following_nonempty = [line for line in lines[indicator_index + 1:] if line.strip()][:6]
     assert following_nonempty[:3] == [
         'import preuss_steffen/smc_core_types/5 as ct',
-        'import preuss_steffen/smc_utils/4 as u',
+        'import preuss_steffen/smc_utils/3 as u',
         'import preuss_steffen/smc_draw/3 as d',
     ]
     assert not following_nonempty[0].startswith((' ', '\t'))
@@ -83,7 +79,7 @@ def test_core_engine_breadth_gate_uses_optional_text_input_and_guarded_request()
 
 def test_core_engine_uses_effective_microstructure_aliases_for_generated_library_handoff() -> None:
     source = _read_core_source()
-    assert published_micro_profiles_import_line() in source
+    assert 'import preuss_steffen/smc_micro_profiles_generated/156 as mp' in source
     assert 'input.string(\'\', \'Clean reclaim tickers\'' not in source
     assert 'string clean_reclaim_tickers_effective = mp.CLEAN_RECLAIM_TICKERS' in source
     assert 'string stop_hunt_tickers_effective = mp.STOP_HUNT_PRONE_TICKERS' in source
@@ -164,26 +160,6 @@ def test_core_engine_uses_signal_quality_as_primary_gate() -> None:
     assert '= ll.resolve_long_entry_projection_state(' in source
     assert 'bool combined_quality_gate_ok' not in source
     assert 'signal_bias_bullish' not in source
-
-
-def test_signal_quality_labels_and_pine_gates_share_complementary_edges() -> None:
-    """Boundary scores keep the lower label while opening the next Pine gate."""
-    from scripts.smc_signal_quality import _score_tier
-
-    source = _read_core_source()
-    boundaries = (
-        (25, "low", "bool signal_quality_ok   = lib_sq_score >= 25"),
-        (50, "ok", "bool signal_quality_good = lib_sq_score >= 50"),
-        (75, "good", "bool signal_quality_high = lib_sq_score >= 75"),
-    )
-
-    for score, expected_label, pine_gate in boundaries:
-        assert _score_tier(score) == expected_label
-        assert pine_gate in source
-
-    assert "Tier labels use inclusive upper bands (25 remains low, 50 ok, 75 good)" in source
-    assert "gates deliberately open at those same scores" in source
-
 
 def test_core_engine_has_no_dashboard_or_alert_transport_layer() -> None:
     source = _read_core_source()
@@ -299,7 +275,7 @@ def test_core_engine_tracks_c7_execution_and_bus_projection_owners() -> None:
 def test_core_engine_tracks_c8_event_edge_and_debug_owners() -> None:
     source = _read_core_source()
     observability_source = _read_observability_private_source()
-    assert 'import preuss_steffen/smc_observability_private/4 as obv' in source
+    assert 'import preuss_steffen/smc_observability_private/3 as obv' in source
     assert 'export resolve_long_ready_signal_state(' in observability_source
     assert 'export emit_long_engine_debug_logs(' in observability_source
     assert '= obv.resolve_long_ready_signal_state(' in source

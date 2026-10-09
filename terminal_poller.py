@@ -96,13 +96,11 @@ _CURSOR_KEY_BENZINGA = "benzinga"
 _CURSOR_KEY_FMP_STOCK = "fmp_stock"
 _CURSOR_KEY_FMP_PRESS = "fmp_press"
 _CURSOR_KEY_TV = "tv"
-_CURSOR_KEY_PRODUCER = "producer"
 _LIVE_CURSOR_KEYS: tuple[str, ...] = (
     _CURSOR_KEY_BENZINGA,
     _CURSOR_KEY_FMP_STOCK,
     _CURSOR_KEY_FMP_PRESS,
     _CURSOR_KEY_TV,
-    _CURSOR_KEY_PRODUCER,
 )
 _CANONICAL_STORY_BUCKET_SECONDS = 900
 _HEADLINE_NORMALIZE_RE = re.compile(r"[^a-z0-9]+")
@@ -145,8 +143,6 @@ def live_news_source_label(provider_counts: dict[str, int] | None) -> str:
         labels.append("FMP")
     if _CURSOR_KEY_TV in counts:
         labels.append("TV")
-    if _CURSOR_KEY_PRODUCER in counts:
-        labels.append("PRODUCER")
     return "+".join(labels) if labels else "NONE"
 
 
@@ -263,25 +259,6 @@ class TerminalConfig:
     openai_api_key: str = field(
         default_factory=lambda: os.getenv("OPENAI_API_KEY", ""),
         repr=False,
-    )
-    producer_feed_url: str = field(
-        default_factory=lambda: os.getenv("TERMINAL_PRODUCER_FEED_URL", ""),
-    )
-    producer_feed_token: str = field(
-        default_factory=lambda: os.getenv("TERMINAL_PRODUCER_FEED_TOKEN", ""),
-        repr=False,
-    )
-    producer_feed_timeout_s: float = field(
-        default_factory=lambda: _env_float("TERMINAL_PRODUCER_FEED_TIMEOUT_S", 5.0),
-    )
-    producer_feed_max_age_s: float = field(
-        default_factory=lambda: _env_float("TERMINAL_PRODUCER_FEED_MAX_AGE_S", 300.0),
-    )
-    producer_ai_timeout_s: float = field(
-        default_factory=lambda: _env_float("TERMINAL_PRODUCER_AI_TIMEOUT_S", 150.0),
-    )
-    direct_news_primary: bool = field(
-        default_factory=lambda: os.getenv("TERMINAL_DIRECT_NEWS_PRIMARY", "0") == "1",
     )
     poll_interval_s: float = field(
         default_factory=lambda: _env_float("TERMINAL_POLL_INTERVAL_S", 10.0),

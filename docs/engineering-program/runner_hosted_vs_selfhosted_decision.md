@@ -57,47 +57,6 @@ acceptable thresholds. Current durations on `ubuntu-latest` are acceptable.
 | Workflow field | `runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER \|\| 'ubuntu-latest' }}` |
 | Fallback | `ubuntu-latest` (if variable is unset) |
 | Timeout | 120 minutes |
-| Erlaubte Werte | `ubuntu-latest`, `ubuntu-24.04`, `ubuntu-22.04`, `ubuntu-24.04-4core`, `ubuntu-24.04-8core` |
-
-Die Zeile „Erlaubte Werte" ist keine Empfehlung, sondern durchgesetzt. Quelle ist
-`.github/runner_label_allowlist.json`; die Sonde
-`scripts/check_runner_label_variables.py` hält den **live gesetzten** Wert alle
-sechs Stunden dagegen und öffnet ein Issue, wenn er ausschert. Nötig ist das,
-weil ein unbekanntes Label die betroffenen Jobs nicht rot macht, sondern
-verhindert: GitHub plant sie nie ein, sie bleiben **unbefristet** `queued` und
-werden dann still `cancelled` — weder `timeout-minutes` noch der
-Workflow-Fehleralarm sehen das. `SMC_GH_HOSTED_RUNNER` trägt 80 der 97
-`runs-on`-Stellen des Repos (gemessen 2026-08-29), darunter die beiden einzigen
-required Kontexte `fast-gates` und `gate`.
-
-### `SMC_CI_ARM_RUNNER` — arm64 nur für die `ci.yml`-`validate`-Lane (seit 2026-08-29)
-
-`SMC_GH_HOSTED_RUNNER` steuert ~80 Stellen inklusive der Playwright/TV-Lanes und
-ist damit kein Hebel für ein Experiment an einer einzelnen Lane. Dafür gibt es
-`SMC_CI_ARM_RUNNER`, das im `runs-on`-Ausdruck von `ci.yml` **vor** der globalen
-Variablen steht:
-
-```yaml
-runs-on: ${{ vars.SMC_CI_ARM_RUNNER || vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
-```
-
-| Feld | Wert |
-|------|------|
-| Wirkungsbereich | ausschließlich `ci.yml`, Job `validate` (4 Shards) |
-| Erlaubte Werte | `ubuntu-24.04-arm`, `ubuntu-22.04-arm` — sonst nichts (Quelle: `.github/runner_label_allowlist.json`) |
-| Ungesetzt | Lane fährt die bisherige Wahl (kein arm64) |
-| Nutzen | linux-arm64 ist ein **Standard**-Runner (kein "larger"): zählt gegen das Freikontingent, darüber $0.005 statt $0.006/min |
-| **Zurückrollen** | Repo-Variable `SMC_CI_ARM_RUNNER` löschen. Kein Code-Change, kein Deploy. |
-
-`ubuntu-latest-arm` **existiert nicht** — GitHub bietet für linux-arm64 nur
-versionierte Labels an. Ein unbekannter Wert wird nicht etwa rot, sondern
-erzeugt gar keinen Lauf: GitHub findet kein passendes Label, der Job bleibt
-**unbefristet** `queued`. (Korrektur 2026-08-29: die 24-h-Zeile der Actions-Limits gilt nur self-hosted und nur je JOB; fuer GitHub-hosted ist keine Warteschlangen-Grenze dokumentiert.) Deshalb prüft der
-vorgeschaltete Job `runner-preflight` den Wert gegen die Allowlist oben und
-scheitert laut mit dem konkreten Wert im `::error::`, bevor die vier *required*
-`validate (N)`-Shards in diese Queue laufen. Ausgeführt (nicht nur gelesen) in
-`tests/test_ci_runner_preflight_rejects_unknown_label.py`; ein neues Label
-einzutragen ist eine Ein-Zeilen-Änderung an beiden Stellen.
 
 ## Self-hosted: Historical Context
 

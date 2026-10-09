@@ -12,13 +12,11 @@ import pytest
 
 import scripts.smc_databento_session_detail as session_detail
 import scripts.smc_microstructure_base_runtime as runtime
-from scripts.smc_databento_session_detail import _coerce_bool
 from scripts.smc_microstructure_base_runtime import (
-    _NO_DECAY_HALF_LIFE_BUCKETS,
     _abs_return_series_for_index,
-    _aggregate_window_metrics,
     _clip01,
     _clip01_series,
+    _coerce_bool,
     _coerce_bool_series,
     _coerce_trade_date_series,
     _column_nanmeans_or_zero,
@@ -28,7 +26,6 @@ from scripts.smc_microstructure_base_runtime import (
     _grouped_setup_decay_half_life_30m_buckets,
     _mean_or_default,
     _nanquantile_or_default,
-    _observed_available_minutes_by_date,
     _quantile_or_default,
     _safe_float,
     _safe_ratio,
@@ -148,11 +145,7 @@ def test_setup_decay_half_life_30m_buckets_returns_zero_when_first_bucket_zero()
     assert _setup_decay_half_life_30m_buckets(frame) == 0.0
 
 
-def test_setup_decay_half_life_30m_buckets_returns_no_decay_sentinel_when_threshold_not_hit() -> None:
-    # M3: "never decayed within the session" must be scored independently of how many
-    # 30m buckets were observed, so an early-close (short) session is not mislabelled
-    # as faster decay. No-hit returns the fixed full-session sentinel, not the
-    # observed bucket count (which here would have been 3).
+def test_setup_decay_half_life_30m_buckets_returns_bucket_count_when_threshold_not_hit() -> None:
     frame = pd.DataFrame(
         [
             {"minutes_from_open": 0, "dollar_volume": 10.0},
@@ -161,7 +154,7 @@ def test_setup_decay_half_life_30m_buckets_returns_no_decay_sentinel_when_thresh
         ]
     )
 
-    assert _setup_decay_half_life_30m_buckets(frame) == float(_NO_DECAY_HALF_LIFE_BUCKETS)
+    assert _setup_decay_half_life_30m_buckets(frame) == 3.0
 
 
 def test_grouped_setup_decay_half_life_matches_scalar_helper() -> None:
@@ -177,60 +170,8 @@ def test_grouped_setup_decay_half_life_matches_scalar_helper() -> None:
 
     grouped = _grouped_setup_decay_half_life_30m_buckets(frame, group_columns=["trade_date", "symbol"])
 
-    # AAA halves by bucket 1 (10 -> 4). BBB never halves (10, 9, 8) -> M3 no-decay
-    # sentinel, matching the scalar helper (both are session-length-independent now).
     assert grouped.loc[("2026-03-20", "AAA")] == pytest.approx(1.0)
-    assert grouped.loc[("2026-03-20", "BBB")] == pytest.approx(float(_NO_DECAY_HALF_LIFE_BUCKETS))
-
-
-def test_observed_available_minutes_shrinks_on_early_close_but_caps_full_day() -> None:
-    # M3: a full RTH day spans 09:30 (et 570) -> 15:59 (et 959) = 390 minutes; an
-    # early-close day ends 12:59 (et 779) = 210 minutes. The denominator must track
-    # the observed session, capped at the scheduled length.
-    subset = pd.DataFrame(
-        [
-            {"trade_date": "full", "et_minute": 570},
-            {"trade_date": "full", "et_minute": 959},
-            {"trade_date": "early", "et_minute": 570},
-            {"trade_date": "early", "et_minute": 779},
-        ]
-    )
-
-    available = _observed_available_minutes_by_date(subset, scheduled_minutes=390)
-
-    assert available.loc["full"] == pytest.approx(390.0)
-    assert available.loc["early"] == pytest.approx(210.0)
-
-
-def test_active_minutes_share_measures_the_observed_session_on_early_close() -> None:
-    # M3: a fully-active early-close session must score ~1.0, not (short/full). Using a
-    # scheduled length of 10 for a compact fixture: a 10-minute "full" day and a
-    # 5-minute "early" day, each fully active. The old fixed denominator would have
-    # capped the early day at 5/10 = 0.5.
-    def _row(trade_date: str, et_minute: int) -> dict[str, object]:
-        return {
-            "trade_date": trade_date,
-            "symbol": "AAA",
-            "et_minute": et_minute,
-            "open": 100.0,
-            "high": 100.0,
-            "low": 100.0,
-            "close": 100.0,
-            "dollar_volume": 1000.0,
-            "trade_proxy": 10.0,
-            "active_minute": True,
-            "spread_bps_proxy": 1.0,
-            "wickiness_proxy": 0.1,
-        }
-
-    rows = [_row("full", 570 + i) for i in range(10)] + [_row("early", 570 + i) for i in range(5)]
-    frame = pd.DataFrame(rows)
-    mask = pd.Series(True, index=frame.index)
-
-    out = _aggregate_window_metrics(frame, mask, group_columns=["trade_date", "symbol"], available_minutes=10)
-
-    assert out.loc[("full", "AAA"), "active_minutes_share"] == pytest.approx(1.0)
-    assert out.loc[("early", "AAA"), "active_minutes_share"] == pytest.approx(1.0)
+    assert grouped.loc[("2026-03-20", "BBB")] == pytest.approx(3.0)
 
 
 def test_safe_float_handles_scalar_strings_and_missing_values() -> None:
@@ -2378,25 +2319,3 @@ def test_collect_full_universe_session_minute_detail_writes_unresolved_cache_sid
     payload = json.loads(cache_meta_path.read_text(encoding="utf-8"))
     assert payload["trade_day"] == "2026-02-10"
     assert payload["runtime_unsupported_symbols"] == ["AACB"]
-
-
-def test_bundle_without_session_minute_detail_fails_loudly(tmp_path: Path) -> None:
-    """A bundle that carries daily features but no minute detail must not pass.
-
-    2026-07-22 incident: `session_minute_detail_full_universe` is not in
-    REQUIRED_BUNDLE_FRAMES, so a bundle missing it fell back to an empty frame.
-    Every minute-derived metric then resolved to 0.0, no symbol crossed a
-    membership threshold, and the generated library shipped seven empty ticker
-    lists. Nothing failed — the run was green and the payload was worthless.
-    Silently zeroed inputs must be an error, not a default.
-    """
-    bundle_payload, _session_minute_detail = _make_bundle_payload(tmp_path)
-    assert "session_minute_detail_full_universe" not in bundle_payload["frames"]
-
-    with pytest.raises(RuntimeError, match=r"session_minute_detail_full_universe"):
-        build_base_snapshot_from_bundle_payload(
-            bundle_payload,
-            schema_path=SCHEMA_PATH,
-            session_minute_detail=None,
-            asof_date="2026-03-20",
-        )

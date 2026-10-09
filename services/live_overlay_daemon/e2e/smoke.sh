@@ -11,8 +11,7 @@
 #   bash services/live_overlay_daemon/e2e/smoke.sh
 #
 # Env overrides: PORT (default 8799), TOKEN (default smoketoken123),
-#   PY (default: this checkout's .venv, then the main checkout's .venv,
-#       then python3 — first candidate that can import fastapi wins).
+#   PY (default .venv/bin/python, falls back to python3).
 set -uo pipefail
 
 ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
@@ -20,31 +19,8 @@ cd "$ROOT"
 
 PORT="${PORT:-8799}"
 TOKEN="${TOKEN:-smoketoken123}"
-# Interpreter resolution (worktree-aware): $PY > this checkout's .venv >
-# the MAIN checkout's .venv (via git-common-dir) > python3. `git worktree`
-# checkouts have no .venv of their own, so the old two-line fallback landed on
-# the system python3 (3.9, no fastapi) and the smoke died on an import error
-# that looked like a product bug. Mirrors the resolution in
-# scripts/run_ledger_drift_guard.sh, including its "candidate must be able to
-# import what we need" check, so an interpreter without the deps is reported as
-# such instead of failing 40 lines later.
-MAIN_ROOT="$(cd "$(git rev-parse --git-common-dir)/.." && pwd)"
-PY_RESOLVED=""
-for cand in "${PY:-}" "$ROOT/.venv/bin/python" "$MAIN_ROOT/.venv/bin/python" \
-            "$ROOT/.venv/Scripts/python.exe" "$MAIN_ROOT/.venv/Scripts/python.exe" \
-            python3 python; do
-  [ -n "$cand" ] || continue
-  if "$cand" -c "import fastapi" 2>/dev/null; then
-    PY_RESOLVED="$cand"
-    break
-  fi
-done
-if [ -z "$PY_RESOLVED" ]; then
-  echo "ERROR: no python with fastapi found (tried \$PY, $ROOT/.venv, $MAIN_ROOT/.venv, python3, python)." >&2
-  echo "       Create the project venv and install requirements.txt, or set PY=/path/to/python." >&2
-  exit 1
-fi
-PY="$PY_RESOLVED"
+PY="${PY:-.venv/bin/python}"
+[ -x "$PY" ] || PY="python3"
 B="http://127.0.0.1:${PORT}"
 LOG="$(mktemp -t overlay-daemon.XXXXXX.log)"
 FAILED=0

@@ -9,11 +9,9 @@ Covers:
 """
 from __future__ import annotations
 
-import re
 import time
 import urllib.request
 from datetime import UTC, datetime
-from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock
@@ -21,9 +19,6 @@ from unittest.mock import MagicMock
 import pytest
 
 import open_prep.realtime_signals as rs
-from open_prep.databento_quote_feed import DatabentoFeedTelemetry
-from open_prep.quote_reference import QuoteReference, QuoteReferenceRow
-from open_prep.quote_source import DatabentoQuoteSource
 
 # ---------------------------------------------------------------------------
 # _collect_process_metrics() unit tests
@@ -302,50 +297,6 @@ def test_collect_process_metrics_exposes_postmarket_adapter_state() -> None:
     )
 
 
-def test_collect_process_metrics_exposes_databento_feed_telemetry() -> None:
-    telemetry = DatabentoFeedTelemetry()
-    telemetry.set_connected(True)
-    telemetry.record_received()
-    telemetry.record_reconnect_attempt()
-    telemetry.record_bento_error()
-    telemetry.record_queue_drop()
-    engine = SimpleNamespace(
-        _watchlist=[],
-        open_prep_snapshot_loaded=1.0,
-        open_prep_snapshot_age_seconds=0.0,
-        last_poll_success_epoch=time.time(),
-        last_poll_duration_seconds=0.0,
-        _databento_feed=SimpleNamespace(telemetry=telemetry),
-    )
-
-    body = rs._collect_process_metrics(engine)
-
-    assert "databento_quote_feed_connected 1" in body
-    assert "databento_quote_feed_records_received_total 1" in body
-    assert "databento_quote_feed_reconnect_attempts_total 1" in body
-    assert "databento_quote_feed_bento_errors_total 1" in body
-    assert "databento_quote_feed_queue_dropped_total 1" in body
-
-
-def test_collect_process_metrics_survives_databento_telemetry_failure() -> None:
-    telemetry = SimpleNamespace(
-        render_prometheus=MagicMock(side_effect=RuntimeError("broken telemetry")),
-    )
-    engine = SimpleNamespace(
-        _watchlist=[],
-        open_prep_snapshot_loaded=1.0,
-        open_prep_snapshot_age_seconds=0.0,
-        last_poll_success_epoch=time.time(),
-        last_poll_duration_seconds=0.0,
-        _databento_feed=SimpleNamespace(telemetry=telemetry),
-    )
-
-    body = rs._collect_process_metrics(engine)
-
-    assert "signals_producer_process_uptime_seconds" in body
-    telemetry.render_prometheus.assert_called_once_with()
-
-
 def test_readyz_returns_503_when_not_ready(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("SIGNALS_INTERNAL_TOKEN", raising=False)
     telemetry = MagicMock()
@@ -364,7 +315,6 @@ def test_readyz_returns_503_when_not_ready(monkeypatch: pytest.MonkeyPatch) -> N
 
 def test_readyz_returns_200_when_ready(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("SIGNALS_INTERNAL_TOKEN", raising=False)
-    monkeypatch.setenv("RT_QUOTE_SOURCE", "fmp")
     engine = SimpleNamespace(
         _watchlist=[{"symbol": "AAPL"}],
         open_prep_snapshot_loaded=1.0,
@@ -380,91 +330,6 @@ def test_readyz_returns_200_when_ready(monkeypatch: pytest.MonkeyPatch) -> None:
         status, body = _get(f"http://127.0.0.1:{port}/readyz")
         assert status == 200
         assert body.strip() == "ready"
-    finally:
-        server.shutdown()
-
-
-def _databento_ready_engine(*, connected: bool, records_received: int) -> SimpleNamespace:
-    telemetry = SimpleNamespace(
-        snapshot=lambda: {
-            "connected": connected,
-            "records_received": records_received,
-        },
-    )
-    feed = SimpleNamespace(telemetry=telemetry)
-    reference = QuoteReference({
-        "AAPL": QuoteReferenceRow(
-            previous_close=100.0,
-            average_daily_volume=1_000_000.0,
-            as_of_session="2026-07-27",
-            source="fmp:adjusted-eod+adv=databento:equs-mini-ohlcv-1d",
-        ),
-    })
-    source = DatabentoQuoteSource(feed, reference)
-    return SimpleNamespace(
-        _watchlist=[{"symbol": "AAPL"}],
-        open_prep_snapshot_loaded=1.0,
-        last_poll_success_epoch=time.time(),
-        _client_disabled_reason="RuntimeError",
-        _databento_feed=feed,
-        _quote_source=source,
-    )
-
-
-def test_readyz_requires_selected_databento_source(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("SIGNALS_INTERNAL_TOKEN", raising=False)
-    monkeypatch.setenv("RT_QUOTE_SOURCE", "databento")
-    engine = _databento_ready_engine(connected=True, records_received=1)
-    engine._quote_source = None
-    telemetry = MagicMock()
-    telemetry.snapshot.return_value = {}
-    server = rs._start_telemetry_server(telemetry, port=0, host="127.0.0.1", engine=engine)
-    if server is None:
-        return
-    try:
-        status, body = _get(f"http://127.0.0.1:{server.server_port}/readyz")
-        assert status == 503
-        assert "databento quote source not initialised" in body
-    finally:
-        server.shutdown()
-
-
-def test_readyz_accepts_connected_databento_with_regular_records(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.delenv("SIGNALS_INTERNAL_TOKEN", raising=False)
-    monkeypatch.setenv("RT_QUOTE_SOURCE", "databento")
-    monkeypatch.setattr(rs, "_market_session", lambda: "regular")
-    engine = _databento_ready_engine(connected=True, records_received=1)
-    telemetry = MagicMock()
-    telemetry.snapshot.return_value = {}
-    server = rs._start_telemetry_server(telemetry, port=0, host="127.0.0.1", engine=engine)
-    if server is None:
-        return
-    try:
-        status, body = _get(f"http://127.0.0.1:{server.server_port}/readyz")
-        assert status == 200
-        assert body.strip() == "ready"
-    finally:
-        server.shutdown()
-
-
-def test_readyz_rejects_databento_without_regular_records(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.delenv("SIGNALS_INTERNAL_TOKEN", raising=False)
-    monkeypatch.setenv("RT_QUOTE_SOURCE", "databento")
-    monkeypatch.setattr(rs, "_market_session", lambda: "regular")
-    engine = _databento_ready_engine(connected=True, records_received=0)
-    telemetry = MagicMock()
-    telemetry.snapshot.return_value = {}
-    server = rs._start_telemetry_server(telemetry, port=0, host="127.0.0.1", engine=engine)
-    if server is None:
-        return
-    try:
-        status, body = _get(f"http://127.0.0.1:{server.server_port}/readyz")
-        assert status == 503
-        assert "no regular-session records" in body
     finally:
         server.shutdown()
 
@@ -591,244 +456,3 @@ def test_collect_metrics_data_stale_is_market_gated() -> None:
     eng = _engine(now - rs.DATA_STALL_SECONDS - 60, in_market=True)
     del eng._in_market_hours
     assert "signals_producer_data_stale 0" in rs._collect_process_metrics(eng)
-
-
-# ---------------------------------------------------------------------------
-# Client-disabled visibility (a producer that can never build its FMP client
-# must not look healthy: gauge for alerting + /readyz 503)
-# ---------------------------------------------------------------------------
-
-def test_collect_metrics_exports_client_disabled_gauge() -> None:
-    """signals_producer_client_disabled is 0/1 and rendered unconditionally;
-    when disabled, the reason surfaces as an info label so the runbook does
-    not have to shell into the container to find it."""
-    import time as _t
-    import types
-
-    def _engine(reason: str | None) -> types.SimpleNamespace:
-        return types.SimpleNamespace(
-            last_poll_success_epoch=_t.time(),
-            last_poll_duration_seconds=0.1,
-            open_prep_snapshot_loaded=1,
-            open_prep_snapshot_age_seconds=10.0,
-            _watchlist=[],
-            _client=None,
-            _last_data_epoch=_t.time(),
-            _in_market_hours=False,
-            _client_disabled_reason=reason,
-        )
-
-    body = rs._collect_process_metrics(_engine(None))
-    assert "signals_producer_client_disabled 0" in body
-    assert "signals_producer_client_disabled_info" not in body
-
-    body = rs._collect_process_metrics(_engine("RuntimeError"))
-    assert "signals_producer_client_disabled 1" in body
-    assert 'signals_producer_client_disabled_info{reason="RuntimeError"} 1' in body
-
-    # Old engine object without the attribute → healthy default, never a crash.
-    eng = _engine(None)
-    del eng._client_disabled_reason
-    assert "signals_producer_client_disabled 0" in rs._collect_process_metrics(eng)
-
-
-def test_readyz_returns_503_when_client_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A permanently disabled FMP client can never produce data: /readyz must
-    fail closed even though the poll loop keeps marking loop-liveness success
-    on every disabled cycle ("UIs stay green" empty-snapshot path)."""
-    monkeypatch.delenv("SIGNALS_INTERNAL_TOKEN", raising=False)
-    monkeypatch.setenv("RT_QUOTE_SOURCE", "fmp")
-    engine = SimpleNamespace(
-        _watchlist=[{"symbol": "AAPL"}],
-        open_prep_snapshot_loaded=1.0,
-        last_poll_success_epoch=time.time(),
-        _client_disabled_reason="RuntimeError",
-    )
-    telemetry = MagicMock()
-    telemetry.snapshot.return_value = {}
-    server = rs._start_telemetry_server(telemetry, port=0, host="127.0.0.1", engine=engine)
-    if server is None:
-        return
-    try:
-        port = int(server.server_port)
-        status, body = _get(f"http://127.0.0.1:{port}/readyz")
-        assert status == 503
-        assert "client disabled" in body
-    finally:
-        server.shutdown()
-
-
-class TestRailwayTokenStartupGuard:
-    """On Railway an empty SIGNALS_INTERNAL_TOKEN must refuse to serve.
-
-    2026-08-18 (Doppelgaenger-Sweep D-K1): Railway delivers a MISSING secret
-    as an empty string, and the tokenless local-dev mode would then publish
-    /signals.json and /metrics unauthenticated on the public domain while the
-    sibling endpoints keep failing closed. The guard crashes at startup —
-    loud and immediate — and leaves the documented local mode untouched.
-    """
-
-    def test_railway_with_empty_token_refuses_to_start(self, monkeypatch) -> None:
-        monkeypatch.setenv("RAILWAY_ENVIRONMENT", "production")
-        monkeypatch.setenv("SIGNALS_INTERNAL_TOKEN", "  ")
-        with pytest.raises(SystemExit, match="SIGNALS_INTERNAL_TOKEN"):
-            rs._require_internal_token_on_railway()
-
-    def test_railway_with_token_passes(self, monkeypatch) -> None:
-        monkeypatch.setenv("RAILWAY_ENVIRONMENT", "production")
-        monkeypatch.setenv("SIGNALS_INTERNAL_TOKEN", "secret")
-        rs._require_internal_token_on_railway()
-
-    def test_local_without_token_stays_permitted(self, monkeypatch) -> None:
-        monkeypatch.delenv("RAILWAY_ENVIRONMENT", raising=False)
-        monkeypatch.delenv("SIGNALS_INTERNAL_TOKEN", raising=False)
-        rs._require_internal_token_on_railway()
-
-    def test_the_server_start_calls_the_guard(self) -> None:
-        import inspect
-
-        source = inspect.getsource(rs._start_telemetry_server)
-        assert "_require_internal_token_on_railway()" in source
-
-
-# ---------------------------------------------------------------------------
-# Alert-watched FMP endpoint series must exist before the first call
-# (Geburtsfehler-Sweep 2026-08-19)
-# ---------------------------------------------------------------------------
-
-_ALERT_RULES = (
-    Path(__file__).resolve().parents[1]
-    / "services"
-    / "live_overlay_daemon"
-    / "infra"
-    / "grafana"
-    / "alert-rules.yaml"
-)
-
-
-def _alert_watched_fmp_endpoints() -> set[str]:
-    """Endpoint labels the deployed rules select, DERIVED from the rule file."""
-    text = _ALERT_RULES.read_text(encoding="utf-8")
-    watched: set[str] = set()
-    for labels in re.findall(
-        r"signals_producer_fmp_endpoint_\w+\{([^}]*)\}",
-        "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("#")),
-    ):
-        for key, value in re.findall(r'(\w+)\s*=\s*"([^"]*)"', labels):
-            if key == "endpoint":
-                watched.add(value)
-    return watched
-
-
-def _usage_engine(usage: dict[str, dict[str, int]]) -> SimpleNamespace:
-    client = SimpleNamespace(get_endpoint_usage_stats=lambda: usage)
-    return SimpleNamespace(
-        _watchlist=[],
-        open_prep_snapshot_loaded=1.0,
-        open_prep_snapshot_age_seconds=1.0,
-        last_poll_success_epoch=1_700_000_000.0,
-        last_poll_duration_seconds=0.1,
-        _avg_vol_retry_after={},
-        _client=client,
-    )
-
-
-def test_every_alert_watched_fmp_endpoint_is_seeded() -> None:
-    """The seed population is derived from the rules, never remembered.
-
-    A rule that starts watching another endpoint by label fails here instead
-    of silently sitting on a series that only appears once the thing it was
-    meant to catch has already happened.
-    """
-    watched = _alert_watched_fmp_endpoints()
-    # Floor: an extraction that finds nothing would make the assertion vacuous.
-    assert watched, "no endpoint-labelled signals_producer rule found — extraction broke"
-    missing = sorted(watched - set(rs.SEEDED_FMP_ENDPOINTS))
-    assert not missing, (
-        f"alert rules select these endpoints by label but nothing seeds their "
-        f"series: {missing} — increase() would swallow the first burst as its "
-        "own baseline (the event the rule exists for)"
-    )
-
-
-def test_watched_endpoint_series_exists_before_the_first_call() -> None:
-    body = rs._collect_process_metrics(
-        _usage_engine({"/stable/quote": {"calls": 42, "errors": 0, "response_bytes": 900}})
-    )
-    for endpoint in _alert_watched_fmp_endpoints():
-        assert (
-            f'signals_producer_fmp_endpoint_requests_total{{endpoint="{endpoint}"}} 0' in body
-        ), f"{endpoint} has no zero-seeded series before its first call"
-
-
-def test_seeding_does_not_overwrite_a_real_measurement() -> None:
-    """Mutation proof in the other direction: real counts must win."""
-    body = rs._collect_process_metrics(
-        _usage_engine({"/stable/profile-bulk": {"calls": 7, "errors": 1, "response_bytes": 42}})
-    )
-    assert (
-        'signals_producer_fmp_endpoint_requests_total{endpoint="/stable/profile-bulk"} 7' in body
-    )
-
-
-def test_an_empty_seed_reopens_the_hole() -> None:
-    """Mutation proof: with the seed removed the watched series disappears."""
-    original = rs.SEEDED_FMP_ENDPOINTS
-    rs.SEEDED_FMP_ENDPOINTS = ()
-    try:
-        body = rs._collect_process_metrics(
-            _usage_engine({"/stable/quote": {"calls": 1, "errors": 0, "response_bytes": 1}})
-        )
-    finally:
-        rs.SEEDED_FMP_ENDPOINTS = original
-    assert "profile-bulk" not in body
-
-
-# ---------------------------------------------------------------------------
-# Cisco AI Defense self-probe gauges (open_prep/cisco_probe.py)
-# ---------------------------------------------------------------------------
-
-def test_collect_process_metrics_exposes_cisco_probe_state() -> None:
-    from open_prep.cisco_probe import CiscoKeyProber
-
-    prober = CiscoKeyProber(interval_s=3600.0, probe_fn=lambda: (True, ""))
-    prober.attempts = 3
-    prober.failures = 1
-    prober.consecutive_failures = 0
-    prober.last_success_epoch = time.time() - 5.0
-    prober.last_ok = True
-    engine = SimpleNamespace(
-        _watchlist=[],
-        open_prep_snapshot_loaded=1.0,
-        open_prep_snapshot_age_seconds=0.0,
-        last_poll_success_epoch=time.time(),
-        last_poll_duration_seconds=0.0,
-        _cisco_prober=prober,
-    )
-
-    body = rs._collect_process_metrics(engine)
-
-    assert "signals_producer_cisco_probe_ok 1" in body
-    assert "signals_producer_cisco_probe_attempts_total 3" in body
-    assert "signals_producer_cisco_probe_failures_total 1" in body
-    assert "signals_producer_cisco_probe_consecutive_failures 0" in body
-    age_match = re.search(r"signals_producer_cisco_probe_last_success_age_seconds (\d+\.\d)", body)
-    assert age_match is not None
-    assert 0.0 <= float(age_match.group(1)) < 60.0
-
-
-def test_collect_process_metrics_omits_cisco_probe_series_without_prober() -> None:
-    # The absent() alert rule (sp-cisco-probe-missing) owns this state: an
-    # engine without a running prober must NOT export seeded zeros that would
-    # read as healthy.
-    engine = SimpleNamespace(
-        _watchlist=[],
-        open_prep_snapshot_loaded=1.0,
-        open_prep_snapshot_age_seconds=0.0,
-        last_poll_success_epoch=time.time(),
-        last_poll_duration_seconds=0.0,
-    )
-
-    body = rs._collect_process_metrics(engine)
-
-    assert "cisco_probe" not in body

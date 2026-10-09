@@ -59,11 +59,7 @@ from typing import Any
 
 from governance.family_returns import (
     DEFAULT_COST_BPS,
-    LEGACY_RETURN_RULE,
-    PIVOT_LOOKUP,
-    RETURN_RULE,
     extract_family_calibration_samples,
-    record_grain_events,
 )
 from governance.magnitude_resolution_gate import (
     DEFAULT_N_BOOTSTRAP,
@@ -106,40 +102,7 @@ LEDGER_COLUMNS = (
     "status",
     "fail_reasons",
     "plane",
-    "return_rule",
 )
-
-
-def row_return_rule(row: dict[str, Any]) -> str:
-    """The return rule a ledger row was graded under.
-
-    Rows written before 2026-10-02 carry no ``return_rule``; they were graded
-    under Variant A (``touch_then_horizon_close``), the only rule there was.
-    """
-    value = row.get("return_rule")
-    return str(value) if value else LEGACY_RETURN_RULE
-
-
-def rows_under_current_rule(
-    rows: list[dict[str, Any]],
-) -> tuple[list[dict[str, Any]], dict[str, int]]:
-    """Rows graded under ``RETURN_RULE``, and a count of the others per rule.
-
-    The move-size target is the size of the realized return, so a row is an
-    observation of the rule it was graded under. Rows of different rules are
-    different experiments — a k-of-n over both, or a proof under one rule
-    presented as evidence for the other, would pool them (ADR-0031, Nachtrag
-    2026-10-02 II).
-    """
-    current: list[dict[str, Any]] = []
-    others: Counter[str] = Counter()
-    for row in rows:
-        rule = row_return_rule(row)
-        if rule == RETURN_RULE:
-            current.append(row)
-        else:
-            others[rule] += 1
-    return current, dict(others)
 
 
 def _today_utc() -> str:
@@ -174,36 +137,6 @@ _PLANE_LABELS: dict[int, str] = {
 }
 
 
-def _forward_interval_counter(event: dict[str, Any]) -> Counter[int]:
-    """Positive pairwise deltas of one event's ``forward_timestamps``."""
-    intervals: Counter[int] = Counter()
-    for first, second in pairwise(event.get("forward_timestamps") or []):
-        try:
-            delta = int(float(second) - float(first))
-        except (TypeError, ValueError):
-            continue
-        if delta > 0:
-            intervals[delta] += 1
-    return intervals
-
-
-def event_measurement_plane(event: dict[str, Any]) -> str | None:
-    """Modal forward-bar interval of ONE event, as a human-readable label.
-
-    The per-event twin of ``derive_measurement_plane``: since #2667 the
-    rolling benchmark scores every chart TF on real per-TF structure, so the
-    accumulated pool is genuinely multi-cadence (observed 2026-07-20: 5m/10m/
-    15m/30m/1H side by side, zero 1D). A pool-level modal label cannot govern
-    such a mix — filtering must happen per event, against each event's own
-    cadence.
-    """
-    intervals = _forward_interval_counter(event)
-    if not intervals:
-        return None
-    modal = intervals.most_common(1)[0][0]
-    return _PLANE_LABELS.get(modal, f"{modal}s")
-
-
 def derive_measurement_plane(events: list[dict[str, Any]]) -> str | None:
     """Modal forward-bar interval of *events*, as a human-readable label.
 
@@ -219,7 +152,14 @@ def derive_measurement_plane(events: list[dict[str, Any]]) -> str | None:
     """
     intervals: Counter[int] = Counter()
     for event in events:
-        intervals.update(_forward_interval_counter(event))
+        stamps = event.get("forward_timestamps") or []
+        for first, second in pairwise(stamps):
+            try:
+                delta = int(float(second) - float(first))
+            except (TypeError, ValueError):
+                continue
+            if delta > 0:
+                intervals[delta] += 1
     if not intervals:
         return None
     modal = intervals.most_common(1)[0][0]
@@ -280,9 +220,6 @@ def build_ledger_rows(
                 # on different planes are different experiments — the
                 # weekly k-of-n must never pool across plane values.
                 "plane": plane,
-                # The rule the realized returns behind this row were computed
-                # under; rows of another rule are another experiment too.
-                "return_rule": RETURN_RULE,
             }
         )
     return rows
@@ -296,7 +233,6 @@ def build_heartbeat_rows(
     plane: str | None,
     cost_bps: float,
     seed: int = DEFAULT_SEED,
-    fail_reason: str = "all_thin",
 ) -> list[dict[str, Any]]:
     """One INCONCLUSIVE heartbeat row per family for a fresh-but-thin day.
 
@@ -334,9 +270,8 @@ def build_heartbeat_rows(
                 "perm_p": None,
                 "passes": False,
                 "status": "INCONCLUSIVE",
-                "fail_reasons": [fail_reason],
+                "fail_reasons": ["all_thin"],
                 "plane": plane,
-                "return_rule": RETURN_RULE,
             }
         )
     return rows
@@ -526,20 +461,6 @@ def main(argv: list[str] | None = None) -> int:
         default=DEFAULT_SEED,
         help=f"RNG seed for the CI/null (default: {DEFAULT_SEED})",
     )
-    parser.add_argument(
-        "--plane",
-        default=None,
-        help=(
-            "governed measurement plane (e.g. '1D'): grade only events whose "
-            "OWN modal forward-bar interval matches, so a multi-TF pool can "
-            "never flip the ledger's plane or mix cadences inside one row "
-            "(2026-07-16..21 regression: the accumulated pool went "
-            "5m-dominated and three mixed-pool gradings were stamped '5m', "
-            "wedging the weekly k-of-n's plane guard). With zero matching "
-            "events the run appends plane_starved heartbeat rows instead of "
-            "grading foreign-cadence evidence."
-        ),
-    )
     args = parser.parse_args(argv)
 
     if args.date is not None:
@@ -564,37 +485,6 @@ def main(argv: list[str] | None = None) -> int:
         print("error: event list is empty", file=sys.stderr)
         return 1
 
-    # One grain: the pool also carries coarse BOS events (ADR-0031, Nachtrag
-    # 2026-10-03 IV); the shadow ledger measures the record's grain.
-    grain_total = len(events)
-    events = record_grain_events(events)
-    print(
-        f"grain filter: kept {len(events)}/{grain_total} events on pivot_lookup {PIVOT_LOOKUP}",
-        file=sys.stderr,
-    )
-
-    plane_starved = False
-    if args.plane:
-        total = len(events)
-        events = [
-            event
-            for event in events
-            if event_measurement_plane(event) == args.plane
-        ]
-        print(
-            f"plane filter: kept {len(events)}/{total} events on governed "
-            f"plane {args.plane}",
-            file=sys.stderr,
-        )
-        # Zero matching events is NOT an input error (rc 1 would red a run
-        # that DID inspect fresh evidence) and must not grade foreign-cadence
-        # events either: record a distinguishable heartbeat so the ledger
-        # advances, and let the stale-feed guard (rc 5) + the 10-day
-        # commit-back gap guard escalate if the governed plane stays starved.
-        plane_starved = not events
-
-    # Hash the FILTERED evidence — it is what gets graded; the stale-feed
-    # guard below must compare exactly that, not the raw multi-TF pool.
     events_hash = events_content_hash(events)
     obs_date = args.date or _today_utc()
     try:
@@ -608,9 +498,6 @@ def main(argv: list[str] | None = None) -> int:
             str(r.get("date"))
             for r in existing
             if r.get("events_hash") == events_hash
-            # Same events under ANOTHER return rule were a different
-            # measurement, not an earlier copy of this vote.
-            and row_return_rule(r) == RETURN_RULE
             and (parsed := _parse_row_date(r.get("date"))) is not None
             and parsed < obs_parsed
         }
@@ -633,35 +520,6 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 5
 
-    if plane_starved:
-        # The pool carried events, just none on the governed plane: append
-        # plane_starved heartbeats (stamped with the governed plane so the
-        # ledger stays single-plane) and report rc 3 — the same "nothing
-        # measured" verdict an all-thin day gets. Day 2 of an unchanged
-        # starved pool exits rc 5 above; a starvation outlasting the gap
-        # budget turns the gap guard red.
-        try:
-            new_rows = append_rows(
-                build_heartbeat_rows(
-                    [],
-                    date=obs_date,
-                    events_hash=events_hash,
-                    plane=args.plane,
-                    cost_bps=args.cost_bps,
-                    seed=args.seed,
-                    fail_reason="plane_starved",
-                ),
-                ledger_path=args.ledger,
-            )
-        except ValueError as exc:
-            print(f"error: {exc}", file=sys.stderr)
-            return 1
-        print(
-            f"shadow ledger {args.ledger} [{RETURN_RULE}]: {_summarize(new_rows)}",
-            file=sys.stderr,
-        )
-        return 3
-
     report = build_report(
         events,
         cost_bps=args.cost_bps,
@@ -671,10 +529,7 @@ def main(argv: list[str] | None = None) -> int:
         seed=args.seed,
     )
 
-    # With an active filter every event's OWN modal interval equals the
-    # governed plane, so stamp that directly: the pooled mode could still be
-    # tipped by rare off-modal intervals (gaps) inside the kept events.
-    plane = args.plane if args.plane else derive_measurement_plane(events)
+    plane = derive_measurement_plane(events)
     try:
         if report["results"]:
             new_rows = append_shadow_ledger(
@@ -707,7 +562,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
-    print(f"shadow ledger {args.ledger} [{RETURN_RULE}]: {_summarize(new_rows)}", file=sys.stderr)
+    print(f"shadow ledger {args.ledger}: {_summarize(new_rows)}", file=sys.stderr)
     if not report["results"]:
         print(
             "thin-input profile: "

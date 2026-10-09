@@ -1,236 +1,808 @@
 {
-  "current_month": "2026-07",
+  "current_month": "2026-10",
   "dimensions": {
-    "2026-07": {
-      "benzinga_rest|response|shared_fetch": {
-        "bytes": 0.0,
+    "2026-08": {
+      "fmp|/stable/batch-aftermarket-quote|open_prep.fmp_client": {
+        "bytes": 3129765.0,
         "cache_hits": 0.0,
         "cache_misses": 0.0,
-        "calls": 0.0,
+        "calls": 84.0,
         "errors": 0.0,
-        "latency_ms_total": 0.0,
+        "latency_ms_total": 21381.410838999727,
         "rate_limit_hits": 0.0,
-        "records": 3.0
+        "records": 18793.0
       },
-      "benzinga_rest|shared_cache|shared_fetch": {
-        "bytes": 0.0,
-        "cache_hits": 0.0,
-        "cache_misses": 3.0,
-        "calls": 0.0,
-        "errors": 0.0,
-        "latency_ms_total": 0.0,
-        "rate_limit_hits": 0.0,
-        "records": 0.0
-      },
-      "fmp_general_latest|response|shared_fetch": {
-        "bytes": 0.0,
+      "fmp|/stable/batch-aftermarket-trade|open_prep.fmp_client": {
+        "bytes": 1944020.0,
         "cache_hits": 0.0,
         "cache_misses": 0.0,
-        "calls": 0.0,
+        "calls": 84.0,
         "errors": 0.0,
-        "latency_ms_total": 0.0,
+        "latency_ms_total": 21817.27567199988,
         "rate_limit_hits": 0.0,
-        "records": 0.0
+        "records": 18793.0
       },
-      "fmp_general_latest|shared_cache|shared_fetch": {
-        "bytes": 0.0,
-        "cache_hits": 0.0,
-        "cache_misses": 9.0,
-        "calls": 0.0,
-        "errors": 0.0,
-        "latency_ms_total": 0.0,
-        "rate_limit_hits": 0.0,
-        "records": 0.0
-      },
-      "fmp_press_latest|response|shared_fetch": {
-        "bytes": 0.0,
+      "fmp|/stable/biggest-gainers|open_prep.fmp_client": {
+        "bytes": 180834.0,
         "cache_hits": 0.0,
         "cache_misses": 0.0,
-        "calls": 0.0,
+        "calls": 21.0,
         "errors": 0.0,
-        "latency_ms_total": 0.0,
+        "latency_ms_total": 5728.427221999979,
         "rate_limit_hits": 0.0,
-        "records": 0.0
+        "records": 1050.0
       },
-      "fmp_press_latest|shared_cache|shared_fetch": {
-        "bytes": 0.0,
-        "cache_hits": 0.0,
-        "cache_misses": 8.0,
-        "calls": 0.0,
-        "errors": 0.0,
-        "latency_ms_total": 0.0,
-        "rate_limit_hits": 0.0,
-        "records": 0.0
-      },
-      "fmp_stock_latest|response|shared_fetch": {
-        "bytes": 0.0,
+      "fmp|/stable/biggest-losers|open_prep.fmp_client": {
+        "bytes": 183399.0,
         "cache_hits": 0.0,
         "cache_misses": 0.0,
-        "calls": 0.0,
+        "calls": 21.0,
         "errors": 0.0,
-        "latency_ms_total": 0.0,
+        "latency_ms_total": 4606.881912000021,
         "rate_limit_hits": 0.0,
-        "records": 3.0
+        "records": 1050.0
       },
-      "fmp_stock_latest|shared_cache|shared_fetch": {
-        "bytes": 0.0,
-        "cache_hits": 0.0,
-        "cache_misses": 6.0,
-        "calls": 0.0,
-        "errors": 0.0,
-        "latency_ms_total": 0.0,
-        "rate_limit_hits": 0.0,
-        "records": 0.0
-      },
-      "fmp|/stable/batch-quote|open_prep.fmp_client": {
-        "bytes": 100.0,
+      "fmp|/stable/company-screener|open_prep.fmp_client": {
+        "bytes": 7422589.0,
         "cache_hits": 0.0,
         "cache_misses": 0.0,
-        "calls": 5.0,
+        "calls": 21.0,
         "errors": 0.0,
-        "latency_ms_total": 0.38529194716829807,
+        "latency_ms_total": 13177.307402999946,
         "rate_limit_hits": 0.0,
-        "records": 5.0
+        "records": 16800.0
+      },
+      "fmp|/stable/discounted-cash-flow|open_prep.fmp_client": {
+        "bytes": 48305.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 420.0,
+        "errors": 0.0,
+        "latency_ms_total": 107738.06104299982,
+        "rate_limit_hits": 0.0,
+        "records": 420.0
+      },
+      "fmp|/stable/dividends-calendar|open_prep.fmp_client": {
+        "bytes": 8419190.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 21.0,
+        "errors": 0.0,
+        "latency_ms_total": 10359.473263000069,
+        "rate_limit_hits": 0.0,
+        "records": 31932.0
+      },
+      "fmp|/stable/earnings-calendar|open_prep.fmp_client": {
+        "bytes": 19725157.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 42.0,
+        "errors": 0.0,
+        "latency_ms_total": 20484.07748699995,
+        "rate_limit_hits": 0.0,
+        "records": 97733.0
+      },
+      "fmp|/stable/earnings|open_prep.fmp_client": {
+        "bytes": 4087937.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 1680.0,
+        "errors": 0.0,
+        "latency_ms_total": 421684.66684600106,
+        "rate_limit_hits": 0.0,
+        "records": 19719.0
       },
       "fmp|/stable/economic-calendar|open_prep.fmp_client": {
-        "bytes": 10.0,
+        "bytes": 1964270.0,
         "cache_hits": 0.0,
         "cache_misses": 0.0,
-        "calls": 5.0,
+        "calls": 21.0,
         "errors": 0.0,
-        "latency_ms_total": 25.092459996812977,
+        "latency_ms_total": 9637.818587999942,
         "rate_limit_hits": 0.0,
-        "records": 0.0
+        "records": 7013.0
       },
       "fmp|/stable/eod-bulk|open_prep.fmp_client": {
-        "bytes": 1474.0,
+        "bytes": 55075525.0,
         "cache_hits": 0.0,
         "cache_misses": 0.0,
-        "calls": 18.0,
+        "calls": 21.0,
         "errors": 0.0,
-        "latency_ms_total": 66.85662494419375,
+        "latency_ms_total": 37325.846225999994,
         "rate_limit_hits": 0.0,
-        "records": 23.0
+        "records": 948394.0
       },
-      "fmp|/stable/fmp-articles|newsstack_fmp.ingest_fmp": {
-        "bytes": 0.0,
+      "fmp|/stable/fmp-articles|open_prep.fmp_client": {
+        "bytes": 14792037.0,
         "cache_hits": 0.0,
         "cache_misses": 0.0,
-        "calls": 2.0,
+        "calls": 21.0,
         "errors": 0.0,
-        "latency_ms_total": 0.0,
+        "latency_ms_total": 12314.596488000017,
+        "rate_limit_hits": 0.0,
+        "records": 4200.0
+      },
+      "fmp|/stable/grades|open_prep.fmp_client": {
+        "bytes": 6699294.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 21.0,
+        "errors": 0.0,
+        "latency_ms_total": 9016.853710999996,
+        "rate_limit_hits": 0.0,
+        "records": 37508.0
+      },
+      "fmp|/stable/historical-chart/1hour|open_prep.fmp_client": {
+        "bytes": 62982807.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 1050.0,
+        "errors": 0.0,
+        "latency_ms_total": 371492.2378979999,
+        "rate_limit_hits": 0.0,
+        "records": 434734.0
+      },
+      "fmp|/stable/historical-chart/5min|open_prep.fmp_client": {
+        "bytes": 665553.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 1050.0,
+        "errors": 0.0,
+        "latency_ms_total": 275644.00465399976,
+        "rate_limit_hits": 0.0,
+        "records": 4625.0
+      },
+      "fmp|/stable/historical-price-eod/full|open_prep.fmp_client": {
+        "bytes": 805433732.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 34474.0,
+        "errors": 0.0,
+        "latency_ms_total": 9545102.380573,
+        "rate_limit_hits": 0.0,
+        "records": 3572281.0
+      },
+      "fmp|/stable/house-latest|open_prep.fmp_client": {
+        "bytes": 2792657.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 21.0,
+        "errors": 0.0,
+        "latency_ms_total": 9327.048142999898,
+        "rate_limit_hits": 0.0,
+        "records": 5250.0
+      },
+      "fmp|/stable/income-statement|open_prep.fmp_client": {
+        "bytes": 29322.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 21.0,
+        "errors": 0.0,
+        "latency_ms_total": 4835.137242999964,
+        "rate_limit_hits": 0.0,
+        "records": 21.0
+      },
+      "fmp|/stable/ipos-calendar|open_prep.fmp_client": {
+        "bytes": 124698.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 21.0,
+        "errors": 0.0,
+        "latency_ms_total": 4815.388464000165,
+        "rate_limit_hits": 0.0,
+        "records": 467.0
+      },
+      "fmp|/stable/most-actives|open_prep.fmp_client": {
+        "bytes": 178563.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 21.0,
+        "errors": 0.0,
+        "latency_ms_total": 5430.733111999956,
+        "rate_limit_hits": 0.0,
+        "records": 1050.0
+      },
+      "fmp|/stable/price-target-summary|open_prep.fmp_client": {
+        "bytes": 642941.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 1680.0,
+        "errors": 0.0,
+        "latency_ms_total": 419723.9376079996,
+        "rate_limit_hits": 0.0,
+        "records": 1640.0
+      },
+      "fmp|/stable/profile|open_prep.fmp_client": {
+        "bytes": 1261444.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 650.0,
+        "errors": 0.0,
+        "latency_ms_total": 190847.89203699946,
+        "rate_limit_hits": 0.0,
+        "records": 650.0
+      },
+      "fmp|/stable/quote|open_prep.fmp_client": {
+        "bytes": 24388473.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 54856.0,
+        "errors": 0.0,
+        "latency_ms_total": 12924919.121662995,
+        "rate_limit_hits": 0.0,
+        "records": 54856.0
+      },
+      "fmp|/stable/sector-performance-snapshot|open_prep.fmp_client": {
+        "bytes": 30760.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 21.0,
+        "errors": 0.0,
+        "latency_ms_total": 4795.322279999908,
+        "rate_limit_hits": 0.0,
+        "records": 231.0
+      },
+      "fmp|/stable/splits-calendar|open_prep.fmp_client": {
+        "bytes": 5506967.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 62.0,
+        "errors": 0.0,
+        "latency_ms_total": 20754.455657000035,
+        "rate_limit_hits": 0.0,
+        "records": 41289.0
+      },
+      "fmp|/stable/treasury-rates|open_prep.fmp_client": {
+        "bytes": 28088.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 21.0,
+        "errors": 0.0,
+        "latency_ms_total": 4489.726924999957,
+        "rate_limit_hits": 0.0,
+        "records": 105.0
+      }
+    },
+    "2026-09": {
+      "fmp|/stable/batch-aftermarket-quote|open_prep.fmp_client": {
+        "bytes": 2522325.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 68.0,
+        "errors": 0.0,
+        "latency_ms_total": 17032.02521200018,
+        "rate_limit_hits": 0.0,
+        "records": 15214.0
+      },
+      "fmp|/stable/batch-aftermarket-trade|open_prep.fmp_client": {
+        "bytes": 1568140.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 68.0,
+        "errors": 0.0,
+        "latency_ms_total": 18512.152868000016,
+        "rate_limit_hits": 0.0,
+        "records": 15214.0
+      },
+      "fmp|/stable/biggest-gainers|open_prep.fmp_client": {
+        "bytes": 147280.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 17.0,
+        "errors": 0.0,
+        "latency_ms_total": 3835.7064479999676,
+        "rate_limit_hits": 0.0,
+        "records": 850.0
+      },
+      "fmp|/stable/biggest-losers|open_prep.fmp_client": {
+        "bytes": 149237.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 17.0,
+        "errors": 0.0,
+        "latency_ms_total": 3892.5825379999987,
+        "rate_limit_hits": 0.0,
+        "records": 850.0
+      },
+      "fmp|/stable/company-screener|open_prep.fmp_client": {
+        "bytes": 6327257.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 17.0,
+        "errors": 0.0,
+        "latency_ms_total": 20419.343340000025,
+        "rate_limit_hits": 0.0,
+        "records": 13600.0
+      },
+      "fmp|/stable/discounted-cash-flow|open_prep.fmp_client": {
+        "bytes": 39133.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 340.0,
+        "errors": 0.0,
+        "latency_ms_total": 85011.62889700028,
+        "rate_limit_hits": 0.0,
+        "records": 340.0
+      },
+      "fmp|/stable/dividends-calendar|open_prep.fmp_client": {
+        "bytes": 9821611.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 17.0,
+        "errors": 0.0,
+        "latency_ms_total": 9611.983504999955,
+        "rate_limit_hits": 0.0,
+        "records": 37287.0
+      },
+      "fmp|/stable/earnings-calendar|open_prep.fmp_client": {
+        "bytes": 3485234.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 34.0,
+        "errors": 0.0,
+        "latency_ms_total": 10677.78611499983,
+        "rate_limit_hits": 0.0,
+        "records": 17486.0
+      },
+      "fmp|/stable/earnings|open_prep.fmp_client": {
+        "bytes": 3312591.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 1360.0,
+        "errors": 0.0,
+        "latency_ms_total": 323968.897599,
+        "rate_limit_hits": 0.0,
+        "records": 15980.0
+      },
+      "fmp|/stable/economic-calendar|open_prep.fmp_client": {
+        "bytes": 1712829.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 17.0,
+        "errors": 0.0,
+        "latency_ms_total": 5276.792099999937,
+        "rate_limit_hits": 0.0,
+        "records": 6107.0
+      },
+      "fmp|/stable/eod-bulk|open_prep.fmp_client": {
+        "bytes": 45105664.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 17.0,
+        "errors": 0.0,
+        "latency_ms_total": 35149.74876900001,
+        "rate_limit_hits": 0.0,
+        "records": 775967.0
+      },
+      "fmp|/stable/fmp-articles|open_prep.fmp_client": {
+        "bytes": 12945951.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 17.0,
+        "errors": 0.0,
+        "latency_ms_total": 10752.609090000009,
+        "rate_limit_hits": 0.0,
+        "records": 3400.0
+      },
+      "fmp|/stable/grades|open_prep.fmp_client": {
+        "bytes": 5458329.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 17.0,
+        "errors": 0.0,
+        "latency_ms_total": 7366.219819000036,
+        "rate_limit_hits": 0.0,
+        "records": 30563.0
+      },
+      "fmp|/stable/historical-chart/1hour|open_prep.fmp_client": {
+        "bytes": 52008572.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 850.0,
+        "errors": 0.0,
+        "latency_ms_total": 319683.68683300016,
+        "rate_limit_hits": 0.0,
+        "records": 359049.0
+      },
+      "fmp|/stable/historical-chart/5min|open_prep.fmp_client": {
+        "bytes": 700990.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 850.0,
+        "errors": 0.0,
+        "latency_ms_total": 205363.9824470001,
+        "rate_limit_hits": 0.0,
+        "records": 4828.0
+      },
+      "fmp|/stable/historical-price-eod/full|open_prep.fmp_client": {
+        "bytes": 688106280.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 29210.0,
+        "errors": 0.0,
+        "latency_ms_total": 7796202.631517001,
+        "rate_limit_hits": 0.0,
+        "records": 3053430.0
+      },
+      "fmp|/stable/house-latest|open_prep.fmp_client": {
+        "bytes": 2273501.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 17.0,
+        "errors": 0.0,
+        "latency_ms_total": 6895.981341000151,
+        "rate_limit_hits": 0.0,
+        "records": 4250.0
+      },
+      "fmp|/stable/income-statement|open_prep.fmp_client": {
+        "bytes": 23868.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 17.0,
+        "errors": 0.0,
+        "latency_ms_total": 4256.031511000017,
+        "rate_limit_hits": 0.0,
+        "records": 17.0
+      },
+      "fmp|/stable/ipos-calendar|open_prep.fmp_client": {
+        "bytes": 77309.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 17.0,
+        "errors": 0.0,
+        "latency_ms_total": 3451.4061629998587,
+        "rate_limit_hits": 0.0,
+        "records": 286.0
+      },
+      "fmp|/stable/most-actives|open_prep.fmp_client": {
+        "bytes": 144936.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 17.0,
+        "errors": 0.0,
+        "latency_ms_total": 3963.2192950000726,
+        "rate_limit_hits": 0.0,
+        "records": 850.0
+      },
+      "fmp|/stable/price-target-summary|open_prep.fmp_client": {
+        "bytes": 486374.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 1360.0,
+        "errors": 0.0,
+        "latency_ms_total": 316476.5496540003,
+        "rate_limit_hits": 0.0,
+        "records": 1326.0
+      },
+      "fmp|/stable/profile|open_prep.fmp_client": {
+        "bytes": 300587.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 164.0,
+        "errors": 0.0,
+        "latency_ms_total": 81472.97837600087,
+        "rate_limit_hits": 0.0,
+        "records": 164.0
+      },
+      "fmp|/stable/quote|open_prep.fmp_client": {
+        "bytes": 20369495.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 45761.0,
+        "errors": 0.0,
+        "latency_ms_total": 10473839.674257997,
+        "rate_limit_hits": 0.0,
+        "records": 45761.0
+      },
+      "fmp|/stable/sector-performance-snapshot|open_prep.fmp_client": {
+        "bytes": 24917.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 17.0,
+        "errors": 0.0,
+        "latency_ms_total": 3482.140556999866,
+        "rate_limit_hits": 0.0,
+        "records": 187.0
+      },
+      "fmp|/stable/splits-calendar|open_prep.fmp_client": {
+        "bytes": 4231558.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 51.0,
+        "errors": 0.0,
+        "latency_ms_total": 16393.279591000122,
+        "rate_limit_hits": 0.0,
+        "records": 31819.0
+      },
+      "fmp|/stable/treasury-rates|open_prep.fmp_client": {
+        "bytes": 21702.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 17.0,
+        "errors": 0.0,
+        "latency_ms_total": 3735.567246999949,
+        "rate_limit_hits": 0.0,
+        "records": 81.0
+      }
+    },
+    "2026-10": {
+      "fmp|/stable/batch-aftermarket-quote|open_prep.fmp_client": {
+        "bytes": 1035465.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 28.0,
+        "errors": 0.0,
+        "latency_ms_total": 5729.47554799984,
+        "rate_limit_hits": 0.0,
+        "records": 6269.0
+      },
+      "fmp|/stable/batch-aftermarket-trade|open_prep.fmp_client": {
+        "bytes": 644497.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 28.0,
+        "errors": 0.0,
+        "latency_ms_total": 6038.003375000045,
+        "rate_limit_hits": 0.0,
+        "records": 6269.0
+      },
+      "fmp|/stable/biggest-gainers|open_prep.fmp_client": {
+        "bytes": 60180.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 7.0,
+        "errors": 0.0,
+        "latency_ms_total": 1331.2641450000058,
+        "rate_limit_hits": 0.0,
+        "records": 350.0
+      },
+      "fmp|/stable/biggest-losers|open_prep.fmp_client": {
+        "bytes": 61452.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 7.0,
+        "errors": 0.0,
+        "latency_ms_total": 3648.4763339999945,
+        "rate_limit_hits": 0.0,
+        "records": 350.0
+      },
+      "fmp|/stable/company-screener|open_prep.fmp_client": {
+        "bytes": 2603797.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 7.0,
+        "errors": 0.0,
+        "latency_ms_total": 5241.404816,
+        "rate_limit_hits": 0.0,
+        "records": 5600.0
+      },
+      "fmp|/stable/discounted-cash-flow|open_prep.fmp_client": {
+        "bytes": 16108.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 140.0,
+        "errors": 0.0,
+        "latency_ms_total": 30742.234267000556,
+        "rate_limit_hits": 0.0,
+        "records": 140.0
+      },
+      "fmp|/stable/dividends-calendar|open_prep.fmp_client": {
+        "bytes": 2920997.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 7.0,
+        "errors": 0.0,
+        "latency_ms_total": 3520.675675999996,
+        "rate_limit_hits": 0.0,
+        "records": 11141.0
+      },
+      "fmp|/stable/earnings-calendar|open_prep.fmp_client": {
+        "bytes": 983861.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 14.0,
+        "errors": 0.0,
+        "latency_ms_total": 4183.249783999998,
+        "rate_limit_hits": 0.0,
+        "records": 4930.0
+      },
+      "fmp|/stable/earnings|open_prep.fmp_client": {
+        "bytes": 1364001.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 560.0,
+        "errors": 0.0,
+        "latency_ms_total": 122930.58499100001,
+        "rate_limit_hits": 0.0,
+        "records": 6580.0
+      },
+      "fmp|/stable/economic-calendar|open_prep.fmp_client": {
+        "bytes": 566800.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 7.0,
+        "errors": 0.0,
+        "latency_ms_total": 2160.383501999988,
+        "rate_limit_hits": 0.0,
+        "records": 2020.0
+      },
+      "fmp|/stable/eod-bulk|open_prep.fmp_client": {
+        "bytes": 15595287.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 7.0,
+        "errors": 0.0,
+        "latency_ms_total": 12129.474587999994,
+        "rate_limit_hits": 0.0,
+        "records": 269062.0
+      },
+      "fmp|/stable/fmp-articles|open_prep.fmp_client": {
+        "bytes": 4178592.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 6.0,
+        "errors": 0.0,
+        "latency_ms_total": 3297.7063039999875,
+        "rate_limit_hits": 0.0,
+        "records": 1200.0
+      },
+      "fmp|/stable/grades|open_prep.fmp_client": {
+        "bytes": 2256116.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 7.0,
+        "errors": 0.0,
+        "latency_ms_total": 3552.6000280000007,
+        "rate_limit_hits": 0.0,
+        "records": 12633.0
+      },
+      "fmp|/stable/historical-chart/1hour|open_prep.fmp_client": {
+        "bytes": 22034643.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 350.0,
+        "errors": 0.0,
+        "latency_ms_total": 106051.47579099987,
+        "rate_limit_hits": 0.0,
+        "records": 152159.0
+      },
+      "fmp|/stable/historical-chart/5min|open_prep.fmp_client": {
+        "bytes": 700.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 350.0,
+        "errors": 0.0,
+        "latency_ms_total": 83813.3832040005,
         "rate_limit_hits": 0.0,
         "records": 0.0
       },
       "fmp|/stable/historical-price-eod/full|open_prep.fmp_client": {
-        "bytes": 7693251.0,
+        "bytes": 275216236.0,
         "cache_hits": 0.0,
         "cache_misses": 0.0,
-        "calls": 917.0,
+        "calls": 11521.0,
         "errors": 0.0,
-        "latency_ms_total": 433533.24909415096,
+        "latency_ms_total": 2835338.5723879985,
         "rate_limit_hits": 0.0,
-        "records": 34164.0
+        "records": 1221012.0
       },
-      "fmp|/stable/news/stock-latest|newsstack_fmp.ingest_fmp": {
-        "bytes": 0.0,
+      "fmp|/stable/house-latest|open_prep.fmp_client": {
+        "bytes": 942519.0,
         "cache_hits": 0.0,
         "cache_misses": 0.0,
-        "calls": 0.0,
-        "errors": 1.0,
-        "latency_ms_total": 0.0,
-        "rate_limit_hits": 0.0,
-        "records": 0.0
-      },
-      "fmp|/stable/profile-bulk|open_prep.fmp_client": {
-        "bytes": 272.0,
-        "cache_hits": 0.0,
-        "cache_misses": 0.0,
-        "calls": 4.0,
+        "calls": 7.0,
         "errors": 0.0,
-        "latency_ms_total": 16.10295899445191,
+        "latency_ms_total": 2122.501762000013,
         "rate_limit_hits": 0.0,
-        "records": 4.0
+        "records": 1750.0
       },
-      "fmp|/stable/some-path|open_prep.fmp_client": {
-        "bytes": 248.0,
+      "fmp|/stable/income-statement|open_prep.fmp_client": {
+        "bytes": 9828.0,
         "cache_hits": 0.0,
         "cache_misses": 0.0,
-        "calls": 12.0,
+        "calls": 7.0,
         "errors": 0.0,
-        "latency_ms_total": 40.19941700971685,
+        "latency_ms_total": 1290.7306689999984,
         "rate_limit_hits": 0.0,
-        "records": 12.0
+        "records": 7.0
       },
-      "fmp|/stable/x|open_prep.fmp_client": {
-        "bytes": 56.0,
+      "fmp|/stable/ipos-calendar|open_prep.fmp_client": {
+        "bytes": 36732.0,
         "cache_hits": 0.0,
         "cache_misses": 0.0,
-        "calls": 4.0,
+        "calls": 7.0,
         "errors": 0.0,
-        "latency_ms_total": 13.177750020986423,
+        "latency_ms_total": 1234.877659999995,
         "rate_limit_hits": 0.0,
-        "records": 4.0
+        "records": 130.0
+      },
+      "fmp|/stable/most-actives|open_prep.fmp_client": {
+        "bytes": 59948.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 7.0,
+        "errors": 0.0,
+        "latency_ms_total": 1330.581962000039,
+        "rate_limit_hits": 0.0,
+        "records": 350.0
+      },
+      "fmp|/stable/price-target-summary|open_prep.fmp_client": {
+        "bytes": 200411.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 560.0,
+        "errors": 0.0,
+        "latency_ms_total": 127737.54084700072,
+        "rate_limit_hits": 0.0,
+        "records": 546.0
+      },
+      "fmp|/stable/quote|open_prep.fmp_client": {
+        "bytes": 8288311.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 18644.0,
+        "errors": 0.0,
+        "latency_ms_total": 3790710.5473490045,
+        "rate_limit_hits": 0.0,
+        "records": 18644.0
+      },
+      "fmp|/stable/sector-performance-snapshot|open_prep.fmp_client": {
+        "bytes": 10249.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 7.0,
+        "errors": 0.0,
+        "latency_ms_total": 1242.8093839999974,
+        "rate_limit_hits": 0.0,
+        "records": 77.0
+      },
+      "fmp|/stable/splits-calendar|open_prep.fmp_client": {
+        "bytes": 1604434.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 20.0,
+        "errors": 0.0,
+        "latency_ms_total": 5300.656922999991,
+        "rate_limit_hits": 0.0,
+        "records": 12091.0
+      },
+      "fmp|/stable/treasury-rates|open_prep.fmp_client": {
+        "bytes": 9388.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 7.0,
+        "errors": 0.0,
+        "latency_ms_total": 1415.0576250000313,
+        "rate_limit_hits": 0.0,
+        "records": 35.0
       }
     }
   },
   "months": {
-    "2026-07": {
-      "benzinga": {
-        "bytes": 18,
-        "calls": 313,
-        "rate_limit_hits": 0,
-        "records": 0
-      },
-      "benzinga_rest": {
-        "bytes": 0,
-        "calls": 0,
-        "rate_limit_hits": 0,
-        "records": 3
-      },
-      "finnhub": {
-        "bytes": 0,
-        "calls": 0,
-        "rate_limit_hits": 3,
-        "records": 0
-      },
+    "2026-08": {
       "fmp": {
-        "bytes": 7695423,
-        "calls": 977,
-        "rate_limit_hits": 22,
-        "records": 34212
-      },
-      "fmp_general_latest": {
-        "bytes": 0,
-        "calls": 0,
+        "bytes": 1027738327,
+        "calls": 96426,
         "rate_limit_hits": 0,
-        "records": 0
-      },
-      "fmp_press_latest": {
-        "bytes": 0,
-        "calls": 0,
+        "records": 5320604
+      }
+    },
+    "2026-09": {
+      "fmp": {
+        "bytes": 861365670,
+        "calls": 80354,
         "rate_limit_hits": 0,
-        "records": 0
-      },
-      "fmp_stock_latest": {
-        "bytes": 0,
-        "calls": 0,
-        "rate_limit_hits": 0,
-        "records": 3
-      },
-      "unknown": {
-        "bytes": 0,
-        "calls": 0,
-        "rate_limit_hits": 8,
-        "records": 0
-      },
-      "unusual_whales": {
-        "bytes": 0,
-        "calls": 0,
-        "rate_limit_hits": 3,
-        "records": 0
+        "records": 4434906
+      }
+    },
+    "2026-10": {
+      "fmp": {
+        "bytes": 340700552,
+        "calls": 32312,
+        "rate_limit_hits": 20,
+        "records": 1733345
       }
     }
   },
-  "updated_at": "2026-07-28T15:51:43.811533+00:00"
+  "updated_at": "2026-10-09T13:15:25.245859+00:00"
 }

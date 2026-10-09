@@ -34,21 +34,16 @@ Config (env):
   RT_SIGNAL_NOTIFY_COOLDOWN_SECS  re-notify a still-active signal only after this
                                   many seconds (default 1800 = 30 min)
   RT_SIGNAL_WEBHOOK_SYNC     "1" to POST inline instead of on a thread (tests)
-  RT_SIGNAL_NOTIFY_STATE_PATH  where the dedup marks are persisted so a restart
-                             does not re-arm every signal (default
-                             artifacts/open_prep/state/rt_notify_dedup.json)
   RT_SIGNAL_TELEGRAM_BOT_TOKEN / RT_SIGNAL_TELEGRAM_CHAT_ID
   RT_SIGNAL_TWILIO_SID / _AUTH / _FROM / _TO       (FROM/TO like "whatsapp:+49…")
   RT_SIGNAL_META_TOKEN / _PHONE_ID / _TO
 """
 from __future__ import annotations
 
-import json
 import logging
 import os
 import threading
 import time
-from pathlib import Path
 from typing import Any
 
 # Calibrated follow-through P (fail-soft; returns None unless RT_CALIBRATION_ARMED
@@ -95,16 +90,6 @@ _BEARISH_DIRECTIONS = frozenset({"SHORT", "B_DOWN", "DOWN"})
 _NOTIFIED: dict[tuple[str, str], tuple[int, float]] = {}
 _STATE_TTL_SECS = 2 * 3600.0
 _LOCK = threading.Lock()
-# The marks outlive the process. A redeploy is far more frequent than the
-# 30-minute cooldown, so an empty map on boot re-pushed every still-active
-# signal — the duplicate storm the cooldown exists to prevent. Loaded lazily
-# (never at import: see tests/test_import_safety.py) and rewritten atomically
-# only when a mark actually changes.
-_STATE_SCHEMA = 1
-_DEFAULT_STATE_PATH = "artifacts/open_prep/state/rt_notify_dedup.json"
-_KEY_SEP = "\x1f"  # not a legal character in a symbol or a direction
-# Mutated in place → no `global` needed, same as _WARNED below.
-_LOADED: set[str] = set()
 # Keys of one-shot config warnings already emitted. _levels()/_cooldown() run on
 # every poll, so an unconditional warning on a misconfig would flood the log
 # (the very thing we avoid elsewhere). Mutated in place → no `global` needed.
@@ -112,83 +97,10 @@ _WARNED: set[str] = set()
 
 
 def reset_state() -> None:
-    """Clear the dedup state (tests / a manual re-arm).
-
-    Drops the persisted copy too — otherwise a "re-arm" would be undone by the
-    next load and would not re-arm anything.
-    """
+    """Clear the dedup state (tests / a manual re-arm)."""
     with _LOCK:
         _NOTIFIED.clear()
-        _LOADED.clear()
-        try:
-            _state_path().unlink(missing_ok=True)
-        except OSError:
-            logger.debug("rt_notify state file could not be removed", exc_info=True)
     _WARNED.clear()
-
-
-def _state_path() -> Path:
-    return Path(_env("RT_SIGNAL_NOTIFY_STATE_PATH", _DEFAULT_STATE_PATH))
-
-
-def _load_state_locked(ts: float, horizon: float) -> None:
-    """Restore marks left by an earlier process. Caller holds ``_LOCK``.
-
-    Entries already older than ``horizon`` are dropped rather than loaded, so a
-    long downtime cannot resurrect a mark the running process would have
-    evicted. Any unreadable or foreign-shaped file leaves the state empty —
-    exactly the old behaviour, never an exception into the poll loop.
-    """
-    if _LOADED:
-        return
-    _LOADED.add("done")
-    try:
-        raw = json.loads(_state_path().read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return
-    if not isinstance(raw, dict) or raw.get("version") != _STATE_SCHEMA:
-        return
-    entries = raw.get("entries")
-    if not isinstance(entries, dict):
-        return
-    for flat, value in entries.items():
-        symbol, sep, direction = str(flat).partition(_KEY_SEP)
-        if not sep:
-            continue
-        try:
-            strength, marked_at = int(value[0]), float(value[1])
-        except (TypeError, ValueError, IndexError, KeyError):
-            continue
-        if (
-            symbol
-            and direction
-            and strength in _STRENGTH.values()
-            and 0.0 <= ts - marked_at <= horizon
-        ):
-            _NOTIFIED[(symbol, direction)] = (strength, marked_at)
-
-
-def _save_state_locked() -> None:
-    """Persist the marks atomically. Caller holds ``_LOCK``. Never raises."""
-    from scripts.smc_atomic_write import atomic_write_json
-
-    try:
-        path = _state_path()
-        path.parent.mkdir(parents=True, exist_ok=True)
-        atomic_write_json(
-            {
-                "version": _STATE_SCHEMA,
-                "entries": {
-                    f"{symbol}{_KEY_SEP}{direction}": [strength, marked_at]
-                    for (symbol, direction), (strength, marked_at) in _NOTIFIED.items()
-                },
-            },
-            path,
-            # A hard kill between POST and rewrite is the case this exists for.
-            fsync=True,
-        )
-    except (OSError, ValueError, TypeError):
-        logger.debug("rt_notify state save failed", exc_info=True)
 
 
 def _env(name: str, default: str = "") -> str:
@@ -290,29 +202,15 @@ def _safe_float(value: Any, default: float = 0.0) -> float:
     """Coerce to float, never raising — a single corrupt signal field (None,
     ``"n/a"``, …) must not blow up the whole batch notification."""
     try:
-        parsed = float(value)
+        return float(value)
     except (TypeError, ValueError):
         return default
-    return parsed if float("-inf") < parsed < float("inf") else default
-
-
-def _a1_volume_pace(s: Any) -> float:
-    """Volume metric the A1 conviction/calibration keys on: the NORMALIZED volume
-    pace (realized/expected fraction) that the A0/A1 volume floors and the
-    calibration table use — NOT the raw daily ``volume_ratio`` the signal carries
-    for display. Falls back to the raw ratio only for legacy signals that predate
-    the ``details['normalized_volume_pace']`` field."""
-    details = getattr(s, "details", None)
-    if isinstance(details, dict):
-        pace = details.get("normalized_volume_pace")
-        if pace is not None:
-            return _safe_float(pace, 0.0)
-    return _safe_float(getattr(s, "volume_ratio", 0.0))
 
 
 # P(follow-through) at/above which a calibrated A1 earns the ⭐ (armed only).
-_CALIBRATION_P_THRESHOLD = _safe_float(_env("RT_CALIBRATION_P_THRESHOLD", "0.5"), 0.5)
-if not 0.0 <= _CALIBRATION_P_THRESHOLD <= 1.0:
+try:
+    _CALIBRATION_P_THRESHOLD = float(_env("RT_CALIBRATION_P_THRESHOLD", "0.5"))
+except (TypeError, ValueError):
     _CALIBRATION_P_THRESHOLD = 0.5
 
 
@@ -324,7 +222,7 @@ def _is_high_conviction_a1(s: Any) -> bool:
     Calibrated path (opt-in via RT_CALIBRATION_ARMED): once the nightly job has
     enough follow-through data for this (level, vol_bucket), the measured P
     replaces the hard-coded midpoints; otherwise it falls back to them."""
-    vol_ratio = _a1_volume_pace(s)  # normalized pace, not raw daily ratio (the calibration + floors key on pace)
+    vol_ratio = _safe_float(getattr(s, "volume_ratio", 0.0))
     abs_change = abs(_safe_float(getattr(s, "change_pct", 0.0)))
     p = _calibrated_follow_through_p("A1", vol_ratio)
     if p is not None:
@@ -335,7 +233,7 @@ def _is_high_conviction_a1(s: Any) -> bool:
 def _a1_conviction_label(s: Any) -> str:
     """⭐ tail for a high-conviction A1: the measured follow-through P when the
     calibration is armed and populated (e.g. " ⭐P58%"), else " ⭐near-A0"."""
-    p = _calibrated_follow_through_p("A1", _a1_volume_pace(s))
+    p = _calibrated_follow_through_p("A1", _safe_float(getattr(s, "volume_ratio", 0.0)))
     return f" ⭐P{round(p * 100)}%" if p is not None else " ⭐near-A0"
 
 
@@ -387,20 +285,15 @@ def _fmt_trade_context(s: Any) -> str:
     """Indented trade-context line (ATR bracket from open_prep/trade_context.py),
     or "" when the signal carries no usable context — the alert line stays as-is.
     Rendered as its own line so the level line above never gets pushed off-screen."""
-    missing = float("nan")
-    entry = _safe_float(getattr(s, "trade_entry", None), missing)
-    stop = _safe_float(getattr(s, "trade_stop", None), missing)
-    target = _safe_float(getattr(s, "trade_target", None), missing)
-    r_mult = _safe_float(getattr(s, "trade_r", None), missing)
-    if not all(value > 0.0 for value in (entry, stop, target, r_mult)):
-        return ""
-    direction = str(getattr(s, "direction", "")).upper()
-    bullish = direction in _BULLISH_DIRECTIONS
-    bearish = direction in _BEARISH_DIRECTIONS
-    if not ((bullish and stop < entry < target) or (bearish and target < entry < stop)):
+    entry = getattr(s, "trade_entry", None)
+    stop = getattr(s, "trade_stop", None)
+    target = getattr(s, "trade_target", None)
+    r_mult = getattr(s, "trade_r", None)
+    if entry is None or stop is None or target is None or not entry:
         return ""
     stop_pct = (stop - entry) / entry * 100.0
     target_pct = (target - entry) / entry * 100.0
+    bullish = str(getattr(s, "direction", "")).upper() in ("LONG", "B_UP", "UP")
     entry_op = "≤" if bullish else "≥"
     return (
         f"\n   ↳ entry {entry_op}{entry:.2f} · stop {stop:.2f} ({stop_pct:+.1f}%) · "
@@ -504,7 +397,6 @@ def _post_and_mark(url: str, *, marks: list[tuple[tuple[str, str], int]],
         with _LOCK:
             for key, strength in marks:
                 _NOTIFIED[key] = (strength, ts)
-            _save_state_locked()
     return ok
 
 
@@ -569,9 +461,6 @@ def notify_fresh_signals(signals: list[Any], *, now: float | None = None) -> lis
     levels = _levels()
     early_levels = _early_levels() if early_active else frozenset()
     cooldown = _cooldown()
-    # The horizon is max(TTL, cooldown): evicting at the bare TTL silently capped
-    # any cooldown > 2h (entry evicted -> prev is None -> premature re-push).
-    eviction_horizon = max(_STATE_TTL_SECS, cooldown)
 
     # Partition candidates by destination WITHOUT touching _NOTIFIED — the state
     # advances only after _dispatch confirms delivery, so a failed POST re-fires
@@ -582,7 +471,6 @@ def notify_fresh_signals(signals: list[Any], *, now: float | None = None) -> lis
     early_fresh: list[Any] = []
     early_marks: list[tuple[tuple[str, str], int]] = []
     with _LOCK:
-        _load_state_locked(ts, eviction_horizon)
         for s in signals or ():
             lvl = str(getattr(s, "level", "") or "")
             if early_active and lvl in early_levels:
@@ -599,12 +487,12 @@ def notify_fresh_signals(signals: list[Any], *, now: float | None = None) -> lis
                 bucket_marks.append((key, strength))
         # Evict stale dedup entries so the map cannot grow unbounded. Runs even
         # when `signals` is empty, so a stale entry can't outlive its TTL merely
-        # because no new signal happened to arrive on later polls.
-        stale = [k for k, (_st, t) in _NOTIFIED.items() if ts - t > eviction_horizon]
-        for k in stale:
+        # because no new signal happened to arrive on later polls. The horizon
+        # is max(TTL, cooldown): evicting at the bare TTL silently capped any
+        # cooldown > 2h (entry evicted -> prev is None -> premature re-push).
+        eviction_horizon = max(_STATE_TTL_SECS, cooldown)
+        for k in [k for k, (_st, t) in _NOTIFIED.items() if ts - t > eviction_horizon]:
             _NOTIFIED.pop(k, None)
-        if stale:
-            _save_state_locked()
 
     delivered_keys: list[str] = []
     for bucket, bucket_marks, dst, noun, emoji in (

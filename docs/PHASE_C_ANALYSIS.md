@@ -94,8 +94,8 @@ The executed helper extractions in that slice are:
 18. `resolve_long_visual_state_label`
 19. `resolve_long_zone_source_label`
 20. `resolve_long_anchor_source_label`
-21. `PASSED_STATUS_TEXT` (bis 26.8. `compose_passed_status_text()`, #4756)
-22. `ELIGIBLE_STATUS_TEXT` (bis 26.8. `compose_eligible_status_text()`, #4756)
+21. `compose_passed_status_text`
+22. `compose_eligible_status_text`
 23. `compose_awaiting_status_text`
 24. `compose_blocked_status_text`
 25. `compose_need_ready_status_text`

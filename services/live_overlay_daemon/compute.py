@@ -15,7 +15,7 @@ Field definitions (matching spec/smc_live_overlay.schema.json):
   flow_rel_vol         — volume(current bar) / mean volume(prior bars in window)
   flow_delta_proxy_pct — legacy compatibility name for candle-body return
   price_candle_body_return_pct — canonical name for the same candle-body return
-  squeeze_on           — int 0/1 on the JSON wire (1 = BB fully inside KC; null when unknown)
+  squeeze_on           — int 0/1 on the JSON wire (1 = BB width < KC width; null when unknown)
   ats_state            — legacy compatibility name for accumulation/distribution
   volume_accumulation_distribution_state — canonical state name
   ats_zscore            — legacy compatibility name for current-bar volume z-score
@@ -422,16 +422,7 @@ def _signals_service_url_to_full(base: str) -> str:
     path = parsed.path.rstrip("/")
     if not path.endswith("/signals.json"):
         path = f"{path}/signals.json"
-    # Strip the query/fragment for the same reason ``base`` is stripped above:
-    # this function's output is fed back through it (a full SIGNALS_SERVICE_URL
-    # is normalised on every call), so the output has to be a fixed point. A
-    # value like "host/? #" leaves a query of one space; emitting it would end
-    # the URL in whitespace, which the leading ``base.strip()`` of the next pass
-    # eats — silently dropping the query on the second call. Whitespace-only
-    # components collapse to "" and urlunsplit then omits the "?" / "#".
-    query = parsed.query.strip()
-    fragment = parsed.fragment.strip()
-    return urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, path, query, fragment))
+    return urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, path, parsed.query, parsed.fragment))
 
 
 def _fetch_signals_service(
@@ -505,7 +496,7 @@ def _load_signals_snapshot() -> dict[str, Any]:
             fetched = _fetch_signals_service(
                 service_base, config.signals_internal_token()
             )
-            if fetched is not None and _signals_snapshot_is_fresh(fetched):
+            if fetched is not None:
                 _signals_cache = fetched
                 _signals_loaded_at = now
                 _persist_snapshot(
@@ -517,7 +508,7 @@ def _load_signals_snapshot() -> dict[str, Any]:
         url = config.signals_snapshot_url()
         if url:
             fetched = _fetch_signals_url(url, config.signals_snapshot_url_token())
-            if fetched is not None and _signals_snapshot_is_fresh(fetched):
+            if fetched is not None:
                 _signals_cache = fetched
                 _signals_loaded_at = now
                 _persist_snapshot(
@@ -977,53 +968,6 @@ def _safe_std(vals: list[float]) -> float:
     return math.sqrt(sum((v - mean) ** 2 for v in vals) / (n - 1))
 
 
-def _population_std(vals: list[float]) -> float:
-    """Population std (÷ n) — Pine ``ta.stdev`` default (biased=true)."""
-    n = len(vals)
-    if n < 1:
-        return 0.0
-    mean = sum(vals) / n
-    return math.sqrt(sum((v - mean) ** 2 for v in vals) / n)
-
-
-def _ema_last(vals: list[float], length: int) -> float | None:
-    """Last value of Pine ``ta.ema``: seed = SMA of first ``length``, alpha = 2/(length+1).
-
-    Pine's own reference implementation seeds with the SMA, not the first bar::
-
-        sum := na(sum[1]) ? ta.sma(src, length) : alpha*src + (1-alpha)*nz(sum[1])
-
-    Until 2026-08-05 this used ``vals[0]`` and its docstring asserted that WAS
-    Pine's convention. With the 20 samples the daemon had, that left 14.9 % of
-    the Keltner centre on the seed bar and suppressed squeezes Pine would fire
-    (the divergence is one-sided). ``open_prep/technical_analysis._ema`` had
-    already corrected the identical defect (eval-findings B7, 2026-06-11).
-
-    Fewer than ``length`` values yields the mean of what exists — the SMA seed
-    over the available window, matching that sibling implementation.
-    """
-    if not vals:
-        return None
-    if len(vals) <= length:
-        return sum(vals) / len(vals)
-    alpha = 2.0 / (length + 1)
-    ema = sum(vals[:length]) / length
-    for v in vals[length:]:
-        ema = alpha * v + (1.0 - alpha) * ema
-    return ema
-
-
-def _wilder_rma_last(vals: list[float], length: int) -> float | None:
-    """Last value of Pine ``ta.rma``: seed = SMA of first ``length``, alpha = 1/length."""
-    if len(vals) < length:
-        return None
-    alpha = 1.0 / length
-    rma = sum(vals[:length]) / length
-    for v in vals[length:]:
-        rma = alpha * v + (1.0 - alpha) * rma
-    return rma
-
-
 def _coerce_finite_float(v: Any) -> float | None:
     """Coerce value to finite float, returning None on invalid/non-finite input."""
     if v is None:
@@ -1063,7 +1007,6 @@ def _coerce_volume(v: Any) -> float | None:
 # ---------------------------------------------------------------------------
 
 _TF_TO_MINUTES: dict[str, int] = {
-    "1m": 1,
     "5m": 5,
     "10m": 10,
     "15m": 15,
@@ -1072,44 +1015,10 @@ _TF_TO_MINUTES: dict[str, int] = {
     "4H": 240,
 }
 
-# Recursion warm-up for the Keltner half of compute_squeeze_on. Pine computes
-# ta.ema and ta.atr over the whole chart; the daemon only has what it cached,
-# and the seed's weight decays as (1-alpha)**n — 47 steps for the EMA
-# (alpha=2/21) and 90 for the Wilder RMA (alpha=1/20) to fall under 1 %.
-# Until 2026-08-05 the table below provisioned exactly `period`, i.e. ZERO
-# warm-up: the RMA ran no recursion at all (a plain mean of true ranges) and
-# 14.9 % of the Keltner centre came from the seed bar.
-_SQUEEZE_MIN_WARMUP_BARS = 47
-
-# Raw 1-minute history required to make a 20-bar rolling window available WITH
-# that warm-up. The RTH-anchored hourly views retain enough liquid
-# extended-session minutes to span the required number of regular sessions
-# instead of assuming that every cached minute contributes to an RTH candle.
-# 4H stays at the cache's hard per-symbol bound (cache._MAX_EXPANDED_BAR_CAP);
-# a warmed 4H squeeze is simply not reachable within it, so compute_squeeze_on
-# reports null there rather than a mis-warmed boolean.
-_TF_RAW_BAR_REQUIREMENTS: dict[str, int] = {
-    "1m": 120,
-    "5m": 600,
-    "10m": 1_200,
-    "15m": 1_800,
-    "30m": 3_600,
-    "1H": 9_600,
-    "4H": 9_600,
-}
-
 
 def supported_timeframes() -> tuple[str, ...]:
     """Return supported intraday overlay timeframes in canonical order."""
     return tuple(_TF_TO_MINUTES.keys())
-
-
-def raw_bars_required(tf: str) -> int:
-    """Return retained 1-minute bars needed for rolling fields at ``tf``."""
-    try:
-        return _TF_RAW_BAR_REQUIREMENTS[tf]
-    except KeyError as exc:
-        raise ValueError(f"unsupported timeframe: {tf}") from exc
 
 
 def _bar_minute_bucket(ts_event: int, minutes: int) -> int:
@@ -1118,55 +1027,21 @@ def _bar_minute_bucket(ts_event: int, minutes: int) -> int:
     Databento ts_event is in nanoseconds since the Unix epoch. We align
     to the end of the N-minute bucket in UTC. Intraday timeframes only.
 
-    The live feed stamps ts_event at the 1-minute bar OPEN, so we bucket by
-    the bar's close (open + 1 minute) to keep candles clock-aligned.
+    For bar-close stamps, events between boundaries are ceiled to the next
+    boundary while events already on a boundary remain unchanged.
     """
     ns_per_minute = 60_000_000_000
-    minute = ts_event // ns_per_minute + 1  # ts_event = 1m bar OPEN; bucket by close (open + 1m)
+    minute = ts_event // ns_per_minute
     floored_minute = (minute // minutes) * minutes
     aligned_minute = floored_minute if minute == floored_minute else floored_minute + minutes
     return aligned_minute * ns_per_minute
-
-
-def _rth_bar_minute_bucket(ts_event: int, minutes: int) -> int | None:
-    """Return a New York regular-session bucket end for 1H/4H bars.
-
-    TradingView's US-equity regular-session candles start at 09:30 in the
-    exchange timezone. IANA timezone conversion is intentional here: US DST
-    transitions do not match Europe's transition dates.
-    """
-    from zoneinfo import ZoneInfo
-
-    from . import market_hours
-
-    market_tz = ZoneInfo("America/New_York")
-    bar_open = datetime.datetime.fromtimestamp(ts_event / 1_000_000_000, market_tz)
-    session_open = bar_open.replace(hour=9, minute=30, second=0, microsecond=0)
-    session_end = market_hours.us_regular_session_end(bar_open.date())
-    if session_end is None:
-        return None
-    session_close = bar_open.replace(
-        hour=session_end.hour, minute=session_end.minute, second=0, microsecond=0
-    )
-    if not session_open <= bar_open < session_close:
-        return None
-
-    elapsed_close_minutes = int((bar_open - session_open).total_seconds() // 60) + 1
-    bucket_number = (elapsed_close_minutes + minutes - 1) // minutes
-    bucket_end = min(
-        session_open + datetime.timedelta(minutes=bucket_number * minutes),
-        session_close,
-    )
-    return int(bucket_end.timestamp() * 1_000_000_000)
 
 
 def _aggregate_bars(bars: list[dict[str, Any]], tf: str) -> list[dict[str, Any]]:
     """Aggregate 1-minute bars into higher intraday timeframes.
 
     The input cache stores 1-minute bars, so all supported intraday
-    timeframes (including 5m) are bucketed and aggregated. US-equity 1H and
-    4H bars follow the 09:30-16:00 America/New_York regular session so their
-    boundaries remain stable across US DST.
+    timeframes (including 5m) are bucketed and aggregated.
     """
     if tf not in _TF_TO_MINUTES:
         raise ValueError(f"unsupported timeframe: {tf}")
@@ -1187,13 +1062,7 @@ def _aggregate_bars(bars: list[dict[str, Any]], tf: str) -> list[dict[str, Any]]
     buckets: dict[int, dict[str, Any]] = {}
     for bar in ordered_bars:
         ts_event = int(bar["ts_event"])
-        bucket_ts = (
-            _rth_bar_minute_bucket(ts_event, minutes)
-            if minutes in {60, 240}
-            else _bar_minute_bucket(ts_event, minutes)
-        )
-        if bucket_ts is None:
-            continue
+        bucket_ts = _bar_minute_bucket(ts_event, minutes)
         bucket = buckets.get(bucket_ts)
         if bucket is None:
             bucket = {
@@ -1302,64 +1171,19 @@ def compute_flow_fields(bars: list[dict[str, Any]]) -> dict[str, Any]:
     return {"flow_rel_vol": flow_rel_vol, "flow_delta_proxy_pct": flow_delta}
 
 
-# Longest stretch a day can deliver without a legitimate gap: the 04:00-20:00 ET
-# extended session. A warm-up window longer than this ALWAYS spans a night, so
-# for those timeframes the multi-session span is the constructed state, not a
-# defect — see the comment at _TF_RAW_BAR_REQUIREMENTS. Deliberately a constant,
-# not a calendar: no session maths, no DST, no holidays enter this decision.
-_MAX_GAPLESS_WINDOW_SECS = 960 * 60
-# A gap counts as a hole from four steps on. One missing candle is data noise —
-# thin symbols do not print every minute — and blinding the indicator for them
-# would be the more expensive error direction.
-_HOLE_FACTOR = 4.0
-
-
-def _window_has_a_hole(stamps: list[float | None]) -> bool:
-    """True when this window straddles an outage, session-free.
-
-    The step is DERIVED as the median spacing of the window itself, so the
-    check needs no timeframe argument and cannot drift from one. It gives up
-    (returns False) whenever it cannot decide: missing stamps, a nonsensical
-    step, or a window whose nominal span could never fit inside one day.
-    """
-    if any(stamp is None for stamp in stamps) or len(stamps) < 3:
-        return False
-    seconds = sorted(float(stamp) / 1e9 for stamp in stamps if stamp is not None)
-    deltas = [seconds[i + 1] - seconds[i] for i in range(len(seconds) - 1)]
-    ordered = sorted(deltas)
-    step = ordered[len(ordered) // 2]
-    if step <= 0:
-        return False
-    if len(stamps) * step > _MAX_GAPLESS_WINDOW_SECS:
-        return False
-    return any(delta > _HOLE_FACTOR * step for delta in deltas)
-
-
 def compute_squeeze_on(bars: list[dict[str, Any]], period: int = 20) -> bool | None:
     """
-    Squeeze = True when the Bollinger Bands sit fully inside the Keltner
-    Channel (Pine ``_sqOn``: ``bbLower > kcLower and bbUpper < kcUpper``).
+    Squeeze = True when Bollinger Band width < Keltner Channel width.
+    Approximated here as: BB width < 2 × ATR (simplified single-symbol check).
 
-    Faithful to the legacy USI-CHOCH Pine reference
-    (pine/legacy/USI-CHOCH lines 281-291; sq_bbLen=sq_kcLen=20, sq_bbMult=2.0,
-    sq_kcMult=1.5):
-      BB: basis = ta.sma(close, 20); dev = ta.stdev(close, 20) × 2.0. Pine
-          ta.stdev defaults to biased/POPULATION std (÷ n), not sample ÷ (n−1).
-      KC: basis = ta.ema(close, 20); atr = ta.atr(20) = ta.rma(ta.tr, 20), a
-          Wilder RMA of True Range recursive over the whole series.
-    Edge containment — not a bare width comparison — because the BB centre
-    (SMA) and KC centre (EMA) differ, so equal widths do not imply the same
-    channel. TR = max(high−low, |high−close_prev|, |low−close_prev|); the first
-    bar of the series seeds TR = high−low (Pine ta.tr handle_na).
-
-    Uses aligned filtering: only bars that have ALL of close, high, and low are
-    included, so TR/ATR are never computed from misaligned bars.
+    Uses aligned filtering: only bars that have ALL of close, high, and low
+    are included, so the TR calculation is never computed from misaligned bars
+    (which would happen if each field were filtered independently).
     """
     # Build aligned triples so that closes_w[i], highs_w[i], lows_w[i]
     # all refer to the SAME bar. Independent per-field filtering would
     # produce cross-bar ATR when any bar in the window is missing a field.
     triples: list[tuple[float, float, float]] = []
-    stamps: list[float | None] = []
     for b in bars:
         close = _coerce_finite_float(b.get("close"))
         high = _coerce_finite_float(b.get("high"))
@@ -1377,67 +1201,32 @@ def compute_squeeze_on(bars: list[dict[str, Any]], period: int = 20) -> bool | N
         if not (low <= close <= high):
             continue
         triples.append((close, high, low))
-        stamps.append(_coerce_finite_float(b.get("ts_event")))
 
-    # Fail closed on too little history. The Bollinger half needs `period`
-    # bars, but the Keltner half is RECURSIVE: without warm-up its ATR is a
-    # plain mean of true ranges and its centre carries the seed bar. A null
-    # here means "no verdict", which the wire contract already allows;
-    # a mis-warmed boolean would be a wrong verdict.
-    if len(triples) < period + _SQUEEZE_MIN_WARMUP_BARS:
+    if len(triples) < period:
         return None
 
-    # Fail closed on a window with a HOLE. The check above counts candles, not
-    # time, so bars from before a feed outage saturate the warm-up and the
-    # verdict gets computed across the discontinuity — measured 2026-08-20 on
-    # 5m: 335 minutes of a confident value that flipped False->True at ~120
-    # minutes, driven by the old/new mixture rather than by the market.
-    if _window_has_a_hole(stamps[-(period + _SQUEEZE_MIN_WARMUP_BARS) :]):
-        return None
+    window = triples[-period:]
+    closes_w = [t[0] for t in window]
+    highs_w = [t[1] for t in window]
+    lows_w = [t[2] for t in window]
 
-    closes_all = [t[0] for t in triples]
-    closes_w = closes_all[-period:]
+    std_c = _safe_std(closes_w)
 
-    # Bollinger Bands around an SMA basis with biased/population stdev.
-    bb_basis = sum(closes_w) / period
-    bb_dev = _population_std(closes_w) * 2.0  # Pine sq_bbMult=2.0
-    bb_upper = bb_basis + bb_dev
-    bb_lower = bb_basis - bb_dev
+    # Approximate ATR (True Range without prior-close continuity)
+    trs = [h - lo for h, lo in zip(highs_w, lows_w)]
+    atr = sum(trs) / len(trs)
 
-    # True Range over the FULL aligned series (Pine ta.tr, handle_na: the first
-    # bar seeds TR = high−low). Prior close is the aligned triple immediately
-    # before each bar so gaps widen the range.
-    trs: list[float] = []
-    for i in range(len(triples)):
-        _c, h, lo = triples[i]
-        if i > 0:
-            c_prev = triples[i - 1][0]
-            tr = max(h - lo, abs(h - c_prev), abs(lo - c_prev))
-        else:
-            tr = h - lo
-        trs.append(tr)
+    bb_width = 4 * std_c  # upper - lower (2σ each side)
+    kc_width = 2 * atr     # Keltner ±1 ATR approximation
 
-    # Keltner Channel around an EMA basis with a Wilder-RMA ATR (Pine ta.ema +
-    # ta.atr = ta.rma(ta.tr, length)), both recursive over the whole series.
-    kc_basis = _ema_last(closes_all, period)
-    atr = _wilder_rma_last(trs, period)
-    if kc_basis is None or atr is None:
-        return None
-    kc_upper = kc_basis + atr * 1.5  # Pine sq_kcMult=1.5
-    kc_lower = kc_basis - atr * 1.5
-
-    # Squeeze = BB fully inside KC (edge containment, not a width comparison;
-    # the SMA and EMA centres differ).
-    return bool(bb_lower > kc_lower and bb_upper < kc_upper)
+    return bool(bb_width < kc_width)
 
 
 def compute_ats_fields(bars: list[dict[str, Any]]) -> dict[str, Any]:
     """
     ATS (accumulation/distribution read, NOT average-trade-size) state:
       ats_state  — "accumulation" | "distribution" | "neutral"
-      ats_zscore — full z-score (vol − mean) / stdev of the most recent bar's
-                   volume vs the prior-19-bar rolling window (not a ratio to
-                   the mean)
+      ats_zscore — z-score of most recent bar's volume vs rolling avg
 
     All fields are anchored to bars[-1] to avoid cross-bar misalignment.
     B19: if bars[-1] has no volume, zscore and state are both None.
@@ -1533,30 +1322,6 @@ _NO_SIGNAL_FIELDS: dict[str, Any] = {
 }
 
 
-def _signals_snapshot_is_fresh(snap: dict[str, Any]) -> bool:
-    """True when the snapshot's ``updated_epoch`` is within signals_max_age_secs.
-
-    Fail-closed: a missing, non-numeric, non-finite, or non-positive epoch
-    means freshness cannot be proven, so callers must not serve trade signals
-    from it. Mirrors the exporter's ``trading_signals_snapshot_stale`` /
-    ``_age_unknown`` contract (metrics._trading_signals_snapshot) so the
-    overlay payload and the alerting layer agree on what "stale" means.
-    """
-    if not isinstance(snap.get("signals"), list):
-        return False
-    updated = snap.get("updated_epoch")
-    if isinstance(updated, bool) or not isinstance(updated, (int, float, str)):
-        return False
-    try:
-        epoch = float(updated)
-    except (TypeError, ValueError):
-        return False
-    if not math.isfinite(epoch) or epoch <= 0:
-        return False
-    age_seconds = time.time() - epoch
-    return 0.0 <= age_seconds <= float(config.signals_max_age_secs())
-
-
 def _get_signal_fields(symbol: str) -> dict[str, Any]:
     """Realtime signal + ATR trade context for ``symbol`` from the signals snapshot.
 
@@ -1564,22 +1329,15 @@ def _get_signal_fields(symbol: str) -> dict[str, Any]:
     and passes its trade_* fields through (nulled when non-positive) — computed ONCE in
     the producer (open_prep/trade_context.py), so the Pine overlay shows the
     same numbers as the Slack push. All-null when the symbol has no active
-    signal, the snapshot is unavailable, stale, or of unprovable age
-    (``updated_epoch`` vs OVERLAY_SIGNALS_MAX_AGE_SECS — a dead producer's
-    frozen write-through snapshot must not keep signals live), or the
-    producer predates the trade fields.
+    signal, the snapshot is unavailable, or the producer predates the fields.
     """
     snap = _load_signals_snapshot()
-    if not isinstance(snap, dict) or not _signals_snapshot_is_fresh(snap):
-        return dict(_NO_SIGNAL_FIELDS)
-    rows = snap.get("signals")
+    rows = snap.get("signals") if isinstance(snap, dict) else None
     if not isinstance(rows, list):
         return dict(_NO_SIGNAL_FIELDS)
     sym = symbol.upper().strip()
     best: dict[str, Any] | None = None
     best_key = (-1, float("-inf"))
-    now_epoch = time.time()
-    max_signal_age = float(config.signals_max_age_secs())
     for row in rows:
         if not isinstance(row, dict) or str(row.get("symbol", "")).upper() != sym:
             continue
@@ -1590,13 +1348,6 @@ def _get_signal_fields(symbol: str) -> dict[str, Any]:
             fired = float(row.get("fired_epoch") or 0.0)
         except (TypeError, ValueError):
             fired = 0.0
-        if (
-            not math.isfinite(fired)
-            or fired <= 0.0
-            or fired > now_epoch
-            or now_epoch - fired > max_signal_age
-        ):
-            continue
         if (rank, fired) > best_key:
             best_key = (rank, fired)
             best = row
@@ -1605,41 +1356,19 @@ def _get_signal_fields(symbol: str) -> dict[str, Any]:
         return dict(_NO_SIGNAL_FIELDS)
 
     def _pos_float(value: Any) -> float | None:
-        if isinstance(value, bool):
-            return None
         try:
             number = float(value)
         except (TypeError, ValueError):
             return None
         return number if (number > 0.0 and math.isfinite(number)) else None  # inf > 0.0 is True
 
-    trade = tuple(
-        _pos_float(best.get(key))
-        for key in ("trade_entry", "trade_stop", "trade_target", "trade_r")
-    )
-    direction = best.get("direction")
-    direction_key = direction.strip().upper() if isinstance(direction, str) else ""
-    coherent = (
-        direction_key in {"LONG", "B_UP", "UP"}
-        and all(value is not None for value in trade)
-        and trade[1] < trade[0] < trade[2]
-    ) or (
-        direction_key in {"SHORT", "B_DOWN", "DOWN"}
-        and all(value is not None for value in trade)
-        and trade[2] < trade[0] < trade[1]
-    )
-    if not coherent:
-        trade = (None, None, None, None)
-
     return {
         "signal_level": str(best.get("level")),
-        "signal_direction": (
-            direction if isinstance(direction, str) and direction.strip() else None
-        ),
-        "trade_entry": trade[0],
-        "trade_stop": trade[1],
-        "trade_target": trade[2],
-        "trade_r": trade[3],
+        "signal_direction": str(best.get("direction") or "") or None,
+        "trade_entry": _pos_float(best.get("trade_entry")),
+        "trade_stop": _pos_float(best.get("trade_stop")),
+        "trade_target": _pos_float(best.get("trade_target")),
+        "trade_r": _pos_float(best.get("trade_r")),
     }
 
 
@@ -1671,7 +1400,7 @@ def build_payload(
     # dynamically shortened volatility contract.
     squeeze = compute_squeeze_on(aggregated, period=20)
     ats = compute_ats_fields(aggregated)
-    vix = cache.get_vix_fresh()  # stale VIX must read as unknown, not as a quote
+    vix = cache.get_vix()
     events = _event_fields_for(symbol)
     signal_fields = _get_signal_fields(symbol)
 
@@ -1742,49 +1471,25 @@ def run_full_compute_cycle(tf: str = "5m") -> int:
 
 def run_flow_patch_cycle(tf: str = "5m") -> int:
     """
-    Fast refresh: recompute current-bar flow/volume fields and refresh VIX.
+    Fast refresh: recompute flow fields (and refresh vix_level) for all symbols.
     Does NOT reset the full overlay cache timestamp.
     Called every OVERLAY_FLOW_REFRESH_SECS.
     """
     with observability.trace_span("live_overlay.flow_patch_cycle"):
         all_bars = cache.get_all_symbols_snapshot()
-        vix = cache.get_vix_fresh()  # stale VIX must read as unknown, not as a quote
+        vix = cache.get_vix()
         count = 0
         for sym, bars in all_bars.items():
             if not bars:
                 continue
             aggregated = _bars_for_timeframe(bars, tf)
             updates = compute_flow_fields(aggregated)
-            ats = compute_ats_fields(aggregated)
-            updates.update(
-                {
-                    "ats_state": ats["ats_state"],
-                    "volume_accumulation_distribution_state": ats["ats_state"],
-                    "ats_zscore": ats["ats_zscore"],
-                    "volume_current_bar_zscore": ats["ats_zscore"],
-                }
-            )
-            vix_value = _coerce_finite_float(vix)
-            if vix_value is not None:
+            if (vix_value := _coerce_finite_float(vix)) is not None:
                 updates["vix_level"] = round(vix_value, 4)
-            elif cache.vix_age_secs() > cache.VIX_MAX_AGE_SECS:
-                # Stale: stop re-serving a quote that already crossed its age
-                # gate (F-7). A merely non-finite reading is a corrupt sample,
-                # not an expiry, and must leave the last good value alone.
-                updates["vix_level"] = None
             patched = cache.patch_overlay(
                 sym,
-                {**updates, "price_candle_body_return_pct": updates["flow_delta_proxy_pct"]},
-                allow_none_keys={
-                    "flow_rel_vol",
-                    "flow_delta_proxy_pct",
-                    "price_candle_body_return_pct",
-                    "ats_state",
-                    "volume_accumulation_distribution_state",
-                    "ats_zscore",
-                    "volume_current_bar_zscore",
-                    "vix_level",
-                },
+                updates,
+                allow_none_keys={"flow_rel_vol", "flow_delta_proxy_pct"},
             )
             if patched:
                 count += 1

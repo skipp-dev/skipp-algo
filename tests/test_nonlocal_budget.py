@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from tests._guard_corpus import iter_production_py_files, parse_module
+from tests._guard_corpus import parse_module
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -37,7 +37,12 @@ _DIR_EXCLUDE = frozenset(
 
 
 def _iter_prod_files() -> list[Path]:
-    return iter_production_py_files(_DIR_EXCLUDE)
+    out: list[Path] = []
+    for path in _REPO_ROOT.rglob("*.py"):
+        if any(part in _DIR_EXCLUDE for part in path.relative_to(_REPO_ROOT).parts):
+            continue
+        out.append(path)
+    return sorted(out)
 
 
 def _all_nonlocal_sites() -> list[tuple[str, int, tuple[str, ...]]]:
@@ -103,7 +108,7 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # 2026-06-25: worker-thread target for interruptible AsyncNewsstackPoller
         # poll loop uses nonlocal to ferry result/error back to the caller.
         # 2026-06-28 (semantic monitoring): shifted +20 lines by readiness metrics.
-        ("open_prep/realtime_signals.py", 614, ("error", "result")),  # 2026-07-25 (databento-signal-migration): 613->614
+        ("open_prep/realtime_signals.py", 611, ("error", "result")),  # 2026-07-16 market-session import shifted site: 610->611
     }
 )
 

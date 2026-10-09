@@ -4,7 +4,7 @@
 |---------|-------|
 | Status  | Accepted |
 | Date    | 2026-06-10 |
-| Refs    | Audit-R3 (Principal Review 2026-06-10); `scripts/publish_bot_snapshot.py`; `.github/workflows/smc-measurement-benchmark-rolling.yml` (bot/live-experiment-snapshot, added 2026-06-23); `.github/workflows/credential-health-check.yml` (bot/live-tv-credential-snapshot, added 2026-06-23); `.github/workflows/tv-save-consumer-source.yml` (bot/live-tradingview-bindings, added 2026-07-16); `scripts/publish_signals_snapshot.py` (bot/live-signals-snapshot host helper, added 2026-06-23); `tests/test_workflow_auth_pattern.py`; ADR-0010 (cron-workflow invariants) |
+| Refs    | Audit-R3 (Principal Review 2026-06-10); `.github/workflows/smc-live-news-refresh.yml:252`; `.github/workflows/smc-measurement-benchmark-rolling.yml` (bot/live-experiment-snapshot, added 2026-06-23); `.github/workflows/credential-health-check.yml` (bot/live-tv-credential-snapshot, added 2026-06-23); `.github/workflows/tv-save-consumer-source.yml` (bot/live-tradingview-bindings, added 2026-07-16); `scripts/publish_signals_snapshot.py` (bot/live-signals-snapshot host helper, added 2026-06-23); `tests/test_workflow_auth_pattern.py`; ADR-0010 (cron-workflow invariants) |
 
 ---
 
@@ -72,64 +72,27 @@ Constraints that must hold for the allowance to remain valid:
    block appears in a explicit `_FORCE_LEASE_ALLOWLIST`.  Any new force-push
    must update the allowlist, which makes it discoverable at PR review time.
 
-5. **Stateful and shared branches preserve the remote tree** — publishers
-   that carry cumulative state or have more than one producer must seed from
-   the fetched remote tip and replace only their owned paths. A fetch failure
-   other than a confirmed missing branch is fatal. The shared
-   `scripts/publish_bot_snapshot.py` helper enforces this contract and uses an
-   explicit tip SHA (or zero SHA on first publish) in the lease. It retains the
-   fetched snapshot tree in the index but re-parents each replacement commit to
-   current `main`, keeping the cache branch to one snapshot commit beyond the
-   base instead of accumulating a chain of historical snapshots.
-
-6. **Leaseless `--force` is permitted only on disposable proposal refs**
-   (amendment 2026-08-07, repo audit). A ref that every run recreates from
-   scratch — branched off current `main`, one commit, pushed — has no remote
-   history to protect and no meaningful expected tip to lease against; a lease
-   would only compare against the previous run's throwaway commit. Such a push
-   may use plain `git push -f`, provided the ref is in `bot/*`, is never read
-   as a source of truth, and its producing workflow holds a `concurrency` group
-   that serialises writers. This covers `bot/r1-reattest`, written by
-   `smc-r1-reattest.yml` (the proposer) and by `tv-save-consumer-source.yml`
-   when dispatched in reattest mode. It does **not** extend to any branch that
-   carries state across runs — those remain bound by constraints 2 and 5.
-
-   Both sites predate this amendment: they were invisible to the constraint-4
-   inventory because its detector matched only the long `--force` spelling and
-   both use `-f`. The detector was widened in the same change that added this
-   section, which is what surfaced them for review.
-
 ---
 
 ## Consequences
 
-* `smc-live-news-refresh.yml`, `run-open-prep-daily.yml`,
-  `smc-measurement-benchmark-rolling.yml`, and `plan-2-8-evaluation.yml` use
-  `scripts/publish_bot_snapshot.py`. The force-with-lease operation therefore
-  lives in one tested helper rather than four workflow shell blocks. The helper
-  seeds from the real branch tip, so a transient restore failure cannot replace
-  cumulative state and the two experiment producers cannot delete each
-  other's stable paths.
-  *(2026-08-08, #4549: `plan-2-8-evaluation.yml` was deleted for publishing
-  synthetic data, leaving three consumers of the helper and a single experiment
-  producer on `bot/live-experiment-snapshot`. The carve-out itself is unchanged,
-  and `_FORCE_LEASE_ALLOWLIST` carries no entry for the removed workflow, so
-  nothing was orphaned.)*
 * The `smc-live-news-refresh.yml` snapshot mechanism continues to work
   without accumulating unbounded history on `bot/live-news-snapshot`.
 * `run-open-prep-daily.yml` reuses the same carve-out to publish
   `latest_open_prep_run.json` to `bot/live-open-prep-snapshot` (2026-06-23,
   Task F-V8) so the realtime-signals producer can consume a stable,
-  git-tracked snapshot path. The shared publisher builds the snapshot commit
-  in an isolated temporary repository, so the workflow's later outcomes PR
-  remains free of gitignored snapshot files.
+  git-tracked snapshot path. The snapshot commit is built on a detached HEAD
+  so the workflow's outcomes auto-merge PR diff stays free of the gitignored
+  snapshot file; the lease is populated by a prior fetch and the push uses
+  the `if git push ... ; then ... else ... fi` form. It is the second entry
+  in `_FORCE_LEASE_ALLOWLIST`.
 * The same carve-out is reused by `smc-measurement-benchmark-rolling.yml`
   (added 2026-06-23), which publishes the daily experiment rollup +
   `plan_2_8_history.jsonl` to `bot/live-experiment-snapshot` so the
   live-overlay daemon (Grafana experiment panels) reads the freshest CI run
   via the GitHub Contents API instead of the stale Docker-baked seed. Both
   branches are pure cache cursors in the `bot/*` namespace and satisfy the
-  constraints above.
+  four constraints above.
 * The carve-out is likewise reused by `credential-health-check.yml`
   (added 2026-06-23), which publishes the daily credential-health report
   (TradingView storage-state age probe) to `bot/live-tv-credential-snapshot`
@@ -141,33 +104,10 @@ Constraints that must hold for the allowance to remain valid:
   freshest snapshot for the `lo-sweep-trap-shadow-stale` gauge. Same rolling
   `bot/*` cache-cursor pattern; force-with-lease with prior fetch.
 * `tv-save-consumer-source.yml` (added 2026-07-16) publishes the latest
-  saved-source SHA-256 comparisons and measured TradingView `input.source`
-  dropdown assignments on the dedicated
+  measured TradingView `input.source` dropdown assignments on the dedicated
   `bot/live-tradingview-bindings` cache branch. The workflow fetches
   the current tip and uses an explicit lease; the branch remains a pure
   machine-generated cache cursor consumed by the live-overlay daemon.
-* `smc-r4-context-readback.yml` (added 2026-08-03) became a SECOND producer
-  on `bot/live-tradingview-bindings`, publishing its own R4 rebind snapshot
-  to `artifacts/monitoring/latest/tradingview_r4_context_bindings.json`
-  alongside `tv-save-consumer-source.yml`'s `tradingview_consumer_bindings.json`
-  in the same directory. This is the constraint #5 case: a bare `git add -f`
-  of only its own file, committed on top of a fresh checkout (which does not
-  carry that bot-branch-only directory at all), would silently delete the
-  other producer's file the moment the commit became the new tip. Its
-  publish step fetches first, seeds `artifacts/monitoring/latest/` from the
-  fetched tip (`git checkout <tip-sha> -- artifacts/monitoring/latest`)
-  before adding its own file, then stages the whole directory — replacing
-  only its own path while carrying the sibling producer's file forward.
-  `tv-save-consumer-source.yml` seeds the same way, so the protection is
-  symmetric and neither producer can drop the other's file. An earlier draft
-  of this bullet said that workflow had been left unseeded and called the
-  asymmetry an accepted residual risk; that was true for one commit and is
-  no longer. Both directions were verified by extracting the two `run:`
-  bodies and round-tripping them against a throwaway bare repository —
-  first publish creates the branch, each subsequent publish carries the
-  sibling's file forward, and a stale lease is rejected without clobbering.
-  **Any third producer on this branch must seed identically**; a bare
-  `git add -f` of one path would delete both existing files on its first push.
 * The same pattern is applied outside CI by
   `scripts/publish_signals_snapshot.py`, a host-run helper that updates
   `bot/live-signals-snapshot` with `latest_realtime_signals.json` (which has

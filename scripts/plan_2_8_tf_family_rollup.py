@@ -160,17 +160,14 @@ def build_rollup(
             fslot["n_events"] += fam_n
             fslot["hit_rate_weighted"] += fam_hr * fam_n
 
-    # Normalise weighted sums into hit rates. A slot with no events has NO
-    # measured hit rate: emit ``None`` (rendered "n/a"), not 0.0 — a 0.0 here
-    # is a zero-fill indistinguishable from a real 0% hit rate and violates the
-    # same skip-not-launder discipline (F9) the malformed-input path follows.
+    # Normalise weighted sums into hit rates.
     for _tf, slot in per_tf.items():
         n = slot["n_events"]
-        slot["hit_rate"] = (slot["hit_rate_weighted"] / n) if n else None
+        slot["hit_rate"] = (slot["hit_rate_weighted"] / n) if n else 0.0
         del slot["hit_rate_weighted"]
         for _fam, fslot in slot["families"].items():
             fn = fslot["n_events"]
-            fslot["hit_rate"] = (fslot["hit_rate_weighted"] / fn) if fn else None
+            fslot["hit_rate"] = (fslot["hit_rate_weighted"] / fn) if fn else 0.0
             del fslot["hit_rate_weighted"]
 
     return {
@@ -342,10 +339,8 @@ def render_markdown(rollup: dict[str, Any]) -> str:
     lines.append("| TF | events | HR | symbols |")
     lines.append("| --- | ---: | ---: | ---: |")
     for tf, slot in rollup["per_tf"].items():
-        hr = slot["hit_rate"]
-        hr_cell = "n/a" if hr is None else f"{hr:.3f}"
         lines.append(
-            f"| `{tf}` | {slot['n_events']} | {hr_cell} | {len(slot['symbols'])} |"
+            f"| `{tf}` | {slot['n_events']} | {slot['hit_rate']:.3f} | {len(slot['symbols'])} |"
         )
     lines.append("")
     lines.append("## Phase E2 verdicts")

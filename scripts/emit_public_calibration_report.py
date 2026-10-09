@@ -76,21 +76,11 @@ from typing import Any
 
 from scripts.smc_atomic_write import atomic_write_text
 
-# 1.4.0 (2026-08-16): additive phase1_paper_gate — the machine-readable
-# Phase-1 exit gate existed in the families telemetry since its
-# introduction but was dropped before publication; the weekly commercial
-# review measured that the public report therefore could not show the
-# launch-critical gate at all.
-PUBLIC_SCHEMA_VERSION = "1.4.0"
+PUBLIC_SCHEMA_VERSION = "1.3.0"
 HISTORY_RETENTION = 90  # ~3 months at one entry per day
 DEFAULT_OUTPUT = Path("docs/calibration/calibration_report_public.json")
 DEFAULT_HISTORY_FILENAME = "calibration_report_public_history.jsonl"
 DEFAULT_SEARCH_DIR = Path("artifacts/reports")
-# ADR-0031: committed drop-zone of the promotion-gate-daily producers
-# (track_record_gate_<date>.json / regime_stratified_<date>.json). The
-# newest file by the date embedded in the name wins; fail-soft when the
-# directory is empty (pre-first-run state).
-DEFAULT_GATES_DIR = Path("docs/calibration/gates")
 # Ordered by SCHEMA PREFERENCE, not freshness. This module extracts the flat
 # schema (family_weights / family_stats / testable_calibration); the contextual
 # artifact is a different VIEW of the same run (global_weights / bucket_stats /
@@ -281,33 +271,6 @@ def _normalise_families(
     return out
 
 
-def _normalise_phase1_paper_gate(gate: dict[str, Any]) -> dict[str, Any]:
-    """Validate the Phase-1 paper gate block (additive in schema 1.4.0).
-
-    Producer schema: scripts/build_families_telemetry.py build_payload().
-    Fail-closed like the families block — a malformed gate must never be
-    published as if it were a measured verdict.
-    """
-    if not isinstance(gate, dict):
-        raise TypeError(
-            f"phase1_paper_gate must be a dict, got {type(gate).__name__}",
-        )
-    if gate.get("status") not in ("GREEN", "BLOCKED"):
-        raise ValueError(
-            "phase1_paper_gate.status must be GREEN or BLOCKED, got "
-            f"{gate.get('status')!r}",
-        )
-    for key in ("families_ready", "families_missing_closed_outcome"):
-        value = gate.get(key)
-        if not isinstance(value, list) or not all(
-            isinstance(item, str) for item in value
-        ):
-            raise ValueError(
-                f"phase1_paper_gate.{key} must be a list of family names",
-            )
-    return dict(gate)
-
-
 def build_public_report(
     cal_payload: dict[str, Any] | None,
     *,
@@ -317,18 +280,8 @@ def build_public_report(
     track_record_gate: dict[str, Any] | None = None,
     regime_stratified: dict[str, Any] | None = None,
     families: list[dict[str, Any]] | None = None,
-    phase1_paper_gate: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Construct the public-report dict from a calibration artifact.
-
-    ``phase1_paper_gate`` (additive in schema 1.4.0; weekly commercial
-    review 2026-08-16): the machine-readable Phase-1 exit gate from
-    :mod:`scripts.build_families_telemetry` (GREEN once every family has a
-    closed PAPER outcome, BLOCKED otherwise). It travelled inside the
-    families telemetry from the start but was dropped before publication,
-    so the public report could not show the launch-critical gate at all.
-    ``main()`` lifts it from the same ``--include-families`` file that
-    supplies ``families``.
 
     A ``None`` payload yields a status=``awaiting_first_run`` shell so the
     dashboard can render a useful "no data yet" panel instead of a 404.
@@ -343,17 +296,7 @@ def build_public_report(
     per-regime metrics produced by
     :mod:`scripts.regime_stratification` are surfaced under the
     ``regime_stratified`` key (one block per regime label plus the
-    aggregate freq-weighted metric and concentration summary).
-    Wired since ADR-0031 (2026-07-29): ``main()`` loads the newest
-    ``regime_stratified_<date>.json`` from ``--gates-dir``
-    (default ``docs/calibration/gates/``, produced daily by
-    :mod:`scripts.build_regime_stratified_report` in
-    ``promotion-gate-daily``) and passes it here; same for
-    ``track_record_gate`` via ``track_record_gate_<date>.json``
-    (:mod:`scripts.build_track_record_gate`). Both loads are fail-soft —
-    a missing artifact omits the key, the honest pre-first-run state.
-    The returns basis is the Variant-A series (see ADR-0031): net
-    returns *given a triggered setup*, NOT portfolio P&L.
+    aggregate freq-weighted Sharpe and BH-FDR rejection summary).
 
     ``families`` (additive in schema 1.3.0; Deep-Review 2026-04-27 MAJOR
     finding): per-family Phase-B incubation telemetry consumed by
@@ -384,10 +327,6 @@ def build_public_report(
             out["regime_stratified"] = regime_stratified
         if families is not None:
             out["families"] = _normalise_families(families)
-        if phase1_paper_gate is not None:
-            out["phase1_paper_gate"] = _normalise_phase1_paper_gate(
-                phase1_paper_gate
-            )
         return out
 
     metrics = _extract_calibration_metrics(cal_payload)
@@ -420,10 +359,6 @@ def build_public_report(
         out["regime_stratified"] = regime_stratified
     if families is not None:
         out["families"] = _normalise_families(families)
-    if phase1_paper_gate is not None:
-        out["phase1_paper_gate"] = _normalise_phase1_paper_gate(
-            phase1_paper_gate
-        )
     return out
 
 
@@ -493,36 +428,6 @@ def write_report(report: dict[str, Any], output_path: Path) -> None:
     tmp_path.replace(output_path)
 
 
-def _load_latest_gate_artifact(
-    gates_dir: Path, prefix: str, explicit: Path | None
-) -> dict[str, Any] | None:
-    """Load ``<prefix>_<date>.json`` — explicit path, else newest in dir.
-
-    Fail-soft by design (ADR-0031): a missing/empty dir or unreadable file
-    returns ``None`` so the public report simply omits the additive key —
-    the honest pre-first-run state. "Newest" is resolved by the date
-    embedded in the filename (lexicographic on ISO dates), NOT mtime, so a
-    checkout does not reorder history.
-    """
-    path = explicit
-    if path is None:
-        if not gates_dir.is_dir():
-            return None
-        candidates = sorted(gates_dir.glob(f"{prefix}_*.json"))
-        if not candidates:
-            return None
-        path = candidates[-1]
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        logger.warning("skipping %s artifact %s: %s", prefix, path, exc)
-        return None
-    if not isinstance(payload, dict):
-        logger.warning("skipping %s artifact %s: not a JSON object", prefix, path)
-        return None
-    return payload
-
-
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Emit the public calibration report (Q3/Q4 §3.1.1).",
@@ -568,28 +473,6 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
             "C12 trigger can evaluate per-family Phase-B promotion."
         ),
     )
-    parser.add_argument(
-        "--gates-dir",
-        type=Path,
-        default=DEFAULT_GATES_DIR,
-        help=(
-            "Directory scanned for the newest track_record_gate_<date>.json / "
-            f"regime_stratified_<date>.json (default: {DEFAULT_GATES_DIR}; "
-            "ADR-0031). Missing dir/files → the keys are omitted."
-        ),
-    )
-    parser.add_argument(
-        "--track-record-gate",
-        type=Path,
-        default=None,
-        help="Explicit gate-verdict JSON; overrides the --gates-dir scan.",
-    )
-    parser.add_argument(
-        "--regime-stratified",
-        type=Path,
-        default=None,
-        help="Explicit regime-stratified JSON; overrides the --gates-dir scan.",
-    )
     return parser.parse_args(argv)
 
 
@@ -613,7 +496,6 @@ def main(argv: list[str] | None = None) -> int:
             return 1
 
     families: list[dict[str, Any]] | None = None
-    phase1_paper_gate: dict[str, Any] | None = None
     if args.include_families is not None:
         try:
             fam_payload = json.loads(args.include_families.read_text(encoding="utf-8"))
@@ -638,25 +520,6 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 1
         families = fam_payload["families"]
-        # Additive in 1.4.0, fail-closed like families: the producer has
-        # emitted the gate since its introduction, so an absence means a
-        # broken or foreign payload, not an older schema.
-        if "phase1_paper_gate" not in fam_payload:
-            print(
-                f"ERROR: families telemetry at {args.include_families} "
-                "missing top-level 'phase1_paper_gate' key (expected "
-                "producer schema from scripts/build_families_telemetry.py).",
-                file=sys.stderr,
-            )
-            return 1
-        phase1_paper_gate = fam_payload["phase1_paper_gate"]
-
-    track_record_gate = _load_latest_gate_artifact(
-        args.gates_dir, "track_record_gate", args.track_record_gate
-    )
-    regime_stratified = _load_latest_gate_artifact(
-        args.gates_dir, "regime_stratified", args.regime_stratified
-    )
 
     try:
         report = build_public_report(
@@ -664,10 +527,7 @@ def main(argv: list[str] | None = None) -> int:
             source_path=cal_path,
             source_commit_sha=args.commit_sha,
             source_workflow_run=args.workflow_run,
-            track_record_gate=track_record_gate,
-            regime_stratified=regime_stratified,
             families=families,
-            phase1_paper_gate=phase1_paper_gate,
         )
     except (TypeError, ValueError) as exc:
         print(

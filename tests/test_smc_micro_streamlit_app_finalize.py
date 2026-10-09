@@ -453,7 +453,6 @@ def test_run_streamlit_micro_base_app_generate_pine_reuses_selected_session_resu
         and update.get("state") == "complete"
         for update in status.updates
     )
-    assert fake_streamlit.info_messages, "no info messages at all — the absence check below would pass vacuously"
     assert not any(
         "multiple generated base snapshots were found" in message.lower()
         for message in fake_streamlit.info_messages

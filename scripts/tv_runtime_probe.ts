@@ -14,10 +14,10 @@ try {
   const { page } = session;
   await gotoChart(page);
   await ensurePineEditor(page);
-  await openExistingScript(page, "SMC Decision Board v7");
+  await openExistingScript(page, "SMC Long-Dip Dashboard v7");
   await ensurePineEditor(page);
 
-  const dashboardCode = fs.readFileSync(path.resolve("SMC_Decision_Board.pine"), "utf-8");
+  const dashboardCode = fs.readFileSync(path.resolve("SMC_Long_Dip_Dashboard.pine"), "utf-8");
   const textarea = page.locator("textarea.inputarea").first();
   await textarea.click({ force: true });
 

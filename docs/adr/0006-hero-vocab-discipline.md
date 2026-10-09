@@ -55,7 +55,7 @@ Any change to `HERO_BIAS_VOCAB` or `HERO_MARKET_MODE_VOCAB` (add, remove, rename
 
 * `library_field_version` bump in the generated Pine library (per ADR-0003).
 * CHANGELOG entry under `### Schema Versions`.
-* Update of the consuming Pine dashboards (`SMC_Decision_Board.pine`, `SMC_Long_Dip_Mobile.pine`).
+* Update of the consuming Pine dashboards (`SMC_Long_Dip_Dashboard.pine`, `SMC_Long_Dip_Mobile.pine`).
 
 ## Alternatives considered
 

@@ -18,19 +18,11 @@ _REPO = Path(__file__).resolve().parents[1]
 _LIB = _REPO / "automation" / "launchd" / "lib_c13_et_gate.sh"
 
 
-def _run_gate(
-    tmp_repo: Path,
-    now_et: str,
-    dow: int,
-    thh: str,
-    tmm: str,
-    tol: str,
-    scope: str = "",
-) -> int:
+def _run_gate(tmp_repo: Path, now_et: str, dow: int, thh: str, tmm: str, tol: str) -> int:
     """Invoke the sourced gate with an injected ET clock; return its exit code."""
     script = (
         f'source "{_LIB}"; '
-        f'c13_require_et_window "{tmp_repo}" {thh} {tmm} {tol} testjob {scope}'
+        f'c13_require_et_window "{tmp_repo}" {thh} {tmm} {tol} testjob'
     )
     proc = subprocess.run(
         ["bash", "-c", script],
@@ -71,29 +63,6 @@ def test_gate_runs_exactly_once_per_et_day(tmp_path: Path) -> None:
     # -- for phase-a that would mean duplicate paper orders.
     assert _run_gate(tmp_path, "09:28", 1, "09", "28", "10") == 0
     assert _run_gate(tmp_path, "09:28", 1, "09", "28", "10") != 0
-
-
-def test_hour_scope_allows_one_run_per_et_hour(tmp_path: Path) -> None:
-    # The intraday observation drivers (commercial-shadow) fire once per RTH
-    # hour BY DESIGN; the day-scoped marker turned their six daily slots into
-    # one (and a failed 16:05 fire burned the whole 2026-08-17 session). Same
-    # hour: second fire skips. Next hour: the fire proceeds again.
-    assert _run_gate(tmp_path, "10:05", 1, "12", "45", "195", scope="hour") == 0
-    assert _run_gate(tmp_path, "10:05", 1, "12", "45", "195", scope="hour") != 0
-    assert _run_gate(tmp_path, "10:35", 1, "12", "45", "195", scope="hour") != 0
-    assert _run_gate(tmp_path, "11:05", 1, "12", "45", "195", scope="hour") == 0
-
-
-def test_hour_scope_still_skips_outside_window_and_on_weekends(tmp_path: Path) -> None:
-    assert _run_gate(tmp_path, "08:05", 1, "12", "45", "195", scope="hour") != 0
-    assert _run_gate(tmp_path, "10:05", 6, "12", "45", "195", scope="hour") != 0
-
-
-def test_default_scope_is_day_when_the_sixth_argument_is_omitted(tmp_path: Path) -> None:
-    # The order-placing chains keep exactly-once-per-day semantics untouched:
-    # a second fire in a LATER hour must still skip without the hour scope.
-    assert _run_gate(tmp_path, "09:28", 1, "09", "28", "60") == 0
-    assert _run_gate(tmp_path, "10:05", 1, "09", "28", "60") != 0
 
 
 def test_concurrent_in_window_fires_let_exactly_one_proceed(tmp_path: Path) -> None:
@@ -166,11 +135,9 @@ def test_gate_surfaces_real_write_error_instead_of_faking_already_ran(tmp_path: 
     ],
 )
 def test_plist_candidate_hours_cover_dst_offsets(plist_name: str, et_hour: int) -> None:
-    # 2026-08-19 (Doppelgaenger): der Grund fuer den Regex-Workaround ist weg —
-    # das ``--phase`` im XML-Kommentar der phase-a-Plist ist umformuliert, alle
-    # 12 Plists parsen strikt (test_every_repo_plist_is_valid_xml haelt das).
-    # Der Regex bleibt hier, weil er die Reihenfolge Weekday/Hour/Minute IN DER
-    # DATEI prueft, was plistlib normalisiert wegwirft.
+    # Regex, not plistlib: the phase-a plist carries a pre-existing XML comment
+    # with a literal ``--`` (``--phase``) that Apple's lenient launchd parser
+    # accepts but strict expat rejects; the schedule entries are simple.
     text = (_REPO / "automation" / "launchd" / plist_name).read_text()
     entries = re.findall(
         r"<key>Weekday</key><integer>(\d+)</integer>"
@@ -225,29 +192,3 @@ def test_tws_reminder_plist_mixes_et_morning_and_local_evening() -> None:
     assert re.search(
         r"c13_require_et_window\s+\"\$REPO\"\s+07\s+45\s+\d+\s+tws-reminder", wrapper
     ), "morning reminder must target 07:45 ET via the shared gate"
-
-
-def test_every_repo_plist_is_valid_xml() -> None:
-    """Jede getrackte Plist muss von einem STRIKTEN Parser lesbar sein.
-
-    2026-08-19 (Doppelgaenger): ``com.skippalgo.c13.phase-a.plist`` trug ein
-    ``--phase`` in einem XML-Kommentar — in XML verboten. Apples toleranter
-    Parser (launchd, ``plutil -lint``) akzeptierte es, Pythons ``plistlib``
-    brach ab. Folge: jedes Python-Werkzeug ueber die Plist-Population stolpert
-    ueber genau eine Datei, und der bequeme Ausweg ist ein Regex-Workaround,
-    der die naechste Analyse wieder blind macht (so geschehen in
-    ``test_plist_candidate_hours_cover_dst_offsets``). ``plutil -lint`` haette
-    den Defekt NIE gemeldet — er muss hier gegen einen strikten Parser fallen.
-    """
-    import plistlib
-
-    plists = sorted((_REPO / "automation" / "launchd").glob("*.plist"))
-    assert len(plists) >= 10, f"Population unplausibel klein: {[p.name for p in plists]}"
-
-    broken: dict[str, str] = {}
-    for path in plists:
-        try:
-            plistlib.loads(path.read_bytes())
-        except Exception as exc:  # jeder Parse-Fehler zaehlt, nicht nur ExpatError
-            broken[path.name] = str(exc)[:80]
-    assert not broken, f"Plists, die ein strikter XML-Parser ablehnt: {broken}"

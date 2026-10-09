@@ -22,7 +22,7 @@ from pydantic import BaseModel, ConfigDict, Field
 SCHEMA_ID: str = "smc-live-overlay/1"
 
 #: Timeframes the overlay can be requested for, in canonical Pine spelling.
-SUPPORTED_TIMEFRAMES: tuple[str, ...] = ("1m", "5m", "10m", "15m", "30m", "1H", "4H")
+SUPPORTED_TIMEFRAMES: tuple[str, ...] = ("5m", "10m", "15m", "30m", "1H", "4H")
 
 #: Allowed non-null values for ``news_bias``.
 NEWS_BIAS_VALUES: tuple[str, ...] = ("BULLISH", "BEARISH", "NEUTRAL")
@@ -30,9 +30,8 @@ NEWS_BIAS_VALUES: tuple[str, ...] = ("BULLISH", "BEARISH", "NEUTRAL")
 #: Envelope fields that are always present on the wire.
 ENVELOPE_FIELDS: tuple[str, ...] = ("schema", "symbol", "tf", "asof_ts", "stale")
 
-TimeframeLiteral = Literal["1m", "5m", "10m", "15m", "30m", "1H", "4H"]
+TimeframeLiteral = Literal["5m", "10m", "15m", "30m", "1H", "4H"]
 NewsBiasLiteral = Literal["BULLISH", "BEARISH", "NEUTRAL"]
-ProviderTrustLiteral = Literal["ok", "degraded", "unavailable"]
 
 
 class LiveOverlayPayload(BaseModel):
@@ -53,14 +52,6 @@ class LiveOverlayPayload(BaseModel):
     asof_ts: int = Field(ge=0)
     stale: bool
 
-    # --- Generated-library context (additive daemon enrichment) ---
-    universe_member: bool | None = None
-    universe_size: int | None = Field(default=None, ge=0)
-    library_asof_date: str | None = None
-    library_asof_time: str | None = None
-    provider_trust_status: ProviderTrustLiteral | None = None
-    provider_stale_list: str | None = None
-
     # --- News overlay fields (served fresh); flow_rel_vol/squeeze_on are
     # baked-only here (daemon-served elsewhere, never by this endpoint) ---
     news_strength: float | None = Field(default=None, ge=0.0, le=1.0)
@@ -71,11 +62,8 @@ class LiveOverlayPayload(BaseModel):
     # --- B2 overlay fields (served live by /smc_live: vix, flow/ATS, tone, heat) ---
     vix_level: float | None = Field(default=None, ge=0.0)
     flow_delta_proxy_pct: float | None = None
-    price_candle_body_return_pct: float | None = None
     ats_state: str | None = None
-    volume_accumulation_distribution_state: str | None = None
     ats_zscore: float | None = None
-    volume_current_bar_zscore: float | None = None
     tone: str | None = None
     global_heat: float | None = Field(default=None, ge=-1.0, le=1.0)
 

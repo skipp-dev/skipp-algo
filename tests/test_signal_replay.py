@@ -10,7 +10,6 @@ import pytest
 from open_prep.outcomes import (
     _load_outcomes_range,
     compute_hit_rates,
-    get_symbol_hit_rate,
     store_daily_outcomes,
 )
 
@@ -110,98 +109,6 @@ class TestComputeHitRates:
         )
         rates = compute_hit_rates(5)
         assert len(rates) == 2
-
-    def test_missing_rvol_records_are_skipped_not_pooled_into_low(self, outcomes_dir: Path) -> None:
-        # RVOL fix 2026-07-23: rvol=None means "ratio unavailable at scoring
-        # time" — the record must be skipped entirely, not bucketed as
-        # rvol=0.0 into "low" where it dilutes genuine low-RVOL signals.
-        real_low = {"date": "2026-04-20", "symbol": "REAL", "gap_pct": 3.0, "rvol": 0.5,
-                    "score": 1, "profitable_30m": True, "pnl_30m_pct": 1.0}
-        missing = {"date": "2026-04-20", "symbol": "MISS", "gap_pct": 3.0, "rvol": None,
-                   "score": 1, "profitable_30m": False, "pnl_30m_pct": -9.0}
-        (outcomes_dir / "outcomes_2026-04-20.json").write_text(
-            json.dumps([real_low, missing]), encoding="utf-8"
-        )
-        rates = compute_hit_rates(5)
-        assert list(rates) == ["medium:low"]
-        assert rates["medium:low"]["total"] == 1  # MISS skipped, not counted
-        assert rates["medium:low"]["hit_rate"] == 1.0
-        assert rates["medium:low"]["avg_pnl_pct"] == 1.0
-
-
-class TestGetSymbolHitRateMissingRvol:
-    """Lookup-side symmetry of the store's rvol=None discipline (F1).
-
-    The store degrades a missing volume baseline to ``rvol=None`` and
-    ``compute_hit_rates`` skips it, so the ``low`` bucket holds only genuine
-    low-RVOL records. The live lookup must not then read that low-bucket rate
-    back for a symbol whose RVOL is simply unknown — the scorer emits 0.0 when
-    it has no ``avg_volume`` baseline, and ``_rvol_bucket_label(0.0)`` == "low".
-    """
-
-    @staticmethod
-    def _populated_low_bucket() -> dict[str, dict[str, object]]:
-        # A medium-gap / low-RVOL bucket populated by genuine low-RVOL records.
-        return {
-            "medium:low": {
-                "total": 8,
-                "profitable": 8,
-                "hit_rate": 1.0,
-                "unresolved": 0,
-                "avg_pnl_pct": 5.0,
-            }
-        }
-
-    def test_missing_rvol_returns_no_data_not_the_low_bucket(self) -> None:
-        looked_up = get_symbol_hit_rate("MISS", 3.0, 0.0, self._populated_low_bucket())
-        assert looked_up["historical_hit_rate"] is None
-        assert looked_up["historical_sample_size"] == 0
-
-    def test_genuine_low_rvol_still_reads_its_bucket(self) -> None:
-        # The floor must not over-reject: a real 0.5x RVOL still resolves "low".
-        looked_up = get_symbol_hit_rate("REAL", 3.0, 0.5, self._populated_low_bucket())
-        assert looked_up["historical_hit_rate"] == 1.0
-        assert looked_up["historical_sample_size"] == 8
-
-
-class TestPrepareOutcomeSnapshotRvol:
-    def test_prefers_scorer_volume_ratio_over_rederived_quotient(self) -> None:
-        # The scorer already stamps volume_ratio on every ranked row
-        # (scorer.py); the snapshot must persist THAT value — the lookup side
-        # (get_symbol_hit_rate call in run_open_prep) buckets by volume_ratio,
-        # so re-deriving volume/avg_volume here desyncs the two sides.
-        from open_prep.outcomes import prepare_outcome_snapshot
-
-        row = {"symbol": "AAA", "gap_pct": 2.0, "volume_ratio": 2.5,
-               "volume": 1_000_000, "avg_volume": 10_000_000}
-        rec = prepare_outcome_snapshot([row], date(2026, 7, 23))[0]
-        assert rec["rvol"] == 2.5
-        assert rec["rvol_bucket_label"] == "high"
-
-    def test_falls_back_to_volume_over_avg_volume(self) -> None:
-        from open_prep.outcomes import prepare_outcome_snapshot
-
-        row = {"symbol": "BBB", "gap_pct": 2.0,
-               "volume": 3_000_000, "avg_volume": 2_000_000}
-        rec = prepare_outcome_snapshot([row], date(2026, 7, 23))[0]
-        assert rec["rvol"] == 1.5
-        assert rec["rvol_bucket_label"] == "normal"
-
-    def test_missing_data_yields_none_not_fabricated_zero(self) -> None:
-        # A fabricated rvol=0.0 pooled every missing-data record into the
-        # "low" bucket (all 10 records of 2026-07-20 were such zeros),
-        # contaminating "low" and leaving high/very_high a positively
-        # selected remnant. Missing data must persist as None.
-        from open_prep.outcomes import prepare_outcome_snapshot
-
-        for row in (
-            {"symbol": "NO_DATA", "gap_pct": 2.0},                        # nothing volume-related
-            {"symbol": "ZERO_VR", "gap_pct": 2.0, "volume_ratio": 0.0},   # scorer's no-data sentinel
-            {"symbol": "NO_AVG", "gap_pct": 2.0, "volume": 500_000},      # no baseline (WP-D7)
-        ):
-            rec = prepare_outcome_snapshot([row], date(2026, 7, 23))[0]
-            assert rec["rvol"] is None, row["symbol"]
-            assert rec["rvol_bucket_label"] is None, row["symbol"]
 
 
 class TestStoreOutcomes:

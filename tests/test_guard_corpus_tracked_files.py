@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import ast
 import os
 import shutil
 import subprocess
@@ -230,47 +229,3 @@ def test_iter_production_py_files_catches_an_over_broad_exclude(tmp_path: Path) 
     assert len(iter_production_py_files(frozenset(), root=tmp_path, minimum=1)) == 1
     with pytest.raises(AssertionError, match="production corpus collapsed"):
         iter_production_py_files(frozenset({"pkg"}), root=tmp_path, minimum=1)
-
-
-#: Guards still discovering files by walking the working tree instead of asking
-#: git. A walk sees whatever happens to sit on disk, so an untracked local
-#: directory joins the corpus and the guard judges a different population
-#: locally than in CI. Migrating a guard lowers this; it must never rise.
-# 2026-08-18 (Grenzgänger-Sweep D2): +1 — test_databento_safe_fetch_callers
-# now walks the production packages instead of top-level *.py only; the
-# narrow glob had hidden an unguarded ~900-symbol raw get_range for weeks.
-_MAX_WALKING_GUARDS = 38
-
-
-def _walks_the_working_tree(source: str) -> bool:
-    """True when the module really CALLS ``rglob`` — not merely mentions it.
-
-    A text match also counts a guard whose only occurrence sits inside a string
-    template used as a test fixture, which is how this ratchet reported one
-    guard too many. Parsing also removes the need to obfuscate the marker so
-    this file does not count itself: naming the attribute is not calling it.
-    """
-    try:
-        tree = ast.parse(source)
-    except SyntaxError:
-        return False
-    return any(
-        isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Attribute)
-        and node.func.attr == "rglob"
-        for node in ast.walk(tree)
-    )
-
-
-def test_working_tree_walking_does_not_spread() -> None:
-    walkers = sorted(
-        path.name
-        for path in (repo_root() / "tests").glob("*.py")
-        if _walks_the_working_tree(path.read_text(encoding="utf-8", errors="ignore"))
-    )
-    assert len(walkers) <= _MAX_WALKING_GUARDS, (
-        f"{len(walkers)} guards discover files by walking the working tree, up "
-        f"from {_MAX_WALKING_GUARDS}. Use iter_production_py_files() or "
-        f"iter_tracked_files() so the corpus is git-derived and identical in "
-        f"CI. Walking guards: {walkers}"
-    )

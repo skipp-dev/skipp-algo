@@ -1,9 +1,0 @@
-{
-  "schemaVersion": 1,
-  "enabled": false,
-  "scope": "Broker-connected paper submission for the commercial family variants (smc_bos_long, smc_ob_long, smc_fvg_long, smc_sweep_long) via run-c13-commercial-shadow.sh.",
-  "interlock": "The driver's paper stage runs only when this flag is true AND cache/live/commercial_campaign/campaign_report.json reports observation_gate.verdict == PASS. Flipping this flag is the pilot doc's launch-gate review, recorded as a dated PR — never flip it before the campaign gate passes.",
-  "flippedAt": null,
-  "flippedBasis": null,
-  "authorizedBy": "Operator decision 2026-08-16 (weekly review P0): two-stage wiring — audit-only campaign first, broker-connected paper only behind campaign PASS plus this explicit review record."
-}

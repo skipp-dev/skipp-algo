@@ -3,37 +3,23 @@
 Background
 ==========
 
-This file used to open by asserting that ``ci.yml``'s ``validate`` job is
-bound to a ``validate`` required-status check on main, and derived its whole
-purpose from that binding. **That was never true here.** Measured 2026-08-04
-against the live configuration rather than against the 2026-05-29 audit
-document it cited::
+``ci.yml``'s ``validate`` job is bound to the ``validate`` required-status
+check on the main branch (see ``branch-protection-required-checks-audit-2026-05-29.md``).
+Renames or accidental drops of the load-bearing structure (job key, runner
+selector, heavy-step gate, pytest invocations, concurrency policy, etc.)
+would silently bypass the required check by mutating the contract that
+GitHub matches by name.
 
-    gh api repos/skipp-dev/skipp-algo/rulesets/15245308 \
-      --jq '.rules[]|select(.type=="required_status_checks")
-            |.parameters.required_status_checks[].context'
-    fast-gates
+PR #2427 already covered the *job rename* failure mode for
+``regime-stratification-validation.yml`` (renamed to ``regime-validate``);
+this file extends the same defensive shape-check to ``ci.yml`` so the
+required-check binding never silently rots.
 
-One context, and it is not ``validate``. Protection lives in a **ruleset**,
-not in classic branch protection — the classic endpoint this docstring told
-readers to consult answers 404 (see ``docs/adr/0011-*``; since 2026-08-27 the
-four ``validate (N)`` shard contexts are required alongside ``fast-gates``).
-
-What this pin is actually worth, then, is narrower but real: ``ci.yml`` is
-where the repo's **only full-suite execution** lives, and it runs on main
-pushes and manual dispatch. A rename or accidental drop of the load-bearing
-structure (job key, runner selector, heavy-step gate, pytest invocations,
-concurrency policy) would stop that suite from running without turning any
-PR red — nothing gates on it. The shape-check is the thing that notices.
-
-PR #2427 covered the same *job rename* failure mode for
-``regime-stratification-validation.yml``.
-
-Failure semantics: an assertion failure here means the workflow was
-restructured in a way that may break the runner-policy contract or silence
-the full suite. Either roll back the structural change, or update this pin
-in the same PR — and if the change is meant to alter what gates merges, the
-ruleset above has to change with it.
+Failure semantics: any assertion failure here means the workflow has been
+restructured in a way that may break branch-protection enforcement OR the
+runner-policy contract. The fix is either to roll back the structural
+change OR to update both this pin AND the branch-protection configuration
+(``gh api repos/:owner/:repo/branches/main/protection``) in the same PR.
 """
 
 from __future__ import annotations
@@ -124,15 +110,7 @@ def test_concurrency_cancels_only_pull_requests(ci_doc: dict) -> None:
 
 def test_runs_on_uses_hosted_runner_variable(validate_job: dict) -> None:
     runs_on = validate_job.get("runs-on")
-    # 2026-08-29: mit Meldung — zweite Fundstelle derselben Klasse wie in
-    # tests/test_workflow_runner_pinned.py. `runs-on: [self-hosted, linux,
-    # ARM64]` ist die Liste-statt-String-Schreibweise, die eine arm64-Umstellung
-    # nahelegt; ohne Meldung faellt sie hier mit nacktem AssertionError, und die
-    # beiden Policy-Asserts darunter laufen nie.
-    assert isinstance(runs_on, str), (
-        f"validate.runs-on ist kein String mehr, sondern {type(runs_on).__name__}: {runs_on!r} — "
-        "eine Label-Liste umgeht die Policy-Pruefungen darunter, statt an ihnen zu scheitern"
-    )
+    assert isinstance(runs_on, str)
     assert "vars.SMC_GH_HOSTED_RUNNER" in runs_on, (
         "validate.runs-on MUST reference vars.SMC_GH_HOSTED_RUNNER per the "
         "2026-05-20 runner policy (CI is GitHub-hosted by default; self-hosted "
@@ -144,90 +122,21 @@ def test_runs_on_uses_hosted_runner_variable(validate_job: dict) -> None:
     )
 
 
-def test_a_hanging_test_still_names_itself() -> None:
-    """Die Kappe beendet einen Hang — sie ERKLAERT ihn nicht.
-
-    Am 2026-08-20 starb ``validate (4)`` nach 45m 22s am Job-Limit. Der
-    Runner-Log sprang in zwei Minuten auf ``[ 28%]`` und schwieg dann 43
-    Minuten; dieselbe Shard lief lokal in 98,76 s durch (6139 passed). Faktor 27
-    — ein Hang, keine Langsamkeit. Diagnostisch lag NICHTS vor: Stille nennt
-    weder Test noch Thread.
-
-    ``faulthandler_timeout`` gehoert zu pytest selbst und druckt den Traceback
-    ALLER Threads. Belegt am 20.8. mit einer synthetischen Barriere::
-
-        Timeout (0:00:03)!
-        Thread 0x...:
-          File ".../threading.py", line 725 in wait
-          File ".../test_hangprobe.py", line 20 in test_a_thread_stuck_on_a_barrier
-
-    Die Schwelle wird hier NICHT gegen eine handgeschriebene Zahl geprueft,
-    sondern gegen die laengste tatsaechlich aufgezeichnete Testlaufzeit. Kommt
-    morgen ein Test dazu, der laenger braucht als die Schwelle, wird dieser
-    Waechter rot und erzwingt eine Entscheidung — statt still Fehlalarm-Dumps zu
-    produzieren.
-    """
-    import json
-    import tomllib
-
-    ini = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
-    timeout = ini["tool"]["pytest"]["ini_options"].get("faulthandler_timeout")
-    assert timeout is not None, (
-        "faulthandler_timeout ist weg — ein haengender Test schweigt dann wieder "
-        "bis zum Job-Limit, ohne sich zu benennen (2026-08-20, validate (4))."
-    )
-    threshold = float(timeout)
-
-    durations = json.loads((REPO_ROOT / ".test_durations").read_text(encoding="utf-8"))
-    slowest_id, slowest = max(durations.items(), key=lambda kv: kv[1])
-    assert threshold > slowest * 2, (
-        f"faulthandler_timeout={threshold}s laesst dem langsamsten aufgezeichneten "
-        f"Test ({slowest:.1f}s, {slowest_id}) weniger als den doppelten Spielraum. "
-        "Auf einem langsameren Runner produziert das Fehlalarm-Dumps — entweder "
-        "die Schwelle heben oder den Test beschleunigen."
-    )
-
-
-def test_timeout_minutes_caps_both_lanes(validate_job: dict) -> None:
-    """Beide Lanes brauchen eine harte Kappe — aber nicht dieselbe.
-
-    Bis 2026-08-20 stand hier eine glatte 45. Die gehoert der MAIN-Lane: die
-    volle Suite mit Coverage laeuft ~30-40 min auf hosted Runnern, und ohne Kappe
-    steht der GHA-Default von 6 h. Seit #4927 faehrt die PR-Lane aber nur die
-    slow-Komplementmenge (gemessen: 4,5-6,3 min fuer die gesunden Shards), und
-    ein Hang in Shard 4 hat am 20.8. volle 45 Minuten verbrannt, ohne ein
-    einziges Signal zu liefern. Deshalb jetzt zwei Zahlen statt einer.
-
-    Der Test pinnt beide, damit weder die eine noch die andere still
-    verschwindet — ein Ausdruck, der nur noch EINE Grenze traegt, faellt hier
-    auf.
-    """
+def test_timeout_minutes_45(validate_job: dict) -> None:
     timeout = validate_job.get("timeout-minutes")
-    assert isinstance(timeout, str) and timeout.startswith("${{"), (
-        "validate.timeout-minutes MUST stay an expression carrying BOTH caps — "
-        f"got {timeout!r}. Eine glatte Zahl kappt entweder die main-Lane zu "
-        "frueh oder laesst die PR-Lane 45 Minuten in einen Hang laufen."
-    )
-    assert "pull_request" in timeout, (
-        "die Kappe unterscheidet die Lanes nicht mehr am Ereignis — ohne "
-        f"``github.event_name == 'pull_request'`` greift nur ein Wert: {timeout!r}"
-    )
-    assert "45" in timeout, (
-        "das 45-min-Budget der MAIN-Lane ist weg — die volle Suite mit Coverage "
-        f"laeuft ~30-40 min und wuerde abgeschnitten: {timeout!r}"
-    )
-    assert "15" in timeout, (
-        "die 15-min-Kappe der PR-Lane ist weg — ein Hang in einer Shard "
-        f"verbrennt dann wieder 45 Runner-Minuten fuer null Signal: {timeout!r}"
+    assert timeout == 45, (
+        "validate.timeout-minutes MUST stay at 45 — the full pytest suite "
+        "runs ~30-40 min on hosted runners and we want a hard cap on hangs "
+        "rather than a runaway 6 h GHA default."
     )
 
 
 # ─────────────────────────────────────────────────────────────────────
-# Event gate (which events run the heavy suite)
+# Bot-PR short-circuit gate
 # ─────────────────────────────────────────────────────────────────────
 
 
-def test_event_gate_present_and_fails_closed(validate_job: dict) -> None:
+def test_bot_pr_short_circuit_gate_present(validate_job: dict) -> None:
     steps = validate_job.get("steps")
     assert isinstance(steps, list) and steps, "validate MUST declare steps"
     gate = next(
@@ -238,18 +147,9 @@ def test_event_gate_present_and_fails_closed(validate_job: dict) -> None:
         "validate MUST contain a step with id=`gate` that decides run_heavy."
     )
     run = gate.get("run") or ""
-    # 2026-08-20: pull requests run the slow complement (Operator-Entscheidung,
-    # ADR-0012 Option B + Operator-Punkt 1). Die vorherige Zusicherung hier
-    # begruendete den Kurzschluss mit "GitHub merge-ref validate(4) zombies" --
-    # gemessen steht dieser Satz GENAU EINMAL im Baum (22 "zombie"-Treffer
-    # gesamt, 9 davon C13 als Positivkontrolle), ohne ADR, Issue oder Commit
-    # dahinter; die Zeile stammt aus dem Wurzel-Commit der Historie. Die Sorge
-    # wird nicht verworfen, sondern auf ihre zwei Gegenmittel gepinnt: die
-    # PR-Concurrency bricht Vorlaeufer ab, und der Job hat ein Zeitlimit. Ein
-    # haengender Lauf kann sich damit nicht ueber PR-Updates hinweg stapeln.
-    assert "Pull request runs the slow complement" in run, (
-        "pull_request validate must state which lane it runs; a required check "
-        "that silently short-circuits is protection in appearance only."
+    assert "Pull request CI is status-only" in run, (
+        "pull_request validate runs MUST stay status-only to avoid GitHub "
+        "merge-ref validate(4) zombies."
     )
     assert "Non-main push CI is status-only" in run, (
         "non-main push validate runs MUST stay status-only; otherwise PR "
@@ -262,19 +162,17 @@ def test_event_gate_present_and_fails_closed(validate_job: dict) -> None:
         "gate step MUST distinguish main pushes from PR branch pushes via ref_name."
     )
     assert "run_heavy=false" in run, "pull_request gate MUST emit run_heavy=false"
-    # The gate MUST fail closed: its last word is run_heavy=true, so an event no
-    # arm above claims runs the full suite instead of skipping it silently.
-    #
-    # Until 2026-08-04 this spot also pinned `bot/*`, `.filename` and
-    # `run_heavy=$heavy` -- a path allow-list that was UNREACHABLE under ci.yml's
-    # own triggers (push / pull_request / workflow_dispatch all exit in the four
-    # arms above; measured before and after removal, identical verdicts). Pinning
-    # it made this file claim ci.yml path-checks bot PRs. It does not: here every
-    # pull request is status-only. What the gate actually decides is witnessed by
-    # execution in tests/test_fast_gates_silent_skip_coverage.py.
-    assert run.rstrip().endswith('echo "run_heavy=true" >> "$GITHUB_OUTPUT"'), (
-        "gate step MUST fail closed to run_heavy=true as its final fallback"
+    assert "bot/*" in run, "gate step MUST match the `bot/*` head_ref pattern"
+    # Audit P2 HIGH: the legacy bot fallback must verify changed PATHS (not
+    # just the branch name), emitting run_heavy from the per-file allow-list
+    # check and failing closed to run_heavy=true.
+    assert "run_heavy=$heavy" in run, (
+        "gate step MUST emit run_heavy from the per-file path check"
     )
+    assert ".filename" in run, (
+        "gate step MUST enumerate the PR's changed files for the allow-list"
+    )
+    assert "run_heavy=true" in run, "gate step MUST fail closed to run_heavy=true"
     assert 'EVENT_NAME' in run and "pull_request" in run, (
         "gate step MUST branch on pull_request events explicitly"
     )

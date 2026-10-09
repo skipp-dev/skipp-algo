@@ -35,86 +35,18 @@ groups:
     labels:
       severity: critical
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Prometheus is not scraping live-overlay metrics
       runbook: Check metrics-collector service and /metrics auth/path wiring.
-  - uid: lo-composio-connection-expired
-    title: Composio connection expired
-    condition: C
-    # noDataState OK: bis die Webhook-Subscription steht, liefert die Gauge
-    # nichts — das ist "noch nicht verdrahtet", kein Vorfall.
-    noDataState: OK
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        expr: live_overlay_composio_expired_connections{job="live_overlay"}
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params:
-            - 0
-          operator:
-            type: and
-          query:
-            params:
-            - A
-    # Kein "for": ein Ablauf heilt nicht von selbst. Der refresh-Endpunkt ist
-    # deprecated und verlangt einen Menschen im Browser.
-    for: 0m
-    labels:
-      severity: critical
-    annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
-      summary: Eine Composio-Verbindung ist abgelaufen und unbeaufsichtigt nicht heilbar
-      runbook: >-
-        Composio meldete composio.connected_account.expired. Der Alarmweg laeuft
-        bewusst ueber Prometheus, NICHT ueber Slack/GitHub — beide liefen durch
-        composio_ops, also durch die ausgefallene Schicht. Das betroffene Toolkit
-        steht im Daemon-Log und in artifacts/monitoring/composio_lifecycle.jsonl.
-        Behebung: Connect-Link per API mit demselben user_id + auth_config_id
-        (POST /api/v3/connected_accounts/link), NICHT ueber den
-        Dashboard-Reconnect — der legt einen Account unter fremder Entity an.
   - uid: lo-core-signal-missing
     title: Core readiness signal missing
     condition: C
     # absent()==1 is the alarm; a healthy empty vector must not page as NoData.
-    #
-    # Covers all FOUR readiness inputs, not just overlay_fresh (2026-07-23).
-    # lo-scrape-missing catches a whole-daemon outage, but a SELECTIVE export
-    # bug in one gauge was alert-blind, and each consumer fails silently rather
-    # than loudly when its input vanishes:
-    #   * feed_healthy -> lo-feed-down-market-open computes
-    #     market_us_open * ((1 - feed_healthy) + bar-age-term). Vector
-    #     arithmetic inner-joins, so an empty (1 - feed_healthy) empties the
-    #     whole sum -- the bar-age term is lost too and the feed-down alert
-    #     dies entirely, exactly when the feed is the thing in question.
-    #   * workers_healthy -> lo-workers-degraded reads `< 1` on an empty
-    #     vector, which never crosses the threshold.
-    #   * overlay_symbols -> lo-no-symbols evaluates `$A == 0 && $E == 1 && …`
-    #     over an inner-joined math expression, so an empty $A empties the
-    #     whole condition and the zero-symbols alert never fires. It was left
-    #     out of the original three by oversight, not by decision: the failure
-    #     mode is identical to workers_healthy and nothing else covers it
-    #     (lo-overlay-stale reads overlay_age_seconds, a different series).
-    # Grafana's default NoData handling is not a substitute: these rules
-    # leave noDataState unset, and a DatasourceNoData instance carries none of
-    # our severity labels or runbooks, so its routing is a notification-policy
-    # detail rather than a guarantee stated in this file.
     noDataState: OK
     data:
     - refId: A
       datasourceUid: grafanacloud-prom
       model:
-        expr: absent(live_overlay_overlay_fresh{job="live_overlay"}) or
-          absent(live_overlay_feed_healthy{job="live_overlay"}) or
-          absent(live_overlay_workers_healthy{job="live_overlay"}) or
-          absent(live_overlay_overlay_symbols{job="live_overlay"})
+        expr: absent(live_overlay_overlay_fresh{job="live_overlay"})
         instant: true
     - refId: C
       datasourceUid: __expr__
@@ -134,35 +66,17 @@ groups:
     labels:
       severity: critical
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
-      summary: A core readiness metric (overlay_fresh / feed_healthy / workers_healthy
-        / overlay_symbols) is missing from scrape output
-      runbook: Query each of live_overlay_overlay_fresh, live_overlay_feed_healthy,
-        live_overlay_workers_healthy and live_overlay_overlay_symbols to find which one
-        vanished, then verify the daemon /metrics output and the exporter logic for that
-        gauge. While it is missing, its consumer (lo-workers-degraded /
-        lo-feed-down-market-open / lo-no-symbols) cannot fire.
+      summary: Core readiness metric missing from scrape output
+      runbook: Verify daemon /metrics output and exporter logic for overlay_fresh
+        gauge.
   - uid: lo-feed-down-market-open
-    title: Feed unhealthy while the product window is open
+    title: Feed unhealthy while market open
     condition: C
     data:
     - refId: A
       datasourceUid: grafanacloud-prom
       model:
-        # Two critical paths, not one: `1 - feed_healthy` catches loud failures
-        # (BentoError/circuit-break clears _feed_ready) and never-seen bars
-        # (is_ready() is False while last_bar_at <= 0), but a SILENT stall keeps
-        # _feed_ready set and only ages the last bar — feed_healthy stays 1
-        # until the 3600s payload-staleness gate (truth-audit 2026-07-22 F-1:
-        # critical was blind for up to ~1h). The bar-age term closes that gap at
-        # 600s = 2x the lo-last-bar-stale-open high threshold (escalation
-        # ladder, NOT a duplicate 300s page) and past the supervisor's 180s
-        # stall-detect + heal window, so a successful self-heal never pages.
-        # Gated on age_known so the unknown-age 0.0 cannot read as fresh.
-        expr: "live_overlay_market_us_extended_open{job=\"live_overlay\"} * (\n  (1 - live_overlay_feed_healthy{job=\"\
-          live_overlay\"})\n  + (\n    live_overlay_last_bar_age_known{job=\"live_overlay\"\
-          }\n    * (live_overlay_last_bar_age_seconds{job=\"live_overlay\"} > bool\
-          \ 600)\n  )\n)\n"
+        expr: live_overlay_market_us_open{job="live_overlay"} * (1 - live_overlay_feed_healthy{job="live_overlay"})
         instant: true
     - refId: C
       datasourceUid: __expr__
@@ -182,14 +96,9 @@ groups:
     labels:
       severity: critical
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
-      summary: Live overlay feed is DOWN or silently stalled (no bar > 10 min) during
-        market-open for > 5 min
-      runbook: Check Railway logs for BentoError / circuit breaker; verify DATABENTO_API_KEY
-        validity. If feed_healthy is still 1, this is the silent-stall path — check
-        supervisor partial_restarts/circuit_breakers counters and last_bar_age_seconds
-        (supervisor stall-detect is 180s; escalation here means self-heal did not
-        restore bars).
+      summary: Live overlay feed is DOWN during market-open for > 5 min
+      runbook: Check Railway logs for BentoError / circuit breaker. Verify DATABENTO_API_KEY
+        validity.
   - uid: lo-workers-degraded
     title: Workers unhealthy
     condition: C
@@ -217,7 +126,6 @@ groups:
     labels:
       severity: critical
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: One or more worker threads are dead
       runbook: Check worker_liveness in /health. Railway may need restart (ON_FAILURE
         should auto-recover).
@@ -250,46 +158,8 @@ groups:
     labels:
       severity: high
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Overlay age > 1h — compute cycle likely hung or erroring
       runbook: Check full_compute_cycle_errors rate. Verify feed is pushing bars (last_bar_age_seconds).
-  - uid: lo-holiday-calendar-degraded
-    title: Holiday calendar unavailable — sessions treat holidays as trading days
-    condition: C
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        expr: "1 - live_overlay_market_holiday_calendar_loaded{job=\"live_overlay\"}\n"
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params:
-            - 0
-          operator:
-            type: and
-          query:
-            params:
-            - A
-    for: 15m
-    labels:
-      severity: high
-    annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
-      summary: A holiday lookup fell back to an empty calendar — every holiday now reads as a trading day
-      runbook: >-
-        The fallback is deliberate (a missing calendar must not crash the daemon) but
-        fail-OPEN. With an empty calendar is_us_regular_session_open() returns true on
-        Christmas, the self-heal supervisor sees a "stalled" feed on a closed market,
-        heals three times and calls os._exit — against a platform budget of three
-        restarts. Check that holidays==0.102 is installed in the deployed image and
-        that financial_holidays("NYSE", ...) still resolves; the daemon logs the reason
-        once at WARNING.
   - uid: lo-no-symbols
     title: Zero overlay symbols after warmup
     condition: C
@@ -335,60 +205,13 @@ groups:
     labels:
       severity: critical
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: No symbols computed after 10 min uptime WHILE the US market is open
       runbook: Service is up and the US market is open but the compute cycle never
         produced symbols. Check feed + compute logs. (Zero symbols outside market
         hours is expected and does not fire.)
-  - uid: lo-restart-data-loss-closed
-    title: Overlay data lost after restart (market closed)
-    condition: C
-    # Truth-audit F-1: a restart (deploy or ON_FAILURE escalation) wipes the
-    # in-memory bar/overlay caches. During US market hours lo-no-symbols
-    # catches the empty state; overnight it is deliberately silent (a
-    # closed-market redeploy clearing 69 held symbols was its documented
-    # false-fire case), so a nightly restart silently dropped every held
-    # symbol with no signal until the next open. This complement fires
-    # WARNING (visibility, not paging) when the daemon restarted recently
-    # (uptime < 6h), has held zero overlay symbols for 30m+, and the market
-    # is closed. It self-resolves at 6h uptime or when data returns; a
-    # long-running daemon holding weekend data never trips it.
-    noDataState: OK
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        expr: live_overlay_overlay_symbols{job="live_overlay"}
-        instant: true
-    - refId: B
-      datasourceUid: grafanacloud-prom
-      model:
-        expr: live_overlay_uptime_seconds{job="live_overlay"}
-        instant: true
-    - refId: E
-      datasourceUid: grafanacloud-prom
-      model:
-        expr: live_overlay_market_us_open{job="live_overlay"}
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: math
-        expression: $A == 0 && $E == 0 && $B > 600 && $B < 21600
-    for: 30m
-    labels:
-      severity: warning
-    annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
-      summary: Daemon restarted while the market was closed and all previously held overlay
-        symbols were wiped — consumers see empty overlays until bars accumulate after the
-        next open.
-      runbook: Expected after any overnight deploy/restart (in-memory caches do not survive
-        restarts); no action needed if a deploy just happened. If no deploy explains it,
-        check the restart-cause panel and Railway logs for an ON_FAILURE crash escalation.
   - uid: lo-bridge-contract-missing
     title: Generic bridge contract missing
-    condition: E
+    condition: D
     data:
     - refId: A
       datasourceUid: grafanacloud-prom
@@ -439,26 +262,10 @@ groups:
           sum((absent(live_overlay_bridge_last_scrape_duration_seconds{job="live_overlay",bridge="railway_metrics"}) and on() (max(live_overlay_bridge_enabled{job="live_overlay",bridge="railway_metrics"}) == 1)) or on() vector(0))
         instant: true
     - refId: D
-      datasourceUid: grafanacloud-prom
-      model:
-        expr: |-
-          sum(absent(live_overlay_bridge_enabled{job="live_overlay",bridge="railway_volume_backups"}) or on() vector(0))
-          +
-          sum(absent(live_overlay_bridge_configured{job="live_overlay",bridge="railway_volume_backups"}) or on() vector(0))
-          +
-          sum(absent(live_overlay_bridge_scrape_success{job="live_overlay",bridge="railway_volume_backups"}) or on() vector(0))
-          +
-          sum(absent(live_overlay_bridge_error_info{job="live_overlay",bridge="railway_volume_backups"}) or on() vector(0))
-          +
-          sum((absent(live_overlay_bridge_last_success_age_seconds{job="live_overlay",bridge="railway_volume_backups"}) and on() (max(live_overlay_bridge_enabled{job="live_overlay",bridge="railway_volume_backups"}) == 1)) or on() vector(0))
-          +
-          sum((absent(live_overlay_bridge_last_scrape_duration_seconds{job="live_overlay",bridge="railway_volume_backups"}) and on() (max(live_overlay_bridge_enabled{job="live_overlay",bridge="railway_volume_backups"}) == 1)) or on() vector(0))
-        instant: true
-    - refId: E
       datasourceUid: __expr__
       model:
         type: math
-        expression: ($A > 0) || ($B > 0) || ($C > 0) || ($D > 0)
+        expression: ($A > 0) || ($B > 0) || ($C > 0)
     for: 5m
     # Structurally unreachable: every leg ends in `or on() vector(0)`, so the
     # queries always return a value whenever Prometheus answers. Declared to
@@ -468,7 +275,6 @@ groups:
     labels:
       severity: critical
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: One or more generic bridge contracts are missing from the scrape
       # 2026-07-08: the last_success_age / last_scrape_duration legs are gated
       # on bridge_enabled == 1 — a deliberately DISABLED bridge omits those two
@@ -476,7 +282,7 @@ groups:
       # critical. The four unconditional legs still catch a dead exporter.
       runbook: Verify the live_overlay exporter is running and emitting all required
         live_overlay_bridge_* contract families for all configured bridges (uptimerobot,
-        github_workflow, railway_metrics, railway_volume_backups).
+        github_workflow, railway_metrics).
   - uid: sp-memory-critical
     title: Signals Producer RSS > 3072 MB
     condition: C
@@ -505,7 +311,6 @@ groups:
     labels:
       severity: critical
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: smc-signals-producer RSS exceeds 3072 MB — severe footprint regression
       runbook: 'NOT an OOM alarm: the Railway limit is 8 GB (MEMORY_LIMIT_GB=8.00,
         verified 2026-07-15), so 3072 MB is 37% of it. OOM risk is owned solely by
@@ -541,7 +346,6 @@ groups:
     labels:
       severity: critical
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Cannot scrape smc-signals-producer /metrics — container may be down
       runbook: Check Railway deploy logs. Verify SIGNALS_SERVICE_URL env var in Alloy
         service. Check UptimeRobot /healthz.
@@ -573,7 +377,6 @@ groups:
     labels:
       severity: critical
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: smc-live-overlay RSS exceeds 3072 MB — severe footprint regression
       runbook: 'NOT an OOM alarm: the Railway limit is 8 GB (MEMORY_LIMIT_GB=8.00,
         verified 2026-07-15), so 3072 MB is 37% of it. OOM risk is owned solely by
@@ -607,7 +410,6 @@ groups:
     labels:
       severity: critical
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Alloy self-scrape failing — metrics pipeline is blind
       runbook: If Alloy self-scrape is down, NO metrics from any container reach Grafana.
         Check Railway deploy logs for alloy container crash/OOM.
@@ -638,7 +440,6 @@ groups:
     labels:
       severity: critical
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Alloy (metric-collector) RSS exceeds 1536 MB — severe footprint regression
       runbook: 'NOT an OOM alarm: the Railway limit is 8 GB (MEMORY_LIMIT_GB=8.00,
         verified 2026-07-15), so 1536 MB is 19% of it. OOM risk is owned solely by
@@ -676,7 +477,6 @@ groups:
     labels:
       severity: critical
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: One or more Railway services are unreachable from Alloy
       runbook: Check Railway internal networking. Verify OVERLAY_SERVICE_URL and SIGNALS_SERVICE_URL
         env vars. Target service may have crashed.
@@ -686,13 +486,13 @@ groups:
   interval: 5m
   rules:
   - uid: lo-last-bar-stale-open
-    title: Last bar stale while the product window is open
+    title: Last bar stale while market open
     condition: C
     data:
     - refId: A
       datasourceUid: grafanacloud-prom
       model:
-        expr: "live_overlay_market_us_extended_open{job=\"live_overlay\"} * (\n  (1 - live_overlay_last_bar_age_known{job=\"\
+        expr: "live_overlay_market_us_open{job=\"live_overlay\"} * (\n  (1 - live_overlay_last_bar_age_known{job=\"\
           live_overlay\"})\n  + (\n    live_overlay_last_bar_age_known{job=\"live_overlay\"\
           }\n    * (live_overlay_last_bar_age_seconds{job=\"live_overlay\"} > bool\
           \ 300)\n  )\n)\n"
@@ -715,7 +515,6 @@ groups:
     labels:
       severity: high
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: No fresh bar for > 5 min while market is open
       runbook: Check feed thread liveness and Databento connectivity. Compare with
         feed_healthy/workers_healthy.
@@ -746,7 +545,6 @@ groups:
     labels:
       severity: high
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Feed circuit breaker increased in last 15m
       runbook: Persistent Databento outage. Service may need restart if breaker keeps
         incrementing.
@@ -777,7 +575,6 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Sustained Databento error rate > 0.1/s for 10 min
       runbook: Check Databento status page. May indicate API key quota or network
         issues.
@@ -808,49 +605,11 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Auth denied requests spiked in the last 15m
       runbook: Potential token drift or probing. Validate OVERLAY_SECRET_TOKEN rollout
         in authenticated API clients.
   - uid: lo-request-rate-absent-open
     title: Expected external client is not calling /smc_live (US market open)
-    # THE CONSUMER (identified 2026-07-23, so nobody has to guess again):
-    # repo skipp-live-lab, sidecar_server/technical_poller.py -- the shared
-    # POLLER owns the cadence and calls sidecar_server/technical.py::fetch,
-    # which was the direct caller before that module existed. It builds
-    # <origin>/<token>/smc_live?symbol=X&tf=1m from
-    # SKIPP_LAB_TECHNICAL_OVERLAY_ORIGIN/_TOKEN, validates the reply against the
-    # smc-live-overlay/1 schema, and sends User-Agent: skipp-sidecar/<version>.
-    # It runs as the `lab-worker` service in the skipp-live-lab Railway project.
-    # Confirmed in this daemon's Railway HTTP logs: 12/12 /smc_live requests in
-    # the 14:14-14:17Z sample carried clientUa="skipp-sidecar/0.3.0" from a
-    # single source IP, all HTTP 200. To re-identify a future consumer, use
-    # `railway logs --http --json` and group by clientUa. Earlier suspects
-    # smc_tv_bridge and terminal_access_proxy are NOT callers (the first is a
-    # library in this repo, the second unrelated); realtime_signals.py and
-    # trade_context.py mention /smc_live only in comments.
-    #
-    # SEMANTICS CHANGED 2026-07-23 (skipp-live-lab PR #43, merged 15:05Z): the
-    # traffic is no longer panel-driven. It used to be -- the Chrome side panel
-    # refreshed every 15s only WHILE connected, so a closed panel drove the rate
-    # to zero and this rule measured "is the panel open" rather than "is the
-    # infrastructure healthy". A server-side poller now owns the cadence in
-    # BOTH servers that serve the overlay: the local Sidecar (ASGI lifespan
-    # task) and the hosted Layer-B read API (cloud_worker/main.py thread
-    # "technical-feed"). Both start it unconditionally, and its due-symbol set
-    # is never empty: with no panel connected it keeps polling the last pinned
-    # symbol, persisted via SKIPP_LAB_TECHNICAL_STATE so a restart does not
-    # silence the feed, and only when no symbol was ever pinned does it fall
-    # back to SPY. Cadence is 15s per tracked symbol (POLL_INTERVAL_SECONDS),
-    # a symbol leaves the active set 90s after the last panel request, and at
-    # most 32 symbols are tracked concurrently.
-    #
-    # CONSEQUENCE: from the deploy of that revision onward, a firing of this
-    # rule is a REAL infra signal -- the consuming service is down or this
-    # overlay is unreachable from it -- and no longer "nobody had the panel
-    # open". Treat it as an incident. Floor while the market is open is one
-    # request per 15s (~40/10m) against this rule's ~0.6/10m threshold, so any
-    # sustained zero means the poller is not running.
     condition: C
     data:
     - refId: A
@@ -879,7 +638,6 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: No /smc_live requests since the US market opened while an external
         consumer is explicitly expected
       runbook: LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=1 is only valid after a real
@@ -890,27 +648,7 @@ groups:
     # Paused 2026-07-16: Pine cannot call arbitrary REST endpoints and no supported
     # external /smc_live consumer is deployed. Unpause only when a verified client
     # exists and LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC must remain 1 in production.
-    #
-    # UNPAUSED 2026-07-23: a client is verified. Production /metrics showed
-    # sustained /smc_live traffic while the flag still read 0 --- 110 requests
-    # over 1707s uptime, measured 3.9 req/min across a 77s window (lifetime avg
-    # 3.8), auth_denied=0, errors=0 --- i.e. a real consumer existed and
-    # lo-request-rate-absent-open was gated off by expected_market_traffic=0 and
-    # could not have reported its outage. LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC was
-    # set to 1 on the Railway live_overlay service first (gauge verified at 1
-    # post-redeploy, consumer back at 4.0 req/min), so this reminder is quiet on
-    # arrival --- it now guards the flag against being reverted to 0 while the
-    # consumer is still live, which is what it was written for.
-    #
-    # THE CONSUMER this flag is armed for: repo skipp-live-lab,
-    # sidecar_server/technical_poller.py (previously sidecar_server/technical.py
-    # as the direct caller), User-Agent skipp-sidecar/*. Since 2026-07-23 a
-    # server-side poller drives a 15s cadence per tracked symbol in both the
-    # local Sidecar and the hosted Layer-B read API, and it idles on the last
-    # pinned symbol (fallback SPY) rather than stopping, so the consumer no
-    # longer depends on a connected Chrome panel. See
-    # lo-request-rate-absent-open above for the full identification.
-    isPaused: false
+    isPaused: true
     condition: C
     data:
     - refId: A
@@ -936,7 +674,6 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The external /smc_live consumer watchdog is disabled
         (LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=0)
       runbook: Keep this rule paused and the variable at 0 while no supported client
@@ -972,7 +709,6 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: An external client was calling /smc_live earlier today but has dropped
         to near zero while the US market is open
       runbook: A client was calling /smc_live earlier today but has stopped. Check the
@@ -1007,7 +743,6 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Compute cycles are erroring persistently
       runbook: Check Railway logs for stack traces in compute.py. Likely data quality
         issue in cached bars.
@@ -1038,7 +773,6 @@ groups:
     labels:
       severity: critical
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: SLO error budget burn rate pages on both 5m and 1h windows
       runbook: Inspect error mix, latency p95/p99, and freshness timeline; mitigate
         request failures immediately.
@@ -1069,7 +803,6 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: SLO error budget burn rate tickets on both 30m and 6h windows
       runbook: Check request success rate trend and investigate recent failure-type
         spikes before critical threshold is reached.
@@ -1103,7 +836,6 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: p99 latency above 500ms for 10m
       runbook: Check request hotspots and saturation. Verify live_overlay_smc_live_latency_ms_bucket{le="+Inf"}
         increases with request traffic.
@@ -1137,7 +869,6 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: UptimeRobot bridge data is stale
       runbook: Check UptimeRobot API key/quota and bridge scrape health state.
   - uid: lo-uptimerobot-monitor-count-mismatch
@@ -1147,9 +878,7 @@ groups:
     - refId: A
       datasourceUid: grafanacloud-prom
       model:
-        expr: '(live_overlay_uptimerobot_monitors_total{job="live_overlay"}
-          != bool on(job)
-          live_overlay_uptimerobot_monitors_expected{job="live_overlay"})
+        expr: '(live_overlay_uptimerobot_monitors_total{job="live_overlay"} != bool 5)
           and on(job)
           (live_overlay_bridge_enabled{job="live_overlay",bridge="uptimerobot"} == 1)'
         instant: true
@@ -1172,10 +901,9 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
-      summary: UptimeRobot bridge monitor count differs from the configured allowlist
+      summary: UptimeRobot bridge is not reporting the expected 5 production monitors
       runbook: Verify UPTIMEROBOT_MONITOR_IDS in Railway and the UptimeRobot dashboard;
-        the expected count is exported from the configured allowlist.
+        production currently expects exactly 5 monitors.
   - uid: lo-uptimerobot-monitor-down
     title: UptimeRobot monitor down
     condition: C
@@ -1206,7 +934,6 @@ groups:
     labels:
       severity: critical
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: One or more UptimeRobot production monitors are down
       runbook: Open UptimeRobot and the External Integrations row; correlate failed
         checks with Railway /health, /ready, /version and public endpoint probes.
@@ -1241,7 +968,6 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: GitHub workflow bridge data is stale
       runbook: Check GitHub workflow token/repo config and bridge scrape status.
   - uid: lo-ingest-queue-depth-high
@@ -1271,7 +997,6 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Ingest queue depth is persistently high
       runbook: 'Backpressure detected: review feed throughput, compute cadence, and
         queue max setting.'
@@ -1302,86 +1027,9 @@ groups:
     labels:
       severity: high
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Bars are being dropped due to ingest queue saturation
       runbook: Increase LIVE_OVERLAY_INGEST_QUEUE_MAX and investigate sustained producer-consumer
         imbalance.
-  - uid: lo-feed-sym-none-drops
-    title: Feed symbology drops sustained
-    condition: C
-    # Truth-audit F-2: unmapped-instrument bars were logged <=3x per connection
-    # and then silently swallowed — a partial symbology gap (e.g. new listings
-    # missing from SymbolMappingMsg) dropped those symbols with zero
-    # visibility. Threshold: a symmap builds progressively on every (re)connect,
-    # so a small burst right after subscribe is normal; >100 dropped bars in an
-    # hour sustained for 30m is a real coverage gap, not connect noise.
-    noDataState: OK
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        expr: increase(live_overlay_feed_sym_none_drops_total{job="live_overlay"}[1h])
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params:
-            - 100
-          operator:
-            type: and
-          query:
-            params:
-            - A
-    for: 30m
-    labels:
-      severity: warning
-    annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
-      summary: Bars for unmapped instruments are being dropped at a sustained rate — a symbology
-        gap is silently removing symbols from overlays.
-      runbook: Check SymbolMappingMsg coverage vs the dropped instrument_ids (feed logs the first
-        three per connection); new listings missing from the symmap drop every bar while all
-        health signals stay green.
-  - uid: lo-feed-bar-none-drops
-    title: Feed unparseable-bar drops detected
-    condition: C
-    # Truth-audit F-2 (parse-failure class): unlike sym-none there is no
-    # benign connect burst — a well-formed feed produces zero unparseable
-    # OHLCV records, so any sustained increase is schema drift or corruption.
-    noDataState: OK
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        expr: increase(live_overlay_feed_bar_none_drops_total{job="live_overlay"}[1h])
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params:
-            - 0
-          operator:
-            type: and
-          query:
-            params:
-            - A
-    for: 30m
-    labels:
-      severity: warning
-    annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
-      summary: OHLCV records are arriving that cannot be parsed into bars — possible Databento
-        schema drift; affected bars are silently lost.
-      runbook: Inspect feed logs (first three bar=None warnings per connection carry sym and
-        rec_type) and compare against the current DBN OhlcvMsg schema.
   - uid: lo-news-provider-health-degraded
     title: News provider health degraded
     condition: C
@@ -1411,44 +1059,9 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Multiple news providers are degraded
       runbook: Inspect provider error fields in news snapshot and upstream provider
         quotas/auth.
-  - uid: lo-news-provider-health-degraded-single
-    title: Single news provider degraded
-    condition: C
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        expr: (live_overlay_provider_news_snapshot_loaded{job="live_overlay"} == bool
-          1) * (live_overlay_provider_news_providers_degraded_total{job="live_overlay"}
-          == bool 1)
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params:
-            - 0
-          operator:
-            type: and
-          query:
-            params:
-            - A
-    for: 30m
-    labels:
-      severity: info
-    annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
-      summary: Exactly one news provider is degraded
-      runbook: Redundancy still holds; inspect the degraded provider's error fields
-        in the news snapshot and its upstream quota/auth before a second provider
-        degrades and lo-news-provider-health-degraded pages.
   - uid: lo-news-snapshot-series-missing
     title: News snapshot series missing
     condition: C
@@ -1479,7 +1092,6 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: News snapshot metrics are missing from scrape output
       runbook: Check /metrics exposure for news snapshot gauges and scrape target
         label wiring.
@@ -1511,7 +1123,6 @@ groups:
     labels:
       severity: high
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: News provider snapshot file is not loaded
       runbook: Verify NEWS_SNAPSHOT_PATH exists and is readable by the daemon; check
         seed/producer job.
@@ -1555,7 +1166,6 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: News provider snapshot is older than 3 hours during the US regular session
       runbook: Check NEWS_SNAPSHOT_PATH producer job (smc-live-news-refresh.yml, hourly
         Mon-Fri) and file update cadence; inspect fetched_at_unix in snapshot. Weekend/holiday
@@ -1597,7 +1207,6 @@ groups:
     labels:
       severity: critical
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The news provider snapshot loads but carries no timestamp -- the producer
         heartbeat is unwatched and the stale rule stays green with zero data.
       runbook: live_overlay_provider_news_snapshot_age_known is 0 while loaded=1. The
@@ -1640,7 +1249,6 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: No new news stories ingested in over 6 hours
       runbook: News flows in bursts, so a quiet window is normal; a 6h+ gap while
         the US regular session is open (live_overlay_market_us_open gates this
@@ -1678,7 +1286,6 @@ groups:
     labels:
       severity: high
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: TradingView credential age > 72 h
       runbook: Refresh TradingView session/cookie. Credential becomes invalid around
         72-96 h.
@@ -1711,7 +1318,6 @@ groups:
     labels:
       severity: high
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: TradingView credential report loads but carries no usable age
       runbook: The tv_storage_state_age probe exists, but details.age_hours is missing
         or invalid. Inspect credential_health.json and rerun credential-health-check;
@@ -1743,7 +1349,6 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Feed ingest queue lag > 5000 ms
       runbook: Ingest processor is falling behind. Check CPU, queue depth and dropped
         bars.
@@ -1785,15 +1390,13 @@ groups:
     labels:
       severity: high
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: More than 3 daemon restarts within 15 min (crash-loop; routine deploys spread over a day no
         longer trip this).
-      runbook: Check Railway deployment/restart logs for the crash loop, plus the
-        "Daemon Restarts (24h)" dashboard panel. The cause dimension no longer
-        exists (2026-07-28 -- LIVE_OVERLAY_RESTART_CAUSE was never set and a
-        static env cannot distinguish deploy from crash); Railway logs are the
-        cause source. The *_restart_cause_*_total counters were removed earlier
-        (reset to 1 each process, no cross-restart history).
+      runbook: Check Railway deployment/restart logs for the crash loop, and the
+        "Restart Causes (24h)" dashboard panel (changes() of
+        live_overlay_daemon_start_time_seconds by cause) for the cause breakdown.
+        Do NOT rely on the live_overlay_daemon_restart_cause_*_total counters -- they
+        reset to 1 each process, so they carry no cross-restart history.
   - uid: lo-feed-supervisor-heals-recurring
     title: Feed supervisor healing repeatedly (1h)
     condition: C
@@ -1825,7 +1428,6 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Feed supervisor healed workers more than twice in the last hour
       runbook: The feed is crash-flapping behind the supervisor. Check
         live_overlay_feed_bento_errors / circuit_breakers and Databento status
@@ -1860,55 +1462,10 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Realtime signals snapshot exceeded its configured max age
       runbook: The A0/A1 signals feed (producer or snapshot URL/path) has not
         refreshed within OVERLAY_SIGNALS_MAX_AGE_SECS. Check the
         smc-signals-producer service and the snapshot publishing branch.
-  - uid: lo-trading-signals-snapshot-unavailable
-    title: Trading signals snapshot unavailable
-    condition: C
-    # loaded==0 means compute._load_signals_snapshot returned {} — no
-    # SIGNALS_SERVICE_URL, no SIGNALS_SNAPSHOT_URL and no readable local
-    # snapshot. Neither sibling rule can see that state: both
-    # lo-trading-signals-snapshot-stale (via the exporter's own `stale` verdict,
-    # which stays 0 while age_known==0) and lo-trading-signals-snapshot-age-unknown
-    # (literally multiplied by `..._loaded`) read 0 when nothing loaded at all,
-    # so a fresh deploy or a misconfigured URL leaves the A0/A1/A2 overlays blank
-    # with every signals alert green. Mirrors lo-news-snapshot-unavailable and
-    # lo-tv-binding-snapshot-unloadable (found 2026-07-23).
-    noDataState: OK
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        expr: live_overlay_trading_signals_loaded{job="live_overlay"} < bool 1
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params:
-            - 0
-          operator:
-            type: and
-          query:
-            params:
-            - A
-    for: 10m
-    labels:
-      severity: high
-    annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
-      summary: The realtime trading-signals snapshot is not loading at all (loaded=0)
-        - A0/A1/A2 overlays are blank and the stale rule cannot see it.
-      runbook: Check SIGNALS_SERVICE_URL / SIGNALS_SNAPSHOT_URL and the local signals
-        snapshot path on the daemon; grep the compute logs for signals-snapshot fetch
-        failures. A frozen but present last-good snapshot fires
-        lo-trading-signals-snapshot-stale instead.
   - uid: lo-trading-signals-snapshot-age-unknown
     title: Trading signals snapshot age unknown
     condition: C
@@ -1938,7 +1495,6 @@ groups:
     labels:
       severity: critical
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Trading signals snapshot loads but carries no usable updated_epoch
       runbook: Inspect the realtime signals snapshot for a missing, zero, non-numeric,
         or non-finite updated_epoch. Until repaired, the stale rule reads zero and
@@ -1979,7 +1535,6 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Plan 2.8 experiment rollup exceeded its configured max age
       runbook: The daily measurement-benchmark producer has not published a
         fresh rollup within OVERLAY_EXPERIMENT_MAX_AGE_SECS. Check the rolling
@@ -2013,7 +1568,6 @@ groups:
     labels:
       severity: critical
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Experiment rollup loads but its run date cannot be determined
       runbook: Inspect scoring_root in the Plan 2.8 rollup. A missing or malformed
         date leaves age_known=0 and keeps the stale rule silently green.
@@ -2045,7 +1599,6 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: smc-signals-producer RSS exceeds 2048 MB for > 5 min — footprint regression
       runbook: 'Footprint-regression detector, NOT an OOM alarm. The Railway limit is
         8 GB (MEMORY_LIMIT_GB=8.00, verified 2026-07-15), so 2048 MB is 25% of it and
@@ -2087,7 +1640,6 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: smc-live-overlay RSS exceeds 2048 MB for > 5 min — footprint regression
       runbook: Footprint-regression detector, NOT an OOM alarm. The Railway limit
         is 8 GB (MEMORY_LIMIT_GB=8.00, verified 2026-07-15), so 2048 MB is 25% of
@@ -2124,7 +1676,6 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Railway service memory is above 75% of its configured limit
       runbook: Check the Railway Resources row, service logs and recent deploys;
         ratio-based alerting follows the actual memory limit per service.
@@ -2157,172 +1708,9 @@ groups:
     labels:
       severity: critical
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Railway service memory is above 90% of its configured limit
       runbook: Immediate OOM risk. Inspect service-specific Railway memory, restart
         if growth is monotonic, and check feed/bridge buffers.
-  # Railway native volume backups for the hosted customer plane. Three separate
-  # rules on purpose: "no schedule", "schedule but nothing produced" and "the
-  # newest one is too old" are three different faults with three different
-  # fixes, and a single combined rule would let the middle one hide. Each is
-  # gated on the bridge having actually answered, so a Railway outage pages via
-  # lo-bridge-scrape-failed instead of inventing a backup verdict.
-  - uid: lo-volume-backup-schedule-missing
-    title: Volume backup schedule missing
-    condition: C
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        expr: (live_overlay_bridge_scrape_success{job="live_overlay",bridge="railway_volume_backups"} == bool 1)
-          * on(job) group_right()
-          (live_overlay_railway_volume_backup_schedule_count{job="live_overlay"} < bool 1)
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params:
-            - 0
-          operator:
-            type: and
-          query:
-            params:
-            - A
-    for: 15m
-    noDataState: OK
-    labels:
-      severity: critical
-    annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
-      summary: A watched Railway volume has no backup schedule at all
-      runbook: The volume is running unprotected by the platform. Set a schedule via
-        volumeInstanceBackupScheduleUpdate(volumeInstanceId, kinds) or the Railway
-        dashboard; the CLI has no backup surface. This is the exact state the
-        customer plane sat in, unnoticed, until 2026-08-13.
-  - uid: lo-volume-backup-never-taken
-    title: Volume backup schedule has produced nothing usable
-    condition: C
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        expr: (live_overlay_railway_volume_backup_schedule_count{job="live_overlay"} >= bool 1)
-          * on(job, volume)
-          (live_overlay_railway_volume_backup_count{job="live_overlay"} < bool 1)
-        instant: true
-    - refId: B
-      datasourceUid: grafanacloud-prom
-      model:
-        expr: (live_overlay_railway_volume_backup_schedule_count{job="live_overlay"} >= bool 1)
-          * on(job, volume)
-          (live_overlay_railway_volume_backup_age_known{job="live_overlay"} == bool 0)
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: math
-        # Two ways to have nothing to restore from: no backup at all (A), and a
-        # backup whose timestamp will not parse (B) — the second one still
-        # counts, so counting alone would call it healthy.
-        expression: ($A > 0) || ($B > 0)
-    # 6h, NOT 26h: with noDataState OK a single absent-series evaluation
-    # (Railway API blip, daemon redeploy -- ~15/day on busy days) resets the
-    # pending timer, so 26h of uninterrupted pending was structurally
-    # unreachable and this critical alert could never fire
-    # (Grenzgaenger-Sweep C6, 2026-08-18). Cost: a schedule created >6h
-    # before its first daily backup may page once -- that is a deliberate,
-    # rare operator act and the page self-resolves on the first backup.
-    for: 6h
-    noDataState: OK
-    labels:
-      severity: critical
-    annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
-      summary: A volume has a backup schedule but no backup has ever appeared
-      runbook: A configured schedule that never fires looks identical to a healthy
-        one in every count-based view. Check volumeInstanceBackupList for the
-        instance and the schedule's cron; take one by hand with
-        volumeInstanceBackupCreate to confirm the volume can be backed up at all.
-        The 26h window is one DAILY cycle plus slack, so a fresh schedule that has
-        not reached its first run does not page.
-  - uid: lo-volume-backup-stale
-    title: Newest volume backup is older than the configured limit
-    condition: C
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        expr: (live_overlay_railway_volume_backup_age_known{job="live_overlay"} == bool 1)
-          * on(job, volume)
-          (live_overlay_railway_volume_backup_age_seconds{job="live_overlay"}
-          > bool on() group_left() max(live_overlay_railway_volume_backup_max_age_seconds{job="live_overlay"}))
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params:
-            - 0
-          operator:
-            type: and
-          query:
-            params:
-            - A
-    for: 30m
-    noDataState: OK
-    labels:
-      severity: critical
-    annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
-      summary: The newest Railway volume backup has aged past the daemon's own limit
-      runbook: The threshold is the daemon's exported
-        live_overlay_railway_volume_backup_max_age_seconds, not a number written
-        into this rule, so the two cannot drift apart. Check whether the schedule
-        still exists, whether Railway is retaining backups (retention_seconds), and
-        whether the volume was replaced — a recreated volume starts with no history.
-  - uid: lo-volume-backup-retention-too-short
-    title: Backup retention is shorter than the staleness window
-    condition: C
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        expr: live_overlay_railway_volume_backup_retention_seconds{job="live_overlay"}
-          < bool on() group_left() max(live_overlay_railway_volume_backup_max_age_seconds{job="live_overlay"})
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params:
-            - 0
-          operator:
-            type: and
-          query:
-            params:
-            - A
-    for: 1h
-    noDataState: OK
-    labels:
-      severity: warning
-    annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
-      summary: Backups expire faster than the alert that would notice them missing
-      runbook: Retention shorter than the staleness threshold means a backup can be
-        gone before lo-volume-backup-stale would have fired — the window in which
-        the gap is both real and visible never opens. Either lengthen retention
-        (Railway sets it per schedule kind; DAILY is 6 days) or shorten
-        RAILWAY_VOLUME_BACKUP_MAX_AGE_SECS to fit inside it.
   - uid: alloy-memory-high
     title: Alloy RSS > 1024 MB
     condition: C
@@ -2350,7 +1738,6 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Alloy (metric-collector) RSS exceeds 1024 MB for > 5 min — footprint regression
       runbook: 'Footprint-regression detector, NOT an OOM alarm. The Railway limit is
         8 GB (MEMORY_LIMIT_GB=8.00, verified 2026-07-15), so 1024 MB is 12% of it; OOM
@@ -2388,7 +1775,6 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Alloy is failing to remote-write samples to Grafana Cloud
       runbook: Check metrics-collector logs, GRAFANA_CLOUD_* credentials, network
         egress and WAL/backlog state before assuming target services are healthy.
@@ -2422,7 +1808,6 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Live Overlay bridge scrape failed
       runbook: Check bridge error_info, API tokens, quotas, and upstream service status.
   - uid: lo-bridge-last-success-stale
@@ -2455,52 +1840,8 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Live Overlay bridge has not succeeded recently
       runbook: Inspect live_overlay_bridge_error_info and bridge-specific detail panels.
-  - uid: lo-vix-unavailable
-    title: VIX level unavailable
-    condition: C
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        # (age * known) + ((1 - known) * 5401): never-fetched exports age_known=0 /
-        # age_seconds=0.0, so the 5401 sentinel — not a misleading fresh 0 — crosses
-        # the 5400 threshold (same arithmetic contract as lo-overlay-stale). The FMP
-        # ^VIX poll runs on the overlay refresh cadence (OVERLAY_REFRESH_SECS,
-        # default 1800s) around the clock, so 5400s = 3 consecutive missed polls.
-        expr: "(\n  live_overlay_vix_age_seconds{job=\"live_overlay\"}\n  * live_overlay_vix_age_known{job=\"\
-          live_overlay\"}\n)\n+ (\n  (1 - live_overlay_vix_age_known{job=\"live_overlay\"\
-          })\n  * 5401\n)\n"
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params:
-            - 5400
-          operator:
-            type: and
-          query:
-            params:
-            - A
-    for: 15m
-    labels:
-      severity: warning
-    annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
-      summary: VIX stale > 90m or never fetched — FMP ^VIX poll failing (clients see
-        a frozen or null vix_level while core overlay health stays green)
-      runbook: Check credential-health FMP panels and FMP quota alerts; grep daemon
-        logs for "VIX poll disabled" (FMP loader construction failed). Since truth-audit
-        F-3 that failure is retried once an hour (_VIX_LOADER_RETRY_SECS), so a restart
-        is NOT required to recover from a transient boot error -- if VIX is still absent
-        an hour later the cause is persistent (key, quota, DNS), not the missed boot.
-        Poll cadence = OVERLAY_REFRESH_SECS (default 30m); threshold = 3 missed polls.
 - orgId: 1
   name: signals-producer-readiness
   folder: SMC Live Overlay
@@ -2534,7 +1875,6 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: smc-signals-producer has zero watchlist symbols
       runbook: Verify OPEN_PREP_SNAPSHOT_URL / latest_open_prep_run.json exists and
         contains ranked_v2 symbols.
@@ -2566,7 +1906,6 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: smc-signals-producer has not loaded an Open-Prep snapshot
       runbook: Check Railway env OPEN_PREP_SNAPSHOT_URL and verify the snapshot endpoint
         returns a JSON object.
@@ -2598,53 +1937,16 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: smc-signals-producer has not completed a poll cycle in > 5 min
       runbook: Check producer logs for FMP client failures, network errors, or telemetry
         server crashes.
-  - uid: sp-client-disabled
-    title: Signals Producer FMP client disabled (no data possible)
-    condition: C
-    # signals_producer_client_disabled is a 0/1 gauge rendered unconditionally:
-    # 1 means FMPClient.from_env() failed at boot (e.g. missing FMP_API_KEY)
-    # and every cycle publishes empty signals while loop-liveness (readyz-age,
-    # poll_age, updated_epoch) would otherwise stay green. Producer-down is
-    # covered by sp-scrape-down, so NoData here is OK.
-    noDataState: OK
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        expr: max(signals_producer_client_disabled{job="signals_producer"})
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params:
-            - 0
-          operator:
-            type: and
-          query:
-            params:
-            - A
-    for: 5m
-    labels:
-      severity: critical
-    annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
-      summary: smc-signals-producer is running without an FMP client — it can never fetch quotes and publishes empty signals every cycle. /readyz reports 503 "client disabled (<reason>)".
-      runbook: Check signals_producer_client_disabled_info{reason=...} for the failure class, verify FMP_API_KEY is set on the smc-signals-producer Railway service, then redeploy/restart — the client is only constructed at boot.
   - uid: sp-data-stale
-    title: Signals Producer market data stale
+    title: Signals Producer data stale (market-hours FMP outage)
     condition: C
     # signals_producer_data_stale is a 0/1 gauge the producer self-computes:
-    # market-open AND no non-empty quote update for > DATA_STALL_SECONDS. It catches
+    # market-open AND no non-empty FMP fetch for > DATA_STALL_SECONDS. It catches
     # a market-hours data outage that last_poll_age / readyz miss — those mark
-    # loop-liveness and stay green even when the selected feed returns no data. The
+    # loop-liveness and stay green even when every fetch returns empty. The
     # producer being down is covered by sp-scrape-down, so NoData here is OK.
     noDataState: OK
     data:
@@ -2671,74 +1973,8 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
-      summary: smc-signals-producer got no market data for 5+ min during US extended-hours (04:00-20:00 ET), while the poll loop stayed alive. Pages ~15 min after onset (5-min stall + 10-min for:).
-      runbook: Check the selected RT_QUOTE_SOURCE, Databento connected/records/error counters, and FMP request errors when FMP fallback is active. last_poll_age stays ~0 because the loop runs; signals are frozen until non-empty quotes return.
-  - uid: sp-databento-live-queue-drops
-    title: Signals Producer Databento live queue dropped records
-    condition: C
-    # Replay enqueue blocks until capacity is available. This counter increments
-    # only when the non-replay live queue is full, so startup replay backpressure
-    # cannot trigger this alert.
-    noDataState: OK
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        expr: sum(increase(databento_quote_feed_queue_dropped_total{job="signals_producer"}[10m]))
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params:
-            - 0
-          operator:
-            type: and
-          query:
-            params:
-            - A
-    for: 0s
-    labels:
-      severity: critical
-    annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
-      summary: The Databento feed dropped one or more live records because the producer queue remained full. Initial replay backpressure does not increment this counter.
-      runbook: Check producer CPU/memory, databento_quote_feed_records_received_total rate, data age, reconnect/error counters, and downstream poll duration. Restart only after identifying whether the consumer is stalled or persistently slower than the live feed.
-  - uid: sp-databento-feed-recovery-loop
-    title: Signals Producer Databento feed repeatedly reconnecting
-    condition: C
-    noDataState: OK
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        expr: sum(increase(databento_quote_feed_reconnect_attempts_total{job="signals_producer"}[15m])) + sum(increase(databento_quote_feed_bento_errors_total{job="signals_producer"}[15m])) + sum(increase(databento_quote_feed_unexpected_errors_total{job="signals_producer"}[15m]))
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params:
-            - 2
-          operator:
-            type: and
-          query:
-            params:
-            - A
-    for: 5m
-    labels:
-      severity: warning
-    annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
-      summary: Databento recorded at least three reconnect/error events in 15 minutes and remained above the threshold for five minutes.
-      runbook: Correlate reconnect attempts with Bento/unexpected errors, connected state, records_received rate, and data age. Check Databento status and Railway networking before restarting the producer.
+      summary: smc-signals-producer got no market data for 5+ min during US extended-hours (04:00-20:00 ET) — likely an FMP outage (poll loop alive, every fetch empty). Pages ~15 min after onset (5-min stall + 10-min for:).
+      runbook: Check signals_producer_fmp_request_errors_total and the FMP status page. last_poll_age stays ~0 because the loop runs; signals are frozen until non-empty quotes return.
   - uid: sp-fmp-profile-bulk-used
     title: Signals Producer unexpectedly used FMP profile-bulk
     condition: C
@@ -2767,7 +2003,6 @@ groups:
     labels:
       severity: critical
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The realtime signals producer called the provider-wide profile-bulk endpoint, which previously burned about 113 MB every six minutes.
       runbook: Inspect _enrich_watchlist_live and recent deploys. Realtime avg-volume gaps must use bounded per-symbol profile lookups with negative caching; never restore profile-bulk in this service.
   - uid: sp-fmp-byte-burn-high
@@ -2798,7 +2033,6 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: smc-signals-producer transferred more than 50 MB of FMP payloads in one hour.
       runbook: Break down signals_producer_fmp_endpoint_response_bytes_total by endpoint. Normal 200-symbol minute quotes measured about 5.4 MB/hour; profile-bulk previously exceeded 1 GB/hour.
   - uid: sp-fmp-extended-shadow-stale
@@ -2829,7 +2063,6 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The enabled FMP extended-hours shadow probe has not completed for more than three minutes during premarket or postmarket.
       runbook: Check the three batch endpoint counters and producer logs. Live extended-hours signals remain disabled; do not enable them while this alert is active.
   - uid: sp-fmp-shadow-no-fresh-data
@@ -2860,7 +2093,6 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: FMP's dedicated aftermarket quote and trade endpoints returned no rows with a timestamp from the last five minutes.
       runbook: Compare endpoint request/error/byte counters and the regular-reference fresh-row gauge. Keep extended-hours signal publishing disabled until dedicated data is reliably current.
   - uid: sp-fmp-postmarket-baseline-missing
@@ -2891,87 +2123,8 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The postmarket shadow adapter has no same-session regular-close cumulative-volume baseline, so price rows cannot become signal-ready.
       runbook: Verify that the producer completed at least one successful regular-session quote poll and persisted postmarket_close_volume. Keep extended-hours signal publishing disabled until the baseline is present.
-  - uid: sp-cisco-probe-stale
-    title: Cisco AI Defense key probe failing
-    condition: C
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        expr: signals_producer_cisco_probe_last_success_age_seconds{job="signals_producer"}
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params:
-            - 7200
-          operator:
-            type: and
-          query:
-            params:
-            - A
-    for: 30m
-    labels:
-      severity: warning
-    annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/docs/CISCO_AI_DEFENSE_IMPLEMENTATION.md
-      summary: Cisco AI Defense self-probe has not succeeded for >2h — Terminal AI
-        Insights is failing closed
-      runbook: 'The producer runs a content-free synthetic inspection every RT_CISCO_PROBE_SECS
-        (default 1h; open_prep/cisco_probe.py). A blocked decision counts as success,
-        so this fires only when Cisco returns no usable decision at all: revoked or
-        rotated Inspection key (the active key has no expiry, so revocation IS the
-        expected death mode), wrong CISCO_AI_DEFENSE_REGION, or a Cisco outage. Check
-        producer logs for "Cisco key self-probe failed error_type=..." and the key
-        state in the AI Defense dashboard (connection skipp-algo-runtime-openai).
-        The sentinel age 999999 also lands here when a fresh deploy never had a
-        single successful probe. 999999 is the boot sentinel, not a real age.'
-  - uid: sp-cisco-probe-missing
-    title: Cisco AI Defense probe series missing
-    condition: C
-    # absent() yields an empty vector when HEALTHY -> NoData is the normal state,
-    # not the alarm. The alarm fires via absent()==1; keep NoData quiet.
-    noDataState: OK
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        expr: absent(signals_producer_cisco_probe_last_success_age_seconds{job="signals_producer"})
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params:
-            - 0
-          operator:
-            type: and
-          query:
-            params:
-            - A
-    for: 30m
-    labels:
-      severity: warning
-    annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/docs/CISCO_AI_DEFENSE_IMPLEMENTATION.md
-      summary: Producer is up but exports no cisco_probe series — the self-probe
-        thread is not running
-      runbook: 'sp-scrape-down owns a dead producer; this rule owns the sneaky case:
-        /metrics answers but signals_producer_cisco_probe_* is gone (probe thread
-        crashed, serve path stopped starting it, or a rollback to a pre-probe build).
-        The probe has deliberately no off switch, so an absent series is never a
-        configured state. for: 30m rides out the rules-publish vs. Railway-deploy
-        race on a merge that touches both.'
 - orgId: 1
   name: evidence-and-workflow-freshness
   folder: SMC Live Overlay
@@ -3012,7 +2165,6 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: A monitored GitHub Actions workflow's latest run ended in failure/timed_out/startup_failure (cancelled and stale are intentionally non-paging).
       runbook: Open the named workflow in GitHub Actions; direct signal the adr0023/promotion/c13 crons
         were missing (red for weeks unseen).
@@ -3047,55 +2199,10 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: A monitored workflow has had no successful run for 24h (daily crons should reset this each
         day).
       runbook: Check the workflow's recent runs; a persistent 0 means the daily cron is failing or not
         firing.
-  - uid: lo-ci-workflow-series-missing
-    title: CI workflow series missing while workflow bridge is enabled
-    condition: C
-    # Guards the workflow="CI" label pin used by lo-ci-full-suite-red (below):
-    # every workflow rule in this group is noDataState: OK, so if the CI
-    # workflow is renamed, dropped from GITHUB_WORKFLOW_MONITOR_IDS, or
-    # scrolls out of the runs page, its series vanish and the red-suite alert
-    # goes permanently green. This companion fires exactly then: bridge
-    # enabled but no CI-labeled series. With the bridge disabled the expr is
-    # empty -> NoData -> OK (intended stand-down; contract-missing covers the
-    # family).
-    noDataState: OK
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        expr: (live_overlay_bridge_enabled{bridge="github_workflow",job="live_overlay"} == bool 1) and on() absent(live_overlay_github_workflow_latest_success{workflow="CI",job="live_overlay"})
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params:
-            - 0
-          operator:
-            type: and
-          query:
-            params:
-            - A
-    for: 30m
-    labels:
-      severity: warning
-    annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
-      summary: The github_workflow bridge is enabled but exports no series for the workflow
-        named "CI" -- lo-ci-full-suite-red (pinned to that label) cannot fire and a red
-        main-push suite would be invisible.
-      runbook: Check GITHUB_WORKFLOW_MONITOR_IDS on the daemon service and the workflow
-        name in .github/workflows (a rename must be mirrored in the alert label pin).
-        live_overlay_github_workflow_runs_seen_total shows whether the bridge sees any
-        runs at all.
   - uid: lo-ci-full-suite-red
     title: CI full-suite red on main
     condition: C
@@ -3104,18 +2211,8 @@ groups:
     # suite on every merge, so a red latest run means merged code broke tests
     # that `fast-gates` (the only REQUIRED check) does not run — and auto-merge
     # rides right over it. 2026-07-09: CI sat red ~5h through 6 merges, invisible
-    # under the 24h rule.
-    #
-    # `for` 2026-08-29 von 2h auf 15m, aus GEMESSENEN Episodendauern statt aus
-    # dem Gefuehl. Die Absicht der 2h war richtig -- ein Flake, der auf dem
-    # naechsten Push heilt, soll ausreiten --, die Zahl war um ein Vielfaches zu
-    # gross. Alle Pending-Episoden dieser Regel in 24 h (Alarm-Historie, lesbar
-    # seit #5200):
-    #   22:42Z->22:43Z 1 min | 05:38->05:39 1 min | 07:24->07:29 5 min
-    #   07:46->08:33 47 min  | 09:36->09:37 1 min
-    # Die Flatterer liegen bei 1-5 min, der ECHTE Vorfall bei 47 min. Mit 2h
-    # erreichte KEINE der vier Episoden je `Alerting` -- die Regel sah das rote
-    # main dieses Vormittags und blieb stumm. 15m trennt beides sauber.
+    # under the 24h rule. Fire after 2h so a same-day regression pages while a
+    # quick red->green fix (a flake healed on the next push) rides out.
     # `== bool 0` (not `== 0`): a bare filter yields 0 on a match and gt-0 reads
     # 0>0=false -- inert; bool maps a red latest run to 1 so it actually fires.
     # NOTE: this fires only while `CI` is in the daemon's watch scope
@@ -3142,69 +2239,14 @@ groups:
           query:
             params:
             - A
-    for: 15m
+    for: 2h
     labels:
-      # 2026-08-29: von `warning` auf `critical`. Vorher trug JEDE Regel dieses
-      # Stacks `warning` — der Schweregrad transportierte damit keine
-      # Information, und ein rotes required Gate war eine Zeile unter hunderten
-      # (546 Zustandswechsel in 14 h, alle in denselben Kanal).
-      severity: critical
-      # Eigenes Label statt Match auf den Regelnamen: die Route in
-      # notification-routing.yaml haengt daran, und weitere required-Check-Regeln
-      # koennen ihr spaeter beitreten, ohne dass die Route wachsen muss.
-      required_check: "true"
+      severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The main-push CI workflow (full pytest suite) has been red for 2h -- a merge broke tests
         that the required fast-gates check does not run.
       runbook: Open the newest CI run on main and find the failing test; fast-gates stays green because it
         runs a subset. Fix-forward or revert; then confirm CI goes green on the next main push.
-  # lo-workflow-run-stale below can only fire while a flow still HAS a run on the
-  # fetched page: once it stops running its age series vanishes and the rule goes
-  # NoData -> OK -> silent, exactly when it should page. This rule is the absence
-  # counterpart -- it reads a declared workflow's presence gauge, which stays at 0
-  # instead of disappearing. Gated on the bridge scraping successfully so a token
-  # outage reports as a bridge fault (lo-bridge-*) rather than as vanished flows.
-  - uid: lo-workflow-expected-missing
-    title: Declared workflow produced no runs
-    condition: C
-    noDataState: OK
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        expr: |-
-          sum(
-            (min by (workflow) (live_overlay_github_workflow_expected_present{job="live_overlay"}) == bool 0)
-            and on() (max(live_overlay_bridge_scrape_success{job="live_overlay",bridge="github_workflow"}) == 1)
-          ) or on() vector(0)
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params:
-            - 0
-          operator:
-            type: and
-          query:
-            params:
-            - A
-    for: 6h
-    labels:
-      severity: warning
-    annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
-      summary: A workflow listed in GITHUB_WORKFLOW_MONITOR_EXPECTED has produced no run on the
-        monitored branch within the fetched page -- its cron may be disabled, deleted or renamed.
-      runbook: Check the workflow in the GitHub Actions tab. If it was intentionally removed or
-        renamed, update GITHUB_WORKFLOW_MONITOR_EXPECTED to match; otherwise re-enable the cron
-        (60-day repo inactivity auto-disables scheduled workflows). If the flow does still run but
-        rarely, its newest run may have scrolled past GITHUB_WORKFLOW_MONITOR_PER_PAGE (max 100)
-        -- that needs pagination in github_workflow_bridge, not a config change.
   - uid: lo-workflow-run-stale
     title: Monitored workflow has not run recently
     condition: C
@@ -3234,7 +2276,6 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: A monitored workflow's newest run is older than 48h -- the cron may be disabled or never
         firing.
       runbook: Verify the workflow schedule and that GitHub Actions crons are enabled (60-day inactivity
@@ -3274,7 +2315,6 @@ groups:
     labels:
       severity: critical
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The evidence-freshness bridge cannot load the snapshot (loaded=0) -- the ledger/audit/fills
         freshness signals are blind.
       runbook: Check EVIDENCE_FRESHNESS_SNAPSHOT_URL(_TOKEN) on the daemon and that the producer branch
@@ -3288,13 +2328,7 @@ groups:
       datasourceUid: grafanacloud-prom
       model:
         # Gated on snapshot_age_known so a missing generated_at (age_seconds=0) does not read as fresh.
-        # 129600 (36h), NOT 86400: the producer cron period is exactly 86400s,
-        # so a budget equal to the period left zero slack -- GitHub cron
-        # delays of >2h are documented in this repo, and the consuming bridge
-        # caches for up to 900s on top. Budget == period paged critical on a
-        # perfectly healthy producer (Grenzgaenger-Sweep C5/A3, 2026-08-18);
-        # 36h matches the credential-health sibling's treatment of a daily cron.
-        expr: (live_overlay_evidence_freshness_snapshot_age_seconds{job="live_overlay"} * live_overlay_evidence_freshness_snapshot_age_known{job="live_overlay"}) > 129600
+        expr: (live_overlay_evidence_freshness_snapshot_age_seconds{job="live_overlay"} * live_overlay_evidence_freshness_snapshot_age_known{job="live_overlay"}) > 86400
         instant: true
     - refId: C
       datasourceUid: __expr__
@@ -3314,7 +2348,6 @@ groups:
     labels:
       severity: critical
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The evidence-freshness snapshot loads but is older than 24h -- the producer workflow has
         stopped committing.
       runbook: Run/inspect .github/workflows/evidence-freshness-snapshot.yml; without it the ledger/audit/fills
@@ -3355,7 +2388,6 @@ groups:
     labels:
       severity: critical
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The evidence-freshness snapshot loads but carries no generated_at_unix -- the
         producer heartbeat is unwatched and the stale rule stays green with zero data.
       runbook: live_overlay_evidence_freshness_snapshot_age_known is 0 while loaded=1. The
@@ -3391,7 +2423,6 @@ groups:
     labels:
       severity: critical
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The daemon cannot load the latest measured TradingView dropdown assignments.
       runbook: Configure TRADINGVIEW_BINDINGS_SNAPSHOT_URL(_TOKEN) to the latest JSON on
         bot/live-tradingview-bindings or inspect the local snapshot path.
@@ -3403,8 +2434,7 @@ groups:
     - refId: A
       datasourceUid: grafanacloud-prom
       model:
-        expr: live_overlay_tv_binding_snapshot_loaded{job="live_overlay"} * live_overlay_tv_binding_check_known{job="live_overlay"}
-          * (live_overlay_tv_binding_drift{job="live_overlay"} > bool 0)
+        expr: live_overlay_tv_binding_drift{job="live_overlay"} > bool 0
         instant: true
     - refId: C
       datasourceUid: __expr__
@@ -3424,94 +2454,10 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
-      summary: A measured TradingView input.source dropdown is wrong, or the run left consumers unverified.
+      summary: At least one measured TradingView input.source dropdown is mapped to the wrong Suite channel.
       runbook: Inspect artifacts/monitoring/latest/tradingview_consumer_bindings.json on
-        bot/live-tradingview-bindings. Compare bindings.checkedConsumers with bindings.expectedConsumers
-        first -- a shortfall means the run aborted before opening every consumer and NOTHING was proven,
-        which this rule reports as drift on purpose. For a genuine mismatch, run tv-save-consumer-source
-        with repair_e2e only for a controlled repair test, or use tv_verify_consumer_bindings.ts --repair
-        for the affected consumer.
-  - uid: lo-tv-binding-check-missing
-    title: TradingView dropdown verification missing
-    condition: C
-    # Companion to the drift rule above, which is multiplied by check_known and
-    # therefore CANNOT fire on a snapshot that carries no expectedConsumers at
-    # all. Without this rule such a snapshot would read as "no drift" forever.
-    # Mirrors lo-tv-consumer-source-check-missing for the saved-source half.
-    noDataState: OK
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        expr: live_overlay_tv_binding_snapshot_loaded{job="live_overlay"} * (live_overlay_tv_binding_check_known{job="live_overlay"}
-          == bool 0)
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params:
-            - 0
-          operator:
-            type: and
-          query:
-            params:
-            - A
-    for: 30m
-    labels:
-      severity: critical
-    annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
-      summary: The TradingView snapshot loaded without stating how many consumer dropdowns it expected to verify.
-      runbook: Run the scheduled tv-save-consumer-source workflow. Its snapshot must publish
-        bindings.expectedConsumers and bindings.checkedConsumers; without them no dropdown
-        verification can be proven and the drift gauge means nothing.
-  - uid: lo-tv-binding-snapshot-age-unknown
-    title: TradingView binding snapshot age unknown (loads but carries no generated_at)
-    condition: C
-    # Mirrors the sibling *-age-unknown rules: the stale rule below multiplies
-    # by age_known, so a snapshot that parses without generated_at_unix yields
-    # age_known=0 and the stale rule can never fire — a frozen producer (or a
-    # wrong-but-JSON-object body from an auth proxy) would stay green forever.
-    # Every other snapshot bridge has this companion; tv_binding was the gap.
-    # Gated on `loaded` to page once, not twice (unloadable covers loaded<1).
-    noDataState: OK
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        expr: live_overlay_tv_binding_snapshot_loaded{job="live_overlay"} * (live_overlay_tv_binding_snapshot_age_known{job="live_overlay"}
-          == bool 0)
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params:
-            - 0
-          operator:
-            type: and
-          query:
-            params:
-            - A
-    for: 30m
-    labels:
-      severity: critical
-    annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
-      summary: The TradingView binding snapshot loads but carries no generated_at_unix -- the
-        binding-drift staleness rule multiplies by age_known and stays green with zero data.
-      runbook: live_overlay_tv_binding_snapshot_age_known is 0 while loaded=1. The snapshot at
-        TRADINGVIEW_BINDINGS_SNAPSHOT_URL parsed but has no/zero generated_at_unix (schema
-        drift, truncated write, or an auth-proxy JSON page instead of the raw snapshot).
-        Inspect the snapshot body and the workflow that publishes it.
+        bot/live-tradingview-bindings, then run tv-save-consumer-source with repair_e2e only for a
+        controlled repair test or use tv_verify_consumer_bindings.ts --repair for the affected consumer.
   - uid: lo-tv-binding-snapshot-stale
     title: TradingView binding snapshot stale
     condition: C
@@ -3541,78 +2487,10 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The last measured TradingView dropdown snapshot is older than 24 hours.
       runbook: Inspect the scheduled tv-save-consumer-source run and TradingView auth, then rerun
         the workflow in its read-only scheduled mode or dispatch it normally after confirming that
         saved-script updates are intended.
-  - uid: lo-tv-consumer-source-check-missing
-    title: TradingView saved-source verification missing
-    condition: C
-    noDataState: OK
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        expr: live_overlay_tv_binding_snapshot_loaded{job="live_overlay"} * (live_overlay_tv_consumer_source_check_known{job="live_overlay"}
-          == bool 0)
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params:
-            - 0
-          operator:
-            type: and
-          query:
-            params:
-            - A
-    for: 30m
-    labels:
-      severity: critical
-    annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
-      summary: The TradingView snapshot loaded without proof that saved Pine sources were compared with the repo.
-      runbook: Run the scheduled tv-save-consumer-source workflow. It must open every configured saved script,
-        compare its SHA-256 with the repo source, and publish a snapshot with sources.expected and sources.checked.
-  - uid: lo-tv-consumer-source-drift
-    title: TradingView saved consumer source drifts from repo
-    condition: C
-    noDataState: OK
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        expr: live_overlay_tv_binding_snapshot_loaded{job="live_overlay"} * live_overlay_tv_consumer_source_check_known{job="live_overlay"}
-          * (live_overlay_tv_consumer_source_drift{job="live_overlay"} > bool 0)
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params:
-            - 0
-          operator:
-            type: and
-          query:
-            params:
-            - A
-    for: 30m
-    labels:
-      severity: critical
-    annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
-      summary: At least one actual saved TradingView Pine source differs from the current repo source.
-      runbook: Inspect sources.consumers in the latest tradingview_consumer_bindings.json snapshot. Dispatch
-        tv-save-consumer-source with the intended mapping; when refreshing SMC Long-Dip Suite also set
-        refresh_producer=true and force_rebind=true.
   - uid: lo-pine-library-snapshot-unloadable
     title: Pine-library version snapshot unloadable
     condition: C
@@ -3646,49 +2524,10 @@ groups:
     labels:
       severity: critical
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The pine-library version bridge cannot load the snapshot (loaded=0) -- repo↔TradingView
         pin drift is blind.
       runbook: Check PINE_LIBRARY_VERSIONS_SNAPSHOT_URL(_TOKEN) on the daemon and that the producer branch
         bot/live-pine-library-versions exists; see services/live_overlay_daemon/pine_library_version_bridge.py.
-  - uid: lo-pine-library-no-probes
-    title: Pine-library snapshot contains no probed libraries
-    condition: C
-    # A syntactically valid snapshot can load with librariesProbed=0 and an
-    # empty libraries list. The bridge then reports loaded=1/facade_ok=1, while
-    # every label-pinned per-library alert has no series and noDataState=OK.
-    noDataState: OK
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        expr: live_overlay_pine_library_snapshot_loaded{job="live_overlay"} * (live_overlay_pine_libraries_probed{job="live_overlay"}
-          == bool 0)
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params:
-            - 0
-          operator:
-            type: and
-          query:
-            params:
-            - A
-    for: 30m
-    labels:
-      severity: critical
-    annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
-      summary: The Pine-library snapshot loaded but contains zero probed libraries, so every
-        per-library version, freshness, and payload alert is blind.
-      runbook: Inspect librariesProbed and libraries in the latest pine_library_versions.json.
-        Run/inspect .github/workflows/pine-library-version-monitor.yml and verify that its
-        TradingView facade probe returned the expected library inventory before publishing.
   - uid: lo-pine-library-snapshot-stale
     title: Pine-library version snapshot stale
     condition: C
@@ -3720,7 +2559,6 @@ groups:
     labels:
       severity: critical
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The pine-library version snapshot loads but is older than 48h -- the producer workflow has
         stopped committing.
       runbook: Run/inspect .github/workflows/pine-library-version-monitor.yml; without it repo↔TradingView
@@ -3761,7 +2599,6 @@ groups:
     labels:
       severity: critical
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The pine-library version snapshot loads but carries no generated_at_unix -- the
         producer heartbeat is unwatched and the stale rule stays green with zero data.
       runbook: live_overlay_pine_library_snapshot_age_known is 0 while loaded=1. The
@@ -3769,312 +2606,6 @@ groups:
         (schema drift, a truncated write, or a non-raw GitHub Contents-API envelope -- see
         _fetch_url in pine_library_version_bridge.py). Inspect the payload; run/inspect
         .github/workflows/pine-library-version-monitor.yml.
-  - uid: lo-pine-library-data-age-unknown
-    title: SMC micro-profile library data age unknown
-    condition: C
-    noDataState: OK
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        expr: live_overlay_pine_library_data_age_known{job="live_overlay",library="smc_micro_profiles_generated"}
-          == bool 0
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params:
-            - 0
-          operator:
-            type: and
-          query:
-            params:
-            - A
-    for: 30m
-    labels:
-      severity: critical
-    annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
-      summary: The Pine-library snapshot loaded but has no valid ASOF_DATE for smc_micro_profiles_generated.
-      runbook: Inspect pine/generated/smc_micro_profiles_generated.pine and the latest pine-library version
-        snapshot. The producer must export dataAsOf, dataAsOfUnix, and dataAsOfKnown for the generated library.
-  - uid: lo-pine-library-data-stale
-    title: SMC micro-profile library data stale
-    condition: C
-    noDataState: OK
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      # 432000s = 5 days. ASOF_DATE stamps the last completed trading day
-      # (T-1) and advances with the ~09-13Z refresh, so at 00:00Z the newest
-      # possible ASOF is exactly 2 days old — the original 2-day threshold
-      # false-fired every night from midnight until the morning refresh
-      # (observed live 2026-07-22: age 213141s at 11:11Z with a healthy
-      # pipeline), and over a weekend the normal age peaks at ~4d13h (Friday
-      # ASOF until the Tuesday refresh). 5 days absorbs the full Mon-Fri
-      # cadence + a Monday holiday while still catching a genuinely frozen
-      # generator input — the same sizing lesson as lo-evidence-ledger-stale.
-      model:
-        expr: live_overlay_pine_library_data_age_known{job="live_overlay",library="smc_micro_profiles_generated"}
-          * (live_overlay_pine_library_data_age_seconds{job="live_overlay",library="smc_micro_profiles_generated"}
-          > bool 432000)
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params:
-            - 0
-          operator:
-            type: and
-          query:
-            params:
-            - A
-    for: 30m
-    labels:
-      severity: critical
-    annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
-      summary: The smc_micro_profiles_generated ASOF_DATE is more than five days old — beyond the normal
-        T-1 + weekend refresh cadence, the generator input has genuinely stopped advancing.
-      runbook: Inspect the latest smc-library-refresh run and pine/generated/smc_micro_profiles_generated.pine.
-        Do not treat a green version/pin check as data freshness; refresh and publish the library, then reconcile
-        the saved SMC Long-Dip Suite source in TradingView.
-  - uid: lo-bar-cache-depth-low
-    title: Bar cache losing accumulated history for requested symbols
-    condition: C
-    # 2026-08-18 (Grenzgaenger C1, operator decision "Metrik wird neu
-    # geschnitten"): re-cut from the absolute readiness ratio to high-water
-    # REGRESSION. The old expr (readiness_ratio < 1 past a 15min warmup)
-    # could not work by construction: the largest timeframes require up to
-    # ~160h of accumulated 1m stream, so after EVERY deploy the rule was
-    # red for days while the cache merely warmed — noise, not a signal.
-    # live_overlay_requested_bar_history_regressed counts expanded symbols
-    # whose depth fell below their OWN post-restart high-water mark, which
-    # can only mean accumulated history was destroyed (eviction/cap churn)
-    # — the defect this rule exists for — and is meaningful from the first
-    # post-restart minute. Warming stays visible (not alertable) on the
-    # readiness_ratio dashboard panel.
-    noDataState: OK
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        expr: live_overlay_market_us_open{job="live_overlay"}
-          * (live_overlay_requested_bar_history_regressed{job="live_overlay"} > bool 0)
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params:
-            - 0
-          operator:
-            type: and
-          query:
-            params:
-            - A
-    for: 15m
-    labels:
-      severity: critical
-    annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
-      summary: A requested symbol's bar history shrank below its own high-water mark while
-        the US session is open — accumulated rolling-feature history is being destroyed,
-        not merely still warming.
-      runbook: live_overlay_requested_bar_history_regressed counts expanded-retention symbols
-        whose depth fell below their own post-restart high-water mark — that only happens
-        when eviction/cap churn dropped or shrank a requested symbol's deque. Check
-        live_overlay_bar_requested_symbols_evicted_total (leading indicator,
-        lo-bar-cache-protected-evictions). Raise the symbol cap (OVERLAY_MAX_SYMBOLS) so
-        demand fits, or narrow the requested universe. Plain post-deploy warmup does NOT
-        fire this rule (that was the pre-2026-08-18 cut); watch
-        live_overlay_requested_bar_history_readiness_ratio on the dashboard for warmup
-        progress instead.
-  - uid: lo-bar-cache-protected-evictions
-    title: Requested symbols evicted from the bar cache
-    condition: C
-    # evicted_protected_total counts symbols evicted despite being actively
-    # requested — by construction that means live demand exceeds the cap.
-    # Warning, not critical: the depth rule above owns the outage axis, this one
-    # is the leading indicator that gets there.
-    noDataState: OK
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        expr: increase(live_overlay_bar_requested_symbols_evicted_total{job="live_overlay"}[30m])
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params:
-            - 0
-          operator:
-            type: and
-          query:
-            params:
-            - A
-    for: 10m
-    labels:
-      severity: warning
-    annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
-      summary: Symbols that were actively requested are being evicted from the bar cache —
-        live demand exceeds the symbol cap.
-      runbook: Compare live_overlay_bar_symbols with the cap and watch bars_per_symbol.
-        Sustained protected evictions precede the depth collapse that lo-bar-cache-depth-low
-        alerts on; raising the cap or trimming the requested universe resolves both.
-  - uid: lo-bar-future-dated-rejected
-    title: Provider is sending future-dated bars
-    condition: C
-    # A bar dated ahead of now used to enter the cache and make
-    # _latest_bar_age_secs() return None for the WHOLE symbol, which every
-    # caller reads as stale. That is indistinguishable from "no data at all",
-    # so a single bad tick looked exactly like a dead feed. Ingest now drops
-    # such bars; this counter is the only place the drop is visible.
-    noDataState: OK
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        expr: increase(live_overlay_bar_future_dated_rejected_total{job="live_overlay"}[30m])
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params:
-            - 0
-          operator:
-            type: and
-          query:
-            params:
-            - A
-    for: 10m
-    labels:
-      severity: warning
-    annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
-      summary: Market bars are arriving with timestamps beyond the accepted clock skew
-        and are being dropped at ingest.
-      runbook: Sustained increase means the upstream feed or the host clock is wrong, not
-        the cache. Check the provider's ts_event against UTC and the container clock;
-        BAR_MAX_FUTURE_SKEW_SECS (default 120s) sets the tolerance. Symbols whose only
-        recent bars are rejected will read stale, so pair this with lo-bar-cache-depth-low.
-  - uid: lo-pine-library-payload-empty
-    title: SMC micro-profile library published with an empty payload
-    condition: C
-    # ADR-0029. Every other gauge in this family measures metadata ABOUT the
-    # library — published version, ASOF_DATE. None measured the payload, so
-    # five versions shipped with UNIVERSE_TICKERS = "" under a fresh ASOF_DATE
-    # and read green until an operator noticed it on the chart.
-    #
-    # The condition is a CONTRADICTION, not a bare emptiness check:
-    # UNIVERSE_SIZE > 0 (the base scan found symbols) while payload_symbols == 0
-    # (none of them reached the artifact). That cannot be a legitimate state, so
-    # the rule needs no calibrated threshold. Multiplying by payload_known keeps
-    # an unmeasured library (hand-authored, or an unreadable source) out of it —
-    # unknown must read neither as empty nor as green.
-    noDataState: OK
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        expr: live_overlay_pine_library_payload_known{job="live_overlay",library="smc_micro_profiles_generated"}
-          * (live_overlay_pine_library_payload_universe_size{job="live_overlay",library="smc_micro_profiles_generated"}
-          > bool 0)
-          * (live_overlay_pine_library_payload_symbols{job="live_overlay",library="smc_micro_profiles_generated"}
-          == bool 0)
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params:
-            - 0
-          operator:
-            type: and
-          query:
-            params:
-            - A
-    # The snapshot producer runs once daily (05:30Z), so a 30m window is a
-    # debounce against a partially-written snapshot, not a wait for recovery.
-    for: 30m
-    labels:
-      severity: critical
-    annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
-      summary: smc_micro_profiles_generated reports UNIVERSE_SIZE > 0 but carries zero symbols in
-        UNIVERSE_TICKERS — the scan found symbols and none of them reached the published library.
-      runbook: Inspect pine/generated/smc_micro_profiles_generated.pine for `UNIVERSE_TICKERS = ""`
-        and the latest smc-library-refresh run. The usual cause is an enrichment-sidecar failure -
-        UNIVERSE_SIZE comes from the base scan, UNIVERSE_TICKERS from enrichment.meta.scanned_symbols,
-        so the number survives while the list disappears. Do not treat a green ASOF_DATE or version
-        pin as evidence of payload; re-run the refresh with --enrich-all and republish.
-  - uid: lo-pine-library-payload-collapsed
-    title: SMC micro-profile library payload collapsed against yesterday
-    condition: C
-    # Companion to lo-pine-library-payload-empty. That rule needs a
-    # contradiction; this one catches the shape that produces none — a payload
-    # that shrinks drastically but stays non-zero (6929 -> 12), or one that goes
-    # consistently empty so that no field contradicts any other. Relative to the
-    # previous day, so no absolute floor has to be calibrated or maintained.
-    noDataState: OK
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        expr: live_overlay_pine_library_payload_known{job="live_overlay",library="smc_micro_profiles_generated"}
-          * (live_overlay_pine_library_payload_symbols{job="live_overlay",library="smc_micro_profiles_generated"}
-          < bool (0.5 * (live_overlay_pine_library_payload_symbols{job="live_overlay",library="smc_micro_profiles_generated"}
-          offset 1d)))
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params:
-            - 0
-          operator:
-            type: and
-          query:
-            params:
-            - A
-    for: 1h
-    labels:
-      severity: warning
-    annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
-      summary: The published smc_micro_profiles_generated payload is less than half of yesterday's
-        symbol count — a partial collapse the contradiction rule cannot see.
-      runbook: Compare pine/generated/smc_micro_profiles_generated.json list_counts and the
-        UNIVERSE_TICKERS length against the previous refresh. A legitimate universe change is
-        gradual; a halving in one run points at a truncated provider response or a partially
-        failed enrichment. Warning, not critical - confirm against the base snapshot before republishing.
   - uid: lo-pine-consumer-version-drift
     title: Pine consumer pin drifts from published TradingView version
     condition: C
@@ -4107,16 +2638,10 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: At least one repo Pine import pin no longer matches the real published TradingView library
         version -- a consumer will hit CE10272 on modern symbols.
-      runbook: Inspect artifacts/monitoring/pine_library_versions.json (per-consumer drift). FIRST rule out
-        a stale snapshot from an intraday refresh - compare each offending consumer's pin on main against the
-        published version in artifacts/tradingview/library_release_manifest.json. If main ALREADY pins the
-        published version, a same-day publish reconciled the drift and this is just the once-daily snapshot
-        lagging - trigger pine-library-version-monitor.yml (workflow_dispatch) to refresh it, do NOT repin
-        (repinning to the snapshot's older number would CREATE real drift). Only when main genuinely lags the
-        published version, repin the offending consumers to it (see #3599/#3603).
+      runbook: Inspect artifacts/monitoring/pine_library_versions.json (per-consumer drift) and repin the
+        offending consumers to the published version (see #3599/#3603).
   - uid: lo-pine-library-facade-probe-failing
     title: Pine-library TradingView facade probe failing
     condition: C
@@ -4148,7 +2673,6 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The pine-library monitor could not probe TradingView's published version this run -- drift
         detection is blind until the session/facade recovers.
       runbook: Check TV_STORAGE_STATE freshness for pine-library-version-monitor.yml; the pine-facade
@@ -4188,7 +2712,6 @@ groups:
     labels:
       severity: critical
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The magnitude shadow ledger's newest row is older than 5 days -- the daily measurement
         stopped growing (the 2026-06/07 silent freeze).
       runbook: Check adr0023-magnitude-shadow-daily runs and the accumulate_family_events pool; the ledger
@@ -4233,7 +2756,6 @@ groups:
     labels:
       severity: critical
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The magnitude shadow (1D) ledger has had zero rows for > 3 days -- the daily measurement
         is not committing rows (distinct from a cold start).
       runbook: Check that adr0023-magnitude-shadow-daily commits a row each weekday and that the
@@ -4276,7 +2798,6 @@ groups:
     labels:
       severity: critical
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The magnitude ledger reports rows but no parseable newest_date -- the stale rule
         cannot see this state and stays green.
       runbook: live_overlay_evidence_ledger_age_known is 0 while rows > 0 and the snapshot
@@ -4293,14 +2814,7 @@ groups:
       datasourceUid: grafanacloud-prom
       model:
         # Gated on _known so an empty last_commit_date (age_seconds=0) does not read as fresh.
-        # 432000 (5d), NOT 345600 (4d): the producer is weekday-only, the
-        # commit DATE is midnight-anchored (Friday's 21:05Z push counts from
-        # Friday 00:00Z) and the snapshot refreshes once daily at 05:00Z --
-        # at 4d that combination breached every week in the Tue 00:00-05:00Z
-        # window and ~29h on Monday US holidays. Same re-sizing the ledger
-        # sibling already carries for the same producer class
-        # (Grenzgaenger-Sweep A1, 2026-08-18).
-        expr: (live_overlay_evidence_audit_branch_age_seconds{job="live_overlay"} * live_overlay_evidence_audit_branch_age_known{job="live_overlay"}) > 432000
+        expr: (live_overlay_evidence_audit_branch_age_seconds{job="live_overlay"} * live_overlay_evidence_audit_branch_age_known{job="live_overlay"}) > 345600
         instant: true
     - refId: C
       datasourceUid: __expr__
@@ -4320,7 +2834,6 @@ groups:
     labels:
       severity: critical
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The data/phase-a-audit branch has had no commit in > 4 days -- the C13 audit-push / reconcile
         publish has stopped.
       runbook: Check the c13 reconcile/audit-push launchd jobs and lib_c13_data_push.sh publish clone;
@@ -4366,7 +2879,6 @@ groups:
     labels:
       severity: critical
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The evidence snapshot loads but carries no audit-branch commit date -- the
         stale rule cannot see this state and stays green with zero data.
       runbook: live_overlay_evidence_audit_branch_age_known is 0 while the snapshot loaded=1.
@@ -4403,7 +2915,6 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The WSH earnings snapshot on the audit branch is older than 7 days (secondary earnings
         filter; looser budget).
       runbook: 'Known limitation: the WSH filter needs IBKR conIds on the watchlist rows; see automation/launchd/README.md.'
@@ -4441,7 +2952,6 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The evidence snapshot loads but carries no WSH newest_date -- the stale rule
         cannot see this state and stays green with zero data.
       runbook: live_overlay_evidence_wsh_age_known is 0 while the snapshot loaded=1. The
@@ -4486,7 +2996,6 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The C8 paper-incubation ladder is submitting orders but 0 have ever filled -- execution is
         stalled (paper TWS down/unreachable?).
       runbook: Check the paper TWS/IBKR gateway is up on port 7497 during the 09:28 ET order window and the
@@ -4527,7 +3036,6 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: C8 paper submits are placing brackets that never rest (all legs cancelled/rejected, e.g. IB
         error-110) and nothing has ever filled -- the bracket dies at submit.
       runbook: Inspect the newest incubation_<DATE>.jsonl for action=submit_failed; check TP/SL prices snap to
@@ -4570,245 +3078,10 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The C13 paper-submit Mac is running order-path code behind origin/main -- a merged fix has not
         been deployed to the box that submits; nothing new takes effect until it is pulled.
       runbook: On the submit Mac, cd to the checkout and `git pull --ff-only` (never --no-verify); confirm
         scripts/execute_ibkr_watchlist.py + run_smc_live_incubation.py match origin/main, then re-run phase-a.
-  - uid: lo-portfolio-evidence-section-missing
-    title: Portfolio shadow evidence section missing
-    condition: C
-    noDataState: OK
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        expr: live_overlay_evidence_freshness_loaded{job="live_overlay"} * (live_overlay_portfolio_shadow_evidence_known{job="live_overlay"}
-          == bool 0)
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params:
-            - 0
-          operator:
-            type: and
-          query:
-            params:
-            - A
-    for: 26h
-    labels:
-      severity: warning
-    annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
-      summary: The daily evidence snapshot loads but has carried no portfolio_shadow section for more than 26 hours.
-      runbook: Inspect evidence-freshness-snapshot.yml and the published JSON; the builder must read incubation
-        audit rows plus sanitized portfolio reconciliation reports from data/phase-a-audit.
-  - uid: lo-portfolio-submit-no-risk-eval
-    title: Portfolio submit occurred without prior risk evaluation
-    condition: C
-    noDataState: OK
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        expr: live_overlay_portfolio_shadow_submission_attempts_without_prior_evaluation_total{job="live_overlay"}
-          > bool 0
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params:
-            - 0
-          operator:
-            type: and
-          query:
-            params:
-            - A
-    for: 30m
-    labels:
-      severity: critical
-    annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
-      summary: At least one contract-era paper submit lacks an earlier portfolio_risk_evaluated row for the same run.
-      runbook: Stop the C13 submit schedule, inspect the matching timestamp and phase in incubation_<DATE>.jsonl,
-        and restore the snapshot-before-submit plus fail-closed portfolio evaluation path before resuming.
-  - uid: lo-portfolio-snapshot-age-invalid
-    title: Portfolio snapshot stale or from the future at risk decision
-    condition: C
-    noDataState: OK
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        expr: (live_overlay_portfolio_snapshot_age_known{job="live_overlay"} == bool 1)
-          * (live_overlay_portfolio_snapshot_max_age_known{job="live_overlay"} == bool 1)
-          * (((live_overlay_portfolio_snapshot_age_seconds{job="live_overlay"} < bool 0)
-          + (live_overlay_portfolio_snapshot_age_seconds{job="live_overlay"} > bool
-          live_overlay_portfolio_snapshot_max_age_seconds{job="live_overlay"})) > bool 0)
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params:
-            - 0
-          operator:
-            type: and
-          query:
-            params:
-            - A
-    for: 30m
-    labels:
-      severity: critical
-    annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
-      summary: The latest portfolio risk decision used a snapshot older than its recorded limit or timestamped in the future.
-      runbook: Keep portfolio enforcement disabled; inspect the latest portfolio_risk_evaluated audit row and repair
-        IBKR snapshot capture or workstation clock sync before counting another clean session.
-  - uid: lo-portfolio-risk-rejection
-    title: Portfolio risk rejection observed
-    condition: C
-    noDataState: OK
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        expr: sum(increase(live_overlay_portfolio_risk_decisions_total{job="live_overlay",verdict="reject"}[26h]))
-          > bool 0
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params:
-            - 0
-          operator:
-            type: and
-          query:
-            params:
-            - A
-    for: 30m
-    labels:
-      severity: warning
-    annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
-      summary: At least one new portfolio shadow decision was rejected during the last evidence interval.
-      runbook: Inspect verdict and reason counts in the published portfolio_shadow snapshot. A rejection is evidence,
-        not permission to bypass the gate or promote enforcement.
-  - uid: lo-portfolio-reconcile-missing
-    title: Portfolio session missing reconciliation evidence
-    condition: C
-    noDataState: OK
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        expr: live_overlay_portfolio_shadow_missing_reconciliation_sessions{job="live_overlay"} > bool 0
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params:
-            - 0
-          operator:
-            type: and
-          query:
-            params:
-            - A
-    for: 6h
-    labels:
-      severity: warning
-    annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
-      summary: A risk-relevant portfolio shadow session has no matching sanitized after-session reconciliation report.
-      runbook: Check the c13 reconcile launchd job, paper TWS port 7497, the local before/after snapshots, and the
-        reconciliation_<DATE>.monitoring.json publish on data/phase-a-audit.
-  - uid: lo-portfolio-reconciliation-failed
-    title: Portfolio before/after reconciliation failed
-    condition: C
-    noDataState: OK
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        expr: (live_overlay_portfolio_reconciliation_known{job="live_overlay"} == bool 1)
-          * (((live_overlay_portfolio_reconciliation_reconciled{job="live_overlay"} == bool 0)
-          + (live_overlay_portfolio_reconciliation_max_abs_quantity_delta{job="live_overlay"} > bool 0))
-          > bool 0)
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params:
-            - 0
-          operator:
-            type: and
-          query:
-            params:
-            - A
-    for: 30m
-    labels:
-      severity: critical
-    annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
-      summary: A portfolio reconciliation report found fill deltas that do not match the captured before/after snapshots.
-      runbook: Keep enforcement disabled; compare the local raw before/after snapshots and execution fills, then repair
-        duplicate execution IDs, side mapping, or snapshot completeness before counting the session as clean evidence.
-  - uid: lo-portfolio-decision-incomplete
-    title: Portfolio decision evidence incomplete
-    condition: C
-    noDataState: OK
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        expr: live_overlay_portfolio_shadow_incomplete_decisions_total{job="live_overlay"} > bool 0
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params:
-            - 0
-          operator:
-            type: and
-          query:
-            params:
-            - A
-    for: 30m
-    labels:
-      severity: warning
-    annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
-      summary: Portfolio shadow decisions contain stale, future, incomplete, or unknown-order snapshot evidence.
-      runbook: Inspect portfolio_risk_evaluated reason_counts, verify the before snapshot was captured immediately before
-        submission, and keep the portfolio gate in shadow until a clean evidence window is rebuilt.
   - uid: lo-fmp-bandwidth-approaching
     title: FMP bandwidth approaching monthly quota
     condition: C
@@ -4850,7 +3123,6 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: FMP data-volume consumption this month has reached >=80% of the configured monthly
         bandwidth quota (150 GB default).
       runbook: Check the FMP dashboard usage; reduce poll frequency / page limits in newsstack_fmp/config.py
@@ -4890,7 +3162,6 @@ groups:
     labels:
       severity: critical
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: FMP data-volume consumption this month has reached >=95% of the monthly bandwidth
         quota -- ingest will start failing when the quota is exhausted.
       runbook: Immediately reduce FMP polling (newsstack_fmp/config.py FMP_*_LIMIT / poll interval) or
@@ -4928,7 +3199,6 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: A data provider (Massive/Benzinga/Unusual Whales/FMP/Databento/Finnhub) returned HTTP
         429 in the last 6h -- ingest is brushing its rate limit; retries are currently absorbing it.
       runbook: Reduce polling frequency / concurrency for the throttled provider (newsstack_fmp poll
@@ -4971,7 +3241,6 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Provider-usage snapshot metrics are missing from scrape output
       runbook: Check /metrics exposure for the live_overlay_provider_usage_* gauges and
         scrape-target label wiring; the FMP bandwidth and provider-429 alerts all read
@@ -5008,7 +3277,6 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Provider-usage monthly snapshot is not loaded (FMP quota telemetry blind)
       runbook: Verify PROVIDER_USAGE_SNAPSHOT_URL / PROVIDER_USAGE_SNAPSHOT_PATH and that
         the daily open-prep workflow commits artifacts/monitoring/provider_usage.json;
@@ -5047,7 +3315,6 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Provider-usage monthly snapshot is older than 4 days (FMP quota figures may be stale)
       runbook: The daily open-prep workflow has not refreshed
         artifacts/monitoring/provider_usage.json within 4 days. Check the open-prep run
@@ -5089,7 +3356,6 @@ groups:
     labels:
       severity: critical
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The provider-usage snapshot loads but carries no updated_at -- the producer
         heartbeat is unwatched and the stale rule stays green with zero data.
       runbook: live_overlay_provider_usage_snapshot_age_known is 0 while loaded=1. The
@@ -5127,7 +3393,6 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The WS4a sweep-trap shadow eval has not published a fresh snapshot within its max-age budget
       runbook: The daily sweep-trap-shadow-daily workflow has not refreshed
         artifacts/monitoring/sweep_trap_shadow.json within OVERLAY_SWEEP_TRAP_SHADOW_MAX_AGE_SECS.
@@ -5171,7 +3436,6 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The sweep-trap shadow bridge has never loaded a real snapshot (missing/unreadable file or the no-data seed)
       runbook: live_overlay_sweep_trap_shadow_snapshot_age_known is 0 — the daemon is
         serving the committed no-data seed (generated_at=0) or cannot fetch/read the
@@ -5217,7 +3481,6 @@ groups:
     labels:
       severity: info
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The WS4a sweep-trap shadow verdict has held PROMOTABLE for 3 days — WS4b promotion candidate
       runbook: The observe-only sweep_trap_quality_score has beaten baseline Brier with
         positive top/bottom-tercile lift on >= 40 samples for 3 consecutive days. This is the
@@ -5225,87 +3488,6 @@ groups:
         the "Sweep-Trap Promotion Evidence" dashboard row, then decide whether to grant the detector
         score-budget weight (confluence currently reads the coarse SWEEP_QUALITY_SCORE, not
         SWEEP_TRAP_QUALITY_SCORE). Not an incident — an action prompt.
-  - uid: lo-reaction-zone-shadow-stale
-    title: Reaction-zone shadow snapshot stale
-    condition: C
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        # Precomputed 0/1 staleness gauge (age > OVERLAY_REACTION_ZONE_SHADOW_MAX_AGE_SECS,
-        # default 96h, tolerates one skipped weekday run). Alerting on the precomputed
-        # gauge instead of a bare age comparison keeps the gt-0 threshold live (the
-        # gt-0-inert class). See services/live_overlay_daemon/reaction_zone_shadow_bridge.py.
-        expr: max(live_overlay_reaction_zone_shadow_snapshot_stale{job="live_overlay"})
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params:
-            - 0
-          operator:
-            type: and
-          query:
-            params:
-            - A
-    for: 30m
-    labels:
-      severity: warning
-    annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
-      summary: The reaction-zone shadow eval has not published a fresh snapshot within its max-age budget
-      runbook: The daily sweep-trap-shadow-daily workflow has not refreshed
-        artifacts/monitoring/reaction_zone_shadow.json within OVERLAY_REACTION_ZONE_SHADOW_MAX_AGE_SECS.
-        The reaction-zone snapshot is published to the static bot/live-sweep-trap-shadow branch
-        beside sweep_trap_shadow.json, but only when the eval produced samples (exit 0); a run with
-        no reaction samples (exit 5) writes nothing. Observe-only — no score impact; a stale snapshot
-        only means the reaction-zone follow-through evidence stopped accruing.
-  - uid: lo-reaction-zone-shadow-age-unknown
-    title: Reaction-zone shadow snapshot age unknown (no real data loaded)
-    condition: C
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        # Complement of the stale rule: a MISSING/UNREADABLE/undated snapshot yields
-        # age_known=0 AND stale=0, so the gt-0 stale rule stays green with zero data —
-        # the gt-0-inert class. `== bool 0` (not `== 0`) is mandatory: a bare match
-        # returns 0 and the gt-0 threshold reads 0>0=false (inert).
-        expr: max(live_overlay_reaction_zone_shadow_snapshot_age_known{job="live_overlay"}) == bool 0
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params:
-            - 0
-          operator:
-            type: and
-          query:
-            params:
-            - A
-    # Rides out daemon restarts/deploy churn and transient fetch failures; a
-    # genuinely absent feed holds age_known=0 far longer than 2h. A missing
-    # SERIES (daemon down) is lo-scrape-missing's job, not this rule's.
-    for: 2h
-    noDataState: OK
-    labels:
-      severity: warning
-    annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
-      summary: The reaction-zone shadow bridge has never loaded a real snapshot (missing/unreadable/undated)
-      runbook: live_overlay_reaction_zone_shadow_snapshot_age_known is 0 — the daemon cannot
-        fetch/read the snapshot at REACTION_ZONE_SHADOW_SNAPSHOT_URL, or it loaded but carries no
-        parseable updated_at. The reaction snapshot only appears on bot/live-sweep-trap-shadow once
-        the daily eval produces samples (exit 0; needs GH_PAT — the publish step only warns when it
-        is missing). The stale alert cannot cover this state — stale is only computed once an age is KNOWN.
 - orgId: 1
   name: credential-health
   folder: SMC Live Overlay
@@ -5345,7 +3527,6 @@ groups:
     labels:
       severity: critical
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The FMP API key is failing its daily auth probe (401/403/402) -- the core FMP data pipeline
         will start failing.
       runbook: Rotate FMP_API_KEY (or resolve billing on a 402) and update the secret; see
@@ -5378,7 +3559,6 @@ groups:
     labels:
       severity: critical
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The Databento API key is failing its daily auth probe -- OPRA options flow ingestion will
         stop.
       runbook: Rotate DATABENTO_API_KEY and update the secret; see scripts/credential_health_check.py
@@ -5411,7 +3591,6 @@ groups:
     labels:
       severity: critical
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Databento auth is OK but delivery has stalled (402 unpaid invoice or entitlement lapse) --
         data silently stops while auth stays 200 (2026-06-12 post-mortem).
       runbook: Check the Databento invoice/entitlement; see scripts/credential_health_check.py
@@ -5444,7 +3623,6 @@ groups:
     labels:
       severity: high
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The Benzinga/Massive API key is failing its daily auth probe -- the Core News lane and
         hourly live-news cron will stop ingesting.
       runbook: Rotate BENZINGA_API_KEY (the paid Massive reseller key) and confirm BENZINGA_PROVIDER
@@ -5477,7 +3655,6 @@ groups:
     labels:
       severity: warning
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The Finnhub API key is failing its daily auth probe -- terminal_finnhub and open_prep macro
         Finnhub lookups will fail. Optional provider; only alerts when FINNHUB_API_KEY is configured.
       runbook: Rotate FINNHUB_API_KEY and update the secret; see scripts/credential_health_check.py
@@ -5510,7 +3687,6 @@ groups:
     labels:
       severity: high
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The GH_PAT is failing its daily probe -- every workflow that opens auto-PRs, publishes
         snapshots, or refreshes the TV cookie will start failing.
       runbook: Rotate GH_PAT and update the secret; see scripts/credential_health_check.py
@@ -5543,7 +3719,6 @@ groups:
     labels:
       severity: high
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The TradingView storage-state cookie is past its 72h TTL -- the next Pine publish will fail
         at preflight (complements lo-tradingview-credential-age-high).
       runbook: Refresh the cookie via npm run tv:storage-state (or the storage-refresh workflow) and
@@ -5577,7 +3752,6 @@ groups:
     labels:
       severity: critical
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The daily credential-health snapshot is older than 36h -- the probe cron or its snapshot
         publish has silently stopped and every credential gauge is now stale-green (the exact 12-day
         blind spot this monitor exists to prevent).
@@ -5639,7 +3813,6 @@ groups:
       # test_age_unknown_severity_never_below_its_stale_rule.
       severity: critical
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The credential-health snapshot loads but has no parseable generated_at -- its freshness
         is unverifiable and lo-credential-monitor-stale can never fire.
       runbook: live_overlay_credential_health_snapshot_age_known is 0 while _loaded is 1 -- the report at
@@ -5674,7 +3847,6 @@ groups:
     labels:
       severity: high
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The daemon is up but could not load any credential-health snapshot -- credential
         observability is blind (distinct from lo-scrape-missing which covers the daemon being down).
       runbook: Check TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL and the bot/live-tv-credential-snapshot branch;
@@ -5707,7 +3879,6 @@ groups:
     for: 3m
     labels: {severity: critical}
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: PRE-A0 telemetry is no longer reaching Grafana Cloud.
       runbook: Check the metrics-collector a0_fast target, A0_FAST_SERVICE_URL, and the a0-fast-shadow /metrics endpoint.
   - uid: pre-a0-model-unavailable
@@ -5733,7 +3904,6 @@ groups:
     for: 5m
     labels: {severity: critical}
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: PRE-A0 is enabled but its local fail-closed model contract is unavailable.
       runbook: Inspect a0-fast-shadow startup logs and verify the model artifact identity, signature, validity window, and runtime contract.
   - uid: pre-a0-calibration-invalid
@@ -5759,7 +3929,6 @@ groups:
     for: 5m
     labels: {severity: critical}
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: PRE-A0 calibration validation is failing.
       runbook: Keep PRE-A0 in shadow/fail-closed mode and inspect calibration window, thresholds, and artifact review_after.
   - uid: pre-a0-runtime-errors
@@ -5785,7 +3954,6 @@ groups:
     for: 0s
     labels: {severity: critical}
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: PRE-A0 reported an inference, duplicate-decision, or persistence integrity error.
       runbook: Inspect a0-fast-shadow logs and snapshots; preserve the confirmed-A0 path and do not promote the model.
   - uid: pre-a0-input-drift
@@ -5795,17 +3963,8 @@ groups:
     data:
     - refId: A
       datasourceUid: grafanacloud-prom
-      # Missingness always pages (a model-expected feature absent from the live
-      # feature dict = a real input/schema break). Range violations only page
-      # under a TRAINED model: the bootstrap artifact 71831770 has a degenerate
-      # feature envelope (direction_stability=[1.0,1.0], price_progress<=5.6) that
-      # raises pre_a0_feature_out_of_range_total on every live score BY CONSTRUCTION
-      # (docs/pre_a0_rollout_runbook.md). The `* on() group_left() (max(model_info
-      # != bootstrap) or vector(0))` factor is 0 while only the bootstrap model is
-      # live and 1 once a retrained artifact deploys, so the range term re-arms
-      # automatically. 2026-07-24: gate added; verified live expr = 0 (was 225).
       model:
-        expr: sum(increase(pre_a0_feature_missing_total{job="a0_fast"}[15m])) + sum(increase(pre_a0_feature_out_of_range_total{job="a0_fast"}[15m])) * on() group_left() (max(pre_a0_model_info{job="a0_fast",artifact_id!="71831770afe43bdd424aa7ab"}) or vector(0))
+        expr: sum(increase(pre_a0_feature_missing_total{job="a0_fast"}[15m])) + sum(increase(pre_a0_feature_out_of_range_total{job="a0_fast"}[15m]))
         instant: true
     - refId: C
       datasourceUid: __expr__
@@ -5820,67 +3979,17 @@ groups:
     for: 5m
     labels: {severity: high}
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
-      summary: PRE-A0 feature missingness, or range violations under a trained (non-bootstrap) model, exceeded the shadow threshold.
-      runbook: Range violations under the bootstrap artifact 71831770 are expected by construction and are gated out until a retrained model deploys; compare the live feature distribution with the training manifest before retraining or promotion. See docs/pre_a0_rollout_runbook.md.
-  - uid: pre-a0-shadow-resync-stuck
-    title: A0-Fast resync stuck (evidence blocked)
-    condition: C
-    noDataState: OK
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        # The collective forced-resync set drains only per-symbol on bar
-        # arrival; one silent symbol after a reconnect blocks evidence_ready
-        # for the whole detector (13h on 2026-08-17). This rule existed only
-        # in the unpublished services/a0_fast_detector/alert-rules.yml --
-        # nothing deployed it (Grenzgaenger-Sweep E7, 2026-08-18). 30m "for"
-        # rides out the normal post-reconnect recovery.
-        expr: max(a0_fast_resync_required_symbols{job="a0_fast"})
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params:
-            - 0
-          operator:
-            type: and
-          query:
-            params:
-            - A
-    for: 30m
-    labels:
-      severity: warning
-    annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/a0_fast_detector/README.md
-      summary: A0-Fast symbols are stuck in forced resync -- evidence_ready is blocked for the whole
-        detector while the stream may look healthy.
-      runbook: Check a0_fast_evidence_status_info reason and last_disconnect_info; a service restart
-        DURING the session (before 00:00Z, so the gateway replay still covers it) re-runs the
-        session replay and clears the set (proven 2026-08-17).
+      summary: PRE-A0 feature missingness or range violations exceeded the shadow threshold.
+      runbook: Compare the live feature distribution with the training manifest before retraining or promotion.
   - uid: pre-a0-shadow-data-missing
-    title: A0-Fast evidence not flowing under live load
+    title: PRE-A0 shadow snapshots missing under live load
     condition: C
     noDataState: OK
     data:
     - refId: A
       datasourceUid: grafanacloud-prom
       model:
-        # RETITLED 2026-08-19 (Doppelgaenger A#5). The old title claimed
-        # "PRE-A0 shadow snapshots missing", but this expression never looked
-        # at pre_a0_snapshots_recorded_total -- it is the ported
-        # A0FastEvidenceNotFlowing, and evidence_ready is a different signal.
-        # The name promised a guarantee the rule did not give, and
-        # tests/test_pre_a0_alert_rules.py asserted the UID, not the meaning.
-        # The snapshot question now has its own rule:
-        # pre-a0-snapshots-not-recorded. UID kept so the Grafana upsert
-        # updates the deployed rule instead of orphaning it.
-        expr: (increase(a0_fast_records_received_total{job="a0_fast"}[15m]) > bool 100) * (a0_fast_evidence_ready{job="a0_fast"} == bool 0)
+        expr: (increase(a0_fast_records_processed_total{job="a0_fast"}[15m]) > bool 100) * (increase(pre_a0_snapshots_recorded_total{job="a0_fast"}[15m]) == bool 0)
         instant: true
     - refId: C
       datasourceUid: __expr__
@@ -5893,383 +4002,7 @@ groups:
           operator: {type: and}
           query: {params: [A]}
     for: 5m
-    labels: {severity: critical}
+    labels: {severity: high}
     annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
-      summary: A0-Fast receives market records but verified PRE-A0 evidence is not flowing.
-      runbook: Check normalization, resync/replay, PRE-A0 inference, snapshot flushes, volume files, and /evidencez before claiming that measurement is active.
-  - uid: lo-hold-manager-shadow-window-changed
-    title: Hold-Manager shadow event-age window changed
-    condition: C
-    noDataState: OK
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        # Deliberately WITHOUT the number. Two obvious forms are both wrong:
-        # "differs from the code default (900)" would stand red forever,
-        # because the deviation IS the operator decision of 2026-08-18; and
-        # "< 86400" would write that value into a FOURTH place, re-creating
-        # the replica this branch removes (K13: service 86400, config default
-        # 900, README/OPS 900, alert comment 86400 -- none of them measured).
-        # changes() asks the only question that matters: did the window move?
-        # It carries no copy of the value, cannot go stale, and resolves
-        # itself an hour after a deliberate change.
-        expr: max(changes(live_overlay_hold_manager_shadow_max_event_age_secs{job="live_overlay"}[1h]))
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params: [0]
-          operator: {type: and}
-          query: {params: [A]}
-    for: 0s
-    labels: {severity: warning}
-    annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
-      summary: The Hold-Manager shadow event-age window changed -- lo-hold-manager-shadow-rejected
-        reasons about deliveries against this window.
-      runbook: Warning, not paging - a config regression is not an outage. Confirm the new value is
-        intended (HOLD_MANAGER_SHADOW_MAX_EVENT_AGE_SECS on the Railway service); if it dropped back
-        toward the 900s code default, TradingView deliveries from a slower layout start being rejected
-        as too_old and the rejection rule's own premise is gone. The gauge is the truth, not the docs.
-  - uid: lo-hold-manager-shadow-rejected
-    title: Hold-Manager shadow delivery rejected
-    condition: C
-    noDataState: OK
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        # The ledger showed deliveryAttempts:0 for its whole life, so every
-        # rejection class here is a first-of-its-kind event worth a human
-        # look. Age rejections especially: the active layout is 1D while the
-        # default window was 900s, so the FIRST real edge would have 409'd
-        # invisibly (Grenzgaenger A2, operator decision 2026-08-18: window
-        # raised to 86400 via HOLD_MANAGER_SHADOW_MAX_EVENT_AGE_SECS on the
-        # Railway service + layout move to 5m planned). Counter sum covers
-        # contract mismatches, malformed payloads and event-time rejections.
-        # Explizite Summe statt `{__name__=~"...(a|b|c)_total"}`: `increase()`
-        # verwirft `__name__`, wodurch ALLE passenden Serien auf denselben
-        # Labelset kollabieren und die Query mit "vector cannot contain metrics
-        # with the same labelset" abbricht. Solange die Counter lazy erzeugt
-        # wurden, existierte hoechstens einer und die Kollision blieb aus — die
-        # Regel war blind statt kaputt. Mit dem Seeding (#4880) existieren alle
-        # drei, seitdem meldet Grafana health=error. Gemessen 19.8. gegen
-        # grafanacloud-prom: Regex-Form und `sum by (__name__)` scheitern beide,
-        # die explizite Summe liefert 0. Die Regel war NIE feuerfaehig.
-        expr: sum(increase(live_overlay_hold_manager_shadow_contract_rejected_total{job="live_overlay"}[30m]))
-          + sum(increase(live_overlay_hold_manager_shadow_payload_rejected_total{job="live_overlay"}[30m]))
-          + sum(increase(live_overlay_hold_manager_shadow_event_time_rejected_total{job="live_overlay"}[30m]))
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params: [0]
-          operator: {type: and}
-          query: {params: [A]}
-    for: 2m
-    labels: {severity: warning}
-    annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
-      summary: The Hold-Manager shadow receiver rejected a TradingView delivery -- a real edge may
-        have been dropped.
-      runbook: Read the daemon log lines "metric kind=counter name=live_overlay.hold_manager_shadow"
-        for the reason (contract mismatch fields, payload parse, too_old/future_skew age). Age
-        rejections mean the TV layout timeframe and HOLD_MANAGER_SHADOW_MAX_EVENT_AGE_SECS
-        disagree; do NOT replay by hand-posting to the receiver (ledger poisoning).
-  # --- Ported 2026-08-19 from the unpublished Prometheus rule files ---------
-  # services/a0_fast_detector/alert-rules.yml and pre-a0-alert-rules.yml held
-  # 16 rules; 9 had a deployed equivalent here, 7 did not, and NOTHING deployed
-  # those files -- no Prometheus reads them, their only consumers were two
-  # substring tests. That is an alert that exists on paper only, and the class
-  # already cost 13h of blocked evidence on 2026-08-17 (pre-a0-shadow-resync-
-  # stuck, ported 2026-08-18 after the incident). All seven metrics below were
-  # measured live in grafanacloud-prom on 2026-08-19 before porting, so none of
-  # these rules is speculative. The two source files are deleted in the same
-  # commit: a replica nothing deploys is the defect, not the gap.
-  - uid: a0-fast-stream-disconnected
-    title: A0-Fast stream disconnected
-    condition: C
-    noDataState: OK
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        expr: max(a0_fast_stream_connected{job="a0_fast"} == bool 0)
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params: [0]
-          operator: {type: and}
-          query: {params: [A]}
-    for: 1m
-    labels: {severity: warning}
-    annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/a0_fast_detector/README.md
-      summary: The A0-Fast shadow stream is disconnected -- no Databento bars are arriving.
-      runbook: Check last_disconnect_info and the gateway session; a reconnect inside the session
-        replays, a reconnect after 00:00Z does not and leaves symbols fail-closed (see
-        a0-fast-stream-stale and pre-a0-shadow-resync-stuck).
-  - uid: a0-fast-slow-reader-drops
-    title: A0-Fast queue dropped bars
-    condition: C
-    noDataState: OK
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        expr: sum(increase(a0_fast_queue_dropped_total{job="a0_fast"}[5m]))
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params: [0]
-          operator: {type: and}
-          query: {params: [A]}
-    for: 0s
-    labels: {severity: warning}
-    annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/a0_fast_detector/README.md
-      summary: The A0-Fast bounded queue dropped bars -- the consumer fell behind and forced a resync.
-      runbook: Every drop forces the affected symbols into resync, which blocks evidence_ready for the
-        whole detector until they drain. Compare a0_fast_queue_depth against a0_fast_queue_capacity
-        and check whether the drop coincided with a reconnect.
-  - uid: a0-fast-record-rejections
-    title: A0-Fast rejected inbound records
-    condition: C
-    noDataState: OK
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        # The counter is seeded at zero in telemetry.py -- an unseeded counter
-        # would let increase() swallow the very first rejection burst as its
-        # baseline, which is the one event this rule exists for.
-        expr: sum(increase(a0_fast_records_rejected_total{job="a0_fast"}[5m]))
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params: [0]
-          operator: {type: and}
-          query: {params: [A]}
-    for: 0s
-    labels: {severity: warning}
-    annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/a0_fast_detector/README.md
-      summary: A0-Fast rejected Databento bars before decision processing -- inbound data is failing
-        validation.
-      runbook: Read the rejection reason label; a schema or symbol-mapping change upstream shows up
-        here first, before evidence goes missing downstream.
-  - uid: a0-fast-queue-pressure
-    title: A0-Fast queue above 80 percent capacity
-    condition: C
-    noDataState: OK
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        expr: max(a0_fast_queue_depth{job="a0_fast"} / clamp_min(a0_fast_queue_capacity{job="a0_fast"}, 1))
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params: [0.8]
-          operator: {type: and}
-          query: {params: [A]}
-    for: 30s
-    labels: {severity: warning}
-    annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/a0_fast_detector/README.md
-      summary: The A0-Fast queue is above 80 percent capacity -- drops and forced resyncs are imminent.
-      runbook: This is the leading indicator for a0-fast-slow-reader-drops. clamp_min guards the
-        capacity gauge against a zero denominator during startup.
-  - uid: a0-fast-stream-stale
-    title: A0-Fast stream connected but stale
-    condition: C
-    noDataState: OK
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        # The nastiest of the seven: connected==1 looks healthy on every
-        # dashboard while no bar has arrived. Only the age gauge separates a
-        # live stream from a socket that is merely open.
-        #
-        # 2026-08-22: gated on the REGULAR session, because the 8s threshold
-        # only carries there. Measured over 5 days (max age, 5-min steps):
-        # regular 13:30-20:00Z median 0.6s / p95 1.7s / max 11.9s, 0.3% above
-        # 8s -- while premarket is 28% above, after-hours 35%, and closed
-        # 99%. The A0_FAST_SYMBOLS universe is micro-caps: outside RTH it is
-        # simply not trading, so ungated this rule burned 56.8h per 5 days and
-        # masked the real thing (2026-08-22: a weekend gap was triaged as an
-        # incident until the day of week was checked). Gating on the extended
-        # window instead was measured too and rejected: 37.8h, because that
-        # window opens at 04:00 ET. The extended window keeps its own coarse
-        # watcher -- see a0-fast-stream-silent-extended below, which is the
-        # data-flow guard market_hours.py's docstring asks for.
-        expr: max((a0_fast_stream_connected{job="a0_fast"} == bool 1) * (a0_fast_last_record_age_seconds{job="a0_fast"} > bool 8)) * on() group_left() max(live_overlay_market_us_open{job="live_overlay"})
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params: [0]
-          operator: {type: and}
-          query: {params: [A]}
-    for: 1m
-    labels: {severity: warning}
-    annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/a0_fast_detector/README.md
-      summary: The A0-Fast stream reports connected but no fresh bar arrived -- an open socket is not
-        a flowing feed.
-      runbook: Fires only inside the US regular session, where any silence beyond 8s is abnormal
-        (measured p95 1.7s). It means the gateway stopped delivering without dropping the
-        connection; restart inside the session so the replay still covers the gap. Silence outside
-        RTH is covered by a0-fast-stream-silent-extended instead.
-  - uid: a0-fast-stream-silent-extended
-    title: A0-Fast stream silent through the extended window
-    condition: C
-    noDataState: OK
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        # The coarse half of the pair added 2026-08-22. a0-fast-stream-stale
-        # watches the regular session at 8s; this one watches the whole
-        # product window (04:00-20:00 ET) at 30 MINUTES, so a stream that dies
-        # after the close is still caught the same day rather than at the next
-        # open -- the failure mode market_hours.py's docstring warns about
-        # ("a feed that went silent at 16:10 ET on a Friday was neither
-        # reported nor healed until Monday 09:30").
-        # Why 30min and not 60s: measured over 5 days, p95 of the record age
-        # is 35.8s in premarket and 39.3s in after-hours (micro-cap universe),
-        # and a 60s threshold still burned 24.6h per 5 days. 1800s is ~46x
-        # that p95, so only a genuinely dead stream reaches it, while the
-        # regular-session rule above keeps the fast 8s reaction where the
-        # feed is dense.
-        expr: max((a0_fast_stream_connected{job="a0_fast"} == bool 1) * (a0_fast_last_record_age_seconds{job="a0_fast"} > bool 1800)) * on() group_left() max(live_overlay_market_us_extended_open{job="live_overlay"})
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params: [0]
-          operator: {type: and}
-          query: {params: [A]}
-    for: 5m
-    labels: {severity: warning}
-    annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/a0_fast_detector/README.md
-      summary: The A0-Fast stream delivered nothing for 30 minutes while the US product window
-        (04:00-20:00 ET) was open.
-      runbook: Half an hour of total silence inside the product window is a dead stream, not a quiet
-        universe. Check the reader stall watchdog (A0_FAST_READER_STALL_SECS, default 300s) and the
-        Databento entitlement; a restart inside the window lets the replay cover the gap. Silence
-        outside the window is expected -- the stream returns with premarket on its own (measured
-        over 2026-08-15..17, a 57h gap healed with no intervention).
-  - uid: pre-a0-alert-budget-exceeded
-    title: PRE-A0 alert budget exceeded
-    condition: C
-    noDataState: OK
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        expr: sum(increase(pre_a0_alert_budget_exceeded_total{job="a0_fast"}[1h]))
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params: [0]
-          operator: {type: and}
-          query: {params: [A]}
-    for: 0s
-    labels: {severity: warning}
-    annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/docs/pre_a0_rollout_runbook.md
-      summary: PRE-A0 hit its own alert budget -- decisions are being suppressed by the budget guard,
-        not by the model.
-      runbook: The budget is the shadow tier's self-limiter. Sustained breaches mean the threshold no
-        longer matches live signal density; re-read the rollout runbook before raising it.
-  - uid: pre-a0-snapshots-not-recorded
-    title: PRE-A0 snapshots not recorded under live load
-    condition: C
-    noDataState: OK
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        # This is the question pre-a0-shadow-data-missing's TITLE used to
-        # claim and its expression never asked. PRE-A0 scoring with zero
-        # snapshots written means the evidence base for the PRE-A0 promotion
-        # stops growing -- silently, because every other gauge stays green.
-        #
-        # 2026-08-20: the load guard used to be a0_fast_records_processed_total.
-        # That counter runs pre- and post-market; pre_a0_snapshots_recorded_total
-        # only moves during the regular session (measured over 5 days: snapshots
-        # are written 13-20 UTC and are exactly 0 in every other hour, while
-        # 5821 records/h flow at 08 UTC). The pair therefore compared unlike
-        # things and the CRITICAL rule was true 23.2% of the week -- 39 hours of
-        # guaranteed false alarm, every trading day, 4.5-9.2h at a stretch.
-        # pre_a0_scores_total lives in the same path as the snapshots and shares
-        # their window exactly, so the guard needs no clock and survives DST.
-        # Re-measured over the same 7 days: 0 of 673 points true, while the
-        # guard itself is armed at 135 of them -- quiet AND still able to fire.
-        expr: (sum(increase(pre_a0_scores_total{job="a0_fast"}[15m])) > bool 100) * (sum(increase(pre_a0_snapshots_recorded_total{job="a0_fast"}[15m])) == bool 0)
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params: [0]
-          operator: {type: and}
-          query: {params: [A]}
-    for: 5m
-    labels: {severity: critical}
-    annotations:
-      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/docs/pre_a0_rollout_runbook.md
-      summary: PRE-A0 is scoring but wrote no snapshot for 15 minutes -- the promotion evidence
-        base has stopped growing.
-      runbook: Check the snapshot flush path and the a0-fast-shadow volume (/app/data/pre-a0-snapshots,
-        partitioned by session_date). Lost snapshot days cannot be reconstructed -- they have to be
-        re-accumulated over live market days.
+      summary: A0-Fast is processing records but PRE-A0 shadow snapshots are not being persisted.
+      runbook: Check the PRE-A0 snapshot directory, volume mount, writer errors, and flush configuration.

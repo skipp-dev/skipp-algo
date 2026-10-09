@@ -3,14 +3,10 @@ from __future__ import annotations
 import pathlib
 import re
 
-from tests.smc_manifest_test_utils import (
-    ROOT,
-    load_manifest,
-    published_micro_profiles_import_line,
-)
+from tests.smc_manifest_test_utils import ROOT, load_manifest
 
 CORE_PATH = ROOT / 'SMC_Long_Dip_Suite.pine'
-DASHBOARD_PATH = ROOT / 'SMC_Decision_Board.pine'
+DASHBOARD_PATH = ROOT / 'SMC_Long_Dip_Dashboard.pine'
 STRATEGY_PATH = ROOT / 'SMC_Long_Dip_Strategy.pine'
 
 
@@ -26,7 +22,7 @@ def _read(path: pathlib.Path) -> str:
 def test_dashboard_is_a_bus_only_consumer() -> None:
     source = _read(DASHBOARD_PATH)
 
-    assert 'indicator("SMC Decision Board", overlay = true' in source
+    assert 'indicator("SMC Long-Dip Dashboard", overlay = true' in source
     assert source.count('input.source(') == len(EXPECTED_DASHBOARD_BUS_LABELS)
     for label in EXPECTED_DASHBOARD_BUS_LABELS:
         assert label in source
@@ -38,7 +34,7 @@ def test_dashboard_is_a_bus_only_consumer() -> None:
     assert 'n/a - not on bus' not in source
 
     # Dashboard now imports the library for Market Context row (WP-UP3)
-    assert published_micro_profiles_import_line() in source
+    assert 'import preuss_steffen/smc_micro_profiles_generated/156 as mp' in source
     assert 'detect_structure' not in source
     assert 'track_obs' not in source
     assert 'OrderBlock' not in source
@@ -56,7 +52,7 @@ def test_strategy_is_a_bus_only_consumer() -> None:
     assert 'strategy.exit("L Exit", "L", stop = exit_stop, limit = exit_limit)' in source
 
     # Strategy now imports the library for regime gate (WP-UP1)
-    assert published_micro_profiles_import_line() in source
+    assert 'import preuss_steffen/smc_micro_profiles_generated/156 as mp' in source
     assert 'detect_structure' not in source
     assert 'track_obs' not in source
     assert 'OrderBlock' not in source
