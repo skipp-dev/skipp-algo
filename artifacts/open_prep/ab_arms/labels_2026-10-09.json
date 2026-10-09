@@ -1,0 +1,57 @@
+{
+  "day": "2026-10-09",
+  "labels": {
+    "CMG": {
+      "pnl_30m_pct": -2.6654,
+      "profitable_30m": false,
+      "source": "outcomes"
+    },
+    "GFS": {
+      "pnl_30m_pct": -3.3654,
+      "profitable_30m": false,
+      "source": "outcomes"
+    },
+    "HD": {
+      "pnl_30m_pct": -1.4196,
+      "profitable_30m": false,
+      "source": "outcomes"
+    },
+    "MCD": {
+      "pnl_30m_pct": 0.182,
+      "profitable_30m": true,
+      "source": "outcomes"
+    },
+    "NFLX": {
+      "pnl_30m_pct": 1.1903,
+      "profitable_30m": true,
+      "source": "outcomes"
+    },
+    "PEP": {
+      "pnl_30m_pct": -0.8079,
+      "profitable_30m": false,
+      "source": "outcomes"
+    },
+    "PLTR": {
+      "pnl_30m_pct": -0.3427,
+      "profitable_30m": false,
+      "source": "outcomes"
+    },
+    "RBA": {
+      "pnl_30m_pct": -0.6157,
+      "profitable_30m": false,
+      "source": "outcomes"
+    },
+    "ROL": {
+      "pnl_30m_pct": -0.3703,
+      "profitable_30m": false,
+      "source": "outcomes"
+    },
+    "RTX": {
+      "pnl_30m_pct": 0.4945,
+      "profitable_30m": true,
+      "source": "outcomes"
+    }
+  },
+  "pending": [],
+  "schema_version": 1
+}
