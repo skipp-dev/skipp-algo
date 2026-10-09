@@ -1,0 +1,76 @@
+{
+  "n_reaction_samples": 3933,
+  "by_direction": {
+    "bull": {
+      "n": 1951,
+      "best_variant": "level_cross",
+      "variants": {
+        "old_band": {
+          "n": 1951,
+          "n_confirmed": 165,
+          "base_rate": 0.343926,
+          "p_outcome_if_confirmed": 0.272727,
+          "p_outcome_if_not": 0.350504,
+          "lift": -0.077777,
+          "verdict": "SHADOW"
+        },
+        "level_cross": {
+          "n": 1951,
+          "n_confirmed": 1620,
+          "base_rate": 0.343926,
+          "p_outcome_if_confirmed": 0.4,
+          "p_outcome_if_not": 0.069486,
+          "lift": 0.330514,
+          "verdict": "PROMOTABLE"
+        },
+        "mirrored_band": {
+          "n": 1951,
+          "n_confirmed": 214,
+          "base_rate": 0.343926,
+          "p_outcome_if_confirmed": 0.233645,
+          "p_outcome_if_not": 0.357513,
+          "lift": -0.123868,
+          "verdict": "SHADOW"
+        }
+      }
+    },
+    "bear": {
+      "n": 1982,
+      "best_variant": "level_cross",
+      "variants": {
+        "old_band": {
+          "n": 1982,
+          "n_confirmed": 182,
+          "base_rate": 0.279011,
+          "p_outcome_if_confirmed": 0.148352,
+          "p_outcome_if_not": 0.292222,
+          "lift": -0.143871,
+          "verdict": "SHADOW"
+        },
+        "level_cross": {
+          "n": 1982,
+          "n_confirmed": 1606,
+          "base_rate": 0.279011,
+          "p_outcome_if_confirmed": 0.336239,
+          "p_outcome_if_not": 0.034574,
+          "lift": 0.301665,
+          "verdict": "PROMOTABLE"
+        },
+        "mirrored_band": {
+          "n": 1982,
+          "n_confirmed": 241,
+          "base_rate": 0.279011,
+          "p_outcome_if_confirmed": 0.157676,
+          "p_outcome_if_not": 0.295807,
+          "lift": -0.138131,
+          "verdict": "SHADOW"
+        }
+      }
+    }
+  },
+  "updated_at": "2026-10-09T15:13:37Z",
+  "config": {
+    "min_samples": 40,
+    "lift_promote_threshold": 0.05
+  }
+}

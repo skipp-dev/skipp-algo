@@ -1,0 +1,12 @@
+{
+  "generated_at": 1791558817.3563557,
+  "date": "2026-10-09",
+  "n_samples": 3933,
+  "min_samples": 40,
+  "brier_signal": 0.306457,
+  "brier_baseline": 0.214359,
+  "brier_delta": -0.092098,
+  "lift": 0.369184,
+  "verdict": "SHADOW",
+  "verdict_code": 1
+}
