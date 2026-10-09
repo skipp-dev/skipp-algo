@@ -44,9 +44,9 @@ _KNOWN_HOTSPOTS: Final[frozenset[tuple[str, int]]] = frozenset(
         # already-resampled HTF buckets; the daily/weekly/monthly
         # frames are produced via pandas resample which drops the
         # partial bucket when the source frame is bar-close clean.
-        ("smc_core/session_context.py", 133),  # 2026-07-25 killzone settle field: 131->133
-        ("smc_core/session_context.py", 139),  # 2026-07-25 killzone settle field: 137->139
-        ("smc_core/session_context.py", 145),  # 2026-07-25 killzone settle field: 143->145
+        ("smc_core/session_context.py", 131),
+        ("smc_core/session_context.py", 137),
+        ("smc_core/session_context.py", 143),
         # smc_core/vol_regime.py — ATR / variance current values. The live-ish
         # caller (smc_integration/service.py:_build_context_payloads) now passes
         # the frame through `guard_closed_bars(interval=timeframe, now=time.time())`
@@ -78,8 +78,7 @@ _KNOWN_HOTSPOTS: Final[frozenset[tuple[str, int]]] = frozenset(
         # aggregated bucket exceeds the source frame's max timestamp).
         # 2026-06-10 silent-fallback audit: 88 -> 109 (logging import +
         # 1D multi-row-per-day aggregation guard added above the site).
-        # 2026-10-02 start-stamped source bars (ADR-0031 Nachtrag III): 109 -> 169.
-        ("scripts/explicit_structure_from_bars.py", 169),
+        ("scripts/explicit_structure_from_bars.py", 109),
         # scripts/smc_session_structure.py — previous-day row + opening
         # range break; both consume closed daily frames.
         ("scripts/smc_session_structure.py", 96),
@@ -114,8 +113,7 @@ _KNOWN_HOTSPOTS: Final[frozenset[tuple[str, int]]] = frozenset(
         # + env-resolver block (~61 lines), shifting 2397 -> 2458.
         # PR #3703 and subsequent mainline helper growth shifted this
         # production-export snapshot from 2458 -> 2510.
-        # 2026-07-23 (session-minute-detail collector + coverage-scope imports): 2510->2514
-        ("scripts/databento_production_export.py", 2514),
+        ("scripts/databento_production_export.py", 2510),
         # scripts/generate_bullish_quality_scanner.py — manifest scalar
         # lookups (source_data_fetched_at / latest window_tag); not bar
         # data.
@@ -128,13 +126,7 @@ _KNOWN_HOTSPOTS: Final[frozenset[tuple[str, int]]] = frozenset(
         # over a full closed frame (open from first row, close from
         # last row). PR #2180 added `import sys` (1 line) shifting 817 -> 818.
         # PR #2198 main churn added 1 line near top, shifting 818 -> 819.
-        # 2026-07-23 (PR #3937 collapsed the duplicate coverage-scope
-        # implementation, deleting 88 lines above this site): 818 -> 780.
-        # Still the single iloc[-1] in the file, still _window_efficiency's
-        # closing-price read; the data semantics are unchanged.
-        # 2026-07-23 (BUNDLE_FRAMES_READ_BY_BASE_DERIVATION constant added
-        # beside REQUIRED_BUNDLE_FRAMES): 780 -> 788.
-        ("scripts/smc_microstructure_base_runtime.py", 788),
+        ("scripts/smc_microstructure_base_runtime.py", 818),
     }
 )
 

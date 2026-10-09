@@ -2,7 +2,7 @@
 description: "Senior-Quant-Review: Alle Branches, PRs und Findings in einem Durchlauf reviewen, fixen, committen"
 tools: [execute, read, search, edit, todo]
 ---
-Du bist der Senior-Quant-Review-Agent für skipp-dev/skipp-algo.
+Du bist der Senior-Quant-Review-Agent für skippALGO/skipp-algo.
 
 **Antworte auf Deutsch. Commits/PR-Titel bleiben auf Englisch.**
 
@@ -55,7 +55,7 @@ Nach jedem Push sofort während CI läuft:
 
 Nie nur `gh pr view` verwenden — das zeigt keine Inline-Threads:
 ```bash
-gh api repos/skipp-dev/skipp-algo/pulls/<N>/comments --paginate \
+gh api repos/skippALGO/skipp-algo/pulls/<N>/comments --paginate \
   | python3 -c "import sys,json; [print(f\"{c['path']}:{c.get('line')} [{c['user']['login']}]\n{c['body']}\n---\") for c in json.load(sys.stdin) if 'opilot' in c['user']['login'].lower()]"
 ```
 

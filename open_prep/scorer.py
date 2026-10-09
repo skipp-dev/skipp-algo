@@ -64,9 +64,9 @@ DEFAULT_WEIGHTS: dict[str, float] = {
     "analyst_catalyst": 0.5,  # misnomer: coverage BREADTH (count/10, cap 2.0), not a rating action — see config_validation.py
     "vwap_distance": 0.4,  # PRIOR-DAY daily VWAP vs prior close (positive = weak close), no premarket data — see compute_vwap_distance_pct
     "freshness_decay": 0.3,
-    "institutional_quality": 0.3,  # A3 retained until the next versioned feature/weight contract — see config_validation.py
-    "estimate_revision": 0.4,  # A4 retained until the next versioned feature/weight contract — see config_validation.py
-    "ewma": 0.4,  # live-neutral; ewma_score_shadow builds a separate recalibration cohort — see config_validation.py
+    "institutional_quality": 0.3,  # DEAD in production: not passed at the rank_candidates_v2 callsite → constant 0 — see config_validation.py
+    "estimate_revision": 0.4,  # DEAD: no producer exists anywhere → constant 0 — see config_validation.py
+    "ewma": 0.4,  # ENERGY-weighted MA (vol×range), not exponential; constant 0.5 (daily_bars never set) — see config_validation.py
     # Penalties (applied as subtractions)
     "liquidity_penalty": 1.5,  # price<$5 proxy, UNREACHABLE for tradable rows (price_below_5 hard-blocks first); no volume-based malus exists
     "corporate_action_penalty": 1.0,
@@ -287,15 +287,7 @@ def filter_candidate(
         default=0.0,
     )
     avg_volume_baseline_missing = avg_volume <= 0.0
-    raw_atr = _to_float(quote.get("atr"), default=0.0)
-    from .atr_quality import atr_pct_from_price_units
-    safe_atr_pct = atr_pct_from_price_units(raw_atr, price)
-    source_atr_quality = str(quote.get("atr_data_quality") or "")
-    atr_rejected = (
-        source_atr_quality.startswith("rejected_")
-        or (raw_atr > 0.0 and price > 0.0 and safe_atr_pct is None)
-    )
-    atr = raw_atr if safe_atr_pct is not None else 0.0
+    atr = _to_float(quote.get("atr"), default=0.0)
     momentum_z = _to_float(quote.get("momentum_z_score"), default=0.0)
     rel_vol = _to_float(quote.get("volume_ratio"), default=0.0)
     if rel_vol <= 0.0:
@@ -373,7 +365,7 @@ def filter_candidate(
     if avg_volume_baseline_missing:
         filter_reasons.append("missing_avg_volume_baseline")
     if atr <= 0.0:
-        filter_reasons.append("atr_implausible_or_split" if atr_rejected else "atr_missing")
+        filter_reasons.append("atr_missing")
     if earnings_risk_window:
         filter_reasons.append("earnings_risk_window")
 
@@ -395,7 +387,6 @@ def filter_candidate(
         "split_today",
         "ipo_window",
         "zero_volume",
-        "atr_implausible_or_split",
     }
     long_allowed = not any(r in hard_blocks for r in filter_reasons)
     passed = long_allowed  # Must pass hard-blocks to enter scoring
@@ -422,7 +413,7 @@ def filter_candidate(
                 gate_tracker.reject(symbol, reason, {"price": price, "gap_pct": gap_pct})
 
     # --- Instrument classification (#5) ---
-    atr_pct_val = safe_atr_pct or 0.0
+    atr_pct_val = (atr / price * 100.0) if price > 0 and atr > 0 else 0.0
     instrument_class = classify_instrument(price, atr_pct_val)
 
     # --- Sector-relative gap ---
@@ -502,12 +493,7 @@ def filter_candidate(
         "gap_bucket": quote.get("gap_bucket"),
         "gap_grade": quote.get("gap_grade"),
         "warn_flags": quote.get("warn_flags", ""),
-        "atr_pct": round(atr_pct_val, 4) if atr_pct_val > 0.0 else None,
-        "atr_data_quality": (
-            source_atr_quality or "rejected_implausible_or_split"
-            if atr_rejected
-            else quote.get("atr_data_quality", "ok" if atr_pct_val > 0.0 else "missing")
-        ),
+        "atr_pct": quote.get("atr_pct"),
         "pdh": quote.get("pdh"),
         "pdl": quote.get("pdl"),
         "pdh_source": quote.get("pdh_source"),
@@ -549,15 +535,6 @@ def filter_candidate(
             bb_width_pct=_to_float(quote.get("bb_width_pct"), default=3.0),
         ),
         # Pass-through display fields from FMP quote
-        # PEAD/earnings observe-only fields (eval C2b): plain .get — None must
-        # stay None ("not measured"), never coerce to 0. No weight; consumed by
-        # outcomes.prepare_outcome_snapshot for the FI ledger. These were
-        # stamped on the QUOTE by premarket enrichment but never carried to the
-        # ranked row, so the FI columns were structurally empty (2026-07-27).
-        "recent_eps_surprise_pct": quote.get("recent_eps_surprise_pct"),
-        "days_since_last_earnings": quote.get("days_since_last_earnings"),
-        "days_to_next_earnings": quote.get("days_to_next_earnings"),
-        "revenue_surprise_pct": quote.get("revenue_surprise_pct"),
         "name": quote.get("name") or quote.get("companyName") or "",
         "change": _to_float(quote.get("change"), default=0.0),
         "changesPercentage": _to_float(
@@ -873,13 +850,6 @@ def score_candidate(
         "data_quality_issues": f.get("data_quality_issues", []),
         "long_allowed": fr.long_allowed,
         "no_trade_reason": fr.filter_reasons,
-        # PEAD/earnings observe-only fields (eval C2b): forwarded verbatim from
-        # the features dict so outcomes.prepare_outcome_snapshot finds them on
-        # the ranked row. None stays None — "not measured", never 0.
-        "recent_eps_surprise_pct": f.get("recent_eps_surprise_pct"),
-        "days_since_last_earnings": f.get("days_since_last_earnings"),
-        "days_to_next_earnings": f.get("days_to_next_earnings"),
-        "revenue_surprise_pct": f.get("revenue_surprise_pct"),
         # Display-enrichment fields
         "name": f.get("name") or "",
         "change": round(f.get("change") or 0.0, 4),
@@ -1046,8 +1016,9 @@ def rank_candidates_v2(
     if vix_level is not None:
         for row in scored:
             inst_class = row.get("instrument_class", "mid_cap")
-            gates = compute_adaptive_gates(  # 2026-08-18 (Sweep C3): nur noch score_min — trend/atr waren Phantom-Gates
+            gates = compute_adaptive_gates(
                 vix_level=vix_level,
+                instrument_class=inst_class,
             )
             row["adaptive_gates"] = gates
             # Soft warn-flag when score is below adaptive threshold

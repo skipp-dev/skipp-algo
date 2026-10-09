@@ -1,4 +1,4 @@
-"""Railway API bridge: container metrics, and volume-backup health (bottom of file).
+"""Railway container-metrics bridge for the live overlay daemon.
 
 Polls the Railway public GraphQL API for per-service container resource usage
 (CPU, memory, disk, network) and exposes it as a cached snapshot that
@@ -19,7 +19,6 @@ Design mirrors :mod:`uptimerobot_bridge`:
 
 from __future__ import annotations
 
-import calendar
 import json
 import logging
 import math
@@ -69,10 +68,10 @@ def _iso_utc(epoch_seconds: float) -> str:
 def _post_graphql(
     token: str,
     variables: dict[str, Any],
-    timeout: int, query: str = _QUERY,  # one egress site, two queries — see _VOLUME_BACKUP_QUERY
+    timeout: int,
 ) -> dict[str, Any]:
     """POST a GraphQL request to Railway and return the parsed JSON body."""
-    payload = json.dumps({"query": query, "variables": variables}).encode("utf-8")
+    payload = json.dumps({"query": _QUERY, "variables": variables}).encode("utf-8")
     request = urllib.request.Request(
         _GRAPHQL_ENDPOINT,
         data=payload,
@@ -270,13 +269,6 @@ def snapshot() -> dict[str, Any]:
             cached = _CACHE
         failed = _failed_snapshot(error, cached=cached)
         failed["scrape_duration_seconds"] = time.monotonic() - started
-        # Failure backoff: cache the (truthful, ok=0) failed snapshot for one
-        # TTL so a hanging Railway API costs at most one fetch timeout per TTL
-        # instead of one per scrape — inline fetch latency here counts against
-        # Alloy's scrape_timeout for the whole /metrics exposition.
-        with _LOCK:
-            _CACHE = failed
-            _CACHE_EXPIRES_AT = time.monotonic() + config.railway_metrics_poll_ttl_secs()
         return failed
 
     ttl = config.railway_metrics_poll_ttl_secs()
@@ -305,175 +297,3 @@ def _classify_fetch_error(exc: Exception) -> str:
     if isinstance(exc, urllib.error.URLError):
         return "network_error"
     return "fetch_error"
-
-
-# ---------------------------------------------------------------------------
-# Volume backups
-#
-# Railway takes native volume backups on a schedule, and can restore one or
-# roll a volume back to a point in time. Both are worthless if nobody notices
-# that the schedule was never switched on, or that it silently stopped: the
-# customer plane's licence database ran unbacked-up by the platform until
-# 2026-08-13 without a single signal saying so.
-#
-# This half of the bridge answers three separate questions, deliberately kept
-# apart so none of them can be answered by accident:
-#
-#   * is a schedule configured at all         -> schedule_count
-#   * has it actually produced anything       -> backup_count, age_known
-#   * how old is the newest one               -> age_seconds
-#
-# ``age_known`` is the important one. Without it "no backup has ever been
-# taken" would render as age 0 — the youngest possible backup — and a volume
-# that has never been backed up would look healthier than one backed up an
-# hour ago.
-# ---------------------------------------------------------------------------
-
-_VOLUME_BACKUP_QUERY = (
-    "query VolumeBackups($volumeInstanceId: String!) {"
-    " volumeInstanceBackupScheduleList(volumeInstanceId: $volumeInstanceId) {"
-    " id kind retentionSeconds }"
-    " volumeInstanceBackupList(volumeInstanceId: $volumeInstanceId) {"
-    " id name createdAt } }"
-)
-
-_BACKUP_LOCK = threading.Lock()
-_BACKUP_CACHE: dict[str, Any] | None = None
-_BACKUP_CACHE_EXPIRES_AT: float = 0.0
-
-
-def _parse_iso_utc(value: Any) -> float | None:
-    """Parse Railway's RFC3339 timestamps to epoch seconds; None when unusable.
-
-    Railway sends ``2026-08-13T10:57:00.302Z``. Fractional seconds are dropped
-    (irrelevant at the age scale this feeds) and a missing/garbled value returns
-    None so the caller can report *unknown* rather than a fabricated age.
-    """
-    if not isinstance(value, str) or not value:
-        return None
-    text = value.strip()
-    if text.endswith("Z"):
-        text = text[:-1]
-    text = text.split(".", 1)[0].split("+", 1)[0]
-    try:
-        parsed = time.strptime(text, "%Y-%m-%dT%H:%M:%S")
-    except ValueError:
-        return None
-    return float(calendar.timegm(parsed))
-
-
-def _summarise_volume(name: str, instance_id: str, body: dict[str, Any]) -> dict[str, Any]:
-    """Collapse one instance's GraphQL payload into flat, renderable numbers."""
-    data = body.get("data") or {}
-    schedules = data.get("volumeInstanceBackupScheduleList") or []
-    backups = data.get("volumeInstanceBackupList") or []
-    retentions = [
-        float(entry["retentionSeconds"])
-        for entry in schedules
-        if isinstance(entry, dict) and isinstance(entry.get("retentionSeconds"), (int, float))
-    ]
-    timestamps = [
-        stamp
-        for stamp in (_parse_iso_utc(entry.get("createdAt")) for entry in backups if isinstance(entry, dict))
-        if stamp is not None
-    ]
-    newest = max(timestamps) if timestamps else None
-    return {
-        "name": name,
-        "instance_id": instance_id,
-        "schedule_count": float(len(schedules)),
-        "schedule_kinds": ",".join(
-            sorted(str(entry.get("kind", "")) for entry in schedules if isinstance(entry, dict))
-        ),
-        "retention_seconds": min(retentions) if retentions else None,
-        "backup_count": float(len(backups)),
-        # A backup whose createdAt will not parse is counted (backup_count) but
-        # cannot date the volume: age stays unknown rather than silently older.
-        "newest_created_at_unix": newest,
-    }
-
-
-def _fetch_volume_backups() -> dict[str, Any]:
-    """Query every configured volume instance once. Raises on any failure."""
-    token = config.railway_api_token()
-    timeout = config.railway_volume_backup_timeout_secs()
-    volumes = []
-    for name, instance_id in sorted(config.railway_volume_backup_instances().items()):
-        body = _post_graphql(
-            token,
-            {"volumeInstanceId": instance_id},
-            timeout,
-            query=_VOLUME_BACKUP_QUERY,
-        )
-        if body.get("errors"):
-            message = json.dumps(body["errors"])[:300]
-            raise RuntimeError(f"Railway GraphQL errors for {name}: {message}")
-        volumes.append(_summarise_volume(name, instance_id, body))
-    now = time.time()
-    return {
-        "enabled": True,
-        "configured": True,
-        "ok": True,
-        "fetched_at_unix": now,
-        "last_success_fetched_at_unix": now,
-        "scrape_duration_seconds": None,
-        "error": None,
-        "volumes": volumes,
-    }
-
-
-def volume_backup_snapshot() -> dict[str, Any]:
-    """Return a cached volume-backup snapshot; never raises.
-
-    Mirrors :func:`snapshot`: disabled when nothing is configured, and on a
-    failed poll it keeps the last good ``volumes`` payload while telling the
-    truth about the attempt (``ok=0`` plus a stable error code), so a Railway
-    outage cannot freeze the bridge green.
-    """
-    global _BACKUP_CACHE, _BACKUP_CACHE_EXPIRES_AT
-
-    if not config.railway_volume_backup_enabled():
-        return {
-            "enabled": False,
-            "configured": False,
-            "ok": False,
-            "fetched_at_unix": 0.0,
-            "last_success_fetched_at_unix": 0.0,
-            "scrape_duration_seconds": None,
-            "error": None,
-            "volumes": [],
-        }
-
-    now = time.monotonic()
-    with _BACKUP_LOCK:
-        if _BACKUP_CACHE is not None and now < _BACKUP_CACHE_EXPIRES_AT:
-            return _BACKUP_CACHE
-
-    started = time.monotonic()
-    try:
-        fresh = _fetch_volume_backups()
-        fresh["scrape_duration_seconds"] = time.monotonic() - started
-    except (urllib.error.URLError, TimeoutError, OSError, ValueError, RuntimeError) as exc:
-        error = _classify_fetch_error(exc)
-        logger.warning("Railway volume-backup poll failed (%s): %s", error, exc)
-        with _BACKUP_LOCK:
-            cached = _BACKUP_CACHE
-        fresh = dict(cached) if cached else {}
-        fresh.update({"enabled": True, "configured": True, "ok": False, "error": error})
-        fresh.setdefault("fetched_at_unix", 0.0)
-        fresh.setdefault("last_success_fetched_at_unix", 0.0)
-        fresh.setdefault("volumes", [])
-        fresh["scrape_duration_seconds"] = time.monotonic() - started
-
-    with _BACKUP_LOCK:
-        _BACKUP_CACHE = fresh
-        _BACKUP_CACHE_EXPIRES_AT = time.monotonic() + config.railway_volume_backup_poll_ttl_secs()
-    return fresh
-
-
-def reset_volume_backup_cache() -> None:
-    """Clear the volume-backup cache (used by tests)."""
-    global _BACKUP_CACHE, _BACKUP_CACHE_EXPIRES_AT
-    with _BACKUP_LOCK:
-        _BACKUP_CACHE = None
-        _BACKUP_CACHE_EXPIRES_AT = 0.0

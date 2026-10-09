@@ -17,82 +17,34 @@
 #     instead of silently overwriting.
 
 # ---------------------------------------------------------------------------
-# test_pytest_skip_budget.py — per-file budget over EVERY skip spelling.
-# 2026-08-19 (Geburtsfehler-Sweep): the counter was born blind to `skipif`
-# and to module-level `pytestmark = pytest.mark.skip*`. The 13 entries dated
-# below were already in the tree and reported as 0 — they are recorded here
-# at their MEASURED count, not granted new budget.
+# test_pytest_skip_budget.py — per-file pytest.skip() budget.
 # ---------------------------------------------------------------------------
 [pytest_skip_budget.file_counts]
-# 2026-08-19 (Sweep): skipif on Linux-only VmRSS assertions — runs on the
-# ubuntu-latest gate, skips on the operator Mac.
-"tests/test_a8_rss_instrumentation.py" = 2
-# 2026-08-19 (Sweep): three bash-availability skipifs.
-"tests/test_bootstrap_node_worktree.py" = 3
-# 2026-08-19 (Sweep): module-wide skipif on the jq binary. Present on
-# ubuntu-latest (the only runner today: SMC_FORCE_GH_HOSTED=1, zero
-# self-hosted runners registered), so the coupling test does execute.
-"tests/test_c13_backfill_summary_schema_coupling.py" = 1
 "tests/test_c11_resume_anchor.py" = 2
 "tests/test_c9_threshold_finalisation_anchor.py" = 1
 "tests/test_c9_threshold_lock_status.py" = 1
 "tests/test_credential_health_workflow.py" = 1
 "tests/test_e2e_smoke_ci.py" = 1
 "tests/test_generate_smc_micro_profiles.py" = 2
-# 2026-08-19 (Sweep): 2 -> 3, the third is the `_requires_git` skipif marker
-# assigned to a name (never a decorator line) — invisible to the old regex.
-"tests/test_guard_corpus_tracked_files.py" = 3
+"tests/test_guard_corpus_tracked_files.py" = 2
 "tests/test_hero_surface_input_map.py" = 1
-# 2026-08-19 (Sweep): `_REQUIRES_FCNTL` marker assigned to a name — POSIX
-# registry locking; the Windows fallback is covered separately.
-"tests/test_ib_client_id.py" = 1
-# 2026-08-19 (Sweep): module-wide skipif — needs a reachable paper TWS, which
-# no CI runner has. These assertions run on the operator Mac only.
-"tests/test_ibkr_live_smoke.py" = 1
-# 2026-08-19 (Sweep): two skipifs on an optional generated-showcase fixture dir.
-"tests/test_measurement_plausibility.py" = 2
-# 2026-08-19 (Sweep): chmod-000 semantics, skipped on Windows only.
-"tests/test_publish_signals_snapshot_permission_bug.py" = 1
 # 2026-06-12 (PR #2707): conflict-marker tripwire skips gracefully when git
 # is unavailable (mirrors the other repo tripwires).
 "tests/test_no_merge_conflict_markers.py" = 1
-# 2026-07-22: 4 -> 3 (removed the skip-only Active-Alerts stateFilter guard)
-# 2026-07-31: 3 -> 0, entry removed. All three remaining skips were unreachable
-# guarantees: two in the state-timeline legend pin (a v1-only bail-out on a
-# dashboard that has always been v1, plus an empty-list bail-out) and one in the
-# news-snapshot alert pin, whose combined rule #2882 split on 2026-06-21. The
-# guarded properties all hold today, so the skips were deleted rather than the
-# assertions weakened.
+"tests/test_live_overlay_dashboard_contract.py" = 4
 "tests/test_performance_report.py" = 1
 "tests/test_pine_boundary_literals.py" = 1
 "tests/test_pine_input_surface.py" = 2
 "tests/test_plan_2_8_digest_symlink_count.py" = 1
 "tests/test_plan_2_8_runbook_link_check.py" = 1
 "tests/test_plan_2_8_runbook_sections.py" = 1
+"tests/test_plan_2_8_weekly_summary_metrics.py" = 2
 "tests/test_ranking_golden.py" = 1
 "tests/test_schema_version_manifest_alignment.py" = 1
-# 2026-07-29: "tests/test_scorer_tuning.py" = 1 removed — its only skip sat in
-# the G3 Experiment-spec test deleted with scripts/smc_ab_experiment.py.
+"tests/test_scorer_tuning.py" = 1
 "tests/test_six_zero_tripwires_bundle.py" = 1
 "tests/test_smc_schema_version_enforcement.py" = 1
-# 2026-08-19 (Sweep): four POSIX-permission skipifs (skip on Windows only).
-"tests/test_smc_atomic_write.py" = 4
-# 2026-10-01: "tests/test_smc_strategy_snapshot.py" = 1 and
-# "tests/test_smc_strategy_snapshot_scaffolding.py" = 1 removed — the deadline
-# tripwire fired on 2026-09-30 with python/strategies/smc_mirror still absent
-# (#2353, inert since 2026-05-25) and the operator decided DELETE on
-# 2026-10-01: both test files, their fixtures, the regen script, the
-# validation doc and the tripwire itself are gone.
 "tests/test_smc_trust_badges_dashboard.py" = 1
-# 2026-08-19 (Sweep): 1 module-wide skipif + 10 decorators, 39 tests silent on
-# every CI run because no pytest-running workflow exports FMP_API_KEY or
-# NEWSAPI_KEY. 2026-08-20 ENTSCHIEDEN: the module-wide mark became a per-class
-# `requires_api_keys`, so the 10 pure-Python tests (TestHelpers: formatters
-# used by streamlit_terminal.py / terminal_tabs/tab_bitcoin.py) now run in
-# every lauf and gate merges; the 29 live-endpoint tests stay out of CI on
-# purpose — they cost provider quota and flake. Count unchanged at 11: the
-# mark definition is one spelling, the 10 per-test decorators the rest.
-"tests/test_terminal_bitcoin.py" = 11
 "tests/test_workflow_freshness_monitor_workflow_contract.py" = 1
 "tests/test_workflow_live_window_posture.py" = 2
 "tests/test_workflow_pythonpath_for_direct_invoke.py" = 1
@@ -109,32 +61,16 @@
 # 2026-06-09: _download_zip switched from urllib.request.urlopen to a
 # custom opener (opener.open) to strip Authorization on cross-host
 # redirect — only the _api_get_json call (L68) still uses urlopen.
-# 2026-07-20 (full-history coverage guard): module doc expanded: 69->70.
-"scripts/restore_databento_export_bundle.py" = [70]
+# 2026-07-13 (fallback search depth): datetime import added above: 68->69.
+"scripts/restore_databento_export_bundle.py" = [69]
 # Workflow-freshness monitor (#2433, 2026-05): polls GitHub Actions
 # REST API once per cron tick for silent-skip detection. https-only,
 # explicit timeout=15s, B310 nosec'd at the call site (constant URL).
-# 2026-08-22 (expected-stale-until suffix): 72->79 — docstring/dataclass grew above the call site.
-"scripts/check_workflow_freshness.py" = [79]
-# 2026-08-16: pine-release-notes watcher; weekly GET against the one fixed
-# public TradingView docs URL, explicit 30s timeout, B310 nosec'd at the
-# call site, gzip fallback decoded in-process. No POST, no auth.
-# 430->417 (same day): local tmp+rename helper replaced by the shared
-# scripts.smc_atomic_write.atomic_write_text (atomic-write ledger's answer).
-"scripts/pine_release_notes_watch.py" = [417]
-# Weekly house-rules watch (ADR-0034, 2026-08-31): same shape as the
-# release-notes watcher above — fixed public https TradingView URL,
-# explicit 30s timeout, B310 nosec at the call site, gzip fallback
-# decoded in-process, GET only. A page change RED-fails the job; the
-# snapshot is never self-healed by the workflow (deliberate, see ADR).
-"scripts/tv_house_rules_watch.py" = [140]
+"scripts/check_workflow_freshness.py" = [72]
 # PRE-A0 MLflow health probe: HTTPS origin is validated before both calls;
 # each has a fixed 15s timeout. One call checks the unauthenticated boundary,
 # the other reads authenticated alias/run metadata with monitor-only RBAC.
-# 2026-08-18 (Doppelgaenger-Sweep, deployed-version tripwire): 48->52, 55->59 —
-# _json split into _body + _json so the new GET /version probe reuses the SAME
-# urlopen site instead of adding a third; site count unchanged at 2.
-"scripts/check_pre_a0_mlflow_health.py" = [52, 59]
+"scripts/check_pre_a0_mlflow_health.py" = [48, 55]
 # 2026-07-16: controlled Grafana TradingView-alert E2E. The reusable
 # client talks only to the configured Grafana API, uses an explicit 30s
 # timeout, silences notifications first, and cleans temporary rules in finally.
@@ -143,14 +79,8 @@
 # at L279 inside FMPClient._do_request; has timeout=self.timeout_seconds.
 "scripts/smc_fmp_client.py" = [279]
 "scripts/smc_alert_notifier.py" = [481]
-# 2026-07-24: live_overlay deploy-trigger drift guard; Railway GraphQL POST,
-# explicit timeout=15s, reuses the railway_metrics API-token env vars.
-"scripts/check_live_overlay_deploy_trigger.py" = [154]  # [117, 197] -> [112] -> [124] -> [126] -> [131] -> [145] (2026-08-03): first the guard query, the diagnosis probe and the credential-capability probe were merged onto one `_graphql` helper (one call site instead of two, so the Cloudflare User-Agent workaround cannot be forgotten by one caller); then the module docstring gained the two-question contract after Railway was measured to deny deploymentTriggers to both credentials; then the empty-secret fix (`or` instead of a get() default) added two lines above the call site; then the refuted source-fallback was removed and the docstring rewritten around the real cause (an unresolvable serviceId reads as 'Not Authorized') -> [145] (2026-08-04): the _DEPLOYMENT_IS_CONFIGURED declaration sits above the call site -> [151] (2026-08-04): the exit-code docstring section expanded to state the declaration-gated contract (review round 1) -> [154] (2026-08-04): final review round: the exit-code docstring gained a --probe clause (+4) and `import http.client` was added (+1) above the call site, while the now-unused `import urllib.error` was removed (-1), net +3
-"scripts/verify_branch_protection.py" = [124]  # 108->124 (2026-08-01): ProtectionReport.passed gained the "at least one governance layer observed" floor +16
-# 2026-08-08 (throttle persistence): 255->321, 319->385; 2026-08-09
-# (per-channel throttle isolation and configured-horizon retention):
-# 321->331, 385->395. Both calls retain explicit ten-second timeouts.
-"terminal_notifications.py" = [331, 395]
+"scripts/verify_branch_protection.py" = [108]  # 104->108 (2026-07-09): ruleset-only cleanup shifted urlopen +4
+"terminal_notifications.py" = [255, 319]
 # 2026-06-10: bare-name urlopen() calls newly detected after expanding
 # _is_urlopen_call to match ast.Name in addition to ast.Attribute.
 # All have timeout=; none were visible to the old Attribute-only detector.
@@ -159,9 +89,9 @@
 "open_prep/bea.py" = [94]
 # 2026-07-16: measured TradingView dropdown snapshot bridge. HTTPS-only,
 # explicit 10s timeout, optional bearer token, local-file fallback.
-"services/live_overlay_daemon/tradingview_binding_bridge.py" = [103] # 2026-07-23 (binding coverage terms): 84->103
+"services/live_overlay_daemon/tradingview_binding_bridge.py" = [61]
 # 2026-06-11 (eval-findings B8): surprise-scale comment block +8 (713→721).
-"open_prep/macro.py" = [739] # 2026-07-24 (dead _macro_weight branch removed, -2): 741->739
+"open_prep/macro.py" = [741] # 2026-07-19 (provider telemetry helper): 740->741
 "open_prep/sentiment_fng.py" = [100]
 # 2026-06-23 (signals-producer consumer hook): _fetch_json_url pulls the
 # open-prep snapshot from OPEN_PREP_SNAPSHOT_URL (raw bot-branch JSON) so the
@@ -170,48 +100,28 @@
 # 2026-06-25: shifted 1000 -> 1002 by stop-guard hardening in the poll loop.
 # 2026-06-28 (semantic monitoring): readiness metrics + _extract_snapshot_epoch
 # helper shifted the _fetch_json_url urlopen call +53 lines.
-"open_prep/realtime_signals.py" = [1557]  # 2026-08-19 (Sweep: FMP-Endpoint-Seed): 1539->1554 (2026-08-21 cisco-probe: 1554->1557)
+"open_prep/realtime_signals.py" = [1451]  # 2026-07-20 private AI endpoint shifted site: 1444->1451
 "scripts/probe_fmp_13f_endpoints.py" = [77]  # 2026-07-10 truth-audit docstring: 75->77
 "scripts/resolve_workflow_runner.py" = [91]
 # 2026-06-21 (live-overlay bridge observability): optional external polling
 # bridges for GitHub workflow + UptimeRobot snapshots, each with explicit
 # timeout= and fixed https endpoint domains.
-# 2026-08-31 (Praesenz-Sonde je Workflow): 126->138, Helfer davor eingefuegt.
-"services/live_overlay_daemon/github_workflow_bridge.py" = [138]
+"services/live_overlay_daemon/github_workflow_bridge.py" = [126]
 "services/live_overlay_daemon/uptimerobot_bridge.py" = [91]
 # 2026-07-06 (feat/evidence-freshness-monitoring): evidence-freshness snapshot
 # fetcher, https-only with explicit timeout= (mirrors the workflow bridge).
 # 2026-07-09 (fix/c8-deploy-robust): submit_failed + submitter fields added to
 # _empty/_coerce shifted the urlopen call +8: 137->145.
-# 2026-08-09 (feat/portfolio-f4-evidence): portfolio decision/reconciliation
-# normalization shifted the existing, unchanged URL fetch anchor 147->246.
-"services/live_overlay_daemon/evidence_freshness_bridge.py" = [250]  # 2026-08-20 (Disposition-Ledger: 4 Zeilen darueber): 246->250
+"services/live_overlay_daemon/evidence_freshness_bridge.py" = [147]
 # 2026-07-13 (feat/pine-library-version-monitor, #3599/#3603 follow-up): repo↔TV
 # Pine-library version snapshot fetch — mirrors evidence_freshness_bridge egress.
-"services/live_overlay_daemon/pine_library_version_bridge.py" = [132] # 2026-07-22 (ADR-0029 payload volume fields): 125->132
-# 2026-07-21 (feat/pre-a0-pilot-sidecar): deliberate pilot egress — Slack
-# incoming-webhook POST in the read-only PRE-A0 pilot alert tailer. Gated by
-# RT_PRE_A0_PILOT=1 + https webhook env; NOT the notify path (worker contract
-# unchanged). timeout=_POST_TIMEOUT_S (10s).
-"services/a0_fast_detector/pilot_alert_tailer.py" = [54]
+"services/live_overlay_daemon/pine_library_version_bridge.py" = [121]
 # 2026-07-07 (feat/provider-usage): provider data-volume snapshot fetcher,
 # https-only with explicit timeout= (mirrors the evidence-freshness bridge).
 "services/live_overlay_daemon/provider_usage_bridge.py" = [97]  # 2026-07-11 (rate_limit_hits coerce +1 line): 96->97
 # 2026-07-11 (feat/sweep-trap-shadow-grafana): WS4a sweep-trap shadow snapshot
 # fetcher, https-only with explicit timeout= (mirrors the evidence-freshness bridge).
 "services/live_overlay_daemon/sweep_trap_shadow_bridge.py" = [105]  # 2026-07-13 (F7 docstring fix): 96->98; 2026-07-16 (ruff format): 98->105
-# 2026-07-28 (feat/reaction-zone-shadow-bridge): reaction-zone shadow snapshot
-# fetcher, https-only with explicit timeout= (mirrors the sweep-trap shadow bridge).
-"services/live_overlay_daemon/reaction_zone_shadow_bridge.py" = [157]
-# 2026-09-01 (fix/library-context-snapshot-url): generated Pine library fetcher,
-# https-only with explicit timeout= (mirrors the pine-library-version bridge).
-# WHY the egress is new here at all: this bridge alone read the copy baked into
-# the container image, on the premise "the daemon redeploys on every main push".
-# Measured over 2026-07-22..08-31: 90 git-bound deployments against 511 main
-# commits, one silence of 238 h in which universe_member was decided against a
-# nine-day-old ticker list. The five sibling bridges above already carry this
-# exact egress; this closes the odd one out rather than opening a new class.
-"services/live_overlay_daemon/library_context_bridge.py" = [112]  # 2026-09-01: 86->88->110->112
 # 2026-06-23: live-overlay runtime snapshot fetchers in compute.py remain
 # https-only with explicit timeout=. 2026-06-23 (audit follow-up F2/F3):
 # NEWS/SIGNALS/TRADINGVIEW JSON loaders delegate into one shared
@@ -231,7 +141,7 @@
 # 2026-07-03 PR #3136 follow-up: news-index cache-key metadata shifted sites.
 # 2026-07-19 (mesh semantic-contract docs): explicit unknown event fields
 # added above the HTTP loaders shifted these call sites by +3 lines.
-"services/live_overlay_daemon/compute.py" = [260, 458, 650]  # +4 (2026-07-09): signal/trade-context docstring header
+"services/live_overlay_daemon/compute.py" = [260, 449, 641]  # +4 (2026-07-09): signal/trade-context docstring header
 # 2026-06-22: line shifted 251 -> 287 after ADR-0025 App Platform migration
 # (/apis dashboard.grafana.app/v1); urlopen now in shared _request_json helper.
 # 2026-06-23: shifted 287 -> 296 after annotations-robustness fix.
@@ -258,10 +168,7 @@
 # endpoint (backboard.railway.com/graphql/v2), explicit timeout= via Request.
 # 2026-07-07: `import math` added for the non-finite guard in _latest_value;
 # urlopen site shifted 85 -> 86.
-# 2026-08-13 (volume-backup bridge): 86->87, one added import. Still a single
-# site — the new volume-backup query reuses _post_graphql rather than opening a
-# second egress point.
-"services/live_overlay_daemon/railway_metrics.py" = [87]
+"services/live_overlay_daemon/railway_metrics.py" = [86]
 
 # ---------------------------------------------------------------------------
 # test_noqa_budget.py — frozen noqa-suppression sites.
@@ -275,12 +182,11 @@ file = "streamlit_terminal_alerts.py"
 line = 76
 codes = ["S104"]
 
-# services/live_overlay_daemon/main.py:130 — Bandit S104 intentional:
+# services/live_overlay_daemon/main.py:125 — Bandit S104 intentional:
 # Railway/container ingress requires binding the daemon to all interfaces.
-# 2026-07-23 (removed the inert restart counters): 126->130
 [[noqa_budget.sites]]
 file = "services/live_overlay_daemon/main.py"
-line = 130
+line = 125
 codes = ["S104"]
 
 # governance/run_manifest.py:73 — Bandit S603 false positive:
@@ -299,13 +205,13 @@ codes = ["S603"]
 # 2026-07-03 (WP-4 holiday gate): +2 (import block above).
 [[noqa_budget.sites]]
 file = "open_prep/realtime_signals.py"
-line = 220  # 2026-07-25 (databento-signal-migration): 219->220
+line = 219  # 2026-07-16 market-session import shifted site: 218->219
 codes = ["S603"]
 
 # 2026-07-13 (rt_engine_status liveness re-validate above): 368->383.
 [[noqa_budget.sites]]
 file = "open_prep/realtime_signals.py"
-line = 385  # 2026-07-25 (databento-signal-migration): 384->385
+line = 384  # 2026-07-16 market-session import shifted site: 383->384
 codes = ["S603"]
 
 # smc_integration/release_policy.py:1210 — Bandit S603 false positive:
@@ -333,7 +239,7 @@ codes = ["E402"]
 # for four sites that need suppressions rather than code changes.
 [[noqa_budget.sites]]
 file = "governance/family_returns.py"
-line = 541  # 2026-07-13 guard_end_ts exit-idx tightening shifted _event_bar_interval (432->453); FamilyEvent event_id field +1 (453->454); 2026-10-02 next-open entry rule (454->483); bar-grid marker (483->503); 2026-10-03 structure grain (503->541)
+line = 454  # 2026-07-13 guard_end_ts exit-idx tightening shifted _event_bar_interval (432->453); FamilyEvent event_id field +1 (453->454)
 codes = ["RUF007"]
 
 [[noqa_budget.sites]]
@@ -365,9 +271,8 @@ codes = ["E402", "I001"]
 # for any NEW orphan.
 # ---------------------------------------------------------------------------
 [workflow_orphan_inventory]
-# github-mirror-sync.yml left the orphan list 2026-08-02: the mirror workflow
-# (push of the full ref namespace to spreuss_cisco/spreuss_cisco-skipp-algo)
-# was removed — the mirror is no longer needed.
+# github-mirror-sync.yml (2026-07-01): intentional orphan workflow for
+# repository mirroring; no dedicated test contract yet.
 # sync-tradingview-pine-libraries.yml left the orphan list 2026-07-11: the
 # dead TV→repo Pine-sync workflow was removed (repo is SSOT; see
 # pine/PINE_LIBRARIES_AUDIT.md).
@@ -377,29 +282,15 @@ codes = ["E402", "I001"]
 # openprep-pine-panel-daily-trigger.yml (2026-07-04, post-first-publish):
 # workflow_run bridge that dispatches the publisher after successful daily
 # producer schedule runs on main; intentionally contract-light/orphan.
-allowed = ["openprep-pine-panel-daily-trigger.yml"]
+allowed = ["github-mirror-sync.yml", "openprep-pine-panel-daily-trigger.yml"]
 
 # ---------------------------------------------------------------------------
 # test_workflow_set_plus_e_inventory.py — workflows allowed to use
 # `set +e` and how many times. New occurrences require an entry here.
 # ---------------------------------------------------------------------------
 [workflow_set_plus_e_inventory.allowed]
-# composio-canary.yml: 2026-08-30, fuenf Klammern — vier um die Pruefungen
-# (contract, audit, probe, bericht), eine um den Alters-Abruf. Bis dahin waren
-# es gewoehnliche Steps: ein Fehlschlag der ERSTEN uebersprang alle folgenden.
-# Gemessen an Lauf 32813924394 (25.8.): "Check pinned schemas" failure ->
-# Audit skipped -> Probe skipped. Die toten Slack-/Notion-Verbindungen wurden
-# damit NIE GEMESSEN, waehrend der Canary zehn Tage rot meldete.
-# KEIN Silent-Skip-Risiko: jede Klammer publiziert ihr rc, und der Fail-Step
-# "Fail when any check reported a problem" bewertet alle vier — beidseitig
-# gepinnt in tests/test_composio_canary_per_connection.py (jedes einzelne
-# rc=1 faellt den Job; ein durchweg sauberer Lauf bleibt gruen).
-# 2026-08-30 (Draht B): 5 -> 6, die Klammer um den Zustands-Poll. Er deckt
-# die vier WRITE-Verbindungen ab, die keine Probe je anfasst, und sein rc
-# steht im Fail-Step — kein Silent-Skip.
-"composio-canary.yml" = 6
 # Daily heavy-compute crons with per-section fault tolerance.
-"c13-daily-cron.yml" = 9  # 2026-08-19 (#4848 R#4): status_markers-Konsument advisory, rc -> Issue-Opener wie Steps 1-5b
+"c13-daily-cron.yml" = 8  # issue #2798 drift-calibration-corpus step added one set+e
 # credential-health-check.yml: single fail-soft step that pings each
 # credential provider and continues on transient HTTP errors; the
 # downstream summary step surfaces individual failures via
@@ -435,53 +326,15 @@ allowed = ["openprep-pine-panel-daily-trigger.yml"]
 # Fault-tolerant rendering pipelines (Plan 2.8 digest family).
 # Each step is independent and uploads its own artefact; one
 # rendering failure must not cascade and hide successful peers.
-# pine-library-publish-handlibs.yml: ONE fail-soft step, added 2026-08-04.
-# "Ordered publish + repin" must survive a publish that fails mid-chain so the
-# repins it already made are still written to $GITHUB_OUTPUT and captured by a
-# PR. Its own comment always promised that; the path could not run, because
-# `defaults.run.shell: bash` makes Actions invoke the block with -e already on
-# and the block's `set -uo pipefail` does not clear it. Measured under that
-# invocation: the step died on the failing pipeline and neither rc= nor
-# changed= was ever written.
-# Silent-skip risk is bounded by a DEDICATED final step, "Fail the run if a
-# publish failed", which ends the run red on a non-zero rc, on an EMPTY rc, and
-# on a non-zero log_rc. That third arm is what makes the bound complete rather
-# than merely plausible: with -e off, a `tee` that cannot write no longer ends
-# the step, and a review measured 2026-08-04 that without a published log_rc
-# such a run finishes GREEN with no publish log at all — under -e it went red.
-# The pipeline has exactly two members and both statuses are published.
-# tests/test_workflow_pine_library_publish_handlibs_contract.py executes the
-# step and the final step against stubbed failures of each.
-"pine-library-publish-handlibs.yml" = 1
 "plan-2-8-monthly-digest.yml" = 4
 "plan-2-8-weekly-digest.yml" = 382
 # Promotion-gate daily: post-#2421 baseline.
 "promotion-gate-daily.yml" = 2
-# proof-ledger-monitor.yml: single scoped `set +e`/`rc=$?`/`set -e` bracket
-# around ONE command (`judge_proof_ledger.py | tee -a "$GITHUB_STEP_SUMMARY"`).
-# Needed because the workflow's default bash shell runs with `-eo pipefail`,
-# so an unguarded pipeline would abort the step -- and hence the whole job --
-# the instant the judge exits non-zero (which it deliberately does whenever
-# a ledger entry is OFFEN/overdue). That would skip the two steps after it
-# (artifact upload, issue open/update), which must run on EVERY outcome, not
-# just success. `rc` is captured immediately after the guarded call and
-# re-enabled for the rest of the step; the LAST step re-surfaces it loudly via
-# `::error::` + `exit 1` -- the same bracket-and-resurface style already
-# pinned for workflow-freshness-monitor.yml / meta-watchdog.yml above, not
-# the silent-swallow anti-pattern the ratchet exists to catch.
-"proof-ledger-monitor.yml" = 1
-# runner-label-variable-watch.yml (2026-08-29): eine einzige geklammerte
-# `set +e`/`rc=$?`/`set -e`-Stelle um den Sondenaufruf. Noetig aus demselben
-# Grund wie oben: die Sonde beendet ABSICHTLICH non-zero (rc=1 Wert ausserhalb
-# der Allowlist, rc=8 Sonde ungueltig), und unter `-eo pipefail` wuerde der Job
-# genau dann abbrechen, wenn es etwas zu melden gibt -- der Issue-Step und der
-# rc-Resurface-Step darunter liefen nie. Kein Fail-Soft: der letzte Step bringt
-# rc explizit zurueck an die Oberflaeche und laesst den Job scheitern.
-"runner-label-variable-watch.yml" = 1
-# stuck-run-watch.yml (2026-08-29): eine geklammerte Stelle, gleicher Grund —
-# die Sonde beendet absichtlich non-zero (rc=1 ein Lauf steht, rc=8 Sonde
-# ungueltig), und der Issue-Step darunter muss trotzdem laufen.
-"stuck-run-watch.yml" = 1
+# run-open-prep-daily.yml (2026-07-08, H2): single fail-soft step restoring
+# the rolling provider-usage snapshot from bot/live-open-prep-snapshot before
+# scoring; a missing branch/file is the expected first-run state and must not
+# block the daily run. Absence is surfaced via ::notice::.
+"run-open-prep-daily.yml" = 1
 # Step-2b incremental activation (591c5bac): +1 from baseline for the
 # always-on dry-run preview's `set +e`/PREVIEW_RC wrap around plan_shards.
 "smc-databento-production-export-sharded.yml" = 2
@@ -491,10 +344,8 @@ allowed = ["openprep-pine-panel-daily-trigger.yml"]
 # wrapper PR #2418 + breaking/gates capture blocks PR #2415). PR #2762
 # adds one more set+e capture in the provider-credential preflight,
 # so the frozen count is 4.
-# 2026-08-13: 4 -> 3, eine Stelle wanderte mit der Veroeffentlichung in
-# smc-library-publish.yml. Summe unveraendert.
-"smc-library-refresh.yml" = 3
-"smc-library-publish.yml" = 1
+"smc-library-refresh.yml" = 4
+"smc-live-news-refresh.yml" = 1
 # ADR-0023 Option B (Issue #2706): accumulate_events step uses `set +e` so
 # that a failed accumulation never marks the rolling-bench run failed; the
 # daily scored_family_events.json artifact is still uploaded as fallback.
@@ -514,14 +365,7 @@ allowed = ["openprep-pine-panel-daily-trigger.yml"]
 # report and DAG summary land before the final fail-loud step re-surfaces
 # rc.  Count bumped 1→2: the new 'Annotate probe results' step (added
 # alongside 'Annotate DAG health') uses the same guarded pattern.
-# 2026-08-25: 2→3 — der alarm_coverage-Step bekam dieselbe Klammer. Sein
-# nackter `rc=$?`-Fang war unter der Default-Shell (-e) toter Code: ein
-# einzelner GitHub-503 (rc=8, laut Vertrag nur Warnung) toetete den Step vor
-# der alarm_rc-Zuweisung und faerbte den Watchdog rot (Lauf 32821936783).
-# Kein Silent-Skip-Risiko: rc=1 (BLIND) macht den Job weiter rot ueber den
-# 'Fail job'-Step (alarm_rc == '1'), gepinnt in
-# tests/test_workflow_failure_alarm_coverage.py.
-"meta-watchdog.yml" = 4  # 2026-08-28: 3->4, governance-Step verdrahtet verify_branch_protection taeglich (Geburtsfehler-Sweep 2. Flug)
+"meta-watchdog.yml" = 2
 
 # ---------------------------------------------------------------------------
 # test_subprocess_shell_injection_pin.py — frozen subprocess call sites.
@@ -539,41 +383,6 @@ count = 1
 # publish-cadence stats. Token-list args, read-only dev helper.
 [[subprocess_shell_injection_pin.sites]]
 file = "scripts/analyze_publish_cadence.py"
-attr = "run"
-count = 1
-
-# scripts/check_r1_attested_sources.py: `git diff --name-only <range>` to learn
-# which files a PR is responsible for, so the R1-attested-source gate can be
-# scoped to the change rather than the standing state (2026-08-01). Token-list
-# args, no shell=True, read-only; the range comes from the workflow's own
-# base/head SHAs, never from a branch name or PR title.
-[[subprocess_shell_injection_pin.sites]]
-file = "scripts/check_r1_attested_sources.py"
-attr = "run"
-count = 1
-
-# Pre-existing gap found + reconciled 2026-08-24 (beweis-ledger fix wave);
-# bumped 2 -> 3 on 2026-08-25 (c4-merge-base-not-merge-commit fix): three
-# read-only git queries, all token-list argv, no shell=True.
-# `_changed_files()` runs `git diff --name-only <range>` (the PR diff, never
-# the standing state of main -- same pattern as check_r1_attested_sources.py
-# above). `_ledger_ids_at()` runs `git show <rev>:proof_ledger.toml` to read
-# the ledger as it stood at a given commit. `_merge_base_commit()` (new) runs
-# `git merge-base <links> <rechts>` to find the true common ancestor instead
-# of trusting the literal left side of the range string.
-[[subprocess_shell_injection_pin.sites]]
-file = "scripts/check_proof_ledger.py"
-attr = "run"
-count = 3
-
-# Pre-existing gap found + reconciled 2026-08-24 (beweis-ledger fix wave):
-# scripts/judge_proof_ledger.py: one call site, `_gh()`, wraps every `gh`
-# CLI invocation the netbound monitor half makes (API reads for the witness
-# search, `gh run download` for the evidence artifact). Token-list argv, no
-# shell=True; auth comes from `GH_TOKEN` in the workflow environment, never
-# from untrusted input.
-[[subprocess_shell_injection_pin.sites]]
-file = "scripts/judge_proof_ledger.py"
 attr = "run"
 count = 1
 
@@ -643,28 +452,10 @@ file = "scripts/check_commit_authors.py"
 attr = "run"
 count = 1
 
-# scripts/hold_r1_attested_sources.py: 2026-08-04. Reads `git diff --name-only`
-# and runs `git checkout HEAD --` to hold R1-attested sources at their attested
-# content during an automated library refresh. Constant `git` argv list, paths
-# come from the rollout contract, no shell=True, no user input.
-[[subprocess_shell_injection_pin.sites]]
-file = "scripts/hold_r1_attested_sources.py"
-attr = "run"
-count = 1
-
 # scripts/publish_overlay_dashboard.py: local macOS Keychain read for Grafana
 # token lookup before authenticated dashboard publish.
 [[subprocess_shell_injection_pin.sites]]
 file = "scripts/publish_overlay_dashboard.py"
-attr = "run"
-count = 1
-
-# scripts/publish_bot_snapshot.py (2026-07-21 artifact-contract audit):
-# isolated rolling-snapshot git client. The executable is resolved with
-# shutil.which, argv is always a token list, shell mode is disabled, and repo /
-# branch / destination inputs are validated before the single `_git` wrapper.
-[[subprocess_shell_injection_pin.sites]]
-file = "scripts/publish_bot_snapshot.py"
 attr = "run"
 count = 1
 
@@ -830,7 +621,7 @@ frozen_major = "v7"
 # (0 / "") correctly falls through to the alternative and both branches yield
 # 0.0, so there is no masked legitimate value → budget bumped, not refactored.
 # 12 → 13.
-"open_prep/realtime_signals.py" = 10  # 2026-07-28 explicit 15-session ADV helper removed two avgVolume->avg_volume chains: 12->10
+"open_prep/realtime_signals.py" = 12  # 2026-07-16 removed duplicate profile-bulk avg-volume fallback chain: 13->12
 # 2026-07-05 (bug-hunt round 7 follow-up): 2 falsy-`or` chains that masked a
 # legitimate 0.0 replaced with nested dict.get (is-present coalesce) — the
 # sector-lookup gate (gap_pct vs raw change) and the derived sector-average
@@ -939,7 +730,7 @@ frozen_major = "v7"
 "open_prep/news.py" = [["link", "url"], ["source", "site"]]
 "open_prep/outcomes.py" = [["atr_pct_computed", "atr_pct"]]
 "open_prep/playbook.py" = [["avg_volume", "avgVolume"]]
-"open_prep/realtime_signals.py" = [["atr_pct_computed", "atr_pct"], ["averageVolume", "volAvg"], ["avgVolume", "volAvg"], ["generated_at", "run_datetime_utc"], ["news_url", "url"], ["price", "lastPrice"], ["price", "lastPrice"], ["price", "lastPrice"], ["price", "lastPrice"], ["time", "releaseTime"]]
+"open_prep/realtime_signals.py" = [["atr_pct_computed", "atr_pct"], ["averageVolume", "volAvg"], ["avgVolume", "avg_volume"], ["avgVolume", "avg_volume"], ["avgVolume", "volAvg"], ["generated_at", "run_datetime_utc"], ["news_url", "url"], ["price", "lastPrice"], ["price", "lastPrice"], ["price", "lastPrice"], ["price", "lastPrice"], ["time", "releaseTime"]]
 "open_prep/run_open_prep.py" = [["action", "newGrade"], ["atr_pct_computed", "atr_pct"], ["avgVolume", "averageVolume", "avgVolume3Month", "avgVolume50", "avg_volume"], ["changesPercentage", "changePercentage"], ["date", "datetime"], ["earnings_today", "earnings_risk_window"], ["event", "name"], ["event", "name"], ["event", "title", "name"], ["exchange", "exchangeShortName"], ["exchange", "exchangeShortName"], ["exchange", "exchangeShortName"], ["gradingCompany", "company"], ["impact", "importance", "priority"], ["impact", "importance", "priority"], ["impact", "importance", "priority"], ["investorName", "holderName"], ["investorName", "holderName"], ["lastQuarterAvgPriceTarget", "lastYearAvgPriceTarget"], ["lastQuarterCount", "lastYearCount", "allTimeCount"], ["news_event_class", "event_class"], ["news_event_class", "event_class"], ["news_materiality", "materiality"], ["news_materiality", "materiality"], ["news_recency_bucket", "recency_bucket"], ["news_recency_bucket", "recency_bucket"], ["news_source_tier", "source_tier"], ["news_source_tier", "source_tier"], ["patternname", "pattern_name", "name"], ["publishedDate", "date"], ["publishedDate", "date"], ["symbol", "ticker"], ["symbol", "ticker"], ["time", "releaseTime"], ["time", "releaseTime"], ["transactionDate", "disclosureDate", "publishedDate", "date"], ["type", "transactionType"], ["url", "link"], ["url", "link"]]
 "open_prep/scorer.py" = [["avgVolume", "avg_volume", "averageVolume", "avgVolume3Month", "avgVolume50"], ["name", "companyName"], ["rsi", "rsi14"]]
 "open_prep/screen.py" = [["name", "companyName"]]
@@ -998,43 +789,3 @@ frozen_major = "v7"
 "terminal_tabs/tab_segments.py" = [["segment_label", "category"]]
 "terminal_tabs/tab_spikes.py" = [["mktcap_display", "market_cap"]]
 "terminal_tabs/tab_track_record.py" = [["gate_failures", "failures"]]
-
-# ---------------------------------------------------------------------------
-# test_vacuous_claim_guard.py — assertions whose iterable may legitimately be
-# empty. Key: "file::test::iterable". Value: dated reason, normally naming the
-# test that proves the emptiness is declared rather than incidental.
-#
-# Two shapes live here, and neither is "the detector is wrong" — a false
-# positive is fixed in scripts/detect_vacuous_claims.py, never waived:
-#
-#   1. a population that is intentionally empty today, pinned by a test that
-#      says so (the archive gate);
-#   2. a @pytest.mark.parametrize roster proven non-empty by a sibling
-#      test_..._roster_is_not_empty. That witness lives in another test
-#      function, which the analyzer deliberately cannot see -- it scopes
-#      witnesses to one function on purpose, because a witness for one
-#      iterable says nothing about another. The exemption is what records the
-#      reasoning the analyzer is not allowed to guess at.
-# ---------------------------------------------------------------------------
-[vacuous_claim_guard.exemptions]
-"tests/test_hold_customer_surfaces.py::test_a_pure_pin_bump_classifies_pin_only::_PINNED_SURFACES" = "2026-08-28: roster non-emptiness is proven by test_pinned_surface_roster_is_not_empty in the same file (>= the four #4646 incident surfaces), a cross-test witness the analyzer deliberately cannot see; the module-level `assert len(_PINNED_SURFACES) >= 4` right under the comprehension is the import-time guard."
-"tests/test_hold_customer_surfaces.py::test_the_incident_signature_classifies_other::_PINNED_SURFACES" = "2026-08-28: same _PINNED_SURFACES roster as the pin-bump replay above, proven by test_pinned_surface_roster_is_not_empty in the same file."
-"tests/test_c9_threshold_finalisation_anchor.py::test_documented_precondition_matches_the_gate::int(day) == MIN_LIVE_DAYS for day in found" = "2026-08-03: per-surface emptiness is the rule, not a gap — the precondition has to be stated somewhere, not in every file, so a surface that quotes no window is legitimate. The aggregate is witnessed inside the same test by `assert seen` after the loop, which the analyzer cannot bind to `found`."
-"tests/test_pine_surface_registry.py::test_archived_surfaces_are_isolated_from_active_rollout::_archived_surfaces()" = "2026-08-03: the archived population is intentionally empty and pinned by test_the_archived_population_is_declared_rather_than_incidental; the rule itself is proven on data in tests/test_archived_surface_consumers.py."
-"tests/test_pine_surface_registry.py::test_archived_surfaces_have_no_active_consumers::archived" = "2026-08-03: same declared-empty archived population as the gate above — pinned by test_the_archived_population_is_declared_rather_than_incidental, rule proven on data in tests/test_archived_surface_consumers.py."
-"tests/test_requirements_lock_consistency.py::test_lock_pin_satisfies_source_specifier::_pinned_direct_requirements()" = "2026-08-03: roster non-emptiness is proven by test_pinned_direct_requirement_roster_is_not_empty in the same file, a cross-test witness the analyzer deliberately cannot see."
-"tests/test_secret_leakage_probes.py::test_r7_no_unredacted_secret_leakage::sorted(str(p.relative_to(_REPO_ROOT)) for p in _REPO_ROOT.glob(_PROBE_GLOB))" = "2026-08-03: roster non-emptiness is proven by test_probe_roster_is_not_empty in the same file, a cross-test witness the analyzer deliberately cannot see."
-"tests/test_smc_parity.py::test_expected_families_populated::_EXPECTED_PARAMS" = "2026-08-03: roster non-emptiness is proven by TestFixtureFamilyPresence::test_expected_param_roster_is_not_empty in the same file, a cross-test witness the analyzer deliberately cannot see."
-"tests/test_spec_constant_drift.py::test_spec_contains_required_keys::sorted((REPO_ROOT / \"artifacts\" / \"experiments\").glob(\"*.json\"))" = "2026-08-03: roster non-emptiness is proven by TestAllSpecFilesLoadable::test_at_least_one_spec_exists in the same class, a cross-test witness the analyzer deliberately cannot see."
-"tests/test_sprt_llr_invariants_property.py::test_streaming_llr_equals_closed_form::_NK_CASES" = "2026-08-03: roster non-emptiness is proven by test_nk_case_roster_is_not_empty in the same file, a cross-test witness the analyzer deliberately cannot see."
-"tests/test_workflow_auth_pattern.py::test_workflow_git_push_is_safe::_iter_workflow_files()" = "2026-08-03: roster non-emptiness is proven by test_workflow_roster_is_not_empty in the same file, a cross-test witness the analyzer deliberately cannot see."
-"tests/test_workflow_no_fake_push_success.py::test_workflow_does_not_fake_push_success::_WORKFLOWS" = "2026-08-03: roster non-emptiness is proven by test_workflow_roster_is_not_empty in the same file, a cross-test witness the analyzer deliberately cannot see."
-"tests/test_workflow_no_fake_push_success.py::test_workflow_does_not_fake_pr_create_success::_WORKFLOWS" = "2026-08-03: same _WORKFLOWS roster as the push check above, proven by test_workflow_roster_is_not_empty in the same file."
-"tests/test_assert_and_open_encoding_pin.py::test_assert_files_exist::sorted(_FROZEN_ASSERT_COUNTS)" = "2026-08-04: _FROZEN_ASSERT_COUNTS is intentionally empty today -- all four prior sites were migrated to explicit raise in PR #171 (comment at :69-72, \"This ledger is now zero\") -- and pinned by test_assert_no_new_files (:104) and test_assert_no_stale_entries (:113), which fail loudly the moment a live scan diverges from the ledger. With zero rows the parametrize reports an explicit pytest \"got empty parameter set\" skip, not a silent pass, but an unrun check still proves nothing on its own, hence this exemption. The sibling parametrize at :122 (sorted(_FROZEN_ASSERT_COUNTS.items())) carries the identical emptiness and is not separately exempted: the analyzer does not classify `.items()` (neither a discovery attr nor a helper), so that site stays invisible to it. Scope of that blind spot, measured 2026-08-04: passing a dict's emptiness through the three no-arg views would add 16 claims across 10 files -- so this is not a two-sibling footnote. Worst instance is tests/test_builtin_open_encoding_ledger.py:109 (sorted(_FROZEN_SITES.items()), that file's ONLY parametrize, over a dict literal that is empty today), which therefore contributes zero claims: the entire per-file open()-encoding ledger check is unrun and has never been triaged. Follow-up, not waived here. Do not read \"22 claims, all triaged\" as coverage of empty dicts -- the guard currently covers only the bare-name spelling."
-"tests/test_assert_and_open_encoding_pin.py::test_open_files_exist::sorted(_FROZEN_OPEN_COUNTS)" = "2026-08-04: same shape as _FROZEN_ASSERT_COUNTS above -- _FROZEN_OPEN_COUNTS is a hand-maintained ledger, currently empty, pinned by test_open_no_encoding_no_new_files (:195) and test_open_no_encoding_no_stale_entries (:204). With zero rows the parametrize reports an explicit pytest \"got empty parameter set\" skip, not a silent pass, but an unrun check still proves nothing on its own, hence this exemption. The sibling parametrize at :213 (sorted(_FROZEN_OPEN_COUNTS.items())) carries the identical emptiness and stays invisible to the analyzer for the same `.items()` reason -- see the entry above for the measured scope of that blind spot (16 claims across 10 files, including one wholly untriaged file)."
-"tests/test_workflow_pythonpath_for_direct_invoke.py::test_direct_invoke_workflow_sets_pythonpath::_iter_workflow_files()" = "2026-08-03: roster non-emptiness is proven by test_workflow_roster_is_not_empty in the same file, a cross-test witness the analyzer deliberately cannot see."
-"tests/test_explicit_structure_profiles.py::test_conservative_profile_filters_invalid_zones::bool(row.get(\"valid\", True)) for row in result.fvg" = "2026-08-04: registry shape 1 -- a population that is intentionally empty today, pinned by an assertion that says so. Measured: the conservative profile drops every FVG this fixture produces (hybrid_default yields 7, conservative yields 0), so the all(...) check over result.fvg observes nothing. The emptiness is now pinned in the test itself by `assert result.fvg == []` directly above it (an empty-literal equality is deliberately not a witness, so this claim correctly survives), and that pin goes red the moment the profile starts keeping FVGs -- which is exactly when the dead check comes back to life. The filtering behaviour itself is proven by the orderblocks half of the same test (7 -> 4 survivors), witnessed by `assert result.orderblocks`."
-"tests/test_realtime_active_signal_lifecycle.py::test_level_upgrade_replaces_active::s.symbol != \"NVDA\" for s in eng._active_signals" = "2026-08-04: measured -- after the A1->A0 upgrade eng._active_signals is [], and that empty list IS the assertion: the stale NVDA entry had to be cleared. That the field is genuinely maintained rather than always empty is proven by test_same_level_same_direction_is_deduped in the same file, which asserts eng._active_signals == [existing]."
-"tests/test_realtime_active_signal_lifecycle.py::test_direction_flip_replaces_active::s.symbol != \"NVDA\" for s in eng._active_signals" = "2026-08-04: measured -- after the LONG->SHORT flip eng._active_signals is [] for the same reason as test_level_upgrade_replaces_active above; the cleared list IS the assertion. The field is proven non-trivial by test_same_level_same_direction_is_deduped (eng._active_signals == [existing]) and by test_other_symbols_are_not_disturbed_on_replace, which the analyzer clears on its own via the any(...) witness one line above its loop."
-"tests/test_smc_integration_structure_contract_diagnostics.py::test_exact_match_has_no_fallback_warning::\"legacy_tf_fallback\" in w for w in contract.warnings" = "2026-08-04: the test is *about* the warning list being clean -- an exact 1D/1D timeframe match must add no legacy_tf_fallback warning, so an empty list is the expected state rather than a blind spot. That the warning is appended on a real fallback is proven by test_fallback_appends_warning_with_both_timeframes in the same class, which asserts \"legacy_tf_fallback: requested 5m, served 1D\" in contract.warnings."
-"tests/test_smc_integration_structure_contract_diagnostics.py::test_case_insensitive_match_has_no_fallback_warning::\"legacy_tf_fallback\" in w for w in contract.warnings" = "2026-08-04: same clean-warning-list contract as test_exact_match_has_no_fallback_warning above, for the 1d/1D case-insensitive match; proven non-vacuous by the same test_fallback_appends_warning_with_both_timeframes in the same class."

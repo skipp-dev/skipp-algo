@@ -7,13 +7,12 @@ from typing import Any
 import streamlit as st
 
 from terminal_tabs._shared import render_segment_articles
-from terminal_tabs.style import color_text
 from terminal_ui_helpers import dedup_articles
 
 
 def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
     """Render the Segments tab."""
-    st.subheader("Market Segments")
+    st.subheader("📊 Market Segments")
     st.caption(
         "Articles grouped by market segment with average sentiment scores."
     )
@@ -57,21 +56,11 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
     # Summary metrics
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("Total Segments", len(sorted_segs))
-    m2.metric("Bullish", len(bullish))
-    m3.metric("Neutral", len(neutral))
-    m4.metric("Bearish", len(bearish))
-
-    # Subtle state colour cue for the three groups (dezent)
-    st.markdown(
-        color_text("bullish", f"Bullish {len(bullish)}")
-        + "  ·  "
-        + color_text("neutral", f"Neutral {len(neutral)}")
-        + "  ·  "
-        + color_text("bearish", f"Bearish {len(bearish)}"),
-        unsafe_allow_html=True,
-    )
+    m2.metric("🟢 Bullish", len(bullish))
+    m3.metric("⚪ Neutral", len(neutral))
+    m4.metric("🔴 Bearish", len(bearish))
 
     # Render each group using shared helper (item 3)
-    render_segment_articles("Bullish Segments", bullish)
-    render_segment_articles("Neutral Segments", neutral)
-    render_segment_articles("Bearish Segments", bearish)
+    render_segment_articles("🟢 Bullish Segments", bullish)
+    render_segment_articles("⚪ Neutral Segments", neutral)
+    render_segment_articles("🔴 Bearish Segments", bearish)

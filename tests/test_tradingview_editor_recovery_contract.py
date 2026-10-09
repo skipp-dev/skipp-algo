@@ -79,17 +79,6 @@ def test_set_editor_content_prepare_timeout_respects_ci_step_budget() -> None:
     assert '}, editorContentTimeoutMs);' in source
 
 
-def test_producer_refresh_has_composite_timeout_floor() -> None:
-    source = _read(TV_SHARED_PATH)
-
-    pattern = re.compile(
-        r"export async function refreshChartScriptInstance\(page: Page, scriptName: string\): Promise<number> \{"
-        r".*?Math\.max\(stepTimeoutMs\(\), 90_000\)\);",
-        re.S,
-    )
-    assert pattern.search(source), "producer refresh must keep a 90s outer timeout floor"
-
-
 def test_tradingview_timeout_budget_contract_is_documented() -> None:
     runbook = _read(RUNBOOK_PATH)
 
@@ -127,78 +116,3 @@ def test_visible_legend_text_settings_fallback_has_distinct_exhaustion_events() 
         source,
         re.S,
     )
-
-
-def test_the_pine_editor_close_helper_no_longer_claims_the_button_does_not_exist() -> None:
-    """The claim was false for ten days and nobody asked the person with the screen.
-
-    ``closePineEditorIfVisible`` used to document, as settled fact, that
-    "TradingView serves no close affordance for this panel at all". The operator
-    reports -- with a screenshot -- minimise / expand / X in the panel chrome, on
-    every chart and every layout, and closed it with one click on 2026-08-01.
-
-    The claim came from probing ONE layout (vWgAWyfC) on ONE day and was written
-    as a statement about the product. Written that way it stopped being checked,
-    and two further guesses were built on top of it.
-    """
-    source = _read(TV_SHARED_PATH)
-
-    assert "serves no close affordance for this panel at all" not in source
-    assert "No close affordance exists" not in source
-    # The correction has to say what it is, or the next reader repeats it.
-    assert "CORRECTION" in source
-    assert "generalised a single probe of one layout" in source
-
-
-def test_the_close_helper_enumerates_the_controls_instead_of_guessing_at_them() -> None:
-    """Read the panel out, do not aim at it.
-
-    The same chrome carries Publish and Add-to-chart, so a positional guess that
-    misses is a live action on the operator's account. The failed-close path
-    therefore records the controls and stops; the selector gets pinned against
-    that measurement, in a later change.
-    """
-    source = _read(TV_SHARED_PATH)
-
-    assert 'tracePageEvent(\n    page,\n    "pine-editor-close-control-inventory"' in source
-    assert "getBoundingClientRect()" in source
-
-    inventory_at = source.index('"pine-editor-close-control-inventory"')
-    end_of_helper = source.index('tracePageEvent(page, "pine-editor-docked-not-closeable")')
-    tail = source[inventory_at:end_of_helper]
-    assert ".click(" not in tail, "the inventory path must not click anything"
-    assert "press(" not in tail, "the inventory path must not send keys either"
-
-
-def test_the_docked_state_ownership_is_marked_unmeasured() -> None:
-    """Server-side layout state or captured browser profile? Nobody measured it.
-
-    The old comment asserted "This is layout state" and drew an operational
-    conclusion from it. Whether a CI run could close the panel FOR the operator
-    depends entirely on that answer, so it is named as open rather than assumed.
-    """
-    source = _read(TV_SHARED_PATH)
-
-    assert "Still unresolved and NOT to be assumed either way" in source
-    assert "This is layout state; only the" not in source
-
-
-def test_the_close_helper_cites_the_measurement_it_now_rests_on() -> None:
-    """Advisory-false by measurement, not by claim -- and the measurement is named.
-
-    Read-only run 30716530874 enumerated the dialog subtree and found no close
-    control among eight button-like elements; the session the storage state
-    renders shows the panel right-docked without the window chrome the
-    operator's browser has. The comment carries the run id and the honest scope
-    of the enumeration, so the next reader can re-run the measurement instead
-    of re-litigating the claim.
-    """
-    source = _read(TV_SHARED_PATH)
-
-    assert "MEASURED 2026-08-01, read-only run 30716530874" in source
-    assert "NO close control among" in source
-    # The scope limitation must stay stated -- chrome outside the dialog
-    # subtree or icon divs without a role would not appear in the inventory.
-    assert "under the dialog root only" in source
-    # And the ownership question stays open, now with evidence listed.
-    assert "listed without concluding" in source

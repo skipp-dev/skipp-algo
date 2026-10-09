@@ -39,9 +39,6 @@ _LEGACY_FILENAMES = frozenset(
         "REV-BUY.pine",
         "REV-Ladder-CHoCH.pine",
         "REV-Ladder.pine",
-        # 2026-07-30 (R5-REBUILD): snapshot-era rollback references
-        "SMC_HTF_Confluence_v1_snapshot.pine",
-        "SMC_Session_Context_v1_snapshot.pine",
         "USI-CHOCH.pine",
         "USI-Flip.pine",
         "USI-REV-BUY.pine",

@@ -15,32 +15,9 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, time
-
-from open_prep.calibration_lookup import _min_samples
+import os
 
 logger = logging.getLogger(__name__)
-
-
-def parse_calibration_hhmm(raw: str) -> time | None:
-    """Parse ``RT_CALIBRATION_UTC_HHMM`` into a UTC wall-clock time.
-
-    ``None`` for an empty or unparseable value, so the caller can leave
-    calibration off and *say so* instead of appearing scheduled.
-
-    A non-padded hour is accepted deliberately: an operator who types "9:30"
-    into Railway means 09:30. The scheduler used to compare the raw string
-    against ``datetime.strftime("%H:%M")``, which is only chronological while
-    both sides are zero-padded — "9:30" never fired at all (no zero-padded
-    hour sorts >= "9"), and "0:05" first fired at 10:00.
-    """
-    raw = (raw or "").strip()
-    if not raw:
-        return None
-    try:
-        return datetime.strptime(raw, "%H:%M").time()
-    except ValueError:
-        return None
 
 
 def run_calibration_once(
@@ -74,7 +51,7 @@ def run_calibration_once(
                 "Nightly calibration produced no table (rc=%s) — no events yet?", rc,
             )
     except Exception:  # best-effort — must never break the producer poll loop
-        logger.warning("nightly calibration failed", exc_info=True)  # debug hid a month of ModuleNotFoundError (2026-08-04)
+        logger.debug("nightly calibration failed", exc_info=True)
 
 
 def _log_bucket_readiness(out_path: str) -> None:
@@ -85,9 +62,10 @@ def _log_bucket_readiness(out_path: str) -> None:
     only consumer (rt_notify's near-A0 star) reads A1|* buckets exclusively — for
     the arming decision check the A1|* keys in the detail string, not the
     headline count. Best-effort; never raises."""
-    # Resolved through the consumer's own helper so this readiness count can
-    # never report against a floor rt_notify no longer uses.
-    min_n = _min_samples()
+    try:
+        min_n = int(os.environ.get("RT_CALIBRATION_MIN_SAMPLES", 20))
+    except (TypeError, ValueError):
+        min_n = 20
     try:
         with open(out_path, encoding="utf-8") as fh:
             table = (json.load(fh) or {}).get("table", {}) or {}

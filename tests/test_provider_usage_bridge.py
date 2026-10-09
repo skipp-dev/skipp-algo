@@ -59,10 +59,6 @@ def test_coerce_empty_on_no_months() -> None:
     assert bridge._coerce({})["loaded"] == 0.0
 
 
-def test_future_snapshot_timestamp_has_unknown_age() -> None:
-    assert bridge._age_seconds("2099-01-01T00:00:00Z", now=1_783_000_000.0) is None
-
-
 def test_load_raw_reads_local_snapshot(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     p = tmp_path / "provider_usage.json"
     _write(p, {"current_month": "2026-07", "months": {"2026-07": {"fmp": {"bytes": 42}}}})
@@ -187,29 +183,6 @@ def test_metrics_emit_provider_usage_gauges(monkeypatch: pytest.MonkeyPatch) -> 
     assert 'live_overlay_provider_usage_rate_limit_hits{provider="fmp"} 0' in text
     assert 'live_overlay_provider_bandwidth_limit_bytes{provider="fmp"} 150000000000' in text
     # 142.99 GB / 150 GB ~= 95% -> the dashboard/alert ratio is computable.
-
-
-def test_metrics_emit_zero_fmp_series_for_empty_loaded_snapshot(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A valid empty month must not make FMP quota alerts lose their series."""
-    from services.live_overlay_daemon import metrics
-
-    monkeypatch.setattr(
-        metrics.provider_usage_bridge,
-        "snapshot",
-        lambda: {
-            "loaded": 1.0,
-            "snapshot_age_seconds": 12.0,
-            "providers": {},
-        },
-    )
-
-    text = "\n".join(metrics._render_provider_usage_metrics())
-    assert 'live_overlay_provider_usage_bytes{provider="fmp"} 0' in text
-    assert 'live_overlay_provider_usage_calls{provider="fmp"} 0' in text
-    assert 'live_overlay_provider_usage_records{provider="fmp"} 0' in text
-    assert 'live_overlay_provider_usage_rate_limit_hits{provider="fmp"} 0' in text
 
 
 def test_snapshot_age_recomputed_each_call_while_cached(

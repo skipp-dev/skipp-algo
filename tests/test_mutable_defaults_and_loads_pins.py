@@ -109,30 +109,26 @@ _FROZEN_JSON_LOAD_SITES: frozenset[tuple[str, int]] = frozenset(
         ("open_prep/calibration_lookup.py", 75),
         # 2026-07-09 calibration readiness log: guarded read-back of the just-written
         # calibration_latest.json to log arm-ready bucket counts (try/except; volume-local).
-        ("open_prep/calibration_scheduler.py", 93),  # 2026-08-08 (parse the calibration HH:MM): 71->93
-        ("open_prep/diff.py", 86),  # 2026-08-18 (Sweep-Doku-Kommentar): 82->86
+        ("open_prep/calibration_scheduler.py", 71),  # 2026-07-10 truth-audit docstring: 68->71
+        ("open_prep/diff.py", 82),
         # 2026-06-11 (backfill defer-unpublished): sentinel+helper block
         # above shifted 61→80, 81→100; pytest write-guard import +4 → 84/104.
         # 2026-06-17 (F1 lint fix): remove unused import sys → 84→83, 104→103.
         # 2026-07-05 (bug-hunt round 7): import math → 83→84, 103→104.
-        ("open_prep/outcome_backfill.py", 146),  # 2026-07-23 (A1 horizons: docstring + horizon constants above): 106->146
-        ("open_prep/outcome_backfill.py", 166),  # 2026-07-23 (A1 horizons: docstring + horizon constants above): 126->166
+        ("open_prep/outcome_backfill.py", 106),  # 2026-07-18 dataset-role default: 105->106
+        ("open_prep/outcome_backfill.py", 126),  # 2026-07-18 dataset-role default: 125->126
         # 2026-06-11 (pytest write-guard): import + guard call in
         # store_daily_outcomes shifted 185→199.
         # 2026-07-03 (WP-3 sample_dates helper insertion): +1 -> 200.
-        ("open_prep/outcomes.py", 276),  # 2026-07-23 (A1 horizons: module docstring above): 272->276
+        ("open_prep/outcomes.py", 272),  # 2026-07-13 (rotation doc): 270->272
         # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
         # 1707 -> 1788 and 2852 -> 2933.
         # 2026-06-28 (semantic monitoring): shifted +64/+80 lines by readiness metrics.
         # 2026-07-03 (WP-4 holiday gate): shifted +8 below the market-hours gate.
-        ("open_prep/realtime_signals.py", 2505),  # 2026-07-28 (ATR sanitization import): 2461->2485 (2026-08-18 railway-token guard) (2026-08-19 FMP-Endpoint-Seed: 2485->2500) (2026-08-21 cisco-probe: 2500->2505)
-
-        # 2026-07-26 (merge Databento source after re-qual fixes):
-        # combined branch additions shifted the reviewed json.load site to 3991.
-        ("open_prep/realtime_signals.py", 4124),  # 2026-08-08 (watchlist retraction): 4074->4098 (2026-08-18 railway-token guard) (2026-08-19 FMP-Endpoint-Seed: 4098->4113) (2026-08-21 cisco-probe: 4113->4124)
-
+        ("open_prep/realtime_signals.py", 2347),  # 2026-07-20 private AI endpoint shifted site: 2340->2347
+        ("open_prep/realtime_signals.py", 3808),  # 2026-07-20 private AI endpoint shifted site: 3801->3808
         ("open_prep/scorer.py", 122),
-        ("open_prep/watchlist.py", 59),  # 2026-07-27 (docstring adoption/persistence note above): 53->59
+        ("open_prep/watchlist.py", 53),
         # 2026-06-10 (PR #2658): centralized trading-thresholds loader parses a
         # local operator-supplied config file (path from CONFIG_ENV_VAR or an
         # explicit arg), validated via _as_plain_mapping + _validate_dataclass.
@@ -147,7 +143,7 @@ _FROZEN_JSON_LOAD_SITES: frozenset[tuple[str, int]] = frozenset(
         # 2026-07-04 (WP-3 backtest tooling): FMPDataLoader.load_from_json parses
         # a local candle-cache file written by its own save_to_json (operator-
         # supplied path in the standalone backtest runner), not untrusted input.
-        ("services/live_overlay_daemon/fmp_data_loader.py", 451),  # 2026-08-18 (D3/D4 telemetry helpers above): 404->451
+        ("services/live_overlay_daemon/fmp_data_loader.py", 402),  # +2 (2026-07-09): limit/intraday docstring truth-fix above
     }
 )
 
@@ -205,10 +201,7 @@ _FROZEN_ENV_SUBSCRIPT_SITES: frozenset[tuple[str, int]] = frozenset(
         # 2026-06-25: shifted 2892 -> 2973 by AsyncNewsstackPoller telemetry additions.
         # 2026-06-28 (semantic monitoring): shifted +80 lines by readiness metrics.
         # 2026-07-03 (WP-4 holiday gate): shifted +8.
-        # 2026-07-26 (merge Databento source after re-qual fixes):
-        # combined branch additions shifted the reviewed env-write site to 4031.
-        ("open_prep/realtime_signals.py", 4175),  # 2026-08-18 (railway-token guard): 4125->4149 (2026-08-19 FMP-Endpoint-Seed: 4149->4164) (2026-08-21 cisco-probe: 4164->4175)
-
+        ("open_prep/realtime_signals.py", 3848),  # 2026-07-20 private AI endpoint shifted site: 3841->3848
         ("open_prep/streamlit_monitor.py", 80),  # 2026-07-18 local OPRA snapshot JSON import
         # 2026-07-17: the isolated A0-Fast entry point must fail closed when
         # either its Databento credential or versioned reference file is absent.
@@ -216,10 +209,9 @@ _FROZEN_ENV_SUBSCRIPT_SITES: frozenset[tuple[str, int]] = frozenset(
         # intentional fail-closed A0-Fast entry-point reads 82/83 -> 196/197.
         # 2026-07-18: PRE-A0 shadow wiring shifted these same required reads
         # 196/197 -> 221/222; missing credential/reference still fail closed.
-        # 2026-07-21 (PRE-A0 replay/readiness hardening): 221->230, 222->231.
-        ("services/a0_fast_detector/worker.py", 230),
-        ("services/a0_fast_detector/worker.py", 231),
-        ("streamlit_terminal.py", 328),  # 2026-07-22 Technical Data tab: 327->328
+        ("services/a0_fast_detector/worker.py", 221),
+        ("services/a0_fast_detector/worker.py", 222),
+        ("streamlit_terminal.py", 327),
         # 2026-07-04 (WP-3 backtest CLI): `os.environ["FMP_API_KEY"] = args.api_key`
     }
 )

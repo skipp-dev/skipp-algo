@@ -1,13 +1,13 @@
 {
-  "generatedAt": "2026-10-07T01:41:02.462Z",
+  "generatedAt": "2026-07-20T09:05:18.340Z",
   "publishMode": "automated",
   "manifestVersion": 2,
   "library": {
     "scriptName": "smc_micro_profiles_generated",
     "owner": "preuss_steffen",
-    "importPath": "preuss_steffen/smc_micro_profiles_generated/569",
-    "expectedVersion": 569,
-    "publishedVersion": 569,
+    "importPath": "preuss_steffen/smc_micro_profiles_generated/157",
+    "expectedVersion": 157,
+    "publishedVersion": 157,
     "publishStatus": "published",
     "sourceManifest": "pine/generated/smc_micro_profiles_generated.json",
     "sourceSnippet": "pine/generated/smc_micro_profiles_core_import_snippet.pine",
@@ -15,13 +15,11 @@
       "publishReady": true,
       "blockingReasons": [],
       "fixtureInputDetected": false,
-      "defaultEventRiskDetected": false,
-      "placeholderSymbols": [
-        "CCC"
-      ],
-      "inputPath": "artifacts/smc_microstructure_exports/databento_volatility_production_merged__smc_microstructure_base_2026-10-05.csv",
-      "universeSize": 6952,
-      "eventRiskSource": "smc_event_risk_builder"
+      "defaultEventRiskDetected": true,
+      "placeholderSymbols": [],
+      "inputPath": "artifacts/smc_microstructure_exports/databento_volatility_production_merged__smc_microstructure_base_2026-07-17.csv",
+      "universeSize": 6935,
+      "eventRiskSource": "defaults"
     }
   },
   "consumers": [
@@ -31,8 +29,8 @@
       "role": "producer"
     },
     {
-      "scriptName": "SMC Decision Board",
-      "file": "SMC_Decision_Board.pine",
+      "scriptName": "SMC Long-Dip Dashboard",
+      "file": "SMC_Long_Dip_Dashboard.pine",
       "role": "dashboard_companion"
     },
     {
@@ -42,12 +40,12 @@
     }
   ],
   "productCut": {
-    "manifestVersion": 3,
+    "manifestVersion": 2,
     "manifestPath": "artifacts/tradingview/smc_product_cut_manifest.json",
     "source": "scripts/smc_bus_manifest.py",
     "mainlineFiles": [
       "SMC_Long_Dip_Suite.pine",
-      "SMC_Decision_Board.pine",
+      "SMC_Long_Dip_Dashboard.pine",
       "SMC_Long_Dip_Strategy.pine",
       "SMC_Confluence_Hub.pine"
     ],
@@ -55,7 +53,7 @@
       "SMC_Long_Dip_Suite.pine"
     ],
     "proPrimaryFiles": [
-      "SMC_Decision_Board.pine",
+      "SMC_Long_Dip_Dashboard.pine",
       "SMC_Long_Dip_Strategy.pine",
       "SMC_Confluence_Hub.pine"
     ],
@@ -75,14 +73,16 @@
       "SMC_Exit_Signal.pine",
       "SMC_Hold_Manager.pine",
       "SMC_Long_Dip_Alerts.pine",
-      "SMC_Volume_Profile_Overlay.pine",
-      "SMC_Context_Overlay.pine"
+      "SMC_Volume_Profile_Overlay.pine"
     ],
     "internalFiles": [
-      "SMC_Regime_and_News.pine",
-      "SMC_Context_Bus.pine"
+      "SMC_Regime_and_News.pine"
     ],
-    "legacyFiles": [],
+    "legacyFiles": [
+      "SMC++.pine",
+      "SMC_Core_Zones.pine",
+      "SMC Core + Zones.pine"
+    ],
     "contracts": {
       "engine": [
         "BUS SchemaVersion",
@@ -311,145 +311,6 @@
         "BUS Trigger",
         "BUS Invalidation",
         "BUS QualityScore"
-      ],
-      "holdManagerBindings": [
-        "BUS SchemaVersion",
-        "BUS ZoneActive",
-        "BUS Armed",
-        "BUS Confirmed",
-        "BUS Ready",
-        "BUS Trigger",
-        "BUS Invalidation",
-        "BUS QualityScore",
-        "BUS SourceKind",
-        "BUS StateCode",
-        "BUS StopLevel",
-        "BUS Target1",
-        "BUS Target2"
-      ],
-      "eventOverlayBindings": [
-        "BUS LeanPackA"
-      ],
-      "exitSignalBindings": [
-        "BUS SchemaVersion",
-        "BUS Armed",
-        "BUS Confirmed",
-        "BUS Ready",
-        "BUS Trigger",
-        "BUS Invalidation",
-        "BUS StopLevel",
-        "BUS Target1",
-        "BUS Target2"
-      ],
-      "contextOverlayBindings": [
-        "CTX SchemaVersion",
-        "CTX Ready",
-        "CTX AvailabilityMask",
-        "CTX ConfirmedEpoch",
-        "CTX Bias",
-        "CTX AvailableDomains",
-        "CTX QualityScore",
-        "CTX StructureTrend",
-        "CTX StructureBos",
-        "CTX StructureChoch",
-        "CTX StructureEventDirection",
-        "CTX StructureResistance",
-        "CTX StructureSupport",
-        "CTX StructureEventAgeBars",
-        "CTX ImbalanceState",
-        "CTX FvgBias",
-        "CTX BullFvgActive",
-        "CTX BearFvgActive",
-        "CTX BullFvgTop",
-        "CTX BullFvgBottom",
-        "CTX BearFvgTop",
-        "CTX BearFvgBottom",
-        "CTX BprActive",
-        "CTX BprDirection",
-        "CTX BprTop",
-        "CTX BprBottom",
-        "CTX LiquidityVoidActive",
-        "CTX LiquidityVoidTop",
-        "CTX LiquidityVoidBottom",
-        "CTX ZoneState",
-        "CTX ObBias",
-        "CTX BullObTop",
-        "CTX BullObBottom",
-        "CTX BearObTop",
-        "CTX BearObBottom",
-        "CTX BullObNew",
-        "CTX BearObNew",
-        "CTX BullObBroken",
-        "CTX BearObBroken",
-        "CTX SweepDirection",
-        "CTX SweepType",
-        "CTX SweepZoneTop",
-        "CTX SweepZoneBottom",
-        "CTX SweepReclaimActive",
-        "CTX SweepQualityScore",
-        "CTX SweepEventAgeBars",
-        "CTX BuyPoolLevel",
-        "CTX SellPoolLevel",
-        "CTX BuyPoolStrength",
-        "CTX SellPoolStrength",
-        "CTX PoolMagnetDirection",
-        "CTX PoolImbalance",
-        "CTX SessionCode",
-        "CTX SessionKillzone",
-        "CTX SessionRangeTop",
-        "CTX SessionRangeBottom",
-        "CTX OpeningRangeActive",
-        "CTX OpeningRangeTop",
-        "CTX OpeningRangeBottom",
-        "CTX SessionDirection",
-        "CTX SessionMssBull",
-        "CTX SessionMssBear"
-      ],
-      "mobileBindings": [
-        "BUS SchemaVersion",
-        "BUS Armed",
-        "BUS Confirmed",
-        "BUS Ready",
-        "BUS Trigger",
-        "BUS Invalidation",
-        "BUS QualityScore",
-        "BUS StateCode"
-      ],
-      "alertsBindings": [
-        "BUS SchemaVersion",
-        "BUS ZoneActive",
-        "BUS Armed",
-        "BUS StateCode"
-      ],
-      "setupCheckBindings": [
-        "BUS SchemaVersion",
-        "BUS Armed",
-        "BUS Trigger",
-        "BUS Invalidation",
-        "BUS QualityScore",
-        "BUS StateCode"
-      ],
-      "breakoutOverlayBindings": [
-        "BUS SchemaVersion",
-        "BUS ZoneActive",
-        "BUS Trigger",
-        "BUS Invalidation",
-        "BUS QualityScore",
-        "BUS StopLevel",
-        "BUS Target1",
-        "BUS Target2",
-        "BUS ZoneObTop",
-        "BUS ZoneObBottom",
-        "BUS ZoneFvgTop",
-        "BUS ZoneFvgBottom"
-      ],
-      "confluenceHubBindings": [
-        "BUS SchemaVersion",
-        "BUS Armed",
-        "BUS Trigger",
-        "BUS Invalidation",
-        "BUS QualityScore",
-        "BUS StateCode"
       ]
     },
     "preflightScopes": {
@@ -461,12 +322,12 @@
           "addToChart": false
         },
         {
-          "file": "SMC_Decision_Board.pine",
-          "scriptName": "SMC Decision Board",
+          "file": "SMC_Long_Dip_Dashboard.pine",
+          "scriptName": "SMC Long-Dip Dashboard",
           "checkInputs": true,
           "addToChart": true,
           "minInputs": 58,
-          "savedScriptName": "SMC Decision Board",
+          "savedScriptName": "SMC Long-Dip Dashboard",
           "bindingContractKey": "dashboardBindings",
           "bindingContractName": "dashboard companion BUS bindings",
           "bindingConsumerRole": "dashboard_companion",
@@ -540,103 +401,103 @@
             {
               "label": "BUS SchemaVersion",
               "group": "g_bus_lifecycle",
-              "groupTitle": "Decision State",
+              "groupTitle": "Lifecycle BUS",
               "tier": "critical"
             },
             {
               "label": "BUS ZoneActive",
               "group": "g_bus_lifecycle",
-              "groupTitle": "Decision State",
+              "groupTitle": "Lifecycle BUS",
               "tier": "critical"
             },
             {
               "label": "BUS Armed",
               "group": "g_bus_lifecycle",
-              "groupTitle": "Decision State",
+              "groupTitle": "Lifecycle BUS",
               "tier": "critical"
             },
             {
               "label": "BUS Confirmed",
               "group": "g_bus_lifecycle",
-              "groupTitle": "Decision State",
+              "groupTitle": "Lifecycle BUS",
               "tier": "critical"
             },
             {
               "label": "BUS Ready",
               "group": "g_bus_lifecycle",
-              "groupTitle": "Decision State",
+              "groupTitle": "Lifecycle BUS",
               "tier": "critical"
             },
             {
               "label": "BUS EntryBest",
               "group": "g_bus_lifecycle",
-              "groupTitle": "Decision State",
+              "groupTitle": "Lifecycle BUS",
               "tier": "critical"
             },
             {
               "label": "BUS EntryStrict",
               "group": "g_bus_lifecycle",
-              "groupTitle": "Decision State",
+              "groupTitle": "Lifecycle BUS",
               "tier": "critical"
             },
             {
               "label": "BUS Trigger",
               "group": "g_bus_lifecycle",
-              "groupTitle": "Decision State",
+              "groupTitle": "Lifecycle BUS",
               "tier": "critical"
             },
             {
               "label": "BUS Invalidation",
               "group": "g_bus_lifecycle",
-              "groupTitle": "Decision State",
+              "groupTitle": "Lifecycle BUS",
               "tier": "critical"
             },
             {
               "label": "BUS QualityScore",
               "group": "g_bus_lifecycle",
-              "groupTitle": "Decision State",
+              "groupTitle": "Lifecycle BUS",
               "tier": "critical"
             },
             {
               "label": "BUS SourceKind",
               "group": "g_bus_lifecycle",
-              "groupTitle": "Decision State",
+              "groupTitle": "Lifecycle BUS",
               "tier": "critical"
             },
             {
               "label": "BUS StateCode",
               "group": "g_bus_lifecycle",
-              "groupTitle": "Decision State",
+              "groupTitle": "Lifecycle BUS",
               "tier": "critical"
             },
             {
               "label": "BUS TrendPack",
               "group": "g_bus_lifecycle",
-              "groupTitle": "Decision State",
+              "groupTitle": "Lifecycle BUS",
               "tier": "critical"
             },
             {
               "label": "BUS MetaPack",
               "group": "g_bus_lifecycle",
-              "groupTitle": "Decision State",
+              "groupTitle": "Lifecycle BUS",
               "tier": "critical"
             },
             {
               "label": "BUS LtfDeltaState",
               "group": "g_bus_diag",
-              "groupTitle": "Context Signals",
+              "groupTitle": "Diagnostic Support",
               "tier": "diagnostic"
             },
             {
               "label": "BUS SafeTrendState",
               "group": "g_bus_diag",
-              "groupTitle": "Context Signals",
+              "groupTitle": "Diagnostic Support",
               "tier": "diagnostic"
             },
             {
               "label": "BUS MicroProfileCode",
               "group": "g_bus_diag",
-              "groupTitle": "Context Signals",
+              "groupTitle": "Diagnostic Support",
               "tier": "diagnostic"
             },
             {
@@ -660,121 +521,121 @@
             {
               "label": "BUS SessionGateRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS MarketGateRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS VolaGateRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS MicroSessionGateRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS MicroFreshRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS VolumeDataRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS QualityEnvRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS QualityStrictRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS CloseStrengthRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS EmaSupportRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS AdxRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS RelVolRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS VwapRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS ContextQualityRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS QualityCleanRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS QualityScoreRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS SdConfluenceRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS SdOscRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS VolRegimeRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS VolSqueezeRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
@@ -932,12 +793,12 @@
           "addToChart": false
         },
         {
-          "file": "SMC_Decision_Board.pine",
-          "scriptName": "SMC Decision Board",
+          "file": "SMC_Long_Dip_Dashboard.pine",
+          "scriptName": "SMC Long-Dip Dashboard",
           "checkInputs": true,
           "addToChart": true,
           "minInputs": 58,
-          "savedScriptName": "SMC Decision Board",
+          "savedScriptName": "SMC Long-Dip Dashboard",
           "bindingContractKey": "dashboardBindings",
           "bindingContractName": "dashboard companion BUS bindings",
           "bindingConsumerRole": "dashboard_companion",
@@ -1011,103 +872,103 @@
             {
               "label": "BUS SchemaVersion",
               "group": "g_bus_lifecycle",
-              "groupTitle": "Decision State",
+              "groupTitle": "Lifecycle BUS",
               "tier": "critical"
             },
             {
               "label": "BUS ZoneActive",
               "group": "g_bus_lifecycle",
-              "groupTitle": "Decision State",
+              "groupTitle": "Lifecycle BUS",
               "tier": "critical"
             },
             {
               "label": "BUS Armed",
               "group": "g_bus_lifecycle",
-              "groupTitle": "Decision State",
+              "groupTitle": "Lifecycle BUS",
               "tier": "critical"
             },
             {
               "label": "BUS Confirmed",
               "group": "g_bus_lifecycle",
-              "groupTitle": "Decision State",
+              "groupTitle": "Lifecycle BUS",
               "tier": "critical"
             },
             {
               "label": "BUS Ready",
               "group": "g_bus_lifecycle",
-              "groupTitle": "Decision State",
+              "groupTitle": "Lifecycle BUS",
               "tier": "critical"
             },
             {
               "label": "BUS EntryBest",
               "group": "g_bus_lifecycle",
-              "groupTitle": "Decision State",
+              "groupTitle": "Lifecycle BUS",
               "tier": "critical"
             },
             {
               "label": "BUS EntryStrict",
               "group": "g_bus_lifecycle",
-              "groupTitle": "Decision State",
+              "groupTitle": "Lifecycle BUS",
               "tier": "critical"
             },
             {
               "label": "BUS Trigger",
               "group": "g_bus_lifecycle",
-              "groupTitle": "Decision State",
+              "groupTitle": "Lifecycle BUS",
               "tier": "critical"
             },
             {
               "label": "BUS Invalidation",
               "group": "g_bus_lifecycle",
-              "groupTitle": "Decision State",
+              "groupTitle": "Lifecycle BUS",
               "tier": "critical"
             },
             {
               "label": "BUS QualityScore",
               "group": "g_bus_lifecycle",
-              "groupTitle": "Decision State",
+              "groupTitle": "Lifecycle BUS",
               "tier": "critical"
             },
             {
               "label": "BUS SourceKind",
               "group": "g_bus_lifecycle",
-              "groupTitle": "Decision State",
+              "groupTitle": "Lifecycle BUS",
               "tier": "critical"
             },
             {
               "label": "BUS StateCode",
               "group": "g_bus_lifecycle",
-              "groupTitle": "Decision State",
+              "groupTitle": "Lifecycle BUS",
               "tier": "critical"
             },
             {
               "label": "BUS TrendPack",
               "group": "g_bus_lifecycle",
-              "groupTitle": "Decision State",
+              "groupTitle": "Lifecycle BUS",
               "tier": "critical"
             },
             {
               "label": "BUS MetaPack",
               "group": "g_bus_lifecycle",
-              "groupTitle": "Decision State",
+              "groupTitle": "Lifecycle BUS",
               "tier": "critical"
             },
             {
               "label": "BUS LtfDeltaState",
               "group": "g_bus_diag",
-              "groupTitle": "Context Signals",
+              "groupTitle": "Diagnostic Support",
               "tier": "diagnostic"
             },
             {
               "label": "BUS SafeTrendState",
               "group": "g_bus_diag",
-              "groupTitle": "Context Signals",
+              "groupTitle": "Diagnostic Support",
               "tier": "diagnostic"
             },
             {
               "label": "BUS MicroProfileCode",
               "group": "g_bus_diag",
-              "groupTitle": "Context Signals",
+              "groupTitle": "Diagnostic Support",
               "tier": "diagnostic"
             },
             {
@@ -1131,121 +992,121 @@
             {
               "label": "BUS SessionGateRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS MarketGateRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS VolaGateRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS MicroSessionGateRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS MicroFreshRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS VolumeDataRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS QualityEnvRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS QualityStrictRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS CloseStrengthRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS EmaSupportRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS AdxRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS RelVolRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS VwapRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS ContextQualityRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS QualityCleanRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS QualityScoreRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS SdConfluenceRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS SdOscRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS VolRegimeRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS VolSqueezeRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
@@ -1474,12 +1335,12 @@
           "addToChart": false
         },
         {
-          "file": "SMC_Decision_Board.pine",
-          "scriptName": "SMC Decision Board",
+          "file": "SMC_Long_Dip_Dashboard.pine",
+          "scriptName": "SMC Long-Dip Dashboard",
           "checkInputs": true,
           "addToChart": true,
           "minInputs": 58,
-          "savedScriptName": "SMC Decision Board",
+          "savedScriptName": "SMC Long-Dip Dashboard",
           "bindingContractKey": "dashboardBindings",
           "bindingContractName": "dashboard companion BUS bindings",
           "bindingConsumerRole": "dashboard_companion",
@@ -1553,103 +1414,103 @@
             {
               "label": "BUS SchemaVersion",
               "group": "g_bus_lifecycle",
-              "groupTitle": "Decision State",
+              "groupTitle": "Lifecycle BUS",
               "tier": "critical"
             },
             {
               "label": "BUS ZoneActive",
               "group": "g_bus_lifecycle",
-              "groupTitle": "Decision State",
+              "groupTitle": "Lifecycle BUS",
               "tier": "critical"
             },
             {
               "label": "BUS Armed",
               "group": "g_bus_lifecycle",
-              "groupTitle": "Decision State",
+              "groupTitle": "Lifecycle BUS",
               "tier": "critical"
             },
             {
               "label": "BUS Confirmed",
               "group": "g_bus_lifecycle",
-              "groupTitle": "Decision State",
+              "groupTitle": "Lifecycle BUS",
               "tier": "critical"
             },
             {
               "label": "BUS Ready",
               "group": "g_bus_lifecycle",
-              "groupTitle": "Decision State",
+              "groupTitle": "Lifecycle BUS",
               "tier": "critical"
             },
             {
               "label": "BUS EntryBest",
               "group": "g_bus_lifecycle",
-              "groupTitle": "Decision State",
+              "groupTitle": "Lifecycle BUS",
               "tier": "critical"
             },
             {
               "label": "BUS EntryStrict",
               "group": "g_bus_lifecycle",
-              "groupTitle": "Decision State",
+              "groupTitle": "Lifecycle BUS",
               "tier": "critical"
             },
             {
               "label": "BUS Trigger",
               "group": "g_bus_lifecycle",
-              "groupTitle": "Decision State",
+              "groupTitle": "Lifecycle BUS",
               "tier": "critical"
             },
             {
               "label": "BUS Invalidation",
               "group": "g_bus_lifecycle",
-              "groupTitle": "Decision State",
+              "groupTitle": "Lifecycle BUS",
               "tier": "critical"
             },
             {
               "label": "BUS QualityScore",
               "group": "g_bus_lifecycle",
-              "groupTitle": "Decision State",
+              "groupTitle": "Lifecycle BUS",
               "tier": "critical"
             },
             {
               "label": "BUS SourceKind",
               "group": "g_bus_lifecycle",
-              "groupTitle": "Decision State",
+              "groupTitle": "Lifecycle BUS",
               "tier": "critical"
             },
             {
               "label": "BUS StateCode",
               "group": "g_bus_lifecycle",
-              "groupTitle": "Decision State",
+              "groupTitle": "Lifecycle BUS",
               "tier": "critical"
             },
             {
               "label": "BUS TrendPack",
               "group": "g_bus_lifecycle",
-              "groupTitle": "Decision State",
+              "groupTitle": "Lifecycle BUS",
               "tier": "critical"
             },
             {
               "label": "BUS MetaPack",
               "group": "g_bus_lifecycle",
-              "groupTitle": "Decision State",
+              "groupTitle": "Lifecycle BUS",
               "tier": "critical"
             },
             {
               "label": "BUS LtfDeltaState",
               "group": "g_bus_diag",
-              "groupTitle": "Context Signals",
+              "groupTitle": "Diagnostic Support",
               "tier": "diagnostic"
             },
             {
               "label": "BUS SafeTrendState",
               "group": "g_bus_diag",
-              "groupTitle": "Context Signals",
+              "groupTitle": "Diagnostic Support",
               "tier": "diagnostic"
             },
             {
               "label": "BUS MicroProfileCode",
               "group": "g_bus_diag",
-              "groupTitle": "Context Signals",
+              "groupTitle": "Diagnostic Support",
               "tier": "diagnostic"
             },
             {
@@ -1673,121 +1534,121 @@
             {
               "label": "BUS SessionGateRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS MarketGateRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS VolaGateRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS MicroSessionGateRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS MicroFreshRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS VolumeDataRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS QualityEnvRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS QualityStrictRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS CloseStrengthRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS EmaSupportRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS AdxRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS RelVolRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS VwapRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS ContextQualityRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS QualityCleanRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS QualityScoreRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS SdConfluenceRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS SdOscRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS VolRegimeRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
               "label": "BUS VolSqueezeRow",
               "group": "g_bus_diag_rows",
-              "groupTitle": "Context Rows",
+              "groupTitle": "Diagnostic Rows",
               "tier": "diagnostic"
             },
             {
@@ -2006,707 +1867,6 @@
               "tier": "diagnostic"
             }
           ]
-        }
-      ],
-      "smcHoldManagerShadow": [
-        {
-          "file": "SMC_Long_Dip_Suite.pine",
-          "scriptName": "SMC Long-Dip Suite",
-          "checkInputs": false,
-          "addToChart": false
-        },
-        {
-          "file": "SMC_Hold_Manager.pine",
-          "scriptName": "SMC Hold Manager",
-          "checkInputs": true,
-          "addToChart": true,
-          "minInputs": 13,
-          "bindingContractKey": "holdManagerBindings",
-          "bindingContractName": "Hold Manager BUS bindings",
-          "bindingConsumerRole": "exit_companion",
-          "bindingContractLabels": [
-            "BUS SchemaVersion",
-            "BUS ZoneActive",
-            "BUS Armed",
-            "BUS Confirmed",
-            "BUS Ready",
-            "BUS Trigger",
-            "BUS Invalidation",
-            "BUS QualityScore",
-            "BUS SourceKind",
-            "BUS StateCode",
-            "BUS StopLevel",
-            "BUS Target1",
-            "BUS Target2"
-          ],
-          "bindingLabelGroups": [
-            {
-              "label": "BUS SchemaVersion",
-              "group": "gBus",
-              "groupTitle": "Engine BUS v2 (Expert Mapping)",
-              "tier": "critical"
-            },
-            {
-              "label": "BUS ZoneActive",
-              "group": "gBus",
-              "groupTitle": "Engine BUS v2 (Expert Mapping)",
-              "tier": "critical"
-            },
-            {
-              "label": "BUS Armed",
-              "group": "gBus",
-              "groupTitle": "Engine BUS v2 (Expert Mapping)",
-              "tier": "critical"
-            },
-            {
-              "label": "BUS Confirmed",
-              "group": "gBus",
-              "groupTitle": "Engine BUS v2 (Expert Mapping)",
-              "tier": "critical"
-            },
-            {
-              "label": "BUS Ready",
-              "group": "gBus",
-              "groupTitle": "Engine BUS v2 (Expert Mapping)",
-              "tier": "critical"
-            },
-            {
-              "label": "BUS Trigger",
-              "group": "gBus",
-              "groupTitle": "Engine BUS v2 (Expert Mapping)",
-              "tier": "critical"
-            },
-            {
-              "label": "BUS Invalidation",
-              "group": "gBus",
-              "groupTitle": "Engine BUS v2 (Expert Mapping)",
-              "tier": "critical"
-            },
-            {
-              "label": "BUS QualityScore",
-              "group": "gBus",
-              "groupTitle": "Engine BUS v2 (Expert Mapping)",
-              "tier": "critical"
-            },
-            {
-              "label": "BUS SourceKind",
-              "group": "gBus",
-              "groupTitle": "Engine BUS v2 (Expert Mapping)",
-              "tier": "critical"
-            },
-            {
-              "label": "BUS StateCode",
-              "group": "gBus",
-              "groupTitle": "Engine BUS v2 (Expert Mapping)",
-              "tier": "critical"
-            },
-            {
-              "label": "BUS StopLevel",
-              "group": "gBus",
-              "groupTitle": "Engine BUS v2 (Expert Mapping)",
-              "tier": "critical"
-            },
-            {
-              "label": "BUS Target1",
-              "group": "gBus",
-              "groupTitle": "Engine BUS v2 (Expert Mapping)",
-              "tier": "critical"
-            },
-            {
-              "label": "BUS Target2",
-              "group": "gBus",
-              "groupTitle": "Engine BUS v2 (Expert Mapping)",
-              "tier": "critical"
-            }
-          ]
-        }
-      ],
-      "smcR1Companions": [
-        {
-          "file": "SMC_Long_Dip_Suite.pine",
-          "scriptName": "SMC Long-Dip Suite",
-          "checkInputs": false,
-          "addToChart": false
-        },
-        {
-          "file": "SMC_Event_Overlay.pine",
-          "scriptName": "SMC Event Overlay",
-          "checkInputs": true,
-          "addToChart": true,
-          "minInputs": 1,
-          "savedScriptName": "SMC Event Overlay",
-          "bindingContractKey": "eventOverlayBindings",
-          "bindingContractName": "Event Overlay BUS bindings",
-          "bindingConsumerRole": "overlay_companion",
-          "bindingContractLabels": [
-            "BUS LeanPackA"
-          ],
-          "bindingLabelGroups": [
-            {
-              "label": "BUS LeanPackA",
-              "group": "g_ev",
-              "groupTitle": "Event Overlay",
-              "tier": "critical"
-            }
-          ],
-          "allowFreshDraftOnMissingExisting": true
-        },
-        {
-          "file": "SMC_Exit_Signal.pine",
-          "scriptName": "SMC Exit Signal",
-          "checkInputs": true,
-          "addToChart": true,
-          "minInputs": 9,
-          "savedScriptName": "SMC Exit Signal",
-          "bindingContractKey": "exitSignalBindings",
-          "bindingContractName": "Exit Signal BUS bindings",
-          "bindingConsumerRole": "exit_companion",
-          "bindingContractLabels": [
-            "BUS SchemaVersion",
-            "BUS Armed",
-            "BUS Confirmed",
-            "BUS Ready",
-            "BUS Trigger",
-            "BUS Invalidation",
-            "BUS StopLevel",
-            "BUS Target1",
-            "BUS Target2"
-          ],
-          "bindingLabelGroups": [
-            {
-              "label": "BUS SchemaVersion",
-              "group": "g_bus_state",
-              "groupTitle": "Expert Mapping - Entry States",
-              "tier": "critical"
-            },
-            {
-              "label": "BUS Armed",
-              "group": "g_bus_state",
-              "groupTitle": "Expert Mapping - Entry States",
-              "tier": "critical"
-            },
-            {
-              "label": "BUS Confirmed",
-              "group": "g_bus_state",
-              "groupTitle": "Expert Mapping - Entry States",
-              "tier": "critical"
-            },
-            {
-              "label": "BUS Ready",
-              "group": "g_bus_state",
-              "groupTitle": "Expert Mapping - Entry States",
-              "tier": "critical"
-            },
-            {
-              "label": "BUS Trigger",
-              "group": "g_bus_plan",
-              "groupTitle": "Expert Mapping - Trade Plan",
-              "tier": "critical"
-            },
-            {
-              "label": "BUS Invalidation",
-              "group": "g_bus_plan",
-              "groupTitle": "Expert Mapping - Trade Plan",
-              "tier": "critical"
-            },
-            {
-              "label": "BUS StopLevel",
-              "group": "g_bus_plan",
-              "groupTitle": "Expert Mapping - Trade Plan",
-              "tier": "critical"
-            },
-            {
-              "label": "BUS Target1",
-              "group": "g_bus_plan",
-              "groupTitle": "Expert Mapping - Trade Plan",
-              "tier": "critical"
-            },
-            {
-              "label": "BUS Target2",
-              "group": "g_bus_plan",
-              "groupTitle": "Expert Mapping - Trade Plan",
-              "tier": "critical"
-            }
-          ],
-          "allowFreshDraftOnMissingExisting": true
-        }
-      ],
-      "smcR4ContextShadow": [
-        {
-          "file": "SMC_Context_Bus.pine",
-          "scriptName": "SMC Context Bus",
-          "checkInputs": false,
-          "addToChart": true,
-          "savedScriptName": "SMC Context Bus",
-          "allowFreshDraftOnMissingExisting": true
-        },
-        {
-          "file": "SMC_Context_Overlay.pine",
-          "scriptName": "SMC Context Overlay",
-          "checkInputs": true,
-          "addToChart": true,
-          "minInputs": 60,
-          "savedScriptName": "SMC Context Overlay",
-          "bindingContractKey": "contextOverlayBindings",
-          "bindingContractName": "Context Overlay schema-8001 bindings",
-          "bindingConsumerRole": "context_companion",
-          "bindingContractLabels": [
-            "CTX SchemaVersion",
-            "CTX Ready",
-            "CTX AvailabilityMask",
-            "CTX ConfirmedEpoch",
-            "CTX Bias",
-            "CTX AvailableDomains",
-            "CTX QualityScore",
-            "CTX StructureTrend",
-            "CTX StructureBos",
-            "CTX StructureChoch",
-            "CTX StructureEventDirection",
-            "CTX StructureResistance",
-            "CTX StructureSupport",
-            "CTX StructureEventAgeBars",
-            "CTX ImbalanceState",
-            "CTX FvgBias",
-            "CTX BullFvgActive",
-            "CTX BearFvgActive",
-            "CTX BullFvgTop",
-            "CTX BullFvgBottom",
-            "CTX BearFvgTop",
-            "CTX BearFvgBottom",
-            "CTX BprActive",
-            "CTX BprDirection",
-            "CTX BprTop",
-            "CTX BprBottom",
-            "CTX LiquidityVoidActive",
-            "CTX LiquidityVoidTop",
-            "CTX LiquidityVoidBottom",
-            "CTX ZoneState",
-            "CTX ObBias",
-            "CTX BullObTop",
-            "CTX BullObBottom",
-            "CTX BearObTop",
-            "CTX BearObBottom",
-            "CTX BullObNew",
-            "CTX BearObNew",
-            "CTX BullObBroken",
-            "CTX BearObBroken",
-            "CTX SweepDirection",
-            "CTX SweepType",
-            "CTX SweepZoneTop",
-            "CTX SweepZoneBottom",
-            "CTX SweepReclaimActive",
-            "CTX SweepQualityScore",
-            "CTX SweepEventAgeBars",
-            "CTX BuyPoolLevel",
-            "CTX SellPoolLevel",
-            "CTX BuyPoolStrength",
-            "CTX SellPoolStrength",
-            "CTX PoolMagnetDirection",
-            "CTX PoolImbalance",
-            "CTX SessionCode",
-            "CTX SessionKillzone",
-            "CTX SessionRangeTop",
-            "CTX SessionRangeBottom",
-            "CTX OpeningRangeActive",
-            "CTX OpeningRangeTop",
-            "CTX OpeningRangeBottom",
-            "CTX SessionDirection",
-            "CTX SessionMssBull",
-            "CTX SessionMssBear"
-          ],
-          "bindingLabelGroups": [
-            {
-              "label": "CTX SchemaVersion",
-              "group": "g_meta",
-              "groupTitle": "Context BUS \u00b7 Meta",
-              "tier": "critical"
-            },
-            {
-              "label": "CTX Ready",
-              "group": "g_meta",
-              "groupTitle": "Context BUS \u00b7 Meta",
-              "tier": "critical"
-            },
-            {
-              "label": "CTX AvailabilityMask",
-              "group": "g_meta",
-              "groupTitle": "Context BUS \u00b7 Meta",
-              "tier": "critical"
-            },
-            {
-              "label": "CTX ConfirmedEpoch",
-              "group": "g_meta",
-              "groupTitle": "Context BUS \u00b7 Meta",
-              "tier": "critical"
-            },
-            {
-              "label": "CTX Bias",
-              "group": "g_meta",
-              "groupTitle": "Context BUS \u00b7 Meta",
-              "tier": "critical"
-            },
-            {
-              "label": "CTX AvailableDomains",
-              "group": "g_meta",
-              "groupTitle": "Context BUS \u00b7 Meta",
-              "tier": "critical"
-            },
-            {
-              "label": "CTX QualityScore",
-              "group": "g_meta",
-              "groupTitle": "Context BUS \u00b7 Meta",
-              "tier": "critical"
-            },
-            {
-              "label": "CTX StructureTrend",
-              "group": "g_structure",
-              "groupTitle": "Context BUS \u00b7 Structure",
-              "tier": "diagnostic"
-            },
-            {
-              "label": "CTX StructureBos",
-              "group": "g_structure",
-              "groupTitle": "Context BUS \u00b7 Structure",
-              "tier": "diagnostic"
-            },
-            {
-              "label": "CTX StructureChoch",
-              "group": "g_structure",
-              "groupTitle": "Context BUS \u00b7 Structure",
-              "tier": "diagnostic"
-            },
-            {
-              "label": "CTX StructureEventDirection",
-              "group": "g_structure",
-              "groupTitle": "Context BUS \u00b7 Structure",
-              "tier": "diagnostic"
-            },
-            {
-              "label": "CTX StructureResistance",
-              "group": "g_structure",
-              "groupTitle": "Context BUS \u00b7 Structure",
-              "tier": "diagnostic"
-            },
-            {
-              "label": "CTX StructureSupport",
-              "group": "g_structure",
-              "groupTitle": "Context BUS \u00b7 Structure",
-              "tier": "diagnostic"
-            },
-            {
-              "label": "CTX StructureEventAgeBars",
-              "group": "g_structure",
-              "groupTitle": "Context BUS \u00b7 Structure",
-              "tier": "diagnostic"
-            },
-            {
-              "label": "CTX ImbalanceState",
-              "group": "g_imbalance",
-              "groupTitle": "Context BUS \u00b7 Imbalance",
-              "tier": "diagnostic"
-            },
-            {
-              "label": "CTX FvgBias",
-              "group": "g_imbalance",
-              "groupTitle": "Context BUS \u00b7 Imbalance",
-              "tier": "diagnostic"
-            },
-            {
-              "label": "CTX BullFvgActive",
-              "group": "g_imbalance",
-              "groupTitle": "Context BUS \u00b7 Imbalance",
-              "tier": "diagnostic"
-            },
-            {
-              "label": "CTX BearFvgActive",
-              "group": "g_imbalance",
-              "groupTitle": "Context BUS \u00b7 Imbalance",
-              "tier": "diagnostic"
-            },
-            {
-              "label": "CTX BullFvgTop",
-              "group": "g_imbalance",
-              "groupTitle": "Context BUS \u00b7 Imbalance",
-              "tier": "diagnostic"
-            },
-            {
-              "label": "CTX BullFvgBottom",
-              "group": "g_imbalance",
-              "groupTitle": "Context BUS \u00b7 Imbalance",
-              "tier": "diagnostic"
-            },
-            {
-              "label": "CTX BearFvgTop",
-              "group": "g_imbalance",
-              "groupTitle": "Context BUS \u00b7 Imbalance",
-              "tier": "diagnostic"
-            },
-            {
-              "label": "CTX BearFvgBottom",
-              "group": "g_imbalance",
-              "groupTitle": "Context BUS \u00b7 Imbalance",
-              "tier": "diagnostic"
-            },
-            {
-              "label": "CTX BprActive",
-              "group": "g_imbalance",
-              "groupTitle": "Context BUS \u00b7 Imbalance",
-              "tier": "diagnostic"
-            },
-            {
-              "label": "CTX BprDirection",
-              "group": "g_imbalance",
-              "groupTitle": "Context BUS \u00b7 Imbalance",
-              "tier": "diagnostic"
-            },
-            {
-              "label": "CTX BprTop",
-              "group": "g_imbalance",
-              "groupTitle": "Context BUS \u00b7 Imbalance",
-              "tier": "diagnostic"
-            },
-            {
-              "label": "CTX BprBottom",
-              "group": "g_imbalance",
-              "groupTitle": "Context BUS \u00b7 Imbalance",
-              "tier": "diagnostic"
-            },
-            {
-              "label": "CTX LiquidityVoidActive",
-              "group": "g_imbalance",
-              "groupTitle": "Context BUS \u00b7 Imbalance",
-              "tier": "diagnostic"
-            },
-            {
-              "label": "CTX LiquidityVoidTop",
-              "group": "g_imbalance",
-              "groupTitle": "Context BUS \u00b7 Imbalance",
-              "tier": "diagnostic"
-            },
-            {
-              "label": "CTX LiquidityVoidBottom",
-              "group": "g_imbalance",
-              "groupTitle": "Context BUS \u00b7 Imbalance",
-              "tier": "diagnostic"
-            },
-            {
-              "label": "CTX ZoneState",
-              "group": "g_zone",
-              "groupTitle": "Context BUS \u00b7 Zones",
-              "tier": "diagnostic"
-            },
-            {
-              "label": "CTX ObBias",
-              "group": "g_zone",
-              "groupTitle": "Context BUS \u00b7 Zones",
-              "tier": "diagnostic"
-            },
-            {
-              "label": "CTX BullObTop",
-              "group": "g_zone",
-              "groupTitle": "Context BUS \u00b7 Zones",
-              "tier": "diagnostic"
-            },
-            {
-              "label": "CTX BullObBottom",
-              "group": "g_zone",
-              "groupTitle": "Context BUS \u00b7 Zones",
-              "tier": "diagnostic"
-            },
-            {
-              "label": "CTX BearObTop",
-              "group": "g_zone",
-              "groupTitle": "Context BUS \u00b7 Zones",
-              "tier": "diagnostic"
-            },
-            {
-              "label": "CTX BearObBottom",
-              "group": "g_zone",
-              "groupTitle": "Context BUS \u00b7 Zones",
-              "tier": "diagnostic"
-            },
-            {
-              "label": "CTX BullObNew",
-              "group": "g_zone",
-              "groupTitle": "Context BUS \u00b7 Zones",
-              "tier": "diagnostic"
-            },
-            {
-              "label": "CTX BearObNew",
-              "group": "g_zone",
-              "groupTitle": "Context BUS \u00b7 Zones",
-              "tier": "diagnostic"
-            },
-            {
-              "label": "CTX BullObBroken",
-              "group": "g_zone",
-              "groupTitle": "Context BUS \u00b7 Zones",
-              "tier": "diagnostic"
-            },
-            {
-              "label": "CTX BearObBroken",
-              "group": "g_zone",
-              "groupTitle": "Context BUS \u00b7 Zones",
-              "tier": "diagnostic"
-            },
-            {
-              "label": "CTX SweepDirection",
-              "group": "g_sweep",
-              "groupTitle": "Context BUS \u00b7 Sweeps",
-              "tier": "diagnostic"
-            },
-            {
-              "label": "CTX SweepType",
-              "group": "g_sweep",
-              "groupTitle": "Context BUS \u00b7 Sweeps",
-              "tier": "diagnostic"
-            },
-            {
-              "label": "CTX SweepZoneTop",
-              "group": "g_sweep",
-              "groupTitle": "Context BUS \u00b7 Sweeps",
-              "tier": "diagnostic"
-            },
-            {
-              "label": "CTX SweepZoneBottom",
-              "group": "g_sweep",
-              "groupTitle": "Context BUS \u00b7 Sweeps",
-              "tier": "diagnostic"
-            },
-            {
-              "label": "CTX SweepReclaimActive",
-              "group": "g_sweep",
-              "groupTitle": "Context BUS \u00b7 Sweeps",
-              "tier": "diagnostic"
-            },
-            {
-              "label": "CTX SweepQualityScore",
-              "group": "g_sweep",
-              "groupTitle": "Context BUS \u00b7 Sweeps",
-              "tier": "diagnostic"
-            },
-            {
-              "label": "CTX SweepEventAgeBars",
-              "group": "g_sweep",
-              "groupTitle": "Context BUS \u00b7 Sweeps",
-              "tier": "diagnostic"
-            },
-            {
-              "label": "CTX BuyPoolLevel",
-              "group": "g_pool",
-              "groupTitle": "Context BUS \u00b7 Pools",
-              "tier": "diagnostic"
-            },
-            {
-              "label": "CTX SellPoolLevel",
-              "group": "g_pool",
-              "groupTitle": "Context BUS \u00b7 Pools",
-              "tier": "diagnostic"
-            },
-            {
-              "label": "CTX BuyPoolStrength",
-              "group": "g_pool",
-              "groupTitle": "Context BUS \u00b7 Pools",
-              "tier": "diagnostic"
-            },
-            {
-              "label": "CTX SellPoolStrength",
-              "group": "g_pool",
-              "groupTitle": "Context BUS \u00b7 Pools",
-              "tier": "diagnostic"
-            },
-            {
-              "label": "CTX PoolMagnetDirection",
-              "group": "g_pool",
-              "groupTitle": "Context BUS \u00b7 Pools",
-              "tier": "diagnostic"
-            },
-            {
-              "label": "CTX PoolImbalance",
-              "group": "g_pool",
-              "groupTitle": "Context BUS \u00b7 Pools",
-              "tier": "diagnostic"
-            },
-            {
-              "label": "CTX SessionCode",
-              "group": "g_session",
-              "groupTitle": "Context BUS \u00b7 Session",
-              "tier": "diagnostic"
-            },
-            {
-              "label": "CTX SessionKillzone",
-              "group": "g_session",
-              "groupTitle": "Context BUS \u00b7 Session",
-              "tier": "diagnostic"
-            },
-            {
-              "label": "CTX SessionRangeTop",
-              "group": "g_session",
-              "groupTitle": "Context BUS \u00b7 Session",
-              "tier": "diagnostic"
-            },
-            {
-              "label": "CTX SessionRangeBottom",
-              "group": "g_session",
-              "groupTitle": "Context BUS \u00b7 Session",
-              "tier": "diagnostic"
-            },
-            {
-              "label": "CTX OpeningRangeActive",
-              "group": "g_session",
-              "groupTitle": "Context BUS \u00b7 Session",
-              "tier": "diagnostic"
-            },
-            {
-              "label": "CTX OpeningRangeTop",
-              "group": "g_session",
-              "groupTitle": "Context BUS \u00b7 Session",
-              "tier": "diagnostic"
-            },
-            {
-              "label": "CTX OpeningRangeBottom",
-              "group": "g_session",
-              "groupTitle": "Context BUS \u00b7 Session",
-              "tier": "diagnostic"
-            },
-            {
-              "label": "CTX SessionDirection",
-              "group": "g_session",
-              "groupTitle": "Context BUS \u00b7 Session",
-              "tier": "diagnostic"
-            },
-            {
-              "label": "CTX SessionMssBull",
-              "group": "g_session",
-              "groupTitle": "Context BUS \u00b7 Session",
-              "tier": "diagnostic"
-            },
-            {
-              "label": "CTX SessionMssBear",
-              "group": "g_session",
-              "groupTitle": "Context BUS \u00b7 Session",
-              "tier": "diagnostic"
-            }
-          ],
-          "allowFreshDraftOnMissingExisting": true
-        }
-      ],
-      "smcR5HtfSession": [
-        {
-          "file": "SMC_HTF_Confluence.pine",
-          "scriptName": "SMC HTF Confluence",
-          "checkInputs": false,
-          "addToChart": true,
-          "savedScriptName": "SMC HTF Confluence",
-          "allowFreshDraftOnMissingExisting": true
-        },
-        {
-          "file": "SMC_Session_Context.pine",
-          "scriptName": "SMC Session Context",
-          "checkInputs": false,
-          "addToChart": true,
-          "savedScriptName": "SMC Session Context",
-          "allowFreshDraftOnMissingExisting": true
         }
       ]
     },

@@ -27,8 +27,6 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from tests._guard_corpus import iter_production_py_files
-
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 
 _DIR_EXCLUDE = frozenset(
@@ -53,7 +51,12 @@ _TYPE_IGNORE_RE = re.compile(r"type:\s*ignore")
 
 
 def _iter_prod_files() -> list[Path]:
-    return iter_production_py_files(_DIR_EXCLUDE)
+    out: list[Path] = []
+    for path in _REPO_ROOT.rglob("*.py"):
+        if any(part in _DIR_EXCLUDE for part in path.relative_to(_REPO_ROOT).parts):
+            continue
+        out.append(path)
+    return sorted(out)
 
 
 def _count_in_file(path: Path) -> int:
@@ -97,11 +100,11 @@ _FROZEN_FILE_COUNTS: dict[str, int] = {
     "rl/agents/sac_sizer.py": 2,
     "rl/simulator/execution_env.py": 5,
     "rl/simulator/sb3_execution_env.py": 5,
-    # 2026-07-29: "smc_adapters/regime_bridge.py": 2 removed — module deleted
-    # (never wired; ingest._build_market_regime is the production path).
+    "smc_adapters/regime_bridge.py": 2,
     "smc_core/layering.py": 1,
     "smc_core/resilient.py": 2,
     "streamlit_terminal.py": 7,
+    "terminal_ai_insights.py": 1,  # PR #2128: tuple-return (bool, T) miss-cache helper signature confuses generic narrowing.
     "terminal_bitcoin.py": 13,  # 2026-07-20: remove retired technical-adapter imports
     "terminal_export.py": 1,
     "terminal_finnhub.py": 4,

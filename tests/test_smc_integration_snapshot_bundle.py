@@ -126,17 +126,9 @@ def test_bundle_contains_snapshot_projections_and_additive_contexts(monkeypatch)
     assert snapshot["product_cut"] == bundle["product_cut"]
     assert bundle["dashboard_payload"]["product_cut"] == bundle["product_cut"]
     assert bundle["pine_payload"]["product_cut"] == bundle["product_cut"]
-    assert bundle["product_cut"]["manifestVersion"] == 3
+    assert bundle["product_cut"]["manifestVersion"] == 2
     assert bundle["product_cut"]["deprecatedFieldPolicy"]["mode"] == "compatibility_only"
-    assert set(bundle["product_cut"]["preflightScopes"].keys()) == {
-        "smcCoreDashboard",
-        "smcMainline",
-        "smcDecisionFirst",
-        "smcHoldManagerShadow",
-        "smcR1Companions",
-        "smcR4ContextShadow",
-        "smcR5HtfSession",
-    }
+    assert set(bundle["product_cut"]["preflightScopes"].keys()) == {"smcCoreDashboard", "smcMainline", "smcDecisionFirst"}
     assert set(snapshot["structure"].keys()) == {"bos", "orderblocks", "fvg", "liquidity_sweeps"}
     assert "structure_qualifiers" not in snapshot["structure"]
     assert "session_context" not in snapshot["structure"]
@@ -207,12 +199,12 @@ def test_bundle_contains_snapshot_projections_and_additive_contexts(monkeypatch)
         "htf_context_available": True,
     }
     assert bundle["market_context"]["bias_direction"] == bundle["bias_verdict"]["direction"]
-    assert (
-        bundle["bias_verdict"]["conviction_score"]
-        == bundle["market_context"]["bias_conviction_score"]
-    )
-    assert "confidence" not in bundle["bias_verdict"]
-    assert "bias_confidence" not in bundle["market_context"]
+    # Dual-write (confidence-vocabulary program): the honest conviction-score
+    # aliases carry the SAME value as the legacy *confidence keys, in both the
+    # bias_verdict sub-payload and the flattened market_context.
+    assert bundle["bias_verdict"]["conviction_score"] == bundle["bias_verdict"]["confidence"]
+    assert bundle["market_context"]["bias_conviction_score"] == bundle["market_context"]["bias_confidence"]
+    assert bundle["market_context"]["bias_conviction_score"] == bundle["bias_verdict"]["confidence"]
     assert bundle["market_context"]["bars_available"] is True
     assert bundle["market_context"]["bar_count"] == 3
     assert bundle["market_context"]["vol_regime_label"] == "HIGH_VOL"

@@ -110,7 +110,7 @@ def test_w2_regime_source_written_alongside_symbol_regime() -> None:
     """Every row that gets symbol_regime must also get regime_source."""
     src = Path("open_prep/run_open_prep.py").read_text(encoding="utf-8")
     assert 'row["regime_source"] = regime_source' in src
-    assert 'regime_source = "atr_proxy_display_only"' in src  # renamed in #4174
+    assert 'regime_source = "atr_proxy"' in src
     assert 'regime_source = "no_data"' in src
     # The disclosure must sit in the same block as the regime assignment.
     sym_idx = src.index('row["symbol_regime"] = sym_regime')
@@ -255,8 +255,9 @@ def test_w6_bias_source_written_next_to_bias_direction() -> None:
     assert 'details["bias_source"] = bias_verdict.source' in src
     dir_idx = src.index('details["bias_direction"]')
     src_idx = src.index('details["bias_source"]')
-    # The canonical conviction score stays adjacent to its provenance fields.
-    assert 0 < src_idx - dir_idx < 500
+    # 2026-07-13: bound 400 -> 800 — the bias_conviction_score dual-write
+    # (+comment) now sits between the two lines; adjacency intent unchanged.
+    assert 0 < src_idx - dir_idx < 800
 
 
 def test_w6_merge_bias_source_values() -> None:

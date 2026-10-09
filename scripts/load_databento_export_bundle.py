@@ -147,18 +147,7 @@ def load_export_bundle(
     *,
     required_frames: tuple[str, ...] | None = None,
     manifest_prefix: str | None = None,
-    only_frames: tuple[str, ...] | None = None,
 ) -> dict[str, Any]:
-    """Load a Databento export bundle.
-
-    ``only_frames`` restricts which payload parquets are read. Opt-in: without
-    it every ``{prefix}__*.parquet`` is loaded, which is what callers that walk
-    the whole bundle expect. With it, a caller that needs three frames does not
-    pay for twenty-five — the bundle reached 1.0 GB compressed after the shard
-    grain fix (#3941) and the library refresh ran its runner out from under
-    itself. ``required_frames`` is still validated against what was read, so
-    restricting cannot turn a missing required frame into a silent pass.
-    """
     manifest_path = resolve_manifest_path(
         bundle,
         required_frames=required_frames,
@@ -177,11 +166,8 @@ def load_export_bundle(
     bundle_dir = manifest_path.parent
 
     frames: dict[str, pd.DataFrame] = {}
-    wanted = set(only_frames) if only_frames is not None else None
     for parquet_path in sorted(bundle_dir.glob(f"{base_prefix}__*.parquet")):
         table_name = parquet_path.stem.split("__", 1)[1]
-        if wanted is not None and table_name not in wanted:
-            continue
         frames[table_name] = pd.read_parquet(parquet_path)
 
     required = set(required_frames or ())

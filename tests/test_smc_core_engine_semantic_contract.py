@@ -4,7 +4,7 @@ import pathlib
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 CORE_PATH = ROOT / "SMC_Long_Dip_Suite.pine"
-DASHBOARD_PATH = ROOT / "SMC_Decision_Board.pine"
+DASHBOARD_PATH = ROOT / "SMC_Long_Dip_Dashboard.pine"
 LIFECYCLE_PRIVATE_PATH = ROOT / "SMC++" / "smc_lifecycle_private.pine"
 BUS_PRIVATE_PATH = ROOT / "SMC++" / "smc_bus_private.pine"
 OBSERVABILITY_PRIVATE_PATH = ROOT / "SMC++" / "smc_observability_private.pine"
@@ -106,7 +106,6 @@ def test_ready_gate_reason_contract_matches_dashboard_decoder() -> None:
 def test_strict_gate_reason_contract_matches_dashboard_decoder() -> None:
     core_source = _read(CORE_PATH)
     lifecycle_body = _extract_function_body(_read(LIFECYCLE_PRIVATE_PATH), "resolve_long_strict_reason_code")
-    engine_body = _extract_function_body(_read(ENGINE_PRIVATE_PATH), "resolve_bus_strict_blocker_code")
     dashboard_body = _extract_function_body(_read(DASHBOARD_PATH), "decode_strict_gate_text")
 
     assert "eng.resolve_bus_strict_blocker_code(" in core_source
@@ -114,8 +113,6 @@ def test_strict_gate_reason_contract_matches_dashboard_decoder() -> None:
 
     for reason_code in range(2, 11):
         assert f"reason_code := {reason_code}" in lifecycle_body
-    assert "trust_allows_entry" in engine_body
-    assert ": 11" in engine_body
 
     for label in [
         "Need Ready",
@@ -127,7 +124,6 @@ def test_strict_gate_reason_contract_matches_dashboard_decoder() -> None:
         "Vol blocked",
         "Stretch blocked",
         "DDVI blocked",
-        "Trust Insufficient",
     ]:
         assert f'label_text := "{label}"' in dashboard_body
 
@@ -225,16 +221,9 @@ def test_overhead_context_contract_stays_explicit() -> None:
         "if long_plan_active and not na(long_trigger)",
         "helper_scan_ref := long_trigger",
         "if array.size(ob_blocks_bear_param) > 0",
-        # 2026-07-29 (owner decision, follow-up to #4197/#4199/#4200): the
-        # overhead scan moved to dedicated resolvers. The reaction level stays
-        # the distance reference — that part is the deliberate design #4200
-        # records — but zone MEMBERSHIP now follows the far edge, so an entry
-        # inside a still-live zone reports zero headroom instead of dropping the
-        # zone. The shared alert resolvers keep serving the alert paths and are
-        # pinned in tests/test_smc_long_dip_regressions.py.
-        "resolve_ob_overhead_level",
+        "resolve_ob_alert_level",
         "if array.size(fvgs_bear_param) > 0",
-        "resolve_fvg_overhead_level",
+        "resolve_fvg_alert_level",
         "if use_overhead_zone_filter and not na(helper_headroom_to_overhead) and not na(helper_planned_risk)",
         "helper_overhead_zone_ok := helper_headroom_to_overhead >= helper_planned_risk * min_headroom_r",
     ]:
@@ -335,8 +324,8 @@ def test_support_code_surface_stays_runtime_owned() -> None:
     micro_body = _extract_function_body(resolver_source, "resolve_bus_micro_profile_code")
 
     assert "import preuss_steffen/smc_bus_private/3 as bp" in core_source
-    assert "import preuss_steffen/smc_context_resolvers/3 as cr" in core_source
-    assert "import preuss_steffen/smc_engine_private/3 as eng" in core_source
+    assert "import preuss_steffen/smc_context_resolvers/2 as cr" in core_source
+    assert "import preuss_steffen/smc_engine_private/1 as eng" in core_source
     assert "bp.resolve_bus_ready_blocker_code(" not in core_source
     assert "bp.resolve_bus_strict_blocker_code(" not in core_source
     assert "cr.resolve_bus_ltf_delta_state(" in core_source
@@ -353,8 +342,6 @@ def test_support_code_surface_stays_runtime_owned() -> None:
 
     for snippet in [
         "resolve_long_strict_reason_code",
-        "trust_allows_entry",
-        ": 11",
     ]:
         assert snippet in strict_body
 
@@ -386,7 +373,6 @@ def test_bus_surface_stays_runtime_owned() -> None:
     assert "cr.resolve_bus_micro_profile_code(use_microstructure_profiles, micro_profile_text, micro_modifier_text)" in source
     assert "resolve_bus_ready_blocker_code(long_ready_state" in source
     assert "resolve_bus_strict_blocker_code(long_entry_strict_state, long_ready_state, strict_signal_quality_gate_ok" in source
-    assert "ddvi_entry_strict_ok_safe, trust_allows_entry)" in source
     assert "cr.resolve_bus_vol_expansion_state(use_volatility_regime, vol_momentum_expanding_long, vol_stack_spread_rising)" in source
     assert "cr.resolve_bus_ddvi_context_state(use_ddvi_context, ddvi_bias_ok, ddvi_bull_divergence_any, ddvi_lower_extreme_context)" in source
     assert "plot(bus_trigger_level, 'BUS Trigger', display = display.none)" in source
@@ -404,7 +390,7 @@ def test_bus_surface_stays_runtime_owned() -> None:
     assert "plot(cr.resolve_bus_safe_trend_state(bullish_trend_safe, bearish_trend_safe), 'BUS SafeTrendState', display = display.none)" in source
     assert "plot(cr.resolve_bus_micro_profile_code(use_microstructure_profiles, micro_profile_text, micro_modifier_text), 'BUS MicroProfileCode', display = display.none)" in source
     assert "plot(eng.resolve_bus_ready_blocker_code(long_ready_state, long_state.confirmed, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, close_safe_mode, ready_bar_gap_ok, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready_eff, bull_bos_sig, main_bos_recent, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok, market_regime_gate_ok, vola_regime_gate_safe, quality_gate_ok, accel_ready_gate_ok, sd_ready_gate_ok, vol_ready_context_ok, stretch_ready_context_ok, ddvi_ready_ok_safe), 'BUS ReadyBlockerCode', display = display.none)" in source
-    assert "plot(eng.resolve_bus_strict_blocker_code(long_entry_strict_state, long_ready_state, strict_signal_quality_gate_ok, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe, trust_allows_entry), 'BUS StrictBlockerCode', display = display.none)" in source
+    assert "plot(eng.resolve_bus_strict_blocker_code(long_entry_strict_state, long_ready_state, strict_signal_quality_gate_ok, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe), 'BUS StrictBlockerCode', display = display.none)" in source
     assert "plot(cr.resolve_bus_vol_expansion_state(use_volatility_regime, vol_momentum_expanding_long, vol_stack_spread_rising), 'BUS VolExpansionState', display = display.none)" in source
     assert "plot(cr.resolve_bus_ddvi_context_state(use_ddvi_context, ddvi_bias_ok, ddvi_bull_divergence_any, ddvi_lower_extreme_context), 'BUS DdviContextState', display = display.none)" in source
 
@@ -423,7 +409,7 @@ def test_ready_signal_contract_stays_explicit() -> None:
     core_source = _read(CORE_PATH)
     body = _extract_function_body(_read(OBSERVABILITY_PRIVATE_PATH), "resolve_long_ready_signal_state")
 
-    assert "import preuss_steffen/smc_observability_private/4 as obv" in core_source
+    assert "import preuss_steffen/smc_observability_private/3 as obv" in core_source
     assert "obv.resolve_long_ready_signal_state(" in core_source
 
     for snippet in [
@@ -499,21 +485,11 @@ def test_alertcondition_uses_only_existing_variables() -> None:
     assert "lib_has_earnings" in source
 
 
-def test_trust_enforcement_suppresses_entry_on_a_bad_feed_live_only() -> None:
-    """Entry best/strict are suppressed when the event provider is not ok, on live bars.
-
-    2026-10-04 (operator decision): the gate used to be
-    ``core_trust_tier_early != 'Insufficient'``. The tier rests on
-    SIGNAL_QUALITY_TIER, one universe-wide value with no structure, OB or FVG
-    input; it was "low" in all 243 library refreshes since 2026-08-14, so Entry
-    Best/Strict never fired (Pine logs: 'Blocked: Trust Insufficient' on every
-    lifecycle event, docs/governance/long_dip_strategy_report_2026-10-04.md).
-    The tier stays a displayed warning; it must not gate entries again.
-    """
+def test_trust_enforcement_suppresses_entry_at_insufficient() -> None:
+    """WP-3C: Trust Insufficient must suppress entry best/strict states."""
     source = _read(CORE_PATH)
     assert "core_trust_tier_early = eng.resolve_trust_tier(" in source
-    assert "trust_allows_entry = not barstate.isrealtime or lib_erl_provider_status == 'ok'" in source
-    assert "trust_allows_entry = core_trust_tier_early" not in source
+    assert "trust_allows_entry = core_trust_tier_early != 'Insufficient'" in source
     assert "long_entry_best_state := false" in source
     assert "long_entry_strict_state := false" in source
     assert "'Blocked: Trust Insufficient'" in source
@@ -529,67 +505,3 @@ def test_alertcondition_count_is_16() -> None:
     code = "\n".join(line.split("//", 1)[0] for line in source.splitlines())
     assert len(re.findall(r"\balertcondition\(", code)) == 0
     assert len(re.findall(r"\balert\(", code)) == 16
-
-
-def test_ready_diagnosis_log_names_every_failing_ready_gate() -> None:
-    """2026-10-05: Confirmed never became Ready (5 symbols x 3 years) and the expiry
-    log line is written after the reset, so it cannot name the gate. While debug logs
-    are on, every confirmed, not-yet-Ready bar logs ALL failing Ready gates;
-    scripts/tv_long_engine_log_readout.ts parses the line as event "LONG PENDING".
-    """
-    source = _read(CORE_PATH)
-    assert "if show_long_engine_debug_eff and barstate.isconfirmed and long_state.confirmed and not long_ready_state" in source
-    assert "log.info('LONG PENDING | ready={0} | soft_met={2} | failing={1}'" in source
-    # every gate the Ready blocker chain evaluates is named in the diagnosis
-    for gate in ("bar_gap", "confirm_expired", "not_fresh", "bearish_guard", "main_break", "setup_hard",
-                 "trade_hard", "environment_hard", "session_structure", "micro_session", "micro_freshness",
-                 "overhead_zone", "market_regime", "vola_regime", "quality", "accel", "second_derivative",
-                 "vol_regime_context", "stretch", "ddvi"):
-        assert f"' {gate}'" in source, gate
-
-
-def test_ready_min_count_is_opt_in_and_keeps_the_risk_gates_hard() -> None:
-    """Plan step 2 (docs/governance/long_dip_ready_confirm_plan_2026-10-06.md): Ready as a
-    minimum count instead of an AND chain. Off by default (the library's AND chain is
-    untouched); on, the risk gates stay hard and the 12 other Ready gates count as points.
-    """
-    import re
-    source = _read(CORE_PATH)
-    assert "var bool use_ready_min_count = input.bool(false, 'Ready: Min-Count instead of AND chain'" in source
-    assert "var int ready_min_soft_gates = input.int(12, 'Ready: Min Soft Gates (of 12)', minval = 0, maxval = 12" in source
-    soft = re.search(r"int ready_soft_gates_met = (.+)", source).group(1)
-    soft_terms = re.findall(r"\((\w+) \? 1 : 0\)", soft)
-    assert soft_terms == ["ready_is_fresh", "session_structure_gate_ok", "micro_session_gate_ok", "micro_freshness_gate_ok",
-                          "market_regime_gate_ok", "vola_regime_gate_safe", "quality_gate_ok", "scoring_accel_ready",
-                          "scoring_sd_ready", "scoring_vol_ready", "scoring_stretch_ready", "scoring_ddvi_ready"]
-    hard = re.search(r"bool _ready_hard_ok = (.+)", source).group(1)
-    for gate in ("close_safe_mode", "long_state.confirmed", "ready_bar_gap_ok", "not long_confirm_expired",
-                 "long_confirm_bearish_guard_ok", "(not require_main_break_for_ready_eff or bull_bos_sig or main_bos_recent)",
-                 "setup_hard_gate_ok", "overhead_zone_ok", "event_risk_gate_ok"):
-        assert gate in hard, gate
-    assert "if use_ready_min_count\n" in source
-    assert "    long_ready_state := _ready_hard_ok and ready_soft_gates_met >= ready_min_soft_gates" in source
-    # the override sits after the library call and before anything reads long_ready_state
-    i_lib = source.index("[long_building_state, ready_bar_gap_ok, scoring_accel_ready,")
-    i_override = source.index("long_ready_state := _ready_hard_ok")
-    i_first_reader = source.index("ll.resolve_long_entry_projection_state(long_ready_state")
-    assert i_lib < i_override < i_first_reader
-
-
-def test_confirm_diagnosis_log_names_every_failing_confirm_condition() -> None:
-    """2026-10-06: about three quarters of Armed setups expired without Confirm
-    (docs/governance/long_dip_ready_confirm_plan_2026-10-06.md). While debug logs are
-    on, every Armed, not-yet-Confirmed bar logs ALL failing Confirm conditions of
-    compute_long_confirm_transition_state; scripts/tv_long_engine_log_readout.ts
-    parses the line as event "LONG UNCONFIRMED" (one word: its regex is LONG [A-Z]+).
-    """
-    source = _read(CORE_PATH)
-    assert "if show_long_engine_debug_eff and barstate.isconfirmed and long_state.armed and not long_state.confirmed" in source
-    assert "log.info('LONG UNCONFIRMED | age={0} | trigger_gap_pct={1} | failing={2}'" in source
-    # every input of compute_long_confirm_transition_state except close_safe_mode
-    # (always true on a confirmed bar) is named in the diagnosis
-    for cond, name in (("long_confirm_break", "no_break"), ("long_confirm_structure_ok", "structure"),
-                       ("confirm_is_fresh", "not_fresh"), ("long_confirm_bearish_guard_ok", "bearish_guard"),
-                       ("micro_session_gate_ok", "micro_session"), ("micro_freshness_gate_ok", "micro_freshness"),
-                       ("accel_confirm_gate_ok", "accel"), ("sd_confirmed_gate_ok", "second_derivative")):
-        assert f"_confirm_failing += {cond} ? '' : ' {name}'" in source, name

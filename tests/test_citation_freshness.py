@@ -101,9 +101,6 @@ _ALLOWLISTED_PATHS: frozenset[str] = frozenset(
         # OPS_QUICK_REFERENCE — runtime artifacts produced by the daily run
         # (not committed to git but cited as paths in the operator runbook).
         "open_prep/latest/latest_open_prep_run.json",
-        # F3 (2026-08-18): the diff base is a gitignored runtime artifact by
-        # design — the daily workflow's restore/publish edges cite its path.
-        "open_prep/last_result.json",
         "open_prep/latest/latest_realtime_signals.json",
         "open_prep/latest/latest_vd_signals.json",
         "open_prep/latest/news_result.json",
@@ -118,12 +115,6 @@ _ALLOWLISTED_PATHS: frozenset[str] = frozenset(
         # pointer artifacts/open_prep/outcome_backfill/latest.json; the R1
         # regex captures the open_prep/... suffix which is not a repo path.
         "open_prep/outcome_backfill/latest.json",
-        # 2026-07-29: run-open-prep-daily.yml (#4173) builds the runtime
-        # artifacts artifacts/open_prep/latest/quote_reference{,_fmp}.json;
-        # the R1 regex captures the open_prep/... suffix which is not a
-        # repo path.
-        "open_prep/latest/quote_reference.json",
-        "open_prep/latest/quote_reference_fmp.json",
         # Workflow-generated history JSONs (committed by automation, may not
         # exist in a fresh clone or before first run).
         "docs/calibration/calibration_report_public_history.json",
@@ -168,16 +159,10 @@ _ALLOWLISTED_SYMBOLS: frozenset[str] = frozenset(
         # change to either file.
         "path.parts",
         "scripts.run_ab_comparison",       # script not importable as module (no __init__.py)
-        # 2026-07-28: scripts.emit_fvg_context_pine entry dropped — file
-        # removed with the stranded FVG-context chain.
+        "scripts.emit_fvg_context_pine",   # script not importable as module (no __init__.py)
         # Pine Script (TradingView) qualified identifiers, not Python.
         "syminfo.period",
         "timeframe.period",
-        # Pine built-in cited in the squeeze/stale Pine-parity docstring
-        # (tests/test_live_overlay_squeeze_stale_pine_parity.py, #3978). ``ta.atr``
-        # is TradingView's True-Range ATR, not a Python module.function; the file
-        # is only R2-scanned because ``_pine_parity`` matches the ``*_pin*`` glob.
-        "ta.atr",
         # Optional-dep references whose import would gate the test.
         "scipy.stats.norm.cdf",
     }
@@ -293,7 +278,7 @@ def test_r2_pin_test_symbol_citations_resolve(pin_test_file: str) -> None:
         }:
             continue
         # Try progressively shorter module prefixes. Start at ``len(parts)`` so a
-        # bare module citation (e.g. ``smc_core.vol_regime``) resolves via
+        # bare module citation (e.g. ``smc_core.fvg_pine_emit``) resolves via
         # ``import_module`` on the full dotted path with an empty attr chain,
         # instead of depending on the parent package already exposing the
         # submodule as an attribute (which is import-order dependent and made the

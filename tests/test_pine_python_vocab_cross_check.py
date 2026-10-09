@@ -79,32 +79,32 @@ _TARGETS: tuple[tuple[str, tuple[str, ...], tuple[str, ...]], ...] = (
     (
         "HERO_TRUST_VOCAB",
         _HERO_TRUST_TOKENS,
-        ("SMC_Decision_Board.pine", "SMC_Long_Dip_Mobile.pine"),
+        ("SMC_Long_Dip_Dashboard.pine", "SMC_Long_Dip_Mobile.pine"),
     ),
     (
         "HERO_ACTION_VOCAB",
         _HERO_ACTION_TOKENS,
-        ("SMC_Decision_Board.pine", "SMC_Long_Dip_Mobile.pine"),
+        ("SMC_Long_Dip_Dashboard.pine", "SMC_Long_Dip_Mobile.pine"),
     ),
     (
         "HERO_SETUP_QUALITY_VOCAB",
         _HERO_SETUP_QUALITY_TOKENS,
-        ("SMC_Decision_Board.pine",),
+        ("SMC_Long_Dip_Dashboard.pine",),
     ),
     (
         "HERO_MARKET_MODE_VOCAB",
         _HERO_MARKET_MODE_TOKENS,
-        ("SMC_Decision_Board.pine", "SMC_Long_Dip_Mobile.pine", "SMC_Long_Dip_Suite.pine"),
+        ("SMC_Long_Dip_Dashboard.pine", "SMC_Long_Dip_Mobile.pine", "SMC_Long_Dip_Suite.pine"),
     ),
     (
         "HERO_BIAS_VOCAB",
         _HERO_BIAS_TOKENS,
-        ("SMC_Decision_Board.pine", "SMC_Long_Dip_Mobile.pine"),
+        ("SMC_Long_Dip_Dashboard.pine", "SMC_Long_Dip_Mobile.pine"),
     ),
     (
         "TRUST_STATE_VALUES",
         _TRUST_STATE_TOKENS,
-        ("SMC_Decision_Board.pine", "SMC_Long_Dip_Mobile.pine"),
+        ("SMC_Long_Dip_Dashboard.pine", "SMC_Long_Dip_Mobile.pine"),
     ),
 )
 

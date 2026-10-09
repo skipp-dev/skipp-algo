@@ -16,7 +16,7 @@ and forces every future cache to either:
 Scope: workspace Python files only — third-party packages under
 ``.venv/`` are excluded.
 
-Currently expected: 11 sites in 10 modules (all bounded) — see
+Currently expected: 10 sites in 9 modules (all bounded) — see
 :data:`_BASELINE_LRU_CACHE_SITES`. Adding a new ``@lru_cache`` site
 without ``maxsize=`` fails the pin; adding a new bounded site requires
 extending the baseline.
@@ -27,8 +27,6 @@ from __future__ import annotations
 import ast
 import re
 from pathlib import Path
-
-from tests._guard_corpus import iter_production_py_files
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -66,20 +64,17 @@ _BASELINE_LRU_CACHE_SITES: frozenset[tuple[str, str]] = frozenset({
     # maxsize=4 — one Cisco client per active (key, region, timeout) tuple;
     # the bound accommodates overlapping key rotation without unbounded growth.
     ("cisco_ai_defense.py", "_get_client"),
-    # maxsize=1 — one repo-wide vacuity scan shared by the guard's five tests.
-    # Takes ZERO arguments, so the key domain is exactly one entry and maxsize=1
-    # is the correct sizing; the cache exists so the ~11s tests/ walk runs once
-    # per process rather than five times.
-    ("tests/test_vacuous_claim_guard.py", "_scan"),
-    # maxsize=1 — Beweis-Ledger (2026-08-24): _load() parses proof_ledger.toml
-    # once per process; takes ZERO arguments, so the key domain is exactly one
-    # entry, same pattern as tests/_pin_registry.py._load above (ADR-0009).
-    ("scripts/proof_ledger.py", "_load"),
 })
 
 
 def _iter_python_files() -> list[Path]:
-    return iter_production_py_files(_EXCLUDE_DIR_NAMES)
+    out: list[Path] = []
+    for path in REPO_ROOT.rglob("*.py"):
+        # Skip excluded directories anywhere in the path.
+        if any(part in _EXCLUDE_DIR_NAMES for part in path.relative_to(REPO_ROOT).parts):
+            continue
+        out.append(path)
+    return sorted(out)
 
 
 def _is_lru_cache_decorator(node: ast.expr) -> bool:

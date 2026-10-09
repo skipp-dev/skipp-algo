@@ -7,7 +7,7 @@ Draft
 ## Ziel
 
 Dieses PRD beschreibt den Produkt- und UX-Umbau der TradingView-Surface fuer
-`SMC_Long_Dip_Suite.pine`, `SMC_Decision_Board.pine` und `SMC_Long_Dip_Strategy.pine`.
+`SMC_Long_Dip_Suite.pine`, `SMC_Long_Dip_Dashboard.pine` und `SMC_Long_Dip_Strategy.pine`.
 
 Das Ziel ist nicht eine neue Signal-Engine, sondern eine klarere Produktform:
 
@@ -407,7 +407,7 @@ die Hero-Surface verwenden.
 | Artefakt | Rolle im PRD |
 | --- | --- |
 | `SMC_Long_Dip_Suite.pine` | Referenz fuer Lite-Operator-Surface und State-Ableitung |
-| `SMC_Decision_Board.pine` | Compact Detail und Pro Diagnostics |
+| `SMC_Long_Dip_Dashboard.pine` | Compact Detail und Pro Diagnostics |
 | `SMC_Long_Dip_Strategy.pine` | ausfuehrbarer Long-Wrapper auf Basis des Core-BUS |
 | `docs/SMC_Dashboard_Long_Dip_Guide_DE.md` | Nutzererklaerung und Terminologie |
 | `docs/TRADINGVIEW_STRATEGY_GUIDE.md` | Strategie-Setup, Binding und Backtest-Kontext |

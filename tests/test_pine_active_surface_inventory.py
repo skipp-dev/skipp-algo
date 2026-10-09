@@ -9,8 +9,8 @@ Pine surface consists of:
 * ~15 ``SMC_*.pine`` orchestrators at the repo root (entry-point scripts).
 * ``SMC_Confluence_Hub.pine`` at the root (umbrella confluence script).
 * ``test_div.pine`` at the root (compile-only smoke test).
-* 5 published library candidates under ``pine/`` (skipp_*.pine).
-* 10 private SMC libraries under ``SMC++/``.
+* 6 published library candidates under ``pine/`` (skipp_*.pine).
+* 8 private SMC libraries under ``SMC++/``.
 * Generated artifacts under ``pine/generated/``.
 
 This test pins those counts and the per-file inventory so that
@@ -29,19 +29,36 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from scripts.smc_bus_manifest import SURFACE_DEFINITIONS
-
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-# Root SMC ownership now lives in the canonical surface registry. Planned
-# entries may intentionally have no source yet; the dedicated registry test
-# validates that exception. ``test_div.pine`` remains a domain-specific
-# compile-only smoke source outside the SMC product registry.
-_ROOT_ORCHESTRATORS: frozenset[str] = frozenset(
-    surface.file
-    for surface in SURFACE_DEFINITIONS
-    if (REPO_ROOT / surface.file).is_file()
-) | frozenset({"test_div.pine"})
+_ROOT_ORCHESTRATORS: frozenset[str] = frozenset({
+    "SMC_Long_Dip_Suite.pine",
+    "SMC_Long_Dip_Dashboard.pine",
+    "SMC_Event_Overlay.pine",
+    "SMC_HTF_Confluence.pine",
+    "SMC_Imbalance_Context.pine",
+    "SMC_Liquidity_Context.pine",
+    "SMC_Liquidity_Structure.pine",
+    "SMC_Long_Dip_Strategy.pine",
+    "SMC_Long_Dip_Mobile.pine",
+    "SMC_Orderflow_Overlay.pine",
+    "SMC_Profile_Context.pine",
+    "SMC_Session_Context.pine",
+    "SMC_Setup_Check.pine",
+    "SMC_Structure_Context.pine",
+    "SMC_Regime_and_News.pine",
+    "SMC_Confluence_Hub.pine",
+    "test_div.pine",
+    # 2026-04-30 (commit 68e1aac0): companion overlays + exit/hold-mgr surfaces.
+    # Inventory updated as part of v3 phase 1 pine-consumer-discipline fix.
+    "SMC_Breakout_Overlay.pine",
+    "SMC_Exit_Signal.pine",
+    "SMC_Hold_Manager.pine",
+    "SMC_Volume_Profile_Overlay.pine",
+    # Alert companion for the Suite: restores per-event selectable alertcondition()
+    # slots the Suite dropped when it moved to alert() for the 64-plot budget.
+    "SMC_Long_Dip_Alerts.pine",
+})
 
 _PINE_LIBRARIES: frozenset[str] = frozenset({
     "skipp_calibration.pine",
@@ -107,6 +124,6 @@ def test_smcpp_library_inventory_is_exact() -> None:
 def test_total_active_pine_surface_count() -> None:
     """Belt-and-braces: active surface count is pinned for at-a-glance review."""
     expected = len(_ROOT_ORCHESTRATORS) + len(_PINE_LIBRARIES) + len(_SMCPP_LIBRARIES)
-    # 2026-07-30: 37 -> 39 when the separately governed Context BUS producer
-    # and its non-gating shadow overlay became physical R4 sources.
-    assert expected == 39, f"inventory frozensets drifted: total={expected}"
+    # 2026-07-16: 38 -> 37 after retiring the uncompilable HTTP consumer. The
+    # old root bridge remains only as an explicit, network-inert tombstone.
+    assert expected == 37, f"inventory frozensets drifted: total={expected}"

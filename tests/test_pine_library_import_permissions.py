@@ -70,13 +70,6 @@ _LIBRARY_PERMISSIONS: dict[str, tuple[str, ...]] = {
     ),
     # Context resolvers: engine only.
     "smc_context_resolvers": ("SMC_Long_Dip_Suite.pine",),
-    # Confirmed-bar Context Engine: the R4 producer is its managed boundary.
-    # The R5 fixture is a private, test-only compile/replay probe that exercises
-    # the same published /4 builder inside request.security before HTF rebuild.
-    "smc_context_engine_private": (
-        "SMC_Context_Bus.pine",
-        "tests/fixtures/pine/smc_htf_context_r5_spike.pine",
-    ),
 }
 
 _IMPORT_RE = re.compile(

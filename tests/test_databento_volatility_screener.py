@@ -5411,15 +5411,6 @@ def test_run_production_export_pipeline_smc_base_only_slims_runtime_bundle_and_l
     monkeypatch.setattr(mod, "RESEARCH_EVENT_FLAG_COLUMNS", ["trade_date", "symbol"])
     monkeypatch.setattr(mod, "RESEARCH_NEWS_FLAG_BOOLEAN_COLUMNS", [])
     monkeypatch.setattr(mod, "RESEARCH_NEWS_FLAG_COUNT_COLUMNS", [])
-    # Step 9c reaches Databento for full-session minute bars and, unlike the
-    # neighbouring benchmark-1m collection, is deliberately not fail-soft — an
-    # empty frame silently zeroes every minute-derived metric. Stubbed here for
-    # the same reason the other collectors are: this test has no credentials.
-    monkeypatch.setattr(
-        mod,
-        "collect_full_universe_session_minute_detail",
-        lambda *args, **kwargs: pd.DataFrame(),
-    )
     monkeypatch.setattr(mod, "list_recent_trading_days", lambda *args, **kwargs: [trade_day])
     monkeypatch.setattr(
         mod,

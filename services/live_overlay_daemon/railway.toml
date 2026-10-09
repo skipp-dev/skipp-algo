@@ -1,27 +1,11 @@
-# NOT CURRENTLY IN EFFECT — this service has no config-file path set, so Railway
-# never reads this file. Measured 2026-08-06 on the live deployment: its service
-# manifest reports propertyFileMapping = {} and dockerfilePath = "/Dockerfile",
-# while the three sibling services (opra-live-shadow, smc-signals-producer,
-# metrics-collector) DO report a populated propertyFileMapping from their own
-# services/<name>/railway.toml. opra-live-shadow does so with Root Directory
-# unset, so this is a per-service setting gap, not a platform limitation.
-#
-# The values below are therefore DESCRIPTIVE: they mirror what the service
-# settings actually run today, so that switching the config-file path on cannot
-# silently change behaviour. Before enabling it, re-measure with
-# `railway deployment list -s live_overlay_daemon --json` and reconcile drift
-# here first. Production builds the ROOT Dockerfile — see
-# tests/test_live_overlay_daemon_deploy_artifact_contract.py, which pins the
-# daemon's dependencies to the root requirements for exactly that reason.
-
 [build]
 builder = "DOCKERFILE"
-dockerfilePath = "/Dockerfile"
+dockerfilePath = "services/live_overlay_daemon/Dockerfile"
 
 [deploy]
-startCommand = "sh -c \"uvicorn services.live_overlay_daemon.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1 --http h11\""
+startCommand = "python -m services.live_overlay_daemon.main"
 healthcheckPath = "/health"
-healthcheckTimeout = 30
+healthcheckTimeout = 60
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3
 

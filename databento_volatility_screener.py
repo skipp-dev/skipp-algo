@@ -6153,8 +6153,7 @@ def run_streamlit_app() -> None:
 # The following function clusters have been extracted into dedicated modules:
 #
 #   databento_client.py   — SDK import, client construction, TLS, retry
-#   (databento_session.py entfernt 2026-08-18, Sweep E5 — nie adoptiert;
-#    diese Datei behaelt ihre eigenen Fenster-Definitionen)
+#   databento_session.py  — WindowDefinition, market-relative window builders
 #   databento_universe.py — universe resolution (FMP / Nasdaq Trader / probe)
 #
 # The definitions in THIS file are retained so that existing

@@ -1,0 +1,346 @@
+{
+  "schema_version": 1,
+  "scoring_root": "artifacts/ci/measurement_benchmark_rolling/2026-10-09",
+  "timeframes": [
+    "5m",
+    "10m",
+    "15m",
+    "30m",
+    "1H",
+    "4H",
+    "1D"
+  ],
+  "files_scanned": 140,
+  "per_tf": {
+    "5m": {
+      "n_events": 4685,
+      "symbols": [
+        "AAPL",
+        "AMZN",
+        "BAC",
+        "CAT",
+        "COP",
+        "CVX",
+        "GOOGL",
+        "GS",
+        "HD",
+        "JNJ",
+        "JPM",
+        "META",
+        "MS",
+        "MSFT",
+        "NVDA",
+        "OXY",
+        "TSLA",
+        "UNH",
+        "V",
+        "XOM"
+      ],
+      "families": {
+        "BOS": {
+          "n_events": 756,
+          "hit_rate": 0.4087243386243385
+        },
+        "OB": {
+          "n_events": 705,
+          "hit_rate": 0.7205744680851064
+        },
+        "FVG": {
+          "n_events": 1578,
+          "hit_rate": 0.6628711026615969
+        },
+        "SWEEP": {
+          "n_events": 1646,
+          "hit_rate": 0.18712399756986633
+        }
+      },
+      "hit_rate": 0.4633983991462114
+    },
+    "10m": {
+      "n_events": 2551,
+      "symbols": [
+        "AAPL",
+        "AMZN",
+        "BAC",
+        "CAT",
+        "COP",
+        "CVX",
+        "GOOGL",
+        "GS",
+        "HD",
+        "JNJ",
+        "JPM",
+        "META",
+        "MS",
+        "MSFT",
+        "NVDA",
+        "OXY",
+        "TSLA",
+        "UNH",
+        "V",
+        "XOM"
+      ],
+      "families": {
+        "BOS": {
+          "n_events": 407,
+          "hit_rate": 0.6216216216216217
+        },
+        "OB": {
+          "n_events": 366,
+          "hit_rate": 0.7513644808743168
+        },
+        "FVG": {
+          "n_events": 813,
+          "hit_rate": 0.6691333333333334
+        },
+        "SWEEP": {
+          "n_events": 965,
+          "hit_rate": 0.33679212435233163
+        }
+      },
+      "hit_rate": 0.5476083496667973
+    },
+    "15m": {
+      "n_events": 1738,
+      "symbols": [
+        "AAPL",
+        "AMZN",
+        "BAC",
+        "CAT",
+        "COP",
+        "CVX",
+        "GOOGL",
+        "GS",
+        "HD",
+        "JNJ",
+        "JPM",
+        "META",
+        "MS",
+        "MSFT",
+        "NVDA",
+        "OXY",
+        "TSLA",
+        "UNH",
+        "V",
+        "XOM"
+      ],
+      "families": {
+        "BOS": {
+          "n_events": 289,
+          "hit_rate": 0.6955051903114188
+        },
+        "OB": {
+          "n_events": 217,
+          "hit_rate": 0.7926267281105991
+        },
+        "FVG": {
+          "n_events": 554,
+          "hit_rate": 0.6660698555956678
+        },
+        "SWEEP": {
+          "n_events": 678,
+          "hit_rate": 0.41298274336283186
+        }
+      },
+      "hit_rate": 0.5880308400460298
+    },
+    "30m": {
+      "n_events": 831,
+      "symbols": [
+        "AAPL",
+        "AMZN",
+        "BAC",
+        "CAT",
+        "COP",
+        "CVX",
+        "GOOGL",
+        "GS",
+        "HD",
+        "JNJ",
+        "JPM",
+        "META",
+        "MS",
+        "MSFT",
+        "NVDA",
+        "OXY",
+        "TSLA",
+        "UNH",
+        "V",
+        "XOM"
+      ],
+      "families": {
+        "BOS": {
+          "n_events": 142,
+          "hit_rate": 0.7957718309859155
+        },
+        "OB": {
+          "n_events": 112,
+          "hit_rate": 0.63393125
+        },
+        "FVG": {
+          "n_events": 234,
+          "hit_rate": 0.6623952991452993
+        },
+        "SWEEP": {
+          "n_events": 343,
+          "hit_rate": 0.5830930029154519
+        }
+      },
+      "hit_rate": 0.6486387484957882
+    },
+    "1H": {
+      "n_events": 317,
+      "symbols": [
+        "AAPL",
+        "AMZN",
+        "BAC",
+        "CAT",
+        "COP",
+        "CVX",
+        "GOOGL",
+        "GS",
+        "HD",
+        "JNJ",
+        "JPM",
+        "META",
+        "MS",
+        "MSFT",
+        "NVDA",
+        "OXY",
+        "TSLA",
+        "UNH",
+        "V",
+        "XOM"
+      ],
+      "families": {
+        "BOS": {
+          "n_events": 65,
+          "hit_rate": 0.8923107692307692
+        },
+        "OB": {
+          "n_events": 49,
+          "hit_rate": 0.5918448979591836
+        },
+        "FVG": {
+          "n_events": 69,
+          "hit_rate": 0.6521753623188407
+        },
+        "SWEEP": {
+          "n_events": 134,
+          "hit_rate": 0.6641776119402985
+        }
+      },
+      "hit_rate": 0.6971624605678233
+    },
+    "4H": {
+      "n_events": 16,
+      "symbols": [
+        "AAPL",
+        "AMZN",
+        "GOOGL",
+        "META",
+        "MSFT",
+        "NVDA",
+        "TSLA",
+        "UNH"
+      ],
+      "families": {
+        "SWEEP": {
+          "n_events": 9,
+          "hit_rate": 0.7777777777777778
+        },
+        "BOS": {
+          "n_events": 6,
+          "hit_rate": 1.0
+        },
+        "OB": {
+          "n_events": 1,
+          "hit_rate": 1.0
+        }
+      },
+      "hit_rate": 0.87500625
+    },
+    "1D": {
+      "n_events": 332,
+      "symbols": [
+        "AAPL",
+        "AMZN",
+        "BAC",
+        "CAT",
+        "COP",
+        "CVX",
+        "GOOGL",
+        "GS",
+        "HD",
+        "JNJ",
+        "JPM",
+        "META",
+        "MS",
+        "MSFT",
+        "NVDA",
+        "OXY",
+        "TSLA",
+        "UNH",
+        "V",
+        "XOM"
+      ],
+      "families": {
+        "BOS": {
+          "n_events": 69,
+          "hit_rate": 0.9565246376811595
+        },
+        "OB": {
+          "n_events": 51,
+          "hit_rate": 0.7451000000000001
+        },
+        "FVG": {
+          "n_events": 54,
+          "hit_rate": 0.7037037037037037
+        },
+        "SWEEP": {
+          "n_events": 158,
+          "hit_rate": 0.8227898734177215
+        }
+      },
+      "hit_rate": 0.8192864457831326
+    }
+  },
+  "unknown_timeframes": {},
+  "n_skipped_malformed": 12,
+  "skipped_malformed": [
+    "scoring_BAC_4H.json: invalid n_events/hit_rate",
+    "scoring_CAT_4H.json: invalid n_events/hit_rate",
+    "scoring_COP_4H.json: invalid n_events/hit_rate",
+    "scoring_CVX_4H.json: invalid n_events/hit_rate",
+    "scoring_GS_4H.json: invalid n_events/hit_rate",
+    "scoring_HD_4H.json: invalid n_events/hit_rate",
+    "scoring_JNJ_4H.json: invalid n_events/hit_rate",
+    "scoring_JPM_4H.json: invalid n_events/hit_rate",
+    "scoring_MS_4H.json: invalid n_events/hit_rate",
+    "scoring_OXY_4H.json: invalid n_events/hit_rate",
+    "scoring_V_4H.json: invalid n_events/hit_rate",
+    "scoring_XOM_4H.json: invalid n_events/hit_rate"
+  ],
+  "phase_e2_verdict": {
+    "fvg_ttf_5m_vs_baseline": {
+      "status": "measured_underpowered",
+      "n_a": 1578,
+      "hr_a": 0.6628711026615969,
+      "n_b": 623,
+      "hr_b": 0.6645309791332263,
+      "delta_hr": -0.0016598764716294623,
+      "delta_hr_ci95": [
+        -0.045462707374125756,
+        0.04214295443086683
+      ],
+      "delta_hr_p_value": 0.940824620479837,
+      "mde_80pct_power": 0.0662430826291467,
+      "underpowered": true
+    },
+    "bos_stability_4h_vs_baseline": {
+      "status": "insufficient_data",
+      "n_a": 6,
+      "n_b": 354
+    }
+  }
+}

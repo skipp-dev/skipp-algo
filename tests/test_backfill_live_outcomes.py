@@ -34,7 +34,7 @@ def _read_jsonl(path: Path) -> list[dict]:
 def test_compute_outcome_one_r_long_winner() -> None:
     # entry 102, stop 100, close 104 → +2/2 = +1R, PnL +1.96% × 1000 ≈ +19.6
     pnl, r = compute_trade_outcome(
-        fill_price=102.0, stop_loss=100.0, close_price=104.0, size_usd=1000.0
+        entry_price=102.0, stop_loss=100.0, close_price=104.0, size_usd=1000.0
     )
     assert r == pytest.approx(1.0)
     assert pnl == pytest.approx((104 - 102) / 102 * 1000)
@@ -42,16 +42,16 @@ def test_compute_outcome_one_r_long_winner() -> None:
 
 def test_compute_outcome_minus_one_r_stop_out() -> None:
     pnl, r = compute_trade_outcome(
-        fill_price=102.0, stop_loss=100.0, close_price=100.0, size_usd=1000.0
+        entry_price=102.0, stop_loss=100.0, close_price=100.0, size_usd=1000.0
     )
     assert r == pytest.approx(-1.0)
     assert pnl < 0
 
 
 def test_compute_outcome_zero_risk_rejected() -> None:
-    with pytest.raises(ValueError, match="non-positive-risk"):
+    with pytest.raises(ValueError, match="zero-risk"):
         compute_trade_outcome(
-            fill_price=100.0,
+            entry_price=100.0,
             stop_loss=100.0,
             close_price=101.0,
             size_usd=1000.0,
@@ -86,84 +86,6 @@ def test_backfill_populates_pnl_and_r_for_closed_trades(tmp_path: Path) -> None:
     [record] = _read_jsonl(path)
     assert record[R_MULTIPLE_KEY] == pytest.approx(1.0)
     assert record[PNL_KEY] is not None
-    assert record["outcome_schema_version"] == 3
-    assert record["evidence_class"] == "LIVE"
-    assert record["outcome_status"] == "closed"
-    assert record["gross_pnl_usd"] == pytest.approx(record[PNL_KEY])
-    assert record["entry_slippage_bps"] == pytest.approx(0.0)
-    assert record["fees_known"] is False
-    assert record["fees_usd"] is None
-    assert record["net_pnl_usd"] is None
-
-
-def test_backfill_anchors_outcome_at_realised_fill_not_submitted_limit(
-    tmp_path: Path,
-) -> None:
-    path = tmp_path / "incubation_2026-04-26.jsonl"
-    _write_jsonl(
-        path,
-        [
-            _closed_record(
-                entry_price=100.0,
-                fill_price=101.0,
-                stop_loss=95.0,
-                close_price=100.5,
-                size_usd=1010.0,
-            ),
-        ],
-    )
-
-    backfill_live_outcomes(path)
-
-    [record] = _read_jsonl(path)
-    assert record[PNL_KEY] == pytest.approx(-5.0)
-    assert record[R_MULTIPLE_KEY] == pytest.approx(-0.5 / 6.0)
-
-
-def test_backfill_recomputes_legacy_limit_anchored_outcome(tmp_path: Path) -> None:
-    path = tmp_path / "incubation_2026-04-26.jsonl"
-    _write_jsonl(
-        path,
-        [
-            _closed_record(
-                entry_price=100.0,
-                fill_price=101.0,
-                stop_loss=95.0,
-                close_price=100.5,
-                size_usd=1010.0,
-                outcome_pnl_usd=5.05,
-                outcome_r_multiple=0.1,
-            ),
-        ],
-    )
-
-    summary = backfill_live_outcomes(path)
-
-    [record] = _read_jsonl(path)
-    assert summary["records_backfilled"] == 1
-    assert summary["records_already_resolved"] == 0
-    assert record[PNL_KEY] == pytest.approx(-5.0)
-    assert record[R_MULTIPLE_KEY] == pytest.approx(-0.5 / 6.0)
-    assert record["outcome_schema_version"] == 3
-
-
-def test_backfill_computes_net_only_when_fees_are_known(tmp_path: Path) -> None:
-    path = tmp_path / "incubation_2026-04-26.jsonl"
-    _write_jsonl(path, [_closed_record(
-        phase="paper",
-        entry_price=100.0,
-        fill_price=101.0,
-        fees_usd=1.25,
-    )])
-
-    backfill_live_outcomes(path)
-
-    [record] = _read_jsonl(path)
-    assert record["evidence_class"] == "PAPER"
-    assert record["entry_slippage_bps"] == pytest.approx(100.0)
-    assert record["fees_known"] is True
-    assert record["fees_usd"] == pytest.approx(1.25)
-    assert record["net_pnl_usd"] == pytest.approx(record["gross_pnl_usd"] - 1.25)
 
 
 def test_backfill_skips_pending_trades(tmp_path: Path) -> None:
@@ -202,24 +124,6 @@ def test_backfill_counts_audit_only_separately(tmp_path: Path) -> None:
     assert summary["records_backfilled"] == 0
 
 
-def test_backfill_counts_submit_failed_as_non_closable_pending(tmp_path: Path) -> None:
-    """A rejected submission never entered the market and cannot close later."""
-    path = tmp_path / "x.jsonl"
-    records = [
-        {"intent_id": f"i-{index}", "action": "submit_failed", "fill_price": None}
-        for index in range(5)
-    ]
-    _write_jsonl(path, records)
-
-    summary = backfill_live_outcomes(path)
-
-    assert summary["records_pending_close"] == 5
-    assert summary["records_audit_only"] == 0
-    assert summary["records_submit_failed"] == 5
-    assert summary["records_backfilled"] == 0
-    assert _read_jsonl(path) == records
-
-
 def test_backfill_is_idempotent(tmp_path: Path) -> None:
     path = tmp_path / "x.jsonl"
     _write_jsonl(path, [_closed_record()])
@@ -251,7 +155,6 @@ def test_backfill_handles_mixed_actions(tmp_path: Path) -> None:
     assert summary["records_pending_close"] == 1
     out = _read_jsonl(path)
     closed = [r for r in out if r["action"] != "submitted"]
-    assert len(closed) == 4
     assert all(PNL_KEY in r for r in closed)
 
 
@@ -303,26 +206,26 @@ def test_atomic_write_leaves_no_tmp_file(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_compute_trade_outcome_rejects_zero_fill_price() -> None:
-    with pytest.raises(ValueError, match="fill_price must be positive"):
+def test_compute_trade_outcome_rejects_zero_entry_price() -> None:
+    with pytest.raises(ValueError, match="entry_price must be positive"):
         compute_trade_outcome(
-            fill_price=0.0, stop_loss=-1.0, close_price=1.0, size_usd=100.0
+            entry_price=0.0, stop_loss=-1.0, close_price=1.0, size_usd=100.0
         )
 
 
-def test_compute_trade_outcome_rejects_negative_fill_price() -> None:
-    with pytest.raises(ValueError, match="fill_price must be positive"):
+def test_compute_trade_outcome_rejects_negative_entry_price() -> None:
+    with pytest.raises(ValueError, match="entry_price must be positive"):
         compute_trade_outcome(
-            fill_price=-5.0, stop_loss=-6.0, close_price=1.0, size_usd=100.0
+            entry_price=-5.0, stop_loss=-6.0, close_price=1.0, size_usd=100.0
         )
 
 
 def test_compute_trade_outcome_rejects_non_finite_inputs() -> None:
     with pytest.raises(ValueError, match="finite"):
         compute_trade_outcome(
-            fill_price=float("nan"), stop_loss=1.0, close_price=1.0, size_usd=100.0
+            entry_price=float("nan"), stop_loss=1.0, close_price=1.0, size_usd=100.0
         )
     with pytest.raises(ValueError, match="finite"):
         compute_trade_outcome(
-            fill_price=10.0, stop_loss=9.0, close_price=float("inf"), size_usd=100.0
+            entry_price=10.0, stop_loss=9.0, close_price=float("inf"), size_usd=100.0
         )

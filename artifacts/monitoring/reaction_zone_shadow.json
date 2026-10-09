@@ -1,9 +1,0 @@
-{
-  "updated_at": "",
-  "n_reaction_samples": 0,
-  "by_direction": {},
-  "config": {
-    "min_samples": 40,
-    "lift_promote_threshold": 0.05
-  }
-}

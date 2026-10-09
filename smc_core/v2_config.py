@@ -96,16 +96,19 @@ class SmtDivergenceConfig:
     production event because no production producer builds the required
     ``correlated_context`` block (only tests supply it; see
     ``smc_core/smt_divergence.py``). Until a PIT-safe correlated-context feed
-    exists, ``SMC_SMT_DIVERGENCE_HEURISTIC_SCORE`` has no observable effect in
-    prod.
+    exists, ``SMC_SMT_DIVERGENCE_HEURISTIC_SCORE`` (and its legacy alias
+    ``SMC_SMT_DIVERGENCE_CONFIDENCE``) has no observable effect in prod.
     """
 
     @property
     def confidence(self) -> int:
         """Heuristic conviction constant stamped on a detected divergence
-        (0–100, NOT a probability). Env:
-        ``SMC_SMT_DIVERGENCE_HEURISTIC_SCORE``. Inert in prod — see class doc."""
-        return _env_int("SMC_SMT_DIVERGENCE_HEURISTIC_SCORE", 70, min_val=0, max_val=100)
+        (0–100, NOT a probability). Env: prefer ``SMC_SMT_DIVERGENCE_HEURISTIC
+        _SCORE``; the legacy ``SMC_SMT_DIVERGENCE_CONFIDENCE`` is still honoured
+        as an alias. Inert in prod — see class doc."""
+        if "SMC_SMT_DIVERGENCE_HEURISTIC_SCORE" in os.environ:
+            return _env_int("SMC_SMT_DIVERGENCE_HEURISTIC_SCORE", 70, min_val=0, max_val=100)
+        return _env_int("SMC_SMT_DIVERGENCE_CONFIDENCE", 70, min_val=0, max_val=100)
 
 
 # Module-level singletons for convenient import.

@@ -43,7 +43,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from tests._guard_corpus import iter_production_py_files, parse_module
+from tests._guard_corpus import parse_module
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -65,12 +65,17 @@ _DIR_EXCLUDE = {
 
 
 def _iter_py_files() -> list[Path]:
-    files = set(iter_production_py_files(_DIR_EXCLUDE))
-    # Carved back in: excluded by directory, but its egress calls are ledgered.
-    carve_in = ROOT / "scripts" / "publish_overlay_dashboard.py"
-    if carve_in.exists():
-        files.add(carve_in)
-    return sorted(files)
+    out: list[Path] = []
+    for path in ROOT.rglob("*.py"):
+        rel = path.relative_to(ROOT)
+        rel_posix = rel.as_posix()
+        if (
+            any(part in _DIR_EXCLUDE or part.startswith(".") for part in rel.parts)
+            and rel_posix != "scripts/publish_overlay_dashboard.py"
+        ):
+            continue
+        out.append(path)
+    return out
 
 
 def _post_call_sites() -> set[tuple[str, int]]:
@@ -135,28 +140,23 @@ HTTP_POST_LEDGER: set[tuple[str, int]] = {
     # for user-configured realtime signal alerts (generic/slack/discord/ntfy/
     # telegram/twilio_whatsapp/meta_whatsapp). Opt-in via RT_SIGNAL_WEBHOOK_*;
     # fail-soft; destination + auth are user-supplied. See open_prep/rt_notify.py.
-    # 2026-07-16 transport-log redaction: 370->374; 2026-07-24 RN-1 pace:
-    # 374->388; 2026-08-08 dedup persistence: 388->471; 2026-08-09 finite
-    # boundary/state validation: 471->481. Destination and auth are unchanged.
-    ("open_prep/rt_notify.py", 481),
+    ("open_prep/rt_notify.py", 374),  # 2026-07-16 transport-log redaction shifted site: 370->374
     # Notification webhook fan-out (Discord/Slack-style).
-    # 2026-08-08 throttle persistence: 279->345; 2026-08-09 per-channel
-    # isolation and configured-horizon retention: 345->355. Destination remains
-    # the user-configured webhook.
-    ("terminal_notifications.py", 355),
+    ("terminal_notifications.py", 279),
     # FMP/news export webhook (raw body, no redirects, HMAC-SHA256 signed,
     # SSRF-guarded via _is_safe_webhook_url). Line shifted 912 → 916
     # (deep-audit fallback-buffer lock refresh).
     ("terminal_export.py", 918),  # 2026-07-12 (drop dead social read): 921 -> 918
     # OpenAI chat completions — FMP insights enrichment.
     # Line shifted 402 → 409 (main merge for PR-J3 cache-key scoping).
-    ("terminal_fmp_insights.py", 472),  # 2026-08-29 per-exchange transaction id (audit): 466->472
+    ("terminal_fmp_insights.py", 452),  # 2026-07-20 Databento context contract shifted site: 446->452
     # Webhook fan-out from the live Streamlit terminal alert path
     # (httpx, follow_redirects=False, timeout=5s, dedup + budget cap).
     # Line shifted 2257 → 2274 (system review 2026-04-30).
-    ("streamlit_terminal.py", 2363),  # 2026-07-23 (News Ingest label + sidebar source lines above): 2349->2363
+    ("streamlit_terminal.py", 2242),  # 2026-07-20 source-priority UI shifted site: 2235->2242
     # OpenAI chat completions — terminal AI insights enrichment.
     # Line shifted 276 → 283 (main merge for PR-J3 cache-key scoping).
+    ("terminal_ai_insights.py", 277),  # 2026-07-20 cache reinspection: 274->277
     # Databento BentoHttpAPI._post TLS-override patch (F1 dedup, 2026-06-14):
     # both calls are internal Databento SDK POST paths using trust_env=False
     # + certifi CA bundle. Auth via HTTPBasicAuth(api_key, "").
@@ -169,13 +169,9 @@ HTTP_POST_LEDGER: set[tuple[str, int]] = {
 # sites that bypass the .post(...) attribute-call detector above.
 URLLIB_REQUEST_POST_LEDGER: set[tuple[str, int]] = {
     # Generic POST webhook helper (Slack/Discord-shape).
-    # 2026-08-08 (throttle persistence): 251->317, 316->382; 2026-08-09
-    # (per-channel throttle isolation and configured-horizon retention):
-    # 317->327, 382->392. Destinations and credential posture are unchanged:
-    # user-configured Telegram/Pushover.
-    ("terminal_notifications.py", 327),
+    ("terminal_notifications.py", 251),
     # Pushover messages API.
-    ("terminal_notifications.py", 392),
+    ("terminal_notifications.py", 316),
     # Open-prep alerts dispatcher (Slack/webhook).
     # 2026-07-01: alert candidate/throttle hardening + payload/url guards
     # shifted 439 -> 476.
@@ -189,13 +185,7 @@ URLLIB_REQUEST_POST_LEDGER: set[tuple[str, int]] = {
     ("services/live_overlay_daemon/uptimerobot_bridge.py", 84),
     # 2026-06-24: Railway GraphQL API for container metrics polling.
     # 2026-07-07: `import math` for the non-finite guard shifted this 74 -> 75.
-    # 2026-08-13 (volume-backup bridge, +1 import): 75->76. Still ONE POST site
-    # for two queries — the volume-backup query reuses _post_graphql.
-    ("services/live_overlay_daemon/railway_metrics.py", 76),
-    # 2026-07-21 (feat/pre-a0-pilot-sidecar): PRE-A0 pilot tailer — Slack
-    # incoming-webhook POST, gated by RT_PRE_A0_PILOT=1 + https env. Mirrors
-    # the urlopen pins (pin_registry.toml + http_client_discipline L54).
-    ("services/a0_fast_detector/pilot_alert_tailer.py", 48),
+    ("services/live_overlay_daemon/railway_metrics.py", 75),
     # 2026-06-22: the Grafana dashboard publisher previously pinned here as a
     # literal Request(method="POST"). ADR-0025 consolidated its GET/POST/PUT
     # egress into a single method-agnostic urllib.request.Request in

@@ -51,13 +51,6 @@ MIN_WALK_FORWARD_EFFICIENCY = 0.50
 MAX_PERMUTATION_P = 0.05
 MAX_PER_REGIME_HIT_RATE_SPREAD = 0.20
 MIN_PSR = 0.95
-# ADR-0031, Nachtrag 2026-10-02: trades anchored on the same day move
-# together, so the day — not the trade — is the unit that is drawn
-# independently. Below 30 days a day-resampled interval is itself unreliable
-# (few-cluster regime), so no verdict may turn green on fewer.
-MIN_TRADING_DAYS = 30
-MIN_DAY_CLUSTERED_MEAN_CI_LOW = 0.0
-DAY_BOOTSTRAP_B = 2000
 
 # Canonical roster of gate-check names emitted by
 # :func:`evaluate_track_record_gate`. Pinned here so dashboard /
@@ -83,25 +76,6 @@ KNOWN_GATE_CHECK_NAMES: tuple[str, ...] = (
     "per_regime_hit_rate_spread",
     "psr_sr_star_zero",
     "min_trl_within_n",
-    "trading_days",
-    "day_clustered_mean_ci_low",
-)
-
-# 2026-08-18 (Verdrahtungs-Sweep K4): these three checks currently have NO
-# producer in the repo (build_returns_series emits none of their inputs), and
-# _aggregate_status ignores SKIPPED — a green gate could therefore flip
-# claimable=True with three never-measured checks. Required claim evidence
-# that is unmeasured blocks the claim below and names itself in claim_note.
-# permutation_p is deliberately absent: advisory by design (Schema-B caveat).
-REQUIRED_CLAIM_EVIDENCE: tuple[str, ...] = (
-    "walk_forward_efficiency",
-    "fdr_rate",
-    "per_regime_hit_rate_spread",
-    # 2026-10-02: a caller that supplies no anchor timestamps gets both day
-    # checks SKIPPED. Without them a green rests on trade counts alone, which
-    # is exactly the reading the Nachtrag retires — so it is not a claim.
-    "trading_days",
-    "day_clustered_mean_ci_low",
 )
 
 GREEN = "green"
@@ -139,9 +113,7 @@ class TrackRecordGateVerdict:
     checks: list[GateCheck] = field(default_factory=list)
     n_trades: int = 0
     summary: dict[str, Any] = field(default_factory=dict)
-    # 1.1.0 (2026-10-02): additive checks ``trading_days`` and
-    # ``day_clustered_mean_ci_low`` plus ``summary.day_clustered``.
-    schema_version: str = "1.1.0"
+    schema_version: str = "1.0.0"
 
 
 def _check(
@@ -152,16 +124,11 @@ def _check(
     direction: str,
     detail: str = "",
 ) -> GateCheck:
-    """``direction``: ``"ge"`` (value must be >= threshold), ``"gt"`` or ``"le"``."""
+    """``direction``: ``"ge"`` (value must be >= threshold) or ``"le"``."""
 
     if value is None or not np.isfinite(value):
         return GateCheck(name=name, status=SKIPPED, threshold=threshold, detail=detail or "missing")
-    if direction == "ge":
-        passed = value >= threshold
-    elif direction == "gt":
-        passed = value > threshold
-    else:
-        passed = value <= threshold
+    passed = value >= threshold if direction == "ge" else value <= threshold
     return GateCheck(
         name=name,
         status=GREEN if passed else RED,
@@ -181,56 +148,9 @@ def _aggregate_status(checks: Sequence[GateCheck]) -> str:
     return GREEN
 
 
-def _day_clustered_mean(
-    arr: np.ndarray,
-    anchors: np.ndarray,
-    *,
-    B: int,
-    seed: int,
-) -> dict[str, Any]:
-    """Mean return per trade with a CI that resamples whole anchor days.
-
-    A day is the UTC calendar day of ``anchor_ts``. Every draw takes
-    ``n_days`` days with replacement and keeps all trades of a drawn day
-    together, so trades that formed on the same day never count as
-    independent evidence. The statistic is the pooled mean of the drawn
-    trades (sum of day sums over sum of day counts).
-
-    Not corrected here: trades whose holding window spans several days
-    overlap across ADJACENT days. On the 1D plane that leaves a positive
-    dependence between neighbouring days in place; the interval is then
-    still too narrow, only less so.
-    """
-
-    day_index = np.floor(anchors / 86400.0).astype(np.int64)
-    _, inverse, counts = np.unique(day_index, return_inverse=True, return_counts=True)
-    n_days = int(counts.size)
-    sums = np.bincount(inverse, weights=arr, minlength=n_days)
-    out: dict[str, Any] = {
-        "n_days": n_days,
-        "max_trades_per_day": int(counts.max()),
-        "positive_days": int(np.sum(sums > 0.0)),
-        "mean": float(arr.mean()),
-        "ci_low": None,
-        "ci_high": None,
-        "B": int(B),
-        "unit": "UTC calendar day of anchor_ts",
-    }
-    if n_days < 2:
-        out["skipped_reason"] = "needs at least 2 anchor days"
-        return out
-    rng = np.random.default_rng(seed)
-    draws = rng.integers(0, n_days, size=(int(B), n_days))
-    means = sums[draws].sum(axis=1) / counts[draws].sum(axis=1)
-    out["ci_low"] = float(np.quantile(means, 0.025))
-    out["ci_high"] = float(np.quantile(means, 0.975))
-    return out
-
-
 def evaluate_track_record_gate(
     returns: Sequence[float],
     *,
-    anchor_ts: Sequence[float] | None = None,
     rr_target: float = 1.0,
     walk_forward_efficiency: float | None = None,
     permutation_p: float | None = None,
@@ -246,11 +166,6 @@ def evaluate_track_record_gate(
     Args:
         returns: per-trade returns (R-multiples or fractional). Treated
             as the OOS sample.
-        anchor_ts: epoch seconds of each trade's anchor, parallel to
-            ``returns``. Feeds the two day checks (``trading_days``,
-            ``day_clustered_mean_ci_low``); both are SKIPPED when it is
-            ``None``, and a green verdict is then not claimable. A length
-            that differs from ``returns`` raises.
         rr_target: target reward/risk used to choose the Win-Rate
             threshold (1.0 → 0.55, ≥1.5 → 0.45).
         walk_forward_efficiency: pre-computed WFE (C2/T4 output). When
@@ -296,22 +211,7 @@ def evaluate_track_record_gate(
     """
 
     arr = np.asarray(returns, dtype=np.float64).ravel()
-    finite = np.isfinite(arr)
-    anchors: np.ndarray | None = None
-    if anchor_ts is not None:
-        anchors = np.asarray(anchor_ts, dtype=np.float64).ravel()
-        if anchors.size != arr.size:
-            raise ValueError(
-                "evaluate_track_record_gate: anchor_ts must be parallel to "
-                f"returns (got {anchors.size} anchors for {arr.size} returns)."
-            )
-        anchors = anchors[finite]
-        if not bool(np.all(np.isfinite(anchors))):
-            raise ValueError(
-                "evaluate_track_record_gate: anchor_ts carries a non-finite "
-                "value next to a finite return — the trade has no day."
-            )
-    arr = arr[finite]
+    arr = arr[np.isfinite(arr)]
     n = int(arr.size)
 
     # C-sprint deep-review MINOR: empty / all-NaN inputs previously
@@ -593,57 +493,7 @@ def evaluate_track_record_gate(
             )
         )
 
-    # Day checks (ADR-0031, Nachtrag 2026-10-02). Appended last so the
-    # check-by-index fallback of older consumers keeps its positions.
-    day_clustered: dict[str, Any] | None = None
-    if anchors is None:
-        checks.append(
-            GateCheck(
-                name="trading_days",
-                status=SKIPPED,
-                threshold=float(MIN_TRADING_DAYS),
-                detail="no anchor_ts supplied",
-            )
-        )
-        checks.append(
-            GateCheck(
-                name="day_clustered_mean_ci_low",
-                status=SKIPPED,
-                threshold=MIN_DAY_CLUSTERED_MEAN_CI_LOW,
-                detail="no anchor_ts supplied",
-            )
-        )
-    else:
-        day_clustered = _day_clustered_mean(
-            arr, anchors, B=DAY_BOOTSTRAP_B, seed=bootstrap_seed
-        )
-        checks.append(
-            _check(
-                "trading_days",
-                value=float(day_clustered["n_days"]),
-                threshold=float(MIN_TRADING_DAYS),
-                direction="ge",
-                detail=(
-                    "distinct UTC anchor days; at most "
-                    f"{day_clustered['max_trades_per_day']} trades on one day"
-                ),
-            )
-        )
-        checks.append(
-            _check(
-                "day_clustered_mean_ci_low",
-                value=day_clustered["ci_low"],
-                threshold=MIN_DAY_CLUSTERED_MEAN_CI_LOW,
-                direction="gt",
-                detail=day_clustered.get(
-                    "skipped_reason",
-                    "lower 95% bound of the mean return per trade, whole days resampled",
-                ),
-            )
-        )
-
     summary: dict[str, Any] = {
-        "day_clustered": day_clustered,
         "win_rate": wr,
         "win_rate_threshold": wr_threshold,
         "rr_target": float(rr_target),
@@ -667,43 +517,12 @@ def evaluate_track_record_gate(
 
 
 def verdict_to_dict(verdict: TrackRecordGateVerdict) -> dict[str, Any]:
-    """Stable JSON-serialisable form for dashboard / public report.
+    """Stable JSON-serialisable form for dashboard / public report."""
 
-    ``claimable`` / ``claim_note`` (additive, 2026-08-16, weekly commercial
-    review P2): the raw JSON is the public rendering surface, and a green
-    sub-check inside a red gate (Sharpe 9.44 on 33 trades) reads like a
-    quality claim to anyone who opens the file. The serialised verdict now
-    says itself whether its numbers are claimable, so no reader has to
-    reconstruct that from the aggregate.
-    """
-
-    red_names = [c.name for c in verdict.checks if c.status == RED]
-    unmeasured_required = [
-        c.name
-        for c in verdict.checks
-        if c.status == SKIPPED and c.name in REQUIRED_CLAIM_EVIDENCE
-    ]
-    if verdict.status != GREEN:
-        claim_note = (
-            f"aggregate status '{verdict.status}': green sub-checks are "
-            "diagnostics, not claimable evidence; red checks: "
-            + (", ".join(red_names) if red_names else "none")
-        )
-    elif unmeasured_required:
-        # Fail-closed claim (2026-08-18, Sweep K4): green with unmeasured
-        # REQUIRED evidence is not a claim — the note names what is missing.
-        claim_note = (
-            "gate is green but required claim evidence is unmeasured: "
-            + ", ".join(unmeasured_required)
-        )
-    else:
-        claim_note = None
     return {
         "schema_version": verdict.schema_version,
         "status": verdict.status,
         "n_trades": int(verdict.n_trades),
-        "claimable": verdict.status == GREEN and not unmeasured_required,
-        "claim_note": claim_note,
         "checks": [
             {
                 "name": c.name,
@@ -721,7 +540,6 @@ def verdict_to_dict(verdict: TrackRecordGateVerdict) -> dict[str, Any]:
 def evaluate_track_record_gate_per_variant(
     returns_by_variant: dict[str, Sequence[float]],
     *,
-    anchor_ts_by_variant: dict[str, Sequence[float]] | None = None,
     walk_forward_efficiency_by_variant: dict[str, float] | None = None,
     permutation_p_by_variant: dict[str, float] | None = None,
     fdr_rate_by_variant: dict[str, float] | None = None,
@@ -745,7 +563,6 @@ def evaluate_track_record_gate_per_variant(
     a missing key skips that check for that variant rather than failing it.
     """
 
-    anchors_by_variant = anchor_ts_by_variant or {}
     wfe = walk_forward_efficiency_by_variant or {}
     perm = permutation_p_by_variant or {}
     fdr = fdr_rate_by_variant or {}
@@ -757,7 +574,6 @@ def evaluate_track_record_gate_per_variant(
     # which dashboards then rendered as healthy.
     known = set(returns_by_variant)
     for label, opt in (
-        ("anchor_ts_by_variant", anchors_by_variant),
         ("walk_forward_efficiency_by_variant", wfe),
         ("permutation_p_by_variant", perm),
         ("fdr_rate_by_variant", fdr),
@@ -774,7 +590,6 @@ def evaluate_track_record_gate_per_variant(
     for variant, returns in returns_by_variant.items():
         verdict = evaluate_track_record_gate(
             returns,
-            anchor_ts=anchors_by_variant.get(variant),
             rr_target=rr_target,
             walk_forward_efficiency=wfe.get(variant),
             permutation_p=perm.get(variant),

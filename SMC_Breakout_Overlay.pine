@@ -41,7 +41,7 @@
 indicator("SMC Breakout Overlay", overlay = true,
      max_lines_count = 100, max_labels_count = 200, max_boxes_count = 500, max_bars_back = 500)
 
-import preuss_steffen/smc_engine_private/3 as eng
+import preuss_steffen/smc_engine_private/1 as eng
 
 // ── Inputs ──────────────────────────────────────────────────────
 // Note: input.*() and group-name literals are evaluated once and are const by
@@ -51,14 +51,14 @@ import preuss_steffen/smc_engine_private/3 as eng
 g_src = "Structure source"
 string structSource = input.string("Auto", "Structure source",
      options = ["Auto", "Engine BUS (live)", "Library (standalone)", "Local pivots"], group = g_src,
-     tooltip = "Auto: the linked Suite feed when SMC Long-Dip Suite is connected + on chart, else the SMC library. " +
-     "Engine BUS (live): the live Suite's own gated setup (needs SMC Long-Dip Suite on the chart). " +
-     "Library (standalone): real SMC engine-library structure detection, no Suite needed. " +
+     tooltip = "Auto: engine BUS when SMC Core is bound + on chart, else the SMC library. " +
+     "Engine BUS (live): the live engine's own gated setup (needs SMC Core on the chart). " +
+     "Library (standalone): real smc_engine_private structure detection, no engine needed. " +
      "Local pivots: naive swing-pivot fallback, zero dependency.")
 int structLen = input.int(50, "Library swing length", minval = 5, maxval = 200, group = g_src,
-     tooltip = "Swing lookback for the SMC engine-library structure detector (library tier).")
+     tooltip = "Swing lookback for the smc_engine_private structure detector (library tier).")
 
-g_bus = "Chart Link - SMC Long-Dip Suite"
+g_bus = "Engine BUS binding (tier 2)"
 // Declared in the Suite's BUS plot() order. TradingView lists a source study's
 // outputs in that plot order, so matching it here means each row's dropdown pick
 // moves strictly downwards while binding — no scrolling back up.
@@ -83,25 +83,21 @@ int  expected_bus_version = 7001   // matches SMC Core's published 'BUS SchemaVe
 bool engine_bound = math.round(src_schema) == expected_bus_version
 
 // Effective tier this bar — exactly one is true. Auto/Engine-BUS fall back to
-// the library when the engine is not bound on the chart. The option-value
-// comparison lives in its own bool: the literal is a settings dropdown VALUE
-// (kept stable so saved charts keep their selection), not a rendered string,
-// and the sim table below consumes mode_bus directly.
-bool wants_engine_tier = structSource == "Auto" or structSource == "Engine BUS (live)"
-bool mode_bus = wants_engine_tier and engine_bound
+// the library when the engine is not bound on the chart.
+bool mode_bus = (structSource == "Auto" or structSource == "Engine BUS (live)") and engine_bound
 bool mode_piv = structSource == "Local pivots"
 bool mode_lib = not mode_bus and not mode_piv
 
 g_enrich = "Engine enrichments (tier 2 only)"
 bool use_real_zone = input.bool(true, "Box = real OB/FVG zone", group = g_enrich,
      tooltip = "Bull breakouts: draw the box on the engine's active Order-Block (or FVG) zone " +
-     "instead of the threshold band. Needs the ZoneOb*/ZoneFvg* rows linked; falls back to the band.")
+     "instead of the threshold band. Needs BUS ZoneOb*/ZoneFvg* bound; falls back to the band.")
 bool use_real_plan = input.bool(true, "Draw + simulate real Stop/Target", group = g_enrich,
      tooltip = "Plot the engine's actual Stop/Target1/Target2 and feed the win/loss tracker with the " +
-     "real Stop/Target (long side) instead of the synthetic ATR-RR. Needs the StopLevel/Target1 rows linked.")
+     "real Stop/Target (long side) instead of the synthetic ATR-RR. Needs BUS StopLevel/Target1 bound.")
 float qualityMin = input.float(0, "Min quality score (0 = off)", minval = 0, maxval = 100, group = g_enrich,
-     tooltip = "Suppress engine-tier breakouts whose linked QualityScore is below this. 0 disables the filter. " +
-     "Needs the QualityScore row linked to be meaningful.")
+     tooltip = "Suppress engine-tier breakouts whose BUS QualityScore is below this. 0 disables the filter. " +
+     "Needs BUS QualityScore bound to be meaningful.")
 
 // Resolved engine zone (bull side; prefer OB, else FVG). na → fall back to band.
 bool _ob_valid  = mode_bus and not na(src_ob_top) and not na(src_ob_bottom) and src_ob_top > src_ob_bottom
@@ -143,11 +139,11 @@ bool show_volemoji = input.bool(true, "Show volume sentiment emoji", group = g_v
 
 g_sim = "Win/Loss tracker (ATR-RR sim)"
 bool  sim_on      = input.bool(true,  "Enable tracker",          group = g_sim)
-float rr          = input.float(1.5, "RR ratio",   minval = 0.5, maxval = 5.0, step = 0.1, group = g_sim, active = sim_on)
-int   atrLen      = input.int(14,    "ATR length", minval = 5,   maxval = 50,  group = g_sim, active = sim_on)
-float atrMult     = input.float(1.5, "ATR × mult → SL", minval = 0.5, maxval = 5.0, step = 0.1, group = g_sim, active = sim_on)
-bool  sl_on_close = input.bool(true, "SL on close (else high/low)", group = g_sim, active = sim_on)
-bool  show_table  = input.bool(true, "Show stats table", group = g_sim, active = sim_on)
+float rr          = input.float(1.5, "RR ratio",   minval = 0.5, maxval = 5.0, step = 0.1, group = g_sim)
+int   atrLen      = input.int(14,    "ATR length", minval = 5,   maxval = 50,  group = g_sim)
+float atrMult     = input.float(1.5, "ATR × mult → SL", minval = 0.5, maxval = 5.0, step = 0.1, group = g_sim)
+bool  sl_on_close = input.bool(true, "SL on close (else high/low)", group = g_sim)
+bool  show_table  = input.bool(true, "Show stats table", group = g_sim)
 
 // ── Tier 3 source: local swing pivots (ALWAYS computed) ──
 // ta.* must be evaluated every bar for a correct series, so all three sources
@@ -380,7 +376,7 @@ if sim_on and sim_active
 int   sim_total = sim_wins + sim_losses
 float sim_wr    = sim_total > 0 ? sim_wins / float(sim_total) * 100.0 : 0.0
 
-string src_label = mode_bus ? "Chart Link" : mode_lib ? "Library" : "Pivots"
+string src_label = mode_bus ? "Engine BUS" : mode_lib ? "Library" : "Pivots"
 
 var table tb = table.new(position.top_right, 2, 5, bgcolor = color.new(color.gray, 80),
      border_width = 1, border_color = color.new(color.gray, 60))

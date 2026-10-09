@@ -59,21 +59,3 @@ def test_disconnect_and_restart_require_historical_resync() -> None:
     assert disconnect["databento_usage"]["historical_requests"] > 0
     assert restart["restarts"] == 1
     assert restart["resyncs_completed"] > 0
-
-
-def test_restart_flush_is_not_reported_as_slow_reader_overflow() -> None:
-    scenario = A0LoadScenario(
-        "restart_with_buffered_bars",
-        symbol_count=10,
-        duration_seconds=3,
-        buffer_capacity=100,
-        consumer_bars_per_second=0,
-        restart_at_second=1,
-    )
-
-    result = run_a0_load_probe([scenario], A0LoadBudget())["scenarios"][0]
-
-    assert result["records_restart_flushed"] == 10
-    assert result["records_overflow_dropped"] == 0
-    assert result["records_dropped"] == 10
-    assert result["invariants"]["slow_reader_expectation"] is True

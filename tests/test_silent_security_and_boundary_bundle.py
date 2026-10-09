@@ -32,7 +32,7 @@ from pathlib import Path
 
 import pytest
 
-from tests._guard_corpus import iter_production_py_files, parse_module
+from tests._guard_corpus import parse_module
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -44,7 +44,13 @@ _DIR_EXCLUDE = frozenset({
 
 
 def _iter_prod_py() -> list[Path]:
-    return iter_production_py_files(_DIR_EXCLUDE)
+    out: list[Path] = []
+    for p in sorted(ROOT.rglob("*.py")):
+        rel_parts = p.relative_to(ROOT).parts
+        if any(part in _DIR_EXCLUDE for part in rel_parts):
+            continue
+        out.append(p)
+    return out
 
 
 def _parse(p: Path) -> ast.AST | None:
@@ -176,13 +182,13 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     ("newsstack_fmp/run.py", 22),
     # 2026-07-03 (WP-3 holdout rescoring): helper additions shifted
     # logging.basicConfig from 211 -> 533.
-    ("open_prep/candidate_weights.py", 547),  # 2026-07-28 (Arm-B eligible-date split): 540->547
+    ("open_prep/candidate_weights.py", 540),  # 2026-07-10: eps_surprise_pct→recent_eps_surprise_pct reconstruction swap +1 (540->541)
     # 2026-06-13 (audit-e2/aw7-reader-observability, PR #2759): _load_previous_latest
     #   DEBUG log insertion shifted logging.basicConfig from 305 → 306.
     # 2026-07-15 (ops-digest truth): _DIAGNOSTIC_COUNTERS constant + the top-level
     #   counter copy in generate_report shifted basicConfig 307 → 327 (pure shift;
     #   still the CLI entry point's own root-logger setup).
-    ("open_prep/feature_importance_report.py", 374),  # 2026-07-28 (§15 exact shadow/EWMA report): 327->374
+    ("open_prep/feature_importance_report.py", 327),
     # 2026-06-11 (backfill defer-unpublished): 418→457.
     # 2026-06-11 (eval-findings B1/B2): direction+TB code shifted 457→536.
     # 2026-06-11 (c10b FI component persistence): era-gate block 536→558.
@@ -193,22 +199,15 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     # 2026-06-17 (F1 lint fix): remove unused import sys → 585→584.
     # 2026-07-05 (bug-hunt round 7): import math + non-finite entry/exit
     # price guard → 585→590.
-    ("open_prep/outcome_backfill.py", 966),  # 2026-08-08 (backfill keeps a horizon's earlier label): 953->966
+    ("open_prep/outcome_backfill.py", 643),  # 2026-07-18 (dataset-role import): 642->643
     # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
     # 2913 -> 2992; feature-flag helper additions shifted run_open_prep
     # 6059 -> 6063.
     # 2026-06-28 (semantic monitoring): shifted +80 lines by readiness metrics.
-    # 2026-07-26 (merge Databento source after re-qual fixes):
-    # combined branch additions shifted the reviewed CLI logging site to 4052.
-    ("open_prep/realtime_signals.py", 4196),  # 2026-08-08 (watchlist retraction): 4146->4170 (2026-08-18 railway-token guard) (2026-08-19 FMP-Endpoint-Seed: 4170->4185) (2026-08-21 cisco-probe: 4185->4196)
-    # 2026-07-25 (databento-signal-migration): quote_reference CLI main() sets
-    # up the root logger before its live orchestration run, same entry-point
-    # pattern as the other CLI tools in this ledger.
-    ("open_prep/quote_reference.py", 619),  # 2026-08-18 (D2 retry routing above): 610->619
-
+    ("open_prep/realtime_signals.py", 3869),  # 2026-07-20 private AI endpoint shifted site: 3862->3869
     # 2026-07-04 (market-microstructure observe-only): import + snapshot
     # block + row-loop fields shifted 6079 -> 6105.
-    ("open_prep/run_open_prep.py", 6456),  # 2026-07-28 (§15 + split-safe integration): 6373->6456
+    ("open_prep/run_open_prep.py", 6110),  # 2026-07-19 remove retired TradingView news lane
     # 2026-06-16 (feat/live-overlay-daemon): entry-point main.py configures
     # root logger at startup (Railway container, no other logger setup).
     # 2026-06-19 (fix/live-overlay-post-merge-bugs): import additions for
@@ -219,8 +218,7 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     # import and endpoint movement shifted basicConfig to line 39.
     # 2026-06-21 (auth decode hardening): binascii import shifted
     # basicConfig to line 40.
-    # 2026-07-22 (stale-flag data-freshness docstring): 40->41
-    ("services/live_overlay_daemon/main.py", 41),
+    ("services/live_overlay_daemon/main.py", 40),
     # 2026-07-17: isolated Railway entry point for the shadow-only A0 worker;
     # 2026-07-17: bounded runtime, reconnect and telemetry shifted the isolated
     # entry-point basicConfig from 180 -> 285.
@@ -228,8 +226,7 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     # 285 -> 324; root logging remains confined to main().
     # 2026-07-18: live-client thread-affinity fix removed the outer client
     # cleanup block, shifting the entry-point site 324 -> 316.
-    # 2026-07-21 (PRE-A0 replay/readiness hardening): 316->334.
-    ("services/a0_fast_detector/worker.py", 334),
+    ("services/a0_fast_detector/worker.py", 316),
     # 2026-07-18: standalone OPRA shadow-daemon CLI configures logging once at
     # process startup; the package modules themselves do not touch root logging.
     ("services/opra_live_daemon/main.py", 70),
@@ -287,14 +284,13 @@ _FROZEN_SYSPATH_SITES: frozenset[tuple[str, int, str]] = frozenset({
     # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
     # 1302 -> 1381.
     # 2026-06-28 (semantic monitoring): shifted +53 lines by readiness metrics.
-    ("open_prep/realtime_signals.py", 2007, "insert"),  # 2026-07-28 (quote_reference production): 1965->1989 (2026-08-18 railway-token guard) (2026-08-19 FMP-Endpoint-Seed: 1989->2004) (2026-08-21 cisco-probe: 2004->2007)
-
+    ("open_prep/realtime_signals.py", 1874, "insert"),  # 2026-07-20 private AI endpoint shifted site: 1867->1874
     ("open_prep/streamlit_monitor.py", 35, "insert"),  # 2026-07-18: dataset-usage import shifted +1
     # WP-H (PR #2612): 32 -> 34, VIX import + helper block added above.
     ("smc_tv_bridge/smc_api.py", 34, "insert"),
     ("streamlit_databento_volatility_screener.py", 8, "insert"),
     ("streamlit_smc_micro_base_generator.py", 8, "insert"),
-    ("streamlit_terminal.py", 276, "insert"),  # 2026-07-22 Technical Data tab: 275->276
+    ("streamlit_terminal.py", 275, "insert"),
 })
 
 

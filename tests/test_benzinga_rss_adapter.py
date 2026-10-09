@@ -304,9 +304,6 @@ def test_fetch_news_enforces_timeout_on_http_not_feedparser(monkeypatch):
     assert all(t == 7 for t in captured_timeouts), "timeout must reach the HTTP layer"
     assert captured_parse_args, "feedparser.parse must be called with content"
     assert captured_parse_args[0][0] == b"<rss></rss>", "parse receives fetched bytes"
-    assert captured_parse_kwargs, (
-        "no feedparser.parse kwargs recorded — this pin would pass vacuously"
-    )
     assert all("timeout" not in kw for kw in captured_parse_kwargs), (
         "feedparser.parse must NOT receive a timeout kwarg (unsupported in 6.x)"
     )

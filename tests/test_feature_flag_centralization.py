@@ -26,8 +26,6 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from tests._guard_corpus import iter_production_py_files
-
 REPO = Path(__file__).resolve().parents[1]
 
 #: The per-layer flag-reader modules. ``ENABLE_*`` name literals may appear only
@@ -74,8 +72,12 @@ def flag_name_literals(tree: ast.AST) -> list[tuple[int, str]]:
 
 
 def _iter_non_test_sources():
-    for path in iter_production_py_files(_EXCLUDE_TOP | {"tests"}):
-        yield path, path.relative_to(REPO).as_posix()
+    for path in REPO.rglob("*.py"):
+        rel = path.relative_to(REPO)
+        parts = rel.parts
+        if parts[0] in _EXCLUDE_TOP or parts[0] == "tests":
+            continue
+        yield path, rel.as_posix()
 
 
 def test_enable_flags_referenced_only_in_sanctioned_readers():

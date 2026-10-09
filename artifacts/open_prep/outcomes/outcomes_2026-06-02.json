@@ -13,15 +13,7 @@
     "zone_priority_rank": "B",
     "zone_priority_score": 55,
     "profitable_30m": true,
-    "pnl_30m_pct": 9.7369,
-    "pnl_120m_pct": -0.0342,
-    "pnl_120m_pct_signed": -0.0342,
-    "profitable_120m": false,
-    "profitable_120m_directional": false,
-    "pnl_eod_pct": -7.8237,
-    "pnl_eod_pct_signed": -7.8237,
-    "profitable_eod": false,
-    "profitable_eod_directional": false
+    "pnl_30m_pct": 9.7369
   },
   {
     "date": "2026-06-02",
@@ -37,19 +29,7 @@
     "zone_priority_rank": "B",
     "zone_priority_score": 65,
     "profitable_30m": true,
-    "pnl_30m_pct": 5.6736,
-    "pnl_60m_pct": 6.8309,
-    "pnl_60m_pct_signed": 6.8309,
-    "profitable_60m": true,
-    "profitable_60m_directional": true,
-    "pnl_120m_pct": 11.2282,
-    "pnl_120m_pct_signed": 11.2282,
-    "profitable_120m": true,
-    "profitable_120m_directional": true,
-    "pnl_eod_pct": 14.8045,
-    "pnl_eod_pct_signed": 14.8045,
-    "profitable_eod": true,
-    "profitable_eod_directional": true
+    "pnl_30m_pct": 5.6736
   },
   {
     "date": "2026-06-02",
@@ -65,19 +45,7 @@
     "zone_priority_rank": "B",
     "zone_priority_score": 55,
     "profitable_30m": true,
-    "pnl_30m_pct": 4.0133,
-    "pnl_60m_pct": 2.1632,
-    "pnl_60m_pct_signed": 2.1632,
-    "profitable_60m": true,
-    "profitable_60m_directional": true,
-    "pnl_120m_pct": 6.4815,
-    "pnl_120m_pct_signed": 6.4815,
-    "profitable_120m": true,
-    "profitable_120m_directional": true,
-    "pnl_eod_pct": 9.4603,
-    "pnl_eod_pct_signed": 9.4603,
-    "profitable_eod": true,
-    "profitable_eod_directional": true
+    "pnl_30m_pct": 4.0133
   },
   {
     "date": "2026-06-02",
@@ -93,19 +61,7 @@
     "zone_priority_rank": "B",
     "zone_priority_score": 55,
     "profitable_30m": true,
-    "pnl_30m_pct": 4.3843,
-    "pnl_60m_pct": 5.5102,
-    "pnl_60m_pct_signed": 5.5102,
-    "profitable_60m": true,
-    "profitable_60m_directional": true,
-    "pnl_120m_pct": 7.1197,
-    "pnl_120m_pct_signed": 7.1197,
-    "profitable_120m": true,
-    "profitable_120m_directional": true,
-    "pnl_eod_pct": 8.1475,
-    "pnl_eod_pct_signed": 8.1475,
-    "profitable_eod": true,
-    "profitable_eod_directional": true
+    "pnl_30m_pct": 4.3843
   },
   {
     "date": "2026-06-02",
@@ -121,19 +77,7 @@
     "zone_priority_rank": "B",
     "zone_priority_score": 55,
     "profitable_30m": true,
-    "pnl_30m_pct": 3.8395,
-    "pnl_60m_pct": 3.5849,
-    "pnl_60m_pct_signed": 3.5849,
-    "profitable_60m": true,
-    "profitable_60m_directional": true,
-    "pnl_120m_pct": 7.5333,
-    "pnl_120m_pct_signed": 7.5333,
-    "profitable_120m": true,
-    "profitable_120m_directional": true,
-    "pnl_eod_pct": 7.6469,
-    "pnl_eod_pct_signed": 7.6469,
-    "profitable_eod": true,
-    "profitable_eod_directional": true
+    "pnl_30m_pct": 3.8395
   },
   {
     "date": "2026-06-02",
@@ -149,19 +93,7 @@
     "zone_priority_rank": "B",
     "zone_priority_score": 65,
     "profitable_30m": false,
-    "pnl_30m_pct": -6.6603,
-    "pnl_60m_pct": -5.7502,
-    "pnl_60m_pct_signed": -5.7502,
-    "profitable_60m": false,
-    "profitable_60m_directional": false,
-    "pnl_120m_pct": -7.359,
-    "pnl_120m_pct_signed": -7.359,
-    "profitable_120m": false,
-    "profitable_120m_directional": false,
-    "pnl_eod_pct": -10.5527,
-    "pnl_eod_pct_signed": -10.5527,
-    "profitable_eod": false,
-    "profitable_eod_directional": false
+    "pnl_30m_pct": -6.6603
   },
   {
     "date": "2026-06-02",
@@ -177,19 +109,7 @@
     "zone_priority_rank": "B",
     "zone_priority_score": 55,
     "profitable_30m": true,
-    "pnl_30m_pct": 3.6259,
-    "pnl_60m_pct": 4.7251,
-    "pnl_60m_pct_signed": 4.7251,
-    "profitable_60m": true,
-    "profitable_60m_directional": true,
-    "pnl_120m_pct": 4.6978,
-    "pnl_120m_pct_signed": 4.6978,
-    "profitable_120m": true,
-    "profitable_120m_directional": true,
-    "pnl_eod_pct": 7.481,
-    "pnl_eod_pct_signed": 7.481,
-    "profitable_eod": true,
-    "profitable_eod_directional": true
+    "pnl_30m_pct": 3.6259
   },
   {
     "date": "2026-06-02",
@@ -205,19 +125,7 @@
     "zone_priority_rank": "B",
     "zone_priority_score": 65,
     "profitable_30m": true,
-    "pnl_30m_pct": 3.2705,
-    "pnl_60m_pct": 2.6342,
-    "pnl_60m_pct_signed": 2.6342,
-    "profitable_60m": true,
-    "profitable_60m_directional": true,
-    "pnl_120m_pct": 3.4472,
-    "pnl_120m_pct_signed": 3.4472,
-    "profitable_120m": true,
-    "profitable_120m_directional": true,
-    "pnl_eod_pct": 2.5625,
-    "pnl_eod_pct_signed": 2.5625,
-    "profitable_eod": true,
-    "profitable_eod_directional": true
+    "pnl_30m_pct": 3.2705
   },
   {
     "date": "2026-06-02",
@@ -233,19 +141,7 @@
     "zone_priority_rank": "B",
     "zone_priority_score": 60,
     "profitable_30m": true,
-    "pnl_30m_pct": 8.7375,
-    "pnl_60m_pct": 10.5847,
-    "pnl_60m_pct_signed": 10.5847,
-    "profitable_60m": true,
-    "profitable_60m_directional": true,
-    "pnl_120m_pct": 11.4185,
-    "pnl_120m_pct_signed": 11.4185,
-    "profitable_120m": true,
-    "profitable_120m_directional": true,
-    "pnl_eod_pct": 11.9179,
-    "pnl_eod_pct_signed": 11.9179,
-    "profitable_eod": true,
-    "profitable_eod_directional": true
+    "pnl_30m_pct": 8.7375
   },
   {
     "date": "2026-06-02",
@@ -261,18 +157,6 @@
     "zone_priority_rank": "B",
     "zone_priority_score": 55,
     "profitable_30m": true,
-    "pnl_30m_pct": 2.7175,
-    "pnl_60m_pct": 4.5468,
-    "pnl_60m_pct_signed": 4.5468,
-    "profitable_60m": true,
-    "profitable_60m_directional": true,
-    "pnl_120m_pct": 5.1985,
-    "pnl_120m_pct_signed": 5.1985,
-    "profitable_120m": true,
-    "profitable_120m_directional": true,
-    "pnl_eod_pct": 7.3085,
-    "pnl_eod_pct_signed": 7.3085,
-    "profitable_eod": true,
-    "profitable_eod_directional": true
+    "pnl_30m_pct": 2.7175
   }
 ]

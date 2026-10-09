@@ -53,20 +53,6 @@ def test_open_prep_snapshot_url_explicit_empty_disables_remote(monkeypatch) -> N
     assert rs._open_prep_snapshot_url() == ""
 
 
-def test_quote_reference_snapshot_url_defaults_to_rolling_branch(monkeypatch) -> None:
-    monkeypatch.delenv("QUOTE_REFERENCE_SNAPSHOT_URL", raising=False)
-    assert rs._quote_reference_snapshot_url() == (
-        "https://api.github.com/repos/skipp-dev/skipp-algo/contents/"
-        "artifacts/open_prep/latest/quote_reference.json"
-        "?ref=bot/live-open-prep-snapshot"
-    )
-
-
-def test_quote_reference_snapshot_url_explicit_empty_disables_remote(monkeypatch) -> None:
-    monkeypatch.setenv("QUOTE_REFERENCE_SNAPSHOT_URL", "")
-    assert rs._quote_reference_snapshot_url() == ""
-
-
 def test_fetch_json_url_sends_optional_bearer_token(monkeypatch) -> None:
     captured: dict[str, object] = {}
 
@@ -506,10 +492,7 @@ def _isolated_engine(monkeypatch, tmp_path):
     """Engine whose constructor cannot see a real snapshot (env/file)."""
     from pathlib import Path
 
-    # Empty, not deleted: deleting it activates the LIVE default snapshot URL
-    # (_open_prep_snapshot_url), and the constructor then read 836 real
-    # candidates whenever the GitHub API call succeeded (validate (4), 2026-10-08).
-    monkeypatch.setenv("OPEN_PREP_SNAPSHOT_URL", "")
+    monkeypatch.delenv("OPEN_PREP_SNAPSHOT_URL", raising=False)
     monkeypatch.setattr(rs, "LATEST_RUN_PATH", Path(tmp_path) / "missing.json")
     monkeypatch.setattr(rs, "_LEGACY_RUN_PATH", Path(tmp_path) / "missing2.json")
     monkeypatch.setattr(rs.RealtimeEngine, "_enrich_watchlist_live", lambda self: None)
@@ -550,38 +533,6 @@ def test_load_watchlist_fresh_boot_empty_snapshot_stays_empty(monkeypatch, tmp_p
     assert engine.watchlist_load_success == 0.0
 
 
-def test_load_watchlist_excludes_long_delisted_dayforce_snapshot(
-    monkeypatch,
-    tmp_path,
-) -> None:
-    engine = _isolated_engine(monkeypatch, tmp_path)
-    snapshot = {
-        "ranked_v2": [{"symbol": "DAY"}, {"symbol": "AAPL"}],
-        "filtered_out_v2": [],
-        "enriched_quotes": [
-            {
-                "symbol": "DAY",
-                "timestamp": 1_770_152_402,
-                "gap_reason": "stale_prior_session_quote",
-                "premarket_stale": True,
-            },
-            {
-                "symbol": "AAPL",
-                "timestamp": 1_785_247_200,
-                "gap_reason": "ok",
-            },
-        ],
-        "run_datetime_utc": "2026-07-28T14:30:00+00:00",
-        "diff": {},
-    }
-    monkeypatch.setenv("OPEN_PREP_SNAPSHOT_URL", "https://example.test/snapshot.json")
-    monkeypatch.setattr(rs, "_fetch_json_url", lambda url, timeout=15.0: snapshot)
-
-    engine._load_watchlist()
-
-    assert [row["symbol"] for row in engine._watchlist] == ["AAPL"]
-
-
 def test_extract_snapshot_epoch_falls_back_to_run_datetime_utc() -> None:
     """Snapshots never carry a top-level ``generated_at`` (only the diff
     sub-object does); without the ``run_datetime_utc`` fallback the age
@@ -597,31 +548,3 @@ def test_extract_snapshot_epoch_falls_back_to_run_datetime_utc() -> None:
 
     assert rs._extract_snapshot_epoch(None) == 0.0
     assert rs._extract_snapshot_epoch({}) == 0.0
-
-
-def test_refresh_quote_reference_noop_when_url_explicitly_empty(monkeypatch, tmp_path) -> None:
-    monkeypatch.setenv("QUOTE_REFERENCE_SNAPSHOT_URL", "")
-    monkeypatch.setattr(rs, "_ARTIFACTS_LATEST", tmp_path)
-    assert rs._refresh_quote_reference_from_url() is False
-    assert not (tmp_path / "quote_reference.json").exists()
-
-
-def test_refresh_quote_reference_writes_local_on_success(monkeypatch, tmp_path) -> None:
-    monkeypatch.setenv("QUOTE_REFERENCE_SNAPSHOT_URL", "https://example.test/quote_reference.json")
-    payload = {"AAPL": {"previous_close": 100.0, "average_daily_volume": 2_000_000.0,
-                        "as_of_session": "2026-07-27", "source": "fmp:adjusted-eod"}}
-    monkeypatch.setattr(rs, "_fetch_json_url", lambda url, timeout=15.0: payload)
-    monkeypatch.setattr(rs, "_ARTIFACTS_LATEST", tmp_path)
-    assert rs._refresh_quote_reference_from_url() is True
-    assert json.loads((tmp_path / "quote_reference.json").read_text(encoding="utf-8")) == payload
-
-
-def test_refresh_quote_reference_failsoft_keeps_last_good_on_fetch_error(monkeypatch, tmp_path) -> None:
-    # A fetch failure must NOT blank the last-good local reference.
-    monkeypatch.setenv("QUOTE_REFERENCE_SNAPSHOT_URL", "https://example.test/quote_reference.json")
-    monkeypatch.setattr(rs, "_fetch_json_url", lambda url, timeout=15.0: None)
-    monkeypatch.setattr(rs, "_ARTIFACTS_LATEST", tmp_path)
-    (tmp_path / "quote_reference.json").write_text('{"AAPL": {"previous_close": 99.0}}', encoding="utf-8")
-    assert rs._refresh_quote_reference_from_url() is False
-    kept = json.loads((tmp_path / "quote_reference.json").read_text(encoding="utf-8"))
-    assert kept["AAPL"]["previous_close"] == 99.0

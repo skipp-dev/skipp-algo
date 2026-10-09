@@ -1,17 +1,10 @@
 # live-window: mutating-on-cron  # F-V6-F2.1 (2026-05-02)
 # SMC Library Intraday Refresh (v5)
 #
-# Ausgeloest wird dieser Workflow auf ZWEI Wegen, und der Unterschied ist
-# wichtig: `workflow_run` ist der WEG (er feuert bei jedem erfolgreichen
-# Producer-Abschluss, also ~9x pro Werktag), die vier Cron-Ticks
-# 13/17/21/23 UTC sind das NETZ fuer den Fall, dass der Weg ausfaellt.
-# Bis 2026-08-29 lief das Netz mit neun Ticks parallel zum Weg und
-# verdoppelte damit die Last: gemessen am 2026-08-27 kostete dieser
-# Workflow 951 Runner-Minuten (17 % der Actions-Last des gesamten Repos)
-# bei 13 Laeufen. Prior history der Netz-Kadenz: 9x (Option-D 2026-06-16);
-# 3x 16/20/22 (A2-F2 PR #2787); 2x 16/20 (F-V8-C4); 4x 13/15/17/19 (F-V6-C3).
-# Der Netz-Vertrag ist in tests/test_workflow_databento_cron_respacing.py
-# gepinnt — inklusive der Forderung, dass der Fast Path existiert.
+# Runs 3x per trading day at 16:00 / 20:00 / 22:00 UTC on weekdays — the
+# 22:00 tick (A2-F2, PR #2787) was added as a 60-min consumer followup for
+# the producer safety-net tick at 21:00 UTC. Prior history: 2x/day 16:00/20:00
+# (F-V8-C4 2026-05-06, 4×→2×); 4x 13/15/17/19 (F-V6-C3); 4x 12:30/14:30/16:30/18:30.
 # F-V8-cutover (2026-05-18) then moved the canonical producer cron to
 # smc-databento-production-export-sharded.yml while keeping the legacy
 # artifact name for downstream compatibility. See cron block below for
@@ -19,14 +12,15 @@
 # restructure. Within the handoff window the consumer expects a
 # freshly-completed producer artifact (see
 # test_workflow_databento_handoff_timeouts for the pin enforcing this).
-# Each run: generate → event-risk → gate → detect changes → diff report →
+# Each run: generate static control plane → gate → detect changes → diff report →
 #           governance → publish → commit → alerts.
 # Skips publish/version-bump/commit when the library content is unchanged.
 # v5 stages:
 #   1. Restore Databento base-data bundle (produced by
 #      smc-databento-production-export-sharded.yml and consumed here via
 #      --bundle; this workflow runs no Databento scan of its own)
-#   2. Enrichment (regime, news, calendar, layering, event-risk)
+#   2. Static Library Control Plane generation; provider-backed enrichment
+#      remains runtime-sidecar data
 #   3. Evidence gates (integration / structure / core tests)
 #   4. Change detection (diff against previous library)
 #   5. Version governance (breaking-change detection)
@@ -37,9 +31,7 @@
 # Required secrets:
 #   FMP_API_KEY        – Financial Modeling Prep API key (enrichment data)
 #   BENZINGA_API_KEY   – Benzinga API key (news/calendar fallback)
-#   (TV-Storage-State wird hier NICHT mehr gebraucht: die Veroeffentlichung
-#    liegt seit 2026-08-13 in smc-library-publish.yml und haelt dort auch
-#    die tradingview-session-Sperre.)
+#   TV_STORAGE_STATE   – TradingView Playwright storage-state as raw JSON or gzip+base64 (publish)
 #   DATABENTO_API_KEY  – Consumed by the provider-credential preflight step
 #                        (--databento-key-env DATABENTO_API_KEY); base data is
 #                        produced by smc-databento-production-export-sharded.yml
@@ -59,16 +51,12 @@
 #   SMTP_PASS          – SMTP login password
 #   ALERT_EMAIL_FROM   – Sender address for email alerts
 #   ALERT_EMAIL_TO     – Recipient address for email alerts
-#
-# (NewsAPI.ai was listed here until 2026-08-03. Retired 2026-07-08 — the
-# subscription was cancelled, ENABLE_NEWSAPI_AI defaults OFF and this workflow
-# never sets it, so no step in this file can consume the key. It is no longer
-# passed to any step; see tests/test_smc_library_refresh_workflow.py.)
+#   NEWSAPI_KEY     – NewsAPI.ai key for optional news fallback enrichment
 #
 # Secret compatibility note (v4 → v5):
 #   Secret names are unchanged from v4 — no reconfiguration needed.
-#   The v5 architecture adds the event-risk enrichment stage which
-#   derives from existing calendar + news data; no new secrets are required.
+#   Provider-backed event risk is delivered by runtime sidecars rather than
+#   embedded in the published static library; no new secrets are required.
 
 name: smc-library-refresh
 
@@ -84,26 +72,15 @@ on:
     # Option-D (2026-06-16): 9 safety-net ticks, each exactly 60 min after the
     # corresponding producer tick. Count must equal producer count (enforced by
     # tests/test_workflow_databento_cron_respacing.py).
-    # 2026-08-29 (Kosten-Messung): 9 -> 4 Ticks. Die Neun waren "ein Tick je
-    # Producer-Tick" — aber der `workflow_run`-Trigger unten feuert schon bei
-    # JEDEM Producer-Abschluss und ist laut Kommentar dort der primary fast
-    # path; im gesunden Betrieb war jeder Cron-Tick damit eine zweite,
-    # redundante Ausfuehrung derselben Arbeit. Gemessen am 2026-08-27 ueber
-    # alle 414 Laeufe des Tages: 13 Refresh-Laeufe a ~73 Runner-Minuten =
-    # 951 min/Tag (17 % der gesamten Actions-Last), davon 6 aus dem Cron.
-    # Das Sicherheitsnetz bleibt — es faengt nur mit <=4 h statt <=2 h.
-    #
-    # Der Vertrag aus test_workflow_databento_cron_respacing bleibt gewahrt
-    # (FLOOR-Pin, kein Gleichheits-Pin): jeder Producer-Tick hat weiter einen
-    # Consumer-Tick >=60 min spaeter am selben Tag, und keiner faellt in die
-    # 60-min-Schreibfenster. Producer: 08,10,12,14,16,18,20,21,22.
-    #   08,10,12 -> 13:00 · 14,16 -> 17:00 · 18,20 -> 21:00 · 21,22 -> 23:00
-    # Freshness-Budget des meta-watchdog (30 h, weekday) bleibt weit
-    # unterschritten: groesste Werktagsluecke 23:00 -> 13:00 = 14 h.
-    - cron: "0 13 * * 1-5"   # 13:00 UTC – deckt Producer 08/10/12
-    - cron: "0 17 * * 1-5"   # 17:00 UTC – deckt Producer 14/16
-    - cron: "0 21 * * 1-5"   # 21:00 UTC – deckt Producer 18/20
-    - cron: "0 23 * * 1-5"   # 23:00 UTC – deckt Producer 21/22
+    - cron: "0 9 * * 1-5"    # 09:00 UTC – 60 min after producer 08:00 tick
+    - cron: "0 11 * * 1-5"   # 11:00 UTC – 60 min after producer 10:00 tick
+    - cron: "0 13 * * 1-5"   # 13:00 UTC – 60 min after producer 12:00 tick
+    - cron: "0 15 * * 1-5"   # 15:00 UTC – 60 min after producer 14:00 tick
+    - cron: "0 17 * * 1-5"   # 17:00 UTC – 60 min after producer 16:00 tick
+    - cron: "0 19 * * 1-5"   # 19:00 UTC – 60 min after producer 18:00 tick
+    - cron: "0 21 * * 1-5"   # 21:00 UTC – 60 min after producer 20:00 tick
+    - cron: "0 22 * * 1-5"   # 22:00 UTC – 60 min after producer 21:00 tick
+    - cron: "0 23 * * 1-5"   # 23:00 UTC – 60 min after producer 22:00 tick
   # F-V4-J3 (2026-05-01) blast-radius reduction (kept alongside the
   # F-V6-C3 cron schedule above as belt-and-suspenders): consumer also
   # fires immediately when the canonical sharded producer
@@ -147,24 +124,8 @@ on:
 # mid-run would leave a half-written artifact tree on the runner and a
 # zombie PR branch on origin. The follow-on tick queues instead.
 concurrency:
-  # Eigene Gruppe statt der TradingView-Sitzung (2026-08-13). Der Schutz, den
-  # dieser Workflow braucht, ist "nicht zwei Refreshes gleichzeitig" — nicht
-  # "nicht gleichzeitig mit fremden TradingView-Laeufen". Das ist die Form von
-  # vor #4297, das ihn seinerzeit in die geteilte Sitzungsgruppe zog.
-  # cancel-in-progress bleibt false: ein abgebrochener Lauf laesst einen halb
-  # geschriebenen Artefaktbaum und moeglicherweise einen Zombie-PR-Zweig zurueck.
   group: smc-library-refresh-${{ github.ref }}
   cancel-in-progress: false
-  queue: max
-
-# KEINE `concurrency: tradingview-session` mehr (2026-08-13). Dieser Workflow
-# fasst TradingView nicht mehr an — er erzeugt, prueft und uebergibt. Die Sperre
-# haelt jetzt `smc-library-publish.yml`, und zwar nur fuer die ~13 Minuten, die
-# eine Browser-Sitzung brauchen. Vorher hielt SIE JEDER Lauf ueber seine volle
-# Dauer, auch die rund 60 %, die bei unveraenderter Bibliothek frueh aussteigen:
-# die Gruppe wird beim START des Laufs genommen, nicht beim ersten
-# TradingView-Schritt. Messungen und Begruendung:
-# docs/superpowers/plans/2026-08-13-tradingview-session-lock-split.md
 
 permissions:
   contents: write
@@ -200,7 +161,7 @@ jobs:
       matched_runner_name: ${{ steps.resolve.outputs.matched_runner_name }}
     steps:
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           persist-credentials: false
 
@@ -239,7 +200,7 @@ jobs:
       contents: write
     steps:
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           persist-credentials: false
 
@@ -331,22 +292,20 @@ jobs:
           # a 2026-07-11 Saturday bundle).
           #
           # Arm the reject-stale guard only once a same-date producer bundle is
-          # actually *due*: on a producer weekday (Mon-Fri) after its earliest
-          # daily tick (08:00 UTC). Before that, or throughout the weekend, a
-          # missing same-date bundle is normal, so the run proceeds from the
-          # freshest bundle (mirroring the workflow_dispatch lane). A genuine
-          # weekday outage still hard-fails.
+          # actually *due*, i.e. the producer's earliest daily tick (08:00 UTC)
+          # has come around. Before that, a missing same-date bundle is normal,
+          # so the guard stays disarmed and the run proceeds from the freshest
+          # bundle (mirroring the workflow_dispatch lane). A genuine daytime
+          # outage (>=08:00 UTC with only a stale fallback) still hard-fails.
           PRODUCER_FIRST_TICK_UTC_HOUR=8   # keep == earliest producer cron hour
           REFRESH_UTC_HOUR=$(date -u +%H)
-          REFRESH_UTC_WEEKDAY=$(date -u +%u)  # 1=Monday ... 7=Sunday
-          if [ "$((10#$REFRESH_UTC_WEEKDAY))" -le 5 ] \
-             && [ "$((10#$REFRESH_UTC_HOUR))" -ge "$PRODUCER_FIRST_TICK_UTC_HOUR" ]; then
+          if [ "$((10#$REFRESH_UTC_HOUR))" -ge "$PRODUCER_FIRST_TICK_UTC_HOUR" ]; then
             GUARD=true
           else
             GUARD=false
           fi
           echo "stale_guard_active=${GUARD}" >> "$GITHUB_OUTPUT"
-          echo "::notice::REFRESH_DATE=$(date -u +%Y-%m-%d), UTC weekday=${REFRESH_UTC_WEEKDAY}, hour=${REFRESH_UTC_HOUR}, stale-fallback guard active=${GUARD} (producer schedule Mon-Fri from ${PRODUCER_FIRST_TICK_UTC_HOUR}:00 UTC)."
+          echo "::notice::REFRESH_DATE=$(date -u +%Y-%m-%d), UTC hour=${REFRESH_UTC_HOUR}, stale-fallback guard active=${GUARD} (producer earliest tick ${PRODUCER_FIRST_TICK_UTC_HOUR}:00 UTC)."
 
       - name: Emit runner selection
         run: |
@@ -357,7 +316,7 @@ jobs:
 
       # ── Checkout ────────────────────────────────────────────────
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           token: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
           persist-credentials: false
@@ -406,14 +365,14 @@ jobs:
           exit 1
 
       - name: Set up Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: "20"
           cache: "npm"
           cache-dependency-path: package-lock.json
 
       - name: Install uv
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
           # Mirrors ci.yml: GHA cache backend returns HTTP 400 on the
           # Windows self-hosted runner. Disable the GHA cache layer there;
@@ -449,7 +408,7 @@ jobs:
 
       - name: Restore Playwright browsers cache
         id: pw_cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-browsers-${{ steps.pw_version.outputs.version }}
@@ -480,55 +439,79 @@ jobs:
           fi
 
       # ── Restore canonical Databento production export bundle ────
-      # The artifact name is shared by full-window and incremental producer
-      # runs, so "latest" is not a sufficient contract. Use the semantic
-      # restore helper shared with the rolling benchmark: it verifies the
-      # canonical producer, selects the largest candidate per UTC date, and
-      # rejects manifests with fewer than 15 covered trading days. This keeps
-      # a later two-day delta from replacing the full seed used for 20-day
-      # library features.
-      - name: Restore sufficiently deep Databento production export bundle
-        id: restore_export_bundle
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RUN_DATE: ${{ env.REFRESH_DATE }}
-          DATABENTO_MIN_TRADE_DAYS: "15"
-        run: |
-          set -euo pipefail
-          "$SMC_PYTHON_BIN" scripts/restore_databento_export_bundle.py
+      # F-V5-D3 (2026-05-01): switched from actions/cache/restore to
+      # dawidd6/action-download-artifact. The canonical sharded producer
+      # workflow (smc-databento-production-export-sharded.yml) publishes
+      # its compat-layer bundle under the legacy workflow-artifact name
+      # `smc-databento-production-export-<DATE>-<RUN_ID>` (F-V5-D2). We
+      # search the producer workflow's recent runs for the newest
+      # successful artifact whose name matches today's date; if none is
+      # available we fall back to the most recent same-prefix artifact.
+      # `if_no_artifact_found: warn` keeps the existing soft-fail
+      # contract — verify_export_bundle below decides whether to block.
+      #
+      # F-V8-C4.2 (2026-06-14): restore/verify happens BEFORE library
+      # generation. The refresh consumer must build from the producer
+      # bundle via `--bundle`, not rerun the producer's full Databento
+      # scan via `--run-scan` on a cold hosted fallback runner.
+      - name: Restore Databento production export bundle (today)
+        id: restore_export_bundle_today
+        uses: dawidd6/action-download-artifact@b6e2e70617bc3265edd6dab6c906732b2f1ae151 # v21
+        with:
+          workflow: smc-databento-production-export-sharded.yml
+          name: smc-databento-production-export-${{ env.REFRESH_DATE }}-
+          name_is_regexp: true
+          path: artifacts/smc_microstructure_exports
+          workflow_conclusion: success
+          if_no_artifact_found: warn
+
+      - name: Restore Databento production export bundle (latest fallback)
+        id: restore_export_bundle_fallback
+        if: steps.restore_export_bundle_today.outputs.found_artifact != 'true'
+        uses: dawidd6/action-download-artifact@b6e2e70617bc3265edd6dab6c906732b2f1ae151 # v21
+        with:
+          workflow: smc-databento-production-export-sharded.yml
+          name: ^smc-databento-production-export-
+          name_is_regexp: true
+          path: artifacts/smc_microstructure_exports
+          workflow_conclusion: success
+          if_no_artifact_found: warn
 
       - name: Reject stale Databento fallback on automated refresh
         id: reject_stale_export_fallback
         # F-V8-C4.3 (2026-07-11): only arm when a same-date producer bundle is
-        # actually due (Mon-Fri, >=08:00 UTC). The `stale_guard_active` gate suppresses
+        # actually due (>=08:00 UTC). The `stale_guard_active` gate suppresses
         # the cross-midnight false red where a late `0 23 * * 1-5` tick slipped
         # past 00:00 UTC and REFRESH_DATE rolled to a day the producer has not
         # (and, on a Fri->Sat crossing, cannot) build yet. See the "Set refresh
         # date" step comment for the full rationale.
         if: |
           github.event_name != 'workflow_dispatch'
-          && steps.restore_export_bundle.outputs.artifact_mode == 'fallback'
+          && steps.restore_export_bundle_today.outputs.found_artifact != 'true'
+          && steps.restore_export_bundle_fallback.outputs.found_artifact == 'true'
           && steps.set_refresh_date.outputs.stale_guard_active == 'true'
         run: |
           set -euo pipefail
           echo "::error file=.github/workflows/smc-library-refresh.yml::Automated library refresh resolved only a fallback Databento export for REFRESH_DATE=${REFRESH_DATE}. Refusing to generate from a stale producer bundle; wait for smc-databento-production-export-sharded to publish today's compat artifact, or rerun manually if an older bundle is intentional."
           exit 1
 
-      - name: Note tolerated not-yet-due Databento fallback
+      - name: Note tolerated overnight Databento fallback
         # Companion to the reject-stale guard: when the guard is disarmed
-        # (overnight or weekend, when no same-date producer tick is due) and only a
+        # (overnight, before the producer's earliest daily tick) and only a
         # fallback bundle resolved, generation proceeds from the most recent
         # producer bundle instead of hard-failing. Emit a truthful notice so
         # the tolerated path is auditable rather than silent.
         if: |
           github.event_name != 'workflow_dispatch'
-          && steps.restore_export_bundle.outputs.artifact_mode == 'fallback'
+          && steps.restore_export_bundle_today.outputs.found_artifact != 'true'
+          && steps.restore_export_bundle_fallback.outputs.found_artifact == 'true'
           && steps.set_refresh_date.outputs.stale_guard_active != 'true'
         run: |
-          echo "::notice::No same-date producer bundle is due for REFRESH_DATE=${REFRESH_DATE} yet (before the first weekday tick or during the weekend). Proceeding from the most recent producer bundle instead of hard-failing; genuine weekday staleness after 08:00 UTC is still rejected."
+          echo "::notice::No same-date producer bundle for REFRESH_DATE=${REFRESH_DATE} yet (overnight tick before the producer's first daily 08:00 UTC run). Proceeding from the most recent producer bundle instead of hard-failing; a genuine daytime staleness (>=08:00 UTC) is still rejected. Root cause: a late nightly consumer tick crossed midnight UTC under GitHub scheduler lag."
 
-      # The restore helper extracts beneath `<path>/<artifact-name>/...`.
-      # Consumer
+      # F-V8-D1 (2026-05-14): dawidd6/action-download-artifact@b6e2e70617bc3265edd6dab6c906732b2f1ae151 # v21 with
+      # name_is_regexp: true unconditionally nests each downloaded artifact
+      # under `<path>/<artifact-name>/...` (see main.js:269). Consumer
       # scripts (smc_integration.{structure_batch,measurement_evidence,
       # service}, scripts/run_smc_pre_release_artifact_refresh.py and
       # scripts/load_databento_export_bundle.py:_manifest_candidates)
@@ -548,7 +531,8 @@ jobs:
       - name: Flatten downloaded Databento export bundle
         id: flatten_export_bundle
         if: |
-          steps.restore_export_bundle.outputs.found_artifact == 'true'
+          steps.restore_export_bundle_today.outputs.found_artifact == 'true'
+          || steps.restore_export_bundle_fallback.outputs.found_artifact == 'true'
         run: |
           set -euo pipefail
           ROOT=artifacts/smc_microstructure_exports
@@ -607,12 +591,7 @@ jobs:
         env:
           DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
           FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
-          # NewsAPI.ai is NOT wired in here: retired 2026-07-08 (subscription
-          # cancelled), demoted in probe_providers.py + skipped in
-          # credential-health-check.yml on 2026-07-10. This workflow was the
-          # missed third site — its dead key answered HTTP 200 until 2026-08-01,
-          # then 401'd and permanently blocked the daily refresh (run
-          # 30805042119). Passing the secret is what made the probe run at all.
+          NEWSAPI_KEY: ${{ secrets.NEWSAPI_KEY }}
           # Benzinga News API is load-bearing (2026-07-08: open_prep Core News +
           # live-news cron). The Benzinga probe is not skipped here, so the
           # key + transport MUST be wired in or the preflight aborts on an empty
@@ -620,27 +599,18 @@ jobs:
           # Generate step; Massive-reseller key needs BENZINGA_PROVIDER=massive.
           BENZINGA_API_KEY: ${{ secrets.BENZINGA_API_KEY }}
           BENZINGA_PROVIDER: ${{ vars.BENZINGA_PROVIDER || 'direct' }}
-          # Composio is NOT wired in here and is skipped below (--skip-composio).
-          # This workflow uses Composio zero times downstream (before this
-          # change `grep -ci composio` on this file returned 0): generation,
-          # publish and the Pine push touch no Composio toolkit. PR #4333 added
-          # probe_composio_accounts to the shared script and wired the env into
-          # credential-health-check.yml only; this workflow then aborted on an
-          # empty COMPOSIO_PROD_API_KEY — 12 consecutive failed runs on
-          # 2026-08-03, with every other probe ok. Skipping (not granting a
-          # credential this workflow does not use) is the fix: gating ~2.5h of
-          # Pine generation on a Notion OAuth connection is wrong coupling.
-          # Same reasoning as --skip-tv / --skip-gh-pat / --skip-newsapi above.
-          # tests/test_credential_probe_consumers.py now enforces this per
-          # consumer, so the next added probe cannot repeat it silently.
         run: |
           mkdir -p artifacts/ci
+          newsapi_arg=()
+          if [ -z "${NEWSAPI_KEY:-}" ]; then
+            echo "::warning::NEWSAPI_KEY not set — skipping optional NewsAPI preflight probe."
+            newsapi_arg+=(--skip-newsapi)
+          fi
           set +e
           "$SMC_PYTHON_BIN" scripts/credential_health_check.py \
             --skip-tv \
             --skip-gh-pat \
-            --skip-newsapi \
-            --skip-composio \
+            "${newsapi_arg[@]}" \
             --databento-key-env DATABENTO_API_KEY \
             --fmp-key-env FMP_API_KEY \
             --output artifacts/ci/provider_preflight.json
@@ -669,35 +639,18 @@ jobs:
             echo "::warning::Provider credential preflight reported warnings (severity=warn) — proceeding with generation."
           fi
 
-      # ── Library generation with enrichment (v5) ─────────────────
-      # 2026-07-22 (issue #3872 aftermath): back to provider-enriched
-      # generation. #3790 flipped this to --static-only with the intent that
-      # enrichment moves to the runtime sidecar — but the sidecar serves none
-      # of the embedded fields yet (no universe membership, no VIX, no
-      # event-risk gate, no trust data), so the flip removed them from the
-      # operator's chart with no replacement (UNIVERSE: UNINITIALIZED /
-      # Trust Insufficient on every consumer). Re-embed until the sidecar
-      # actually carries this data.
-      - name: Generate SMC library with v5 enrichment
+      # ── Static Library Control Plane generation ─────────────────
+      - name: Generate static SMC library control plane
         # Option-D (2026-06-16): 45-min hard limit guards against FMP/Benzinga
         # retry storms that caused 90–155 min hangs (root cause: ~100 per-ticker
         # API calls × 84s worst-case retry budget = ~8400s). A timed-out run
         # fails the job, releases the concurrency slot, and lets the next tick
         # pick up the delta. The job-level cap stays at 240 min.
         timeout-minutes: 45
-        env:
-          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
-          BENZINGA_API_KEY: ${{ secrets.BENZINGA_API_KEY }}
-          # Transport-Flip (Massive-Reseller-Key) — repo variable, default direct.
-          BENZINGA_PROVIDER: ${{ vars.BENZINGA_PROVIDER || 'direct' }}
-          # NewsAPI.ai deliberately NOT wired (retired 2026-07-08): every
-          # consumption site is gated on `enable_newsapi_ai AND newsapi_ai_key`
-          # (newsstack_fmp/pipeline.py:850,1032) and ENABLE_NEWSAPI_AI defaults
-          # OFF, so dropping the key is behaviour-neutral here.
         run: |
           "$SMC_PYTHON_BIN" scripts/generate_smc_micro_base_from_databento.py \
             --bundle artifacts/smc_microstructure_exports \
-            --enrich-all \
+            --static-only \
             --export-dir artifacts/smc_microstructure_exports \
             --output-root .
 
@@ -1022,7 +975,6 @@ jobs:
             --max-age-seconds 86400 \
             --output artifacts/ci/structure_artifact_availability.json
           "$SMC_PYTHON_BIN" scripts/run_smc_release_gates.py \
-            --measurement-baseline-summary reports/smc_measurement_baseline_summary.json \
             --output artifacts/ci/smc_pre_release_gates_report.json
 
       # ── Dated snapshot archival ─────────────────────────────────
@@ -1040,117 +992,555 @@ jobs:
                "${SNAP_DIR}/smc_micro_profiles_core_import_run${{ github.run_number }}.pine"
           fi
 
-
-      # ── Uebergabe an smc-library-publish ────────────────────────
-      # Die Entscheidungen dieses Laufs reisen als Datei, nicht als Job-Output:
-      # `workflow_run` traegt im nachgelagerten Workflow KEINE Outputs des
-      # ausloesenden Laufs. Sie liegen im selben Artefakt wie die erzeugte
-      # Bibliothek, damit Entscheidung und Gegenstand nicht auseinanderlaufen
-      # koennen.
-      - name: Write refresh handoff
-        if: always()
+      # ── Publish to TradingView (skip when unchanged or breaking) ─
+      - name: Write TradingView storage state
+        if: steps.diff.outputs.changed == 'true' && steps.publish_gate.outputs.publish_allowed == 'true' && github.ref == 'refs/heads/main'
         env:
-          CHANGED: ${{ steps.diff.outputs.changed }}
-          PUBLISH_ALLOWED: ${{ steps.publish_gate.outputs.publish_allowed }}
-          BREAKING: ${{ steps.breaking.outputs.breaking }}
-          REASON: ${{ steps.breaking.outputs.reason }}
-          FIRST_FAILED_TEST: ${{ steps.gates.outputs.first_failed_test }}
-          FIRST_FAILED_TEST_LINE: ${{ steps.gates.outputs.first_failed_test_line }}
+          TV_STORAGE_STATE_SECRET: ${{ secrets.TV_STORAGE_STATE }}
         run: |
-          set -euo pipefail
-          mkdir -p artifacts/ci
-          "$SMC_PYTHON_BIN" - <<'PY' > artifacts/ci/refresh_handoff.json
-          import json, os
-          print(json.dumps({
-              "changed": os.environ.get("CHANGED", "") or "false",
-              "publish_allowed": os.environ.get("PUBLISH_ALLOWED", "") or "false",
-              "breaking": os.environ.get("BREAKING", "") or "false",
-              "reason": os.environ.get("REASON", ""),
-              "first_failed_test": os.environ.get("FIRST_FAILED_TEST", ""),
-              "first_failed_test_line": os.environ.get("FIRST_FAILED_TEST_LINE", ""),
-              "refresh_date": os.environ.get("REFRESH_DATE", ""),
-          }, indent=2, sort_keys=True))
+          mkdir -p automation/tradingview/auth
+          "$SMC_PYTHON_BIN" - <<'PY'
+          import base64
+          import gzip
+          import json
+          import os
+          from pathlib import Path
+
+          raw = os.environ['TV_STORAGE_STATE_SECRET']
+          trimmed = raw.strip()
+          if not trimmed:
+            raise SystemExit('TV_STORAGE_STATE secret is empty')
+
+          if trimmed.startswith('{'):
+            payload = trimmed
+          else:
+            try:
+              payload = gzip.decompress(base64.b64decode(trimmed)).decode('utf-8')
+            except Exception as exc:
+              raise SystemExit(f'TV_STORAGE_STATE is neither raw JSON nor gzip+base64: {exc}')
+
+          try:
+            json.loads(payload)
+          except json.JSONDecodeError as exc:
+            raise SystemExit(f'Invalid TV_STORAGE_STATE JSON payload: {exc}')
+
+          output_path = Path('automation/tradingview/auth/storage-state.json')
+          output_path.write_text(payload if payload.endswith('\n') else payload + '\n', encoding='utf-8')
           PY
-          cat artifacts/ci/refresh_handoff.json
 
-      # Das Artefakt traegt genau das, was die Veroeffentlichung braucht: die
-      # erzeugte Bibliothek, die Gate-Evidenz und die Uebergabedatei. Das
-      # Das rohe Databento-Buendel ist NICHT dabei — der Publisher holt es
-      # selbst per scripts/restore_databento_export_bundle.py.
-      #
-      # Die ABGELEITETEN Struktur-Artefakte dagegen schon, und das ist der
-      # Unterschied, an dem der Publisher vom 2026-08-13 21:17Z bis zum
-      # 2026-08-14 an sechs Laeufen in Folge gescheitert ist. Der fruehere
-      # Kommentar hier behauptete, die Nach-Tore braeuchten "dieselben Daten"
-      # wie das Buendel. Das stimmt nicht: provider_health loest ueber
-      # smc_integration/sources/structure_artifact_json.py aus
-      # reports/smc_structure_artifacts/ auf, und diese 91 Dateien entstehen
-      # erst durch generate_smc_micro_base_from_databento.py -- ein Schritt mit
-      # 45 Minuten Budget und externen API-Schluesseln, den nur dieser Workflow
-      # faehrt. Der Publisher hatte das Buendel und trotzdem kein einziges
-      # Artefakt: 84 MISSING_ARTIFACT + 7 MISSING_MANIFEST + 84
-      # STRUCTURE_INPUT_LOAD_FAILED, exakt die 84 Paare und 7 Zeitrahmen.
-      #
-      # Durchreichen kostet 1,5 MB. Neu ableiten kostet 45 Minuten in einem
-      # Slot, der laut Messung ohnehin 1,75-fach ueberbucht ist.
-
-      # Der Marker sagt dem Publisher, WAS mitgeschickt wurde, und er zaehlt
-      # dabei aus demselben Verzeichnis, das der Upload unten auflistet.
-      # Warum ein Marker und nicht ein Kreuzvergleich gegen
-      # structure_artifact_availability.json: der Publish-Lauf checkt NICHT
-      # den Baum des Refresh aus, der seine Nutzlast erzeugt hat, sondern die
-      # Spitze von main. Gemessen am 2026-08-14 galt das fuer 7 von 7
-      # workflow_run-Publishes; ein Refresh laeuft bis zu drei Stunden, main
-      # zieht derweil weiter. Eine Verweigerung, die nur auf den Bericht
-      # schaut, wuerde deshalb JEDE Nutzlast ablehnen, die von einem Refresh
-      # VOR dieser Aenderung stammt -- und davon sind bei stuendlicher Kadenz
-      # immer mehrere unterwegs. Fehlt der Marker, ist die Nutzlast schlicht
-      # aelter als der Vertrag: warnen, nicht blockieren.
-      - name: Declare the structure-artifact handover
-        if: always()
+      - name: Validate TradingView storage state JSON
+        if: steps.diff.outputs.changed == 'true' && steps.publish_gate.outputs.publish_allowed == 'true' && github.ref == 'refs/heads/main'
         run: |
-          set -euo pipefail
-          mkdir -p artifacts/ci
-          "$SMC_PYTHON_BIN" - <<'PY' > artifacts/ci/structure_artifact_handover.json
+          "$SMC_PYTHON_BIN" - <<'PY'
           import json
           from pathlib import Path
 
-          from smc_integration.sources.structure_artifact_json import (
-              REPO_ROOT,
-              STRUCTURE_ARTIFACTS_DIR,
-          )
-
-          # Den RELATIVEN Pfad vom Resolver ableiten, dann gegen das
-          # Arbeitsverzeichnis aufloesen: verschiebt jemand das Verzeichnis,
-          # wandert die Uebergabe mit, ohne dass hier ein zweiter Literal-Pfad
-          # gepflegt werden muesste.
-          relative = STRUCTURE_ARTIFACTS_DIR.relative_to(REPO_ROOT).as_posix()
-          directory = Path(relative)
-          files = [path for path in directory.rglob("*") if path.is_file()] if directory.is_dir() else []
-          print(json.dumps({
-              "handover_version": 1,
-              "directory": relative,
-              "file_count": len(files),
-          }, indent=2, sort_keys=True))
+          path = Path("automation/tradingview/auth/storage-state.json")
+          try:
+              json.loads(path.read_text(encoding="utf-8"))
+          except json.JSONDecodeError as exc:
+              raise SystemExit(f"Invalid TV_STORAGE_STATE JSON in {path}: {exc}")
           PY
-          cat artifacts/ci/structure_artifact_handover.json
 
-      - name: Upload refresh payload
+      - name: Run TradingView readonly preflight
+        id: tv_preflight
+        if: steps.diff.outputs.changed == 'true' && steps.publish_gate.outputs.publish_allowed == 'true' && github.ref == 'refs/heads/main'
+        env:
+          TV_HEADLESS: "1"
+          TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
+          TV_STORAGE_STATE_MAX_AGE_HOURS: "72"
+          TV_STEP_TIMEOUT_MS: "90000"
+          TV_PREFLIGHT_MAX_ATTEMPTS: "3"
+          TV_SCREENSHOT_DIR: artifacts/tradingview/screenshots
+        run: |
+          # Retry wrapper: TV/Playwright steps occasionally flake (e.g. addCurrentScriptToChart
+          # timing out while the chart iframe is still hydrating). Retry the whole preflight
+          # process up to TV_PREFLIGHT_MAX_ATTEMPTS with exponential backoff before failing
+          # the job, so a single transient browser hiccup does not silently re-stall the
+          # publish pipeline (see PR #2415 for the surfacing fix that exposed this flake).
+          #
+          # Bundle B telemetry: emit one JSONL line per attempt to
+          # artifacts/tradingview/preflight_retry_log.jsonl and preserve each
+          # attempt's preflight JSON as tv_preflight_ci.attempt_${n}.json so a
+          # post-mortem can distinguish "1x flake then green" from "3x identical
+          # deterministic failure = real DOM drift" without parsing log strings.
+          set +e
+          mkdir -p artifacts/tradingview
+          retry_log="artifacts/tradingview/preflight_retry_log.jsonl"
+          : > "$retry_log"
+          max_attempts="${TV_PREFLIGHT_MAX_ATTEMPTS:-3}"
+          attempt=1
+          backoff=10
+          status=1
+          while [ "$attempt" -le "$max_attempts" ]; do
+            echo "::group::TradingView readonly preflight (attempt ${attempt}/${max_attempts})"
+            started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            start_ns=$(date +%s)
+            npx tsx scripts/tv_preflight.ts \
+              --config automation/tradingview/preflight-smc-mainline-open-only.json \
+              --execution-mode readonly \
+              --out artifacts/tradingview/tv_preflight_ci.json
+            status=$?
+            end_ns=$(date +%s)
+            ended_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            duration=$(( end_ns - start_ns ))
+            preserved="artifacts/tradingview/tv_preflight_ci.attempt_${attempt}.json"
+            if [ -f artifacts/tradingview/tv_preflight_ci.json ]; then
+              cp artifacts/tradingview/tv_preflight_ci.json "$preserved"
+            else
+              preserved=""
+            fi
+            echo "::endgroup::"
+            will_retry="false"
+            if [ "$status" -ne 0 ] && [ "$attempt" -lt "$max_attempts" ]; then
+              will_retry="true"
+            fi
+            env A="$attempt" M="$max_attempts" S="$status" SA="$started_at" EA="$ended_at" D="$duration" P="$preserved" WR="$will_retry" \
+              python -c "import json,os,sys; json.dump({'attempt':int(os.environ['A']),'max_attempts':int(os.environ['M']),'exit_code':int(os.environ['S']),'started_at':os.environ['SA'],'ended_at':os.environ['EA'],'duration_seconds':int(os.environ['D']),'output_preserved_as':os.environ['P'] or None,'will_retry':os.environ['WR']=='true'}, sys.stdout); sys.stdout.write('\n')" \
+              >> "$retry_log"
+            if [ "$status" -eq 0 ]; then
+              echo "preflight succeeded on attempt ${attempt}"
+              break
+            fi
+            if [ "$attempt" -lt "$max_attempts" ]; then
+              echo "::warning title=TradingView preflight flake::attempt ${attempt} failed (exit ${status}); retrying in ${backoff}s"
+              sleep "$backoff"
+              backoff=$(( backoff * 3 ))
+            fi
+            attempt=$(( attempt + 1 ))
+          done
+          if [ "$status" -ne 0 ]; then
+            echo "::error title=TradingView preflight failed::All ${max_attempts} attempts failed (last exit ${status})"
+            # Emit a compact summary so a reader can immediately tell flake vs
+            # deterministic-failure without downloading the artifact bundle.
+            if [ -f "$retry_log" ]; then
+              {
+                echo ""
+                echo "### TradingView preflight retry log"
+                echo ""
+                echo '```jsonl'
+                cat "$retry_log"
+                echo ''
+                echo '```'
+              } >> "$GITHUB_STEP_SUMMARY"
+            fi
+          fi
+          exit "$status"
+
+      - name: Publish library to TradingView
+        id: publish
+        if: steps.diff.outputs.changed == 'true' && steps.publish_gate.outputs.publish_allowed == 'true' && github.ref == 'refs/heads/main'
+        env:
+          TV_HEADLESS: "1"
+          TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
+          TV_STORAGE_STATE_MAX_AGE_HOURS: "72"
+          TV_STEP_TIMEOUT_MS: "90000"
+        run: |
+          npx tsx scripts/tv_publish_micro_library.ts \
+            --manifest pine/generated/smc_micro_profiles_generated.json \
+            --core SMC_Long_Dip_Suite.pine \
+            --release-manifest artifacts/tradingview/library_release_manifest.json
+
+      - name: Run TradingView post-release validation
+        id: tv_post_release_raw
+        if: steps.diff.outputs.changed == 'true' && steps.publish_gate.outputs.publish_allowed == 'true' && github.ref == 'refs/heads/main'
+        # CONTINUE-ON-ERROR-INTENTIONAL: TV automation is flaky external integration;
+        # outcome is consumed by downstream alert step (steps.tv_post_release_raw.outcome)
+        # rather than treated as hard fail.
+        continue-on-error: true
+        env:
+          TV_HEADLESS: "1"
+          TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
+          TV_STORAGE_STATE_MAX_AGE_HOURS: "72"
+          # Incident 2026-07-13: failure screenshots default to
+          # automation/tradingview/reports/screenshots, which the artifact
+          # upload (artifacts/tradingview/ glob) never captured — the drift
+          # diagnosis had to be reproduced locally. Point them at the
+          # uploaded tree so every failure ships its screenshot evidence.
+          TV_SCREENSHOT_DIR: artifacts/tradingview/screenshots
+        run: |
+          npx tsx scripts/tv_preflight.ts \
+            --config automation/tradingview/preflight-smc-mainline.json \
+            --execution-mode readonly \
+            --out artifacts/tradingview/tv_post_release_validation.json
+
+      - name: "⚠️ Warn: Run TradingView post-release validation"
+        if: always() && steps.tv_post_release_raw.outcome == 'failure'
+        run: |
+          echo "::warning::Step 'Run TradingView post-release validation' failed silently (soft-fail step)"
+
+      - name: Best-effort normalize TradingView post-release validation
+        id: tv_post_release
+        if: always() && steps.publish.outcome == 'success' && steps.diff.outputs.changed == 'true' && steps.publish_gate.outputs.publish_allowed == 'true' && github.ref == 'refs/heads/main'
+        # CONTINUE-ON-ERROR-INTENTIONAL: the normalizer emits the canonical post-release verdict; fail-on gate enforces blocking statuses later.
+        continue-on-error: true
+        run: |
+          if "$SMC_PYTHON_BIN" scripts/run_smc_post_release_validation.py \
+              --release-manifest artifacts/tradingview/library_release_manifest.json \
+              --validation-report artifacts/tradingview/tv_post_release_validation.json \
+              --ci-mode \
+              --output artifacts/ci/smc_post_release_validation_report.json; then
+            _normalizer_rc=0
+          else
+            _normalizer_rc=$?
+          fi
+          "$SMC_PYTHON_BIN" - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          report_path = Path("artifacts/ci/smc_post_release_validation_report.json")
+          if not report_path.exists():
+            print("::warning::Post-release validation normalizer did not write a report")
+            raise SystemExit(0)
+
+          try:
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+          except Exception as exc:
+            print(f"::warning::Post-release validation report is unreadable: {exc}")
+            raise SystemExit(0)
+
+          classification = report.get("failure_classification") if isinstance(report, dict) else {}
+          failures = report.get("failures") if isinstance(report, dict) else []
+          primary = classification.get("primary_blocker") if isinstance(classification, dict) else None
+          codes = [
+            str(item.get("code"))
+            for item in failures
+            if isinstance(item, dict) and item.get("code")
+          ]
+          status = report.get("overall_status", "unknown") if isinstance(report, dict) else "unknown"
+          print(f"Post-release validation normalized status: {status}")
+          if primary:
+            print(f"Post-release validation primary blocker: {primary}")
+          if codes:
+            print(f"Post-release validation failure codes: {', '.join(codes)}")
+          with Path.cwd().joinpath("artifacts/ci/post_release_summary.txt").open("w", encoding="utf-8") as handle:
+            handle.write(f"status={status}\n")
+            if primary:
+              handle.write(f"primary_blocker={primary}\n")
+            if codes:
+              handle.write(f"failure_codes={','.join(codes)}\n")
+          step_summary = os.environ.get("GITHUB_STEP_SUMMARY")
+          if step_summary:
+            with open(step_summary, "a", encoding="utf-8") as summary:
+              summary.write("### TradingView post-release normalization\n\n")
+              summary.write(f"- Status: `{status}`\n")
+              if primary:
+                summary.write(f"- Primary blocker: `{primary}`\n")
+              if codes:
+                summary.write(f"- Failure codes: `{', '.join(codes)}`\n")
+          PY
+          exit "${_normalizer_rc}"
+
+      - name: Run strict release gates
+        id: release_gates
+        if: always() && steps.publish.outcome == 'success' && steps.diff.outputs.changed == 'true' && steps.publish_gate.outputs.publish_allowed == 'true' && github.ref == 'refs/heads/main'
+        run: |
+          "$SMC_PYTHON_BIN" scripts/run_smc_release_gates.py \
+            --post-release-validation-report artifacts/ci/smc_post_release_validation_report.json \
+            --output artifacts/ci/smc_post_release_gates_report.json
+
+      - name: Refresh gate evidence summary after post-release validation
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: refresh-payload
-          path: |
-            pine/generated/smc_micro_profiles_generated.pine
-            pine/generated/smc_micro_profiles_generated.json
-            pine/generated/smc_micro_profiles_core_import_snippet.pine
-            artifacts/ci/
-            artifacts/snapshots/
-            reports/smc_structure_artifacts/
-          retention-days: 14
-          if-no-files-found: error
-          overwrite: true
+        run: |
+          "$SMC_PYTHON_BIN" scripts/collect_smc_gate_evidence.py \
+            --input-glob "artifacts/ci/smc_*_report.json" \
+            --output artifacts/ci/smc_refresh_evidence_summary.json
 
+      - name: Extract provider health signals
+        if: always()
+        run: |
+          "$SMC_PYTHON_BIN" - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          alerts: list[dict] = []
+          warnings: list[dict] = []
+          report = {}
+          for report_path in (
+            Path("artifacts/ci/smc_post_release_gates_report.json"),
+            Path("artifacts/ci/smc_pre_release_gates_report.json"),
+            Path("artifacts/ci/smc_release_gates_report.json"),
+          ):
+            if not report_path.exists():
+              continue
+            try:
+              loaded = json.loads(report_path.read_text(encoding="utf-8"))
+            except Exception:
+              continue
+            if isinstance(loaded, dict):
+              report = loaded
+              break
+
+          if report:
+            for gate in report.get("gates", []):
+              if isinstance(gate, dict) and gate.get("name") == "provider_health":
+                details = gate.get("details", {})
+                if isinstance(details, dict):
+                  raw_alerts = details.get("domain_alerts", [])
+                  if isinstance(raw_alerts, list):
+                    alerts = [item for item in raw_alerts if isinstance(item, dict)]
+                  raw_warnings = details.get("warnings", [])
+                  if isinstance(raw_warnings, list):
+                    warnings = [item for item in raw_warnings if isinstance(item, dict)]
+                break
+
+          def summarize(alert: dict) -> str:
+            code = str(alert.get("code") or "")
+            domain = str(alert.get("domain") or "unknown")
+            symbol = str(alert.get("symbol") or "?")
+            timeframe = str(alert.get("timeframe") or "?")
+            planned = str(alert.get("planned_source") or "")
+            actual = str(alert.get("actual_source") or "")
+            status = str(alert.get("status") or "")
+            if code.startswith("FALLBACK_"):
+              detail = f"{actual or 'unknown'} <- {planned or 'unknown'}"
+            else:
+              detail = status or "unknown"
+            return f"- {code}: {domain} {symbol}/{timeframe} ({detail})"
+
+          def summarize_warning(row: dict) -> str:
+            code = str(row.get("code") or "UNKNOWN")
+            symbol = str(row.get("symbol") or "").strip()
+            timeframe = str(row.get("timeframe") or "").strip()
+            suffix = f" {symbol}/{timeframe}" if symbol and timeframe else ""
+            return f"- {code}:{suffix}" if suffix else f"- {code}"
+
+          info_count = sum(1 for item in alerts if str(item.get("severity") or "") == "info")
+          warn_count = sum(1 for item in alerts if str(item.get("severity") or "") == "warn")
+          rendered_lines = "\n".join(summarize(item) for item in alerts[:5])
+          rendered_warning_lines = "\n".join(summarize_warning(item) for item in warnings[:5])
+
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as handle:
+            handle.write(f"PROVIDER_DOMAIN_ALERT_COUNT={len(alerts)}\n")
+            handle.write(f"PROVIDER_DOMAIN_INFO_COUNT={info_count}\n")
+            handle.write(f"PROVIDER_DOMAIN_WARN_COUNT={warn_count}\n")
+            handle.write(f"PROVIDER_HEALTH_WARNING_COUNT={len(warnings)}\n")
+            handle.write("PROVIDER_DOMAIN_ALERT_LINES<<EOF\n")
+            if rendered_lines:
+              handle.write(rendered_lines + "\n")
+            handle.write("EOF\n")
+            handle.write("PROVIDER_HEALTH_WARNING_LINES<<EOF\n")
+            if rendered_warning_lines:
+              handle.write(rendered_warning_lines + "\n")
+            handle.write("EOF\n")
+          PY
+
+      # ── Version bump + commit (skip when unchanged or breaking) ─
+      - name: Bump library version in all pine consumers
+        if: steps.diff.outputs.changed == 'true' && steps.publish_gate.outputs.publish_allowed == 'true' && github.ref == 'refs/heads/main'
+        run: |
+          # Incident 2026-07-13: the generator manifest's library_version is a
+          # HARDCODED constant (1) — it never reflected TradingView's real,
+          # per-publish-incrementing version. Repinning from it rewrote every
+          # consumer to /1 (the 2026-03-23 first publish) on every refresh, so
+          # consumers compiled against a 15KB March library while TV was at
+          # v152 — CE10272 "Undeclared identifier" on every modern mp.* symbol.
+          # Read the REAL published version from the publisher's release
+          # manifest instead (written fresh by the publish step this run,
+          # facade-verified since the same incident).
+          NEW_VERSION=$(jq -r '.library.publishedVersion' artifacts/tradingview/library_release_manifest.json)
+          if [ -z "${NEW_VERSION}" ] || [ "${NEW_VERSION}" = "null" ]; then
+            echo "::error::library.publishedVersion missing or null in artifacts/tradingview/library_release_manifest.json — refusing to repin consumers."
+            exit 1
+          fi
+          if ! [[ "${NEW_VERSION}" =~ ^[0-9]+$ ]]; then
+            echo "::error::library.publishedVersion '${NEW_VERSION}' is not an integer — refusing to repin consumers."
+            exit 1
+          fi
+          # /1 is the known-stale sentinel of the pre-incident evidence chain
+          # (self-referential UI parsing yielded expected==published==1). A
+          # modern publish can never legitimately be version 1 again — treat
+          # it as broken evidence and SKIP the repin (keep current pins)
+          # rather than regressing every consumer back to the March library.
+          if [ "${NEW_VERSION}" = "1" ]; then
+            echo "::warning::library.publishedVersion is 1 (stale-evidence sentinel) — skipping consumer repin to avoid regressing pins to the 2026-03 library."
+            exit 0
+          fi
+          PIN_PATTERN='import preuss_steffen/smc_micro_profiles_generated/[0-9]*'
+          REPLACEMENT="import preuss_steffen/smc_micro_profiles_generated/${NEW_VERSION}"
+          # Enumerate every top-level .pine that pins the library. Fixture
+          # and generated paths are excluded — they have their own
+          # snapshot flow. Closes the 2026-04-22 gap where only
+          # SMC_Long_Dip_Suite.pine was repinned, leaving 13 other
+          # consumers stranded on the previous library version.
+          mapfile -t PINE_CONSUMERS < <(grep -lrE "${PIN_PATTERN}" . \
+            --include='*.pine' \
+            --exclude-dir=tests \
+            --exclude-dir=pine \
+            --exclude-dir=node_modules \
+            --exclude-dir=.git | sort -u)
+          if [ ${#PINE_CONSUMERS[@]} -eq 0 ]; then
+            echo "::error::No pine consumers found for library pin. Refusing to proceed."
+            exit 1
+          fi
+          echo "Pinning ${#PINE_CONSUMERS[@]} pine consumers to library ${NEW_VERSION}:"
+          printf '  %s\n' "${PINE_CONSUMERS[@]}"
+          for f in "${PINE_CONSUMERS[@]}"; do
+            sed -i "s|${PIN_PATTERN}|${REPLACEMENT}|g" "$f"
+            if ! grep -qF "${REPLACEMENT}" "$f"; then
+              echo "::error::Failed to pin ${f} to library version ${NEW_VERSION}."
+              exit 1
+            fi
+          done
+          # The core-import SNIPPET is a copy-paste example users paste into a
+          # chart, so its `import .../N as mp` must track the PUBLISHED version
+          # like any consumer. It lives under the excluded pine/ tree (the
+          # generated LIBRARY file there has its own version and must NOT be
+          # touched), so the enumeration above skips it — repin it explicitly.
+          # It regenerates to /1 (generation runs BEFORE publish, so the real
+          # version is unknown then) and was never bumped afterward: the
+          # pine-library-version-monitor (2026-07-13) caught the resulting
+          # /1-vs-published skew.
+          SNIPPET="pine/generated/smc_micro_profiles_core_import_snippet.pine"
+          if [ -f "${SNIPPET}" ] && grep -qE "${PIN_PATTERN}" "${SNIPPET}"; then
+            sed -i "s|${PIN_PATTERN}|${REPLACEMENT}|g" "${SNIPPET}"
+            if ! grep -qF "${REPLACEMENT}" "${SNIPPET}"; then
+              echo "::error::Failed to pin snippet ${SNIPPET} to library version ${NEW_VERSION}."
+              exit 1
+            fi
+            echo "Pinned core-import snippet ${SNIPPET} to library ${NEW_VERSION}."
+          fi
+
+      - name: Commit and push changes
+        id: commit_push
+        # Incident 2026-07-13: the commit ALSO gated on the RAW validation step
+        # outcome (tv_post_release_raw) and the normalizer exit (tv_post_release,
+        # rc!=0 for ANY non-ok status) — both fail on the explicitly-TOLERATED
+        # external_tv_drift class (surface_drift/PREFLIGHT_FAILED Playwright
+        # flakes), dead-lettering the release_gates carve-out for the commit
+        # decision. Result: the library kept republishing to TradingView while
+        # the committed pine/generated artifacts silently froze (ASOF 2026-05-27
+        # vs published 2026-07-13 — ~6 weeks committed != published, run green,
+        # only a ::warning). The commit now gates on the PUBLISH outcome plus the
+        # policy-aware strict release gates (run_smc_release_gates.py, which
+        # classifies external_tv_drift as non-blocking). A genuine blocking
+        # verdict still fails release_gates (no continue-on-error) -> job RED ->
+        # never a silent skip. Raw validation failures keep their ::warning +
+        # alert-notifier visibility.
+        if: steps.diff.outputs.changed == 'true' && steps.publish_gate.outputs.publish_allowed == 'true' && steps.publish.outcome == 'success' && steps.release_gates.outcome == 'success' && github.ref == 'refs/heads/main'
+        env:
+          # GH_PAT is required so the bot/* push + `gh pr create` below
+          # actually trigger downstream workflows (notably fast-gates).
+          # PRs/pushes created with the default GITHUB_TOKEN do NOT spawn
+          # child workflows (GitHub suppresses webhook events for token-
+          # generated actions), which would leave `gh pr merge --auto`
+          # waiting forever on a check that never runs. Falls back to
+          # github.token only on forks where the secret is unavailable.
+          # See `/memories/repo/bot-pr-needs-pat-not-github-token.md`
+          # and tests/test_workflow_gh_pat_discipline.py.
+          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+          GITHUB_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+        run: |
+          # The repo's `main-governance` ruleset only targets ~DEFAULT_BRANCH,
+          # so direct `git push origin HEAD:main` is rejected with GH013
+          # ("Required status check 'fast-gates' is expected"). Use the same
+          # bot/* PR + auto-merge pattern as run-open-prep-daily.yml and
+          # open-prep-outcome-backfill.yml. The CI skip-pattern in
+          # smc-fast-pr-gates.yml + ci.yml short-circuits heavy steps for
+          # bot/* heads, so the PR merges in seconds without burning CI.
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local --unset-all http.https://github.com/.extraheader || true
+          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          for runtime_path in \
+            artifacts/databento_volatility_cache/ \
+            artifacts/monitoring/provider_usage.json \
+            artifacts/smc_microstructure_exports/smc_live_news_snapshot.json \
+            artifacts/smc_microstructure_exports/smc_live_news_state.json; do
+            # A missing optional cache path must not make git restore reject
+            # every other path in the same invocation (run 29495535495).
+            if git ls-files --error-unmatch "$runtime_path" >/dev/null 2>&1; then
+              GIT_LFS_SKIP_SMUDGE=1 git -c filter.lfs.smudge= -c filter.lfs.process= -c filter.lfs.required=false restore --source=HEAD --worktree --staged -- "$runtime_path"
+            fi
+          done
+          git add pine/generated/ \
+            SMC_Long_Dip_Suite.pine \
+            SMC_Long_Dip_Dashboard.pine \
+            SMC_Long_Dip_Mobile.pine \
+            SMC_Long_Dip_Strategy.pine \
+            SMC_Long_Dip_Alerts.pine \
+            SMC_Hold_Manager.pine \
+            SMC_Confluence_Hub.pine \
+            SMC_Structure_Context.pine \
+            SMC_Session_Context.pine \
+            SMC_Profile_Context.pine \
+            SMC_Orderflow_Overlay.pine \
+            SMC_Liquidity_Structure.pine \
+            SMC_Liquidity_Context.pine \
+            SMC_Imbalance_Context.pine \
+            SMC_HTF_Confluence.pine \
+            SMC_Event_Overlay.pine \
+            SMC_Hold_Manager.pine \
+            artifacts/tradingview/library_release_manifest.json
+          if ! git diff --quiet; then
+            echo "::error::Unexpected tracked changes remain unstaged before refresh commit."
+            git status --short
+            git diff --name-only
+            exit 1
+          fi
+          if git diff --cached --quiet; then
+            echo "::notice::No post-publish changes to commit."
+            exit 0
+          fi
+
+          BRANCH="bot/library-refresh-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          git checkout -b "$BRANCH"
+          git commit -m "chore: library refresh ${REFRESH_DATE} (run ${{ github.run_number }})"
+          git push -u origin "$BRANCH"
+          # F-V6-I2.1 (2026-05-02): previously this `gh pr create` was suffixed
+          # with `|| true`, which silently swallowed real PR-creation failures
+          # (auth issues, branch-protection refusals, transient API errors) and
+          # left the workflow green with no follow-up PR. Surface as ::error::
+          # and fail the job so the library refresh cannot be lost.
+          if ! gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --label automated \
+            --title "chore: library refresh ${REFRESH_DATE} (run ${{ github.run_number }})" \
+            --body "Automated SMC library refresh from \`smc-library-refresh\` (run ${GITHUB_RUN_ID}). Pine library content + manifest. Heavy CI is skipped for bot/* PRs (validation already happened in the refresh workflow itself: TV preflight + post-release validation + release gates)."; then
+            echo "::error file=.github/workflows/smc-library-refresh.yml::gh pr create failed for ${BRANCH} — see step log for stderr"
+            exit 1
+          fi
+          # CONTINUE-ON-ERROR-INTENTIONAL: enabling auto-merge can race with
+          # branch-protection / required-status-check evaluation; the PR itself
+          # is already open and reviewable, so we surface as warning rather
+          # than failing the job.
+          gh pr merge "$BRANCH" --auto --squash --delete-branch \
+            || echo "::warning::auto-merge enable failed for ${BRANCH} (PR is open and reviewable)"
+
+      # ── Signal alerts (non-blocking) ────────────────────────────
+      - name: Evaluate and send alerts
+        id: alerts
+        if: always() && steps.diff.outputs.changed == 'true' && steps.publish_gate.outputs.publish_allowed == 'true' && github.ref == 'refs/heads/main'
+        # CONTINUE-ON-ERROR-INTENTIONAL: alert dispatch is best-effort notification;
+        # missing TELEGRAM/SMTP secrets or transient delivery errors must not fail
+        # the refresh job (artifacts already produced).
+        continue-on-error: true
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          ALERT_EMAIL_FROM: ${{ secrets.ALERT_EMAIL_FROM }}
+          ALERT_EMAIL_TO: ${{ secrets.ALERT_EMAIL_TO }}
+        run: |
+          "$SMC_PYTHON_BIN" scripts/smc_alert_notifier.py \
+            --library pine/generated/smc_micro_profiles_generated.pine \
+            --state-file artifacts/ci/alert_last_state.json \
+            --post-release-report artifacts/ci/smc_post_release_validation_report.json \
+            --provider-alerts \
+            ${TELEGRAM_BOT_TOKEN:+--telegram-bot-token "$TELEGRAM_BOT_TOKEN"} \
+            ${TELEGRAM_CHAT_ID:+--telegram-chat-id "$TELEGRAM_CHAT_ID"} \
+            ${SMTP_HOST:+--smtp-host "$SMTP_HOST"} \
+            ${SMTP_USER:+--smtp-user "$SMTP_USER"} \
+            ${SMTP_PASS:+--smtp-pass "$SMTP_PASS"} \
+            ${ALERT_EMAIL_FROM:+--email-from "$ALERT_EMAIL_FROM"} \
+            ${ALERT_EMAIL_TO:+--email-to "$ALERT_EMAIL_TO"}
+
+      # ── Upload CI artifacts ─────────────────────────────────────
       - name: Upload gate evidence + library artifacts
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -1162,6 +1552,17 @@ jobs:
             pine/generated/
           retention-days: 90
 
+      - name: Upload TradingView validation artifacts
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: smc-tradingview-${{ env.REFRESH_DATE }}-${{ github.run_number }}
+          path: |
+            artifacts/tradingview/
+          if-no-files-found: ignore
+          retention-days: 30
+
+      # ── Status summary ─────────────────────────────────────────
       - name: Emit workflow summary
         if: always()
         env:
@@ -1182,7 +1583,7 @@ jobs:
             echo "| Runner resolution | ${{ needs.select-runner.outputs.resolution_reason }} |"
             echo "| Runner name | ${{ needs.select-runner.outputs.matched_runner_name || runner.name }} |"
             echo "| Ref | ${REF_NAME} |"
-            echo "| Generation (base + enrichment + event-risk) | ${{ steps.gates.outcome == 'success' && '✅' || steps.gates.outcome == 'skipped' && '⏭️ skipped' || '❌ failed' }} |"
+            echo "| Static Library Control Plane generation | ${{ steps.gates.outcome == 'success' && '✅' || steps.gates.outcome == 'skipped' && '⏭️ skipped' || '❌ failed' }} |"
             echo "| Evidence gates | ${{ steps.gates.outcome == 'success' && '✅ passed' || '❌ failed' }} |"
             if [ "${{ steps.gates.outcome }}" = "failure" ] && [ -n "$FIRST_FAILED_GATE_TEST" ]; then
               echo "| First failing gate test | $FIRST_FAILED_GATE_TEST |"
@@ -1198,10 +1599,12 @@ jobs:
             elif [ "${{ steps.diff.outputs.changed }}" = "true" ]; then
               echo "| Breaking-change governance | ✅ compatible |"
               if [ "${GIT_REF}" = "refs/heads/main" ]; then
-                # 2026-08-13: Die Veroeffentlichungsphase laeuft in smc-library-publish
-                # und ist hier noch nicht geschehen — eine Zeile darueber waere zum
-                # Zeitpunkt dieser Zusammenfassung eine Behauptung, keine Messung.
-                echo "| Veroeffentlichung | siehe Lauf von smc-library-publish |"
+                echo "| TradingView preflight | ${{ steps.tv_preflight.outcome == 'success' && '✅ passed' || steps.tv_preflight.outcome == 'skipped' && '⏭️ skipped' || '❌ failed' }} |"
+                echo "| Publish | ${{ steps.publish.outcome == 'success' && '✅' || steps.publish.outcome == 'skipped' && '⏭️ skipped' || '❌ failed' }} |"
+                echo "| TradingView post-release validation | ${{ steps.tv_post_release.outcome == 'success' && '✅ passed' || steps.tv_post_release.outcome == 'skipped' && '⏭️ skipped' || '❌ failed' }} |"
+                echo "| Post-release strict release gates | ${{ steps.release_gates.outcome == 'success' && '✅ passed' || steps.release_gates.outcome == 'skipped' && '⏭️ skipped' || '❌ failed' }} |"
+                echo "| Commit | ${{ steps.commit_push.outcome == 'success' && '✅' || steps.commit_push.outcome == 'skipped' && '⏭️ skipped' || '❌ failed' }} |"
+                echo "| Signal + event-risk alerts | ${{ steps.alerts.outcome == 'success' && '✅ evaluated' || steps.alerts.outcome == 'skipped' && '⏭️ skipped' || '⚠️ error (non-blocking)' }} |"
               else
                 echo "| TradingView preflight | ⏭️ skipped (non-main ref) |"
                 echo "| Publish | ⏭️ skipped (non-main ref) |"
@@ -1302,15 +1705,13 @@ jobs:
           fi
 
           GATE="${{ steps.gates.outcome }}"
-          # Publish/Preflight/Commit/Alerts stehen hier nicht mehr: sie
-          # geschehen im nachgelagerten smc-library-publish.
-          PREFLIGHT="not-in-this-workflow"
-          PUBLISH="not-in-this-workflow"
-          POST_RELEASE="not-in-this-workflow"
-          COMMIT_PUSH="not-in-this-workflow"
-          ALERTS="not-in-this-workflow"
           CHANGED="${{ steps.diff.outputs.changed }}"
           BREAKING="${{ steps.breaking.outputs.breaking }}"
+          PREFLIGHT="${{ steps.tv_preflight.outcome }}"
+          PUBLISH="${{ steps.publish.outcome }}"
+          POST_RELEASE="${{ steps.tv_post_release.outcome }}"
+          COMMIT_PUSH="${{ steps.commit_push.outcome }}"
+          ALERTS="${{ steps.alerts.outcome }}"
           ALERT_COUNT="${PROVIDER_DOMAIN_ALERT_COUNT:-0}"
           ALERT_INFO="${PROVIDER_DOMAIN_INFO_COUNT:-0}"
           ALERT_WARN="${PROVIDER_DOMAIN_WARN_COUNT:-0}"
@@ -1385,7 +1786,7 @@ jobs:
         # first run) and transient download failures are observability-only and
         # must not fail the refresh job.
         continue-on-error: true
-        uses: dawidd6/action-download-artifact@d63b86af1b34672e53c440b1b83979861906bad7 # v24
+        uses: dawidd6/action-download-artifact@b6e2e70617bc3265edd6dab6c906732b2f1ae151 # v21
         with:
           name: best-effort-failure-history
           path: artifacts/ci
@@ -1405,13 +1806,16 @@ jobs:
 
       - name: Best-effort failure summary
         id: best_effort_summary
-        if: always() && steps.dl_best_effort_history.outcome == 'success'
+        if: always()
         # CONTINUE-ON-ERROR-INTENTIONAL: an observability-only summary must
         # never flip the conclusion of an otherwise-green best-effort pipeline.
         continue-on-error: true
         env:
           OUT_GATES: ${{ steps.gates.outcome }}
           OUT_PRE_RELEASE_REFRESH: ${{ steps.pre_release_refresh.outcome }}
+          OUT_TV_POST_RELEASE_RAW: ${{ steps.tv_post_release_raw.outcome }}
+          OUT_TV_POST_RELEASE: ${{ steps.tv_post_release.outcome }}
+          OUT_ALERTS: ${{ steps.alerts.outcome }}
           OUT_NOTIFY_BREAKING: ${{ steps.notify_breaking.outcome }}
           OUT_NOTIFY_END: ${{ steps.notify_end.outcome }}
           RUN_ID: ${{ github.run_id }}
@@ -1440,7 +1844,7 @@ jobs:
 
       - name: Upload best-effort failure history
         id: ul_best_effort_history
-        if: always() && steps.dl_best_effort_history.outcome == 'success'
+        if: always()
         # CONTINUE-ON-ERROR-INTENTIONAL: persisting the trend artifact is
         # observability-only; a transient upload failure must not fail the job.
         continue-on-error: true

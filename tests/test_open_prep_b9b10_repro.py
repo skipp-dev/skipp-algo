@@ -54,7 +54,7 @@ class TestChronologicalSortingEverywhere:
             {"date": "2024-1-2", "close": 102.0, "high": 103.0, "low": 101.0, "vwap": 102.0, "volume": 1000},
             {"date": "2024-01-03", "close": 103.0, "high": 104.0, "low": 102.0, "vwap": 103.0, "volume": 1000},
         ]
-        _sym, _atr, _mom, vwap, _avgvol, _pdh, _pdl, _rsi, _technical, _err = _fetch_symbol_atr(
+        _sym, _atr, _mom, vwap, _avgvol, _pdh, _pdl, _err = _fetch_symbol_atr(
             mock_client, "AAPL", date(2024, 1, 1), date(2024, 1, 10), 14
         )
         assert vwap == pytest.approx(110.0), f"expected latest chronological VWAP 110.0, got {vwap}"
@@ -109,7 +109,7 @@ class TestMomentumAndFetchSanitizing:
         candles[5]["close"] = float("inf")
         mock_client.get_historical_price_eod_full.return_value = candles
 
-        _sym, _atr, mom, _vwap, _avgvol, _pdh, _pdl, _rsi, _technical, _err = _fetch_symbol_atr(
+        _sym, _atr, mom, _vwap, _avgvol, _pdh, _pdl, _err = _fetch_symbol_atr(
             mock_client,
             "AAPL",
             date(2024, 1, 1),
@@ -146,7 +146,6 @@ class TestIncrementalAtrNonFinite:
                     {
                         "as_of": "2024-01-12",
                         "atr_period": 14,
-                        "algorithm_version": run_open_prep.ATR_CACHE_ALGORITHM_VERSION,
                         "atr14_by_symbol": {"AAPL": 2.5},
                         "momentum_z_by_symbol": {"AAPL": 0.5},
                         "prev_close_by_symbol": {"AAPL": float("inf")},
@@ -187,7 +186,6 @@ class TestIncrementalAtrNonFinite:
                     {
                         "as_of": "2024-01-12",
                         "atr_period": 14,
-                        "algorithm_version": run_open_prep.ATR_CACHE_ALGORITHM_VERSION,
                         "atr14_by_symbol": {"AAPL": float("inf")},
                         "momentum_z_by_symbol": {"AAPL": 0.5},
                         "prev_close_by_symbol": {"AAPL": 150.0},
@@ -232,7 +230,6 @@ class TestLoadAtrCacheFiltersNonFinite:
                     {
                         "as_of": "2024-01-15",
                         "atr_period": 14,
-                        "algorithm_version": run_open_prep.ATR_CACHE_ALGORITHM_VERSION,
                         "atr14_by_symbol": {
                             "AAPL": float("inf"),
                             "MSFT": -2.5,
@@ -273,7 +270,6 @@ class TestLoadAtrCacheFiltersNonFinite:
                     {
                         "as_of": "2024-01-15",
                         "atr_period": 14,
-                        "algorithm_version": run_open_prep.ATR_CACHE_ALGORITHM_VERSION,
                         "atr14_by_symbol": {"AAPL": 2.5},
                         "momentum_z_by_symbol": {"AAPL": 0.3},
                         "prev_close_by_symbol": {"AAPL": float("inf")},
@@ -331,7 +327,7 @@ class TestPdhPdlWire:
         client = MagicMock()
         client.get_historical_price_eod_full.return_value = candles
 
-        _sym, _atr, _mom, _vwap, _avgvol, pdh, pdl, _rsi, _technical, _err = _fetch_symbol_atr(
+        _sym, _atr, _mom, _vwap, _avgvol, pdh, pdl, _err = _fetch_symbol_atr(
             client, "AAPL", _date(2026, 6, 1), _date(2026, 7, 10), 14,
         )
         # as_of=2026-07-10 → previous completed session is 2026-07-09 (i=1).

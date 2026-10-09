@@ -132,8 +132,6 @@ def _derive_imbalance(df: pd.DataFrame, result: dict[str, Any]) -> dict[str, Any
     last_close = float(df.iloc[-1]["close"])
     last_high = float(df.iloc[-1]["high"])
     last_low = float(df.iloc[-1]["low"])
-    mid_price = (last_high + last_low) / 2 if (last_high + last_low) > 0 else 1.0
-    liquidity_void_candidates: list[tuple[int, str, float, float]] = []
 
     # Process bullish FVGs
     active_bull_count = 0
@@ -150,8 +148,6 @@ def _derive_imbalance(df: pd.DataFrame, result: dict[str, Any]) -> dict[str, Any
             active_bull_count += 1
             if newest_bull_fvg is None or idx > newest_bull_fvg[0]:
                 newest_bull_fvg = (idx, top, bottom, mit_pct)
-            if gap_size / mid_price * 100 >= LIQ_VOID_MIN_SIZE_PCT:
-                liquidity_void_candidates.append((idx, "BULL", top, bottom))
 
     if newest_bull_fvg is not None:
         _, top, bottom, mit_pct = newest_bull_fvg
@@ -183,8 +179,6 @@ def _derive_imbalance(df: pd.DataFrame, result: dict[str, Any]) -> dict[str, Any
             active_bear_count += 1
             if newest_bear_fvg is None or idx > newest_bear_fvg[0]:
                 newest_bear_fvg = (idx, top, bottom, mit_pct)
-            if gap_size / mid_price * 100 >= LIQ_VOID_MIN_SIZE_PCT:
-                liquidity_void_candidates.append((idx, "BEAR", top, bottom))
 
     if newest_bear_fvg is not None:
         _, top, bottom, mit_pct = newest_bear_fvg
@@ -210,15 +204,24 @@ def _derive_imbalance(df: pd.DataFrame, result: dict[str, Any]) -> dict[str, Any
             result["BPR_BOTTOM"] = overlap_bottom
             result["BPR_DIRECTION"] = "BULL" if last_close > (overlap_top + overlap_bottom) / 2 else "BEAR"
 
-    # Liquidity void: active, very large FVG (> threshold of current price).
-    # Direction flags describe every active void; the shared geometry surfaces
-    # the newest candidate across both directions without a bull-side tie bias.
-    if liquidity_void_candidates:
-        result["LIQ_VOID_BULL_ACTIVE"] = any(side == "BULL" for _, side, _, _ in liquidity_void_candidates)
-        result["LIQ_VOID_BEAR_ACTIVE"] = any(side == "BEAR" for _, side, _, _ in liquidity_void_candidates)
-        _, _, top, bottom = max(liquidity_void_candidates, key=lambda candidate: candidate[0])
-        result["LIQ_VOID_TOP"] = top
-        result["LIQ_VOID_BOTTOM"] = bottom
+    # Liquidity void: very large FVG (> LIQ_VOID_MIN_SIZE_PCT of price)
+    mid_price = (last_high + last_low) / 2 if (last_high + last_low) > 0 else 1.0
+    for _idx, top, bottom in bull_fvgs:
+        gap_pct = (top - bottom) / mid_price * 100
+        if gap_pct >= LIQ_VOID_MIN_SIZE_PCT:
+            result["LIQ_VOID_BULL_ACTIVE"] = True
+            result["LIQ_VOID_TOP"] = top
+            result["LIQ_VOID_BOTTOM"] = bottom
+            break
+
+    for _idx, top, bottom in bear_fvgs:
+        gap_pct = (top - bottom) / mid_price * 100
+        if gap_pct >= LIQ_VOID_MIN_SIZE_PCT:
+            result["LIQ_VOID_BEAR_ACTIVE"] = True
+            if not result["LIQ_VOID_BULL_ACTIVE"]:
+                result["LIQ_VOID_TOP"] = top
+                result["LIQ_VOID_BOTTOM"] = bottom
+            break
 
     # Composite state
     if result["BPR_ACTIVE"]:

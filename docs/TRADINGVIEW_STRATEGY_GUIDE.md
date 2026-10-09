@@ -13,7 +13,7 @@ The active mainline is:
 
 1. [../SMC_Long_Dip_Suite.pine](../SMC_Long_Dip_Suite.pine) as the only active
   producer and the default `SMC Core` first-run surface.
-2. [../SMC_Decision_Board.pine](../SMC_Decision_Board.pine) as the `SMC Decision Board`
+2. [../SMC_Long_Dip_Dashboard.pine](../SMC_Long_Dip_Dashboard.pine) as the `SMC Decision Board`
   companion.
 3. [../SMC_Long_Dip_Strategy.pine](../SMC_Long_Dip_Strategy.pine) as the `SMC Execution`
   surface on the frozen 8-channel executable contract.
@@ -45,7 +45,7 @@ The product-cut background and the current guardrails are documented in
 ## Required Chart Setup
 
 1. Add [../SMC_Long_Dip_Suite.pine](../SMC_Long_Dip_Suite.pine) to the chart.
-2. Add [../SMC_Decision_Board.pine](../SMC_Decision_Board.pine) only if Pro diagnostics
+2. Add [../SMC_Long_Dip_Dashboard.pine](../SMC_Long_Dip_Dashboard.pine) only if Pro diagnostics
    are needed.
 3. Add [../SMC_Long_Dip_Strategy.pine](../SMC_Long_Dip_Strategy.pine) to the same chart.
 4. Bind the strategy sources top-to-bottom against the matching core BUS plots.
@@ -88,8 +88,7 @@ These controls change wrapper behavior only. They do not widen the linked core
 output contract and do not introduce a second logic family.
 
 In TradingView the settings surface should expose `Execution Setup` and
-`Trade Plan` before the two `Chart Link` groups (until 2026-08-28 they were
-labelled `Expert Mapping`).
+`Trade Plan` before the two `Expert Mapping` groups.
 
 ## Chart Outputs
 
@@ -112,7 +111,7 @@ npm run tv:preflight:smc-mainline
 ```
 
 That is the canonical repo-side TradingView check for the active mainline path
-`SMC_Long_Dip_Suite.pine` + `SMC_Decision_Board.pine` + `SMC_Long_Dip_Strategy.pine`.
+`SMC_Long_Dip_Suite.pine` + `SMC_Long_Dip_Dashboard.pine` + `SMC_Long_Dip_Strategy.pine`.
 
 For an external or independent cross-check, use:
 

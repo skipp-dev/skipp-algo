@@ -23,7 +23,7 @@ from pathlib import Path
 
 import pytest
 
-from tests._guard_corpus import MIN_EXPECTED_PROD_FILES, iter_production_py_files, parse_module
+from tests._guard_corpus import MIN_EXPECTED_PROD_FILES, parse_module
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -47,7 +47,12 @@ _DIR_EXCLUDE = frozenset(
 
 
 def _list_prod_files() -> list[Path]:
-    return iter_production_py_files(_DIR_EXCLUDE)
+    out: list[Path] = []
+    for path in _REPO_ROOT.rglob("*.py"):
+        if any(part in _DIR_EXCLUDE for part in path.relative_to(_REPO_ROOT).parts):
+            continue
+        out.append(path)
+    return sorted(out)
 
 
 def _is_time_sleep_call(node: ast.Call) -> bool:
@@ -83,15 +88,11 @@ def _all_time_sleep_sites() -> list[tuple[str, int]]:
 # reason, or (b) an existing site moves by ±N lines.
 _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
     {
-        # 2026-08-18 (Grenzgänger-Sweep D3): daemon FMP loader retry backoff
-        # — legitimate rate-limit backoff (capped Retry-After), replacing the
-        # 0s instant retry that doubled throttled load.
-        ("services/live_overlay_daemon/fmp_data_loader.py", 151),
         # 2026-06-24 feat/benzinga-rss: REST client retry backoff.
         ("newsstack_fmp/ingest_benzinga.py", 298),  # 284→298 (2026-07-12): fetch_news 429 wire + import block
         ("newsstack_fmp/ingest_benzinga.py", 309),  # 295→309 (2026-07-12): fetch_news 429 wire + import block
-        ("newsstack_fmp/ingest_fmp.py", 149),  # +1 (2026-07-10): docstring 3→4 endpoints; 2026-10-08 (FMP news gate helper): 143->149
-        ("newsstack_fmp/ingest_fmp.py", 185),  # 2026-07-19 (provider telemetry helper): 169->179; 2026-10-08 (FMP news gate helper): 179->185
+        ("newsstack_fmp/ingest_fmp.py", 143),  # +1 (2026-07-10): docstring 3→4 endpoints
+        ("newsstack_fmp/ingest_fmp.py", 179),  # 2026-07-19 (provider telemetry helper): 169->179
         # PR #2154: ingest_fmp_filings.py shifted +8 (121→129, 134→142)
         # by the FMP-13F probe instrumentation + retry-after-Header parser.
         # Both sleeps remain legit retry-backoff (HTTP 429 + connect error).
@@ -104,8 +105,8 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # (776→784, 795→803).
         # 2026-06-13: profile-bulk pagination constant shifted +1
         # (784→785, 803→804); sleeps unchanged: retry-backoff paths.
-        ("open_prep/macro.py", 824),  # 2026-07-24 (dead _macro_weight branch removed, -2): 826->824
-        ("open_prep/macro.py", 843),  # 2026-07-24 (dead _macro_weight branch removed, -2): 845->843
+        ("open_prep/macro.py", 826),  # 2026-07-19 (provider telemetry helper): 818->826
+        ("open_prep/macro.py", 845),  # 2026-07-19 (provider telemetry helper): 837->845
         ("newsstack_fmp/ingest_fmp_political.py", 122),
         ("newsstack_fmp/ingest_fmp_political.py", 135),
         ("newsstack_fmp/shared_fetch.py", 337),
@@ -122,26 +123,22 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # above shifted the retry-backoff sleeps 546->595, 556->605.
         ("open_prep/alerts.py", 616),  # 2026-07-13 (drop dead last_exc tracking): 617->616
         ("open_prep/alerts.py", 625),  # 2026-07-13 (drop dead last_exc tracking): 627->625
-        ("open_prep/error_taxonomy.py", 123),  # 2026-07-27 (docstring adoption/persistence note above): 117->123
+        ("open_prep/error_taxonomy.py", 117),
         # 2026-06-28 (semantic monitoring): all realtime_signals sleep sites
         # shifted +20/+20/+72/+80/+80 lines by readiness metrics.
-        ("open_prep/realtime_signals.py", 323),   # 2026-07-25 (databento-signal-migration): 322->323
-        ("open_prep/realtime_signals.py", 398),   # 2026-07-25 (databento-signal-migration): 397->398
-        ("open_prep/realtime_signals.py", 2646),  # 2026-07-28 (ATR sanitization import): 2602->2626 (2026-08-18 railway-token guard) (2026-08-19 FMP-Endpoint-Seed: 2626->2641) (2026-08-21 cisco-probe: 2641->2646)
-
+        ("open_prep/realtime_signals.py", 322),   # 2026-07-16 market-session import shifted site: 321->322
+        ("open_prep/realtime_signals.py", 397),   # 2026-07-16 market-session import shifted site: 396->397
+        ("open_prep/realtime_signals.py", 2488),  # 2026-07-20 private AI endpoint shifted site: 2481->2488
         # 2026-07-17: opt-in FMP A0 parity persistence shifted the unchanged
         # poll-loop throttle and error-backoff sleeps by +23 lines.
-        # 2026-07-26 (merge Databento source after re-qual fixes):
-        # combined branch additions shifted the reviewed loop sleeps.
-        ("open_prep/realtime_signals.py", 4383),  # 2026-08-08 (parse the calibration HH:MM): 4324->4348 (2026-08-18 railway-token guard) (2026-08-19 FMP-Endpoint-Seed: 4348->4363) (2026-08-21 cisco-probe: 4363->4383)
-        ("open_prep/realtime_signals.py", 4402),  # 2026-08-08 (parse the calibration HH:MM): 4343->4367 (2026-08-18 railway-token guard) (2026-08-19 FMP-Endpoint-Seed: 4367->4382) (2026-08-21 cisco-probe: 4382->4402)
-
+        ("open_prep/realtime_signals.py", 4018),  # 2026-07-20 HTTP log hardening shifted site: 4016->4018
+        ("open_prep/realtime_signals.py", 4034),  # 2026-07-20 HTTP log hardening shifted site: 4032->4034
         # 2026-06-11 (eval-findings D7): technical_analysis import block
         # +8 lines (1943→1951, 1945→1953).
         # 2026-07-04 (market-microstructure observe-only): module import
         # shifted these rate-limit sleeps +1 (2038->2039, 2040->2041).
-        ("open_prep/run_open_prep.py", 2013),  # 2026-07-28 (§15 technical-cache imports): 2010->2013
-        ("open_prep/run_open_prep.py", 2015),  # 2026-07-28 (§15 technical-cache imports): 2012->2015
+        ("open_prep/run_open_prep.py", 2008),  # 2026-07-19 remove retired TradingView news lane
+        ("open_prep/run_open_prep.py", 2010),  # 2026-07-19 remove retired TradingView news lane
         ("newsstack_fmp/_bz_http.py", 44),
         # 2026-06-24 feat/benzinga-rss: retry backoff sleeps in REST client
         # (198→199, 209→210 after RSS improvements).

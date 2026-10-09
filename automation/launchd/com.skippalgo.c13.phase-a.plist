@@ -17,7 +17,7 @@
 
     <!-- 09:28 ET target, Mon-Fri — 2 minutes before US-equity open
          (fired via the ET-bracket candidates + gate described below).
-         Phase-A is paper-only; the "phase paper" flag means audit_only records
+         Phase-A is paper-only; --phase paper means audit_only records
          even with TWS connected. Promotion to live_small / live_full is
          a Phase-B decision and requires a separate runner config. -->
     <key>StartCalendarInterval</key>

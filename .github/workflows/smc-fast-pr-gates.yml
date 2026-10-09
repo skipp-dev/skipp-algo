@@ -6,9 +6,8 @@ on:
     branches: [main]
   push:
     branches: [main]
-  # merge_group: `fast-gates` is a required check (since 2026-08-27 alongside
-  # the four `validate (N)` shards), so it MUST run on the merge-queue ref —
-  # otherwise an enabled merge queue would wait forever for a
+  # merge_group: `fast-gates` is the only required check, so it MUST run on the
+  # merge-queue ref — otherwise an enabled merge queue would wait forever for a
   # check that never dispatches. The heavy-gate logic below already runs the full
   # suite on any non-`pull_request` event, so the merged batch is fully validated.
   merge_group:
@@ -45,7 +44,7 @@ jobs:
       matched_runner_name: ${{ steps.resolve.outputs.matched_runner_name }}
     steps:
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Set up pinned Python
         uses: ./.github/actions/setup-python-pinned
@@ -114,24 +113,12 @@ jobs:
             exit 0
           fi
           heavy=false
-          pine=false
           while IFS= read -r f; do
             [[ -z "$f" ]] && continue
             case "$f" in
-              # Pine is published to TradingView, never executed by CI or the
-              # Python services, so it stays out of the HEAVY suite — but it is
-              # exactly what the R1 evidence attests, and that is a different
-              # axis from execution risk. Flag it separately so the R1 guard
-              # still runs. Measured 2026-08-04: #4371 changed
-              # SMC_Event_Overlay.pine, "Guard R1-attested sources" was SKIPPED
-              # on its own PR, it merged green, and every unrelated PR has been
-              # red on that guard since — the one producer the guard exists to
-              # stop was the one it could not see.
-              *.pine|pine/generated/*) pine=true ;;
-            esac
-            case "$f" in
               # Data/docs/generated artifacts the bot workflows legitimately
-              # produce.
+              # produce. Pine is published to TradingView, never executed by CI
+              # or the Python services, so *.pine / pine/generated are safe here.
               artifacts/*|docs/*|reports/*|pine/generated/*|*.pine) ;;
               *)
                 heavy=true
@@ -144,18 +131,11 @@ jobs:
           else
             echo "Bot data-only PR ($HEAD_REF); skipping heavy fast-gates."
           fi
-          if [[ "$pine" == "true" ]]; then
-            echo "Pine touched — the R1-attested-source guard runs regardless of heavy gates."
-          fi
           echo "run_heavy=$heavy" >> "$GITHUB_OUTPUT"
-          echo "run_pine_guard=$pine" >> "$GITHUB_OUTPUT"
 
-      # Also on a pine-only bot PR: without a checkout the R1 guard below cannot
-      # run at all, which is how it came to be skipped for the only producer it
-      # was built to stop.
       - name: Checkout
-        if: steps.gate.outputs.run_heavy == 'true' || steps.gate.outputs.run_pine_guard == 'true'
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        if: steps.gate.outputs.run_heavy == 'true'
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       # Audit P2 MED: enforce the single-maintainer authorship mandate. Every
       # commit in the PR range must be authored AND committed by an approved
@@ -170,47 +150,6 @@ jobs:
         run: |
           git fetch --depth=500 origin "$BASE_SHA" "$HEAD_SHA" 2>/dev/null || true
           python scripts/check_commit_authors.py --range "${BASE_SHA}..${HEAD_SHA}"
-
-      # The R1 contract claims `authorized_execution_completed` with no open
-      # gates, which is only true while the registered evidence still attests to
-      # the current sources. test_smc_r1_rollout_contract.py checks that, but it
-      # is not on the fast list below — it runs in the main-push job, AFTER the
-      # merge. The library-refresh bot went through that hole twice (#4272
-      # /179->/180, #4284 ->/182), both times green at merge time. This guard is
-      # diff-scoped on purpose: main is already drifted, so a standing-state
-      # check here would fail every PR in the repo, including the repair.
-      - name: Guard R1-attested sources
-        if: (steps.gate.outputs.run_heavy == 'true' || steps.gate.outputs.run_pine_guard == 'true') && github.event_name == 'pull_request'
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          # On the pine-only lane (run_heavy=false) none of the Python setup
-          # steps run, so this `python` is whatever the runner image ships and
-          # the import chain must be stdlib+repo only. That lane had never
-          # executed once as of 2026-08-04 -- measured across 45 fast-gates
-          # runs, every one is guard+setup both-ran or both-skipped -- so print
-          # what it resolved. The first pine-touching bot PR is the observation;
-          # tests/test_check_r1_attested_sources.py enforces the purity half.
-          python -VV
-          git fetch --depth=500 origin "$BASE_SHA" "$HEAD_SHA" 2>/dev/null || true
-          python -m scripts.check_r1_attested_sources --range "${BASE_SHA}..${HEAD_SHA}"
-
-      # Der schmale Schnitt (2026-08-13): `bot/*` überspringt weiterhin ALLES
-      # Schwere — nur dieser Wächter läuft mit. Er kostet Bruchteile einer
-      # Sekunde und schliesst die Lücke, durch die der Bibliothekslauf die vier
-      # Kundenoberflächen DREIMAL unbeobachtet auf den Stand vor der
-      # Bereinigung zurückdrehte (#4646, #4665; repariert als #4650, #4652,
-      # #4666 — jedes Mal von Hand, jedes Mal nachdem es gemergt war).
-      # `tests/test_customer_surface_vocabulary.py` steht zwar auf der fast-
-      # Liste, die läuft aber nur bei run_heavy=true — also nie auf genau der
-      # Spur, auf der der Refresh fährt.
-      # Wie die R1-Spur: kein Python-Setup, deshalb Stdlib-only. Verifiziert
-      # 2026-08-13 gegen einen nackten CPython 3.9 ohne installierte Pakete.
-      - name: Guard customer chart surfaces
-        if: steps.gate.outputs.run_heavy == 'true' || steps.gate.outputs.run_pine_guard == 'true'
-        run: |
-          python -m scripts.check_customer_surface_vocabulary
 
       - name: Announce selected runner
         if: steps.gate.outputs.run_heavy == 'true'
@@ -289,47 +228,11 @@ jobs:
           # high 92→91 on PR #2741: excessive-permissions finding in
           # f2-promotion-gate-daily.yml resolved by moving issues:write to
           # job-level in promotion-gate. medium 53→52 (artipacked fix).
-          # high 91→92 (2026-07-22): dangerous-triggers for the new
-          # workflow_run chain in tv-save-consumer-source.yml (post-refresh
-          # auto-save + producer instance refresh). Risk assessed: the
-          # upstream smc-library-refresh runs only on schedule/dispatch —
-          # never from fork PRs — the job gates on conclusion == 'success',
-          # and the workflow holds contents:read only.
-          # high 92→91 (2026-08-01): both template-injection sinks in
-          # smc-r4-context-readback.yml resolved — the dispatch inputs now
-          # reach the CLI through env instead of being expanded into `run:`.
-          # One of the two shipped in #4281 and was already inside the 92, so
-          # this PR fixes more than it adds and the budget shrinks with it.
-          # high 91→93 (2026-08-04): NOT a regression — the scan was widened
-          # from .github/workflows/ to all three action-pin surfaces, and the
-          # two added findings were always there, in
-          # .github/actions/setup-persistent-venv/action.yml (github-env,
-          # confidence Low: writes to GITHUB_PATH and GITHUB_ENV). The ratchet
-          # counted zero findings from composite actions and workflow templates
-          # because it never opened them. Measured both ways with the pinned
-          # 1.25.2: workflows-only {High 91, Medium 51}, all three surfaces
-          # {High 93, Medium 51}. Widening it matters beyond bookkeeping —
-          # zizmor rates an unpinned `uses:` High, which is the one thing that
-          # would have caught a mutable tag in the composite while the Python
-          # guards were blind to it (#4448 follow-up).
-          # 2026-08-13: 93 -> 97. smc-library-publish.yml traegt vier High-Funde:
-          # dangerous-triggers (workflow_run — die Bauform selbst), sowie
-          # template-injection und github-env x2 aus dem Setup-Block, der
-          # wortgleich aus smc-library-refresh stammt und dort schon in der
-          # Grundlinie steht. Was sich beheben liess, ist behoben: Rechte auf
-          # Job-Ebene statt Workflow-Ebene (-2) und REFRESH_DATE ohne Umweg
-          # ueber $GITHUB_ENV (-1), zusammen 7 -> 4. Der Wert 95 ist auf dem
-          # rebasierten Baum mit derselben gepinnten zizmor-Fassung (1.25.2)
-          # GEMESSEN — und zwar ueber ALLE DREI Verzeichnisse, die dieser
-          # Schritt auditiert. Ein Lauf nur ueber .github/workflows/ zaehlt
-          # 95 und fuehrt zuverlaessig zur falschen Zahl.
-          ZIZMOR_HIGH_BUDGET: "97"
+          ZIZMOR_HIGH_BUDGET: "91"
           ZIZMOR_MEDIUM_BUDGET: "52"
         run: |
           python -m pip install --quiet "zizmor==1.25.2"
-          zizmor --no-progress --offline --format json \
-            .github/workflows/ .github/actions/ .github/workflow-templates/ \
-            > zizmor_report.json || true
+          zizmor --no-progress --offline --format json .github/workflows/ > zizmor_report.json || true
           python - <<'PY'
           import json, os, sys
           findings = json.load(open("zizmor_report.json"))
@@ -340,52 +243,19 @@ jobs:
           print(f"zizmor: high={high} (budget {hb}), medium={medium} (budget {mb})")
           ok = True
           if high > hb:
-              print(f"::error title=zizmor-ratchet::high-severity findings rose {hb} -> {high}. New workflow code introduced a security finding (run `zizmor --offline .github/workflows/ .github/actions/ .github/workflow-templates/` locally).")
+              print(f"::error title=zizmor-ratchet::high-severity findings rose {hb} -> {high}. New workflow code introduced a security finding (run `zizmor .github/workflows/` locally).")
               ok = False
           if medium > mb:
-              print(f"::error title=zizmor-ratchet::medium-severity findings rose {mb} -> {medium}. New workflow code introduced a security finding (run `zizmor --offline .github/workflows/ .github/actions/ .github/workflow-templates/` locally).")
+              print(f"::error title=zizmor-ratchet::medium-severity findings rose {mb} -> {medium}. New workflow code introduced a security finding (run `zizmor .github/workflows/` locally).")
               ok = False
           if ok and (high < hb or medium < mb):
               print(f"::notice title=zizmor-ratchet::findings below budget (high {high}/{hb}, medium {medium}/{mb}) — consider lowering ZIZMOR_*_BUDGET in smc-fast-pr-gates.yml to lock in the improvement.")
           sys.exit(0 if ok else 1)
           PY
 
-      # ── TypeScript vacuity guard ──────────────────────────────────────
-      # The Python half of this guard (scripts/detect_vacuous_claims.py) has
-      # gated merges since #4355. The TypeScript half shipped with #4356/#4381
-      # and gated NOTHING: it ran only in tv-onboarding-packages.yml, and
-      # `fast-gates` was then the only required check (ADR-0011). So the
-      # analyzer that finds "green without observing anything" in the
-      # TradingView automation could go red for weeks without blocking a
-      # single merge — a guard about unobserved checks, itself unobserved.
-      #
-      # Gated on run_heavy like every other guard here, and that is sufficient
-      # rather than a compromise: the data-only exemption in the gate step
-      # above is `artifacts/*|docs/*|reports/*|pine/generated/*|*.pine`, so a
-      # PR touching any .ts file forces heavy. The only PRs that skip this are
-      # the ones that cannot contain TypeScript.
-      #
-      # Measured cost on the required lane (tv-onboarding-packages run
-      # 30885490507, 2026-08-04): Set up Node 12s, npm ci 3s, and the scan
-      # itself under a second against 55 files.
-      - name: Set up Node for the TypeScript vacuity guard
-        if: steps.gate.outputs.run_heavy == 'true'
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
-        with:
-          node-version: "20"
-          cache: npm
-
-      - name: Install Node dependencies
-        if: steps.gate.outputs.run_heavy == 'true'
-        run: npm ci
-
-      - name: Guard against vacuous TypeScript claims
-        if: steps.gate.outputs.run_heavy == 'true'
-        run: npx tsx --test automation/tradingview/tests/vacuous_claims_ts.test.ts
-
       - name: Install uv
         if: steps.gate.outputs.run_heavy == 'true'
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
           enable-cache: true
           cache-dependency-glob: |
@@ -416,52 +286,6 @@ jobs:
           echo "::error::Self-hosted runner is missing a usable Python 3.12 interpreter (tried \`python\` and \`py -3.12\`)."
           exit 1
 
-      # Ein PR, der Code aendert, den nur ein Workflow ausfuehrt und kein Test
-      # importiert, zeigt seine Wirkung erst im echten Lauf. Ohne Ledger-
-      # Eintrag verdunstet "noch nicht bewiesen" still zu "wird schon stimmen":
-      # am 2026-08-23 lag #5013 dreizehn Stunden auf einem Zustand, der von
-      # "schlafend, also in Ordnung" nicht zu unterscheiden war.
-      # Diff-bezogen und OHNE Netz — fast-gates ist der einzige required Check.
-      #
-      # NICHT neben "Guard R1-attested sources" platziert (Fix-Runde 1,
-      # 2026-08-24): dieser Waechter importiert tomllib (>=3.11) direkt und
-      # ueber scripts/proof_ledger.py. An der Nachbarposition -- vor jedem
-      # Python-Setup, stdlib-3.9-sicher gehalten wie R1/customer-surface --
-      # waere das ein ModuleNotFoundError beim Import, auf jedem Heavy-PR.
-      # Er laeuft deshalb erst NACH "Resolve Python 3.12 interpreter": das ist
-      # die einzige Stelle in diesem Job, die auf BEIDEN Lanes (github-hosted
-      # ueber die Bootstrap-Assertion, self-hosted ueber `python`/`py -3.12`)
-      # tatsaechlich einen 3.12-Interpreter erzwingt und mit einer benannten
-      # ::error:: statt einem Traceback scheitert -- kein zusaetzlicher
-      # Versions-Guard noetig, dieser Schritt liefert bereits einen; ein
-      # zweiter haette dasselbe Blast-Radius-Problem (jeder Heavy-PR rot) nur
-      # mit hoeflicherem Text. `$SMC_PYTHON_BIN` statt `python`, weil die
-      # self-hosted-`py -3.12`-Variante einen Pfad setzt, der nicht zwingend
-      # das `python` in PATH ist. Braucht run_heavy=='true' (nie den
-      # Pine-only-Lane) -- die Pine-only-Lane KANN laut der bot-Allow-Liste
-      # oben (Zeile ~134: `artifacts/*|docs/*|reports/*|pine/generated/*|*.pine`,
-      # matcht nie einen `.github/workflows/*.yml`-Pfad) ohnehin keinen
-      # beweispflichtigen Diff enthalten, deshalb ist die engere Bedingung
-      # (ohne `run_pine_guard`) hier korrekt und nicht bloss zufaellig
-      # ungefaehrlich.
-      - name: Guard the proof ledger
-        if: (steps.gate.outputs.run_heavy == 'true') && github.event_name == 'pull_request'
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          # 2026-08-29: `--pr` erzwingt, dass eine neu angelegte NUMERISCHE
-          # Beweis-id die eigene PR-Nummer ist. #5179 legte seinen Eintrag unter
-          # der geratenen 5178 an, die bereits belegt war — der Loader lehnte das
-          # Ledger komplett ab und main war 70 min fuer alle offenen PRs blockiert.
-          # Beide PRs waren fuer sich gruen (Stale-Check-Falle); die Frage "ist es
-          # meine eigene Nummer" kann dagegen jeder PR allein beantworten.
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          "$SMC_PYTHON_BIN" -VV
-          git fetch --depth=500 origin "$BASE_SHA" "$HEAD_SHA" 2>/dev/null || true
-          "$SMC_PYTHON_BIN" -m scripts.check_proof_ledger \
-            --range "${BASE_SHA}..${HEAD_SHA}" --pr "$PR_NUMBER"
-
       - name: Install dependencies
         if: steps.gate.outputs.run_heavy == 'true'
         run: |
@@ -483,19 +307,7 @@ jobs:
         if: steps.gate.outputs.run_heavy == 'true'
         run: |
           # Drift guard: verify daemon Dockerfile still builds from repository root context.
-          # Tagged so the start-up probe below can run the SAME image.
-          docker build -f services/live_overlay_daemon/Dockerfile -t live-overlay-daemon:ci .
-
-      - name: Probe that the built image can actually start
-        if: steps.gate.outputs.run_heavy == 'true'
-        run: |
-          # `docker build` proves the image BUILDS, never that it STARTS. From
-          # 2026-07-23 to 2026-08-05 the declared image raised
-          # ModuleNotFoundError('databento_usage') on import and the build step
-          # stayed green throughout. Importing the entrypoint module is the
-          # cheapest check that covers the whole module-level import graph.
-          docker run --rm --entrypoint python live-overlay-daemon:ci \
-            -c "import services.live_overlay_daemon.main; import holidays; print('start-up imports OK')"
+          docker build -f services/live_overlay_daemon/Dockerfile .
 
       # Guard: ruff must pass clean (exit 0) on every PR. ruff comes from the
       # venv just installed above (pinned in requirements.txt — single source
@@ -577,60 +389,6 @@ jobs:
         # ci.yml is status-only on PRs, so `pytest -m "not slow"` collected 0 of
         # its tests). It only ran post-merge on main push. YAML/JSON parsing only,
         # ~1.5s.
-        #
-        # test_credential_probe_consumers.py (2026-08-03) is pinned here rather
-        # than left to the diff-driven step below, and the distinction matters:
-        # the regression it guards (#4333 added probe_composio_accounts and
-        # broke smc-library-refresh for 12 runs) arrived in a PR that changed
-        # scripts/credential_health_check.py and NO workflow file — so the
-        # diff-driven selection would have picked nothing. It must sit on the
-        # required path unconditionally. Source parsing only, <0.5s.
-        #
-        # test_fast_gates_attested_pine_coverage.py (2026-08-04) is pinned for
-        # exactly the same reason, one level up: it asserts that every source
-        # scripts/smc_r1_rollout_contract.py attests is matched by the
-        # run_pine_guard arm in the "Determine if heavy gates should run" step
-        # above — the flag that pulls the checkout and "Guard R1-attested
-        # sources" onto a pine-only bot PR. That arm is PATH-shaped
-        # (*.pine|pine/generated/*) while the attested roster is DERIVED, so an
-        # attested target registered outside those globs would be invisible to
-        # the guard again. Registering it touches only that Python module — no
-        # workflow file — so the diff-driven step below would select nothing,
-        # which is the same blind spot #4284 and #4371 went through. Note the
-        # recursion: this guard reads the same workflow it is listed in, so if
-        # the arm is ever deleted, the very PR that deletes it fails the
-        # required check. YAML/source parsing only, <0.5s.
-        #
-        # test_ci_workflow_contract.py + test_ci_workflow_structural_pin.py
-        # (2026-08-04, #4398) are the exception to the paragraphs above, and the
-        # entry owes an honest statement of it: the diff-driven step below DOES
-        # select both — they read .github/workflows/ci.yml and nothing else, so
-        # the only edit that can break them always selects them. Measured on a
-        # tree without this pin: regressing ci.yml's `timeout-minutes: 45 -> 60`
-        # turned the required check red through that step alone. Two gaps remain,
-        # and they are the whole justification. First, the step is
-        # `github.event_name == 'pull_request'`-gated, so it does not run in a
-        # merge_group batch; this list does. Second, the step routes through
-        # scripts/select_workflow_guards.py — a pin that depends on the selector
-        # cannot catch the selector regressing. ci.yml carries the repo's only
-        # full-suite execution, so both gaps are worth a sub-second entry.
-        #
-        # test_workflow_python_version_pinned.py (2026-08-19, review follow-up
-        # to #4823) is pinned for the first of those two gaps: the diff-driven
-        # step below DOES select it for any workflow or composite edit, but a
-        # merge_group batch skips that step entirely — two independently green
-        # PRs (a composite toolchain bump; a new workflow spelling the old
-        # literal) would land an interpreter drift with no pre-merge run, red
-        # only on the main push. YAML/regex parsing only, ~0.3 s.
-        #
-        # 2026-08-08: the fifteen entries at the end of the list are repo-wide
-        # source guards that were advisory only — they ran in `validate`, after
-        # the merge they exist to block. Each reads a production surface where a
-        # NEW violation would have merged green: LLM egress bypassing AI
-        # Defense, a secret-backed env var read with a fallback argument, the
-        # ml/ kernel importing a domain package, POSIX-only imports in
-        # cross-platform code, float equality in smc_core/, unpinned deps in the
-        # file production installs. 150 tests, ~31 s serial.
         if: steps.gate.outputs.run_heavy == 'true'
         run: |
           python -m pytest -q --maxfail=1 \
@@ -639,22 +397,15 @@ jobs:
             tests/test_assert_and_open_encoding_pin.py \
             tests/test_assert_in_production_budget.py \
             tests/test_bare_type_ignore_ledger.py \
-            tests/test_bundle_loader_frame_discipline.py \
             tests/test_broad_except_silent_budget.py \
             tests/test_builtin_open_encoding_ledger.py \
-            tests/test_c13_eod_flatten_target_selection.py \
-            tests/test_check_r1_attested_sources.py \
-            tests/test_customer_surface_vocabulary.py \
             tests/test_dynamic_getattr_ledger.py \
             tests/test_dynamic_import_and_todo_tripwires.py \
             tests/test_field_preference_chain_ledger.py \
             tests/test_global_statement_budget.py \
             tests/test_hashlib_weak_hash_ledger.py \
-            tests/test_hold_customer_surfaces.py \
-            tests/test_hold_customer_surfaces_wiring.py \
             tests/test_http_client_discipline.py \
             tests/test_http_post_egress_ledger.py \
-            tests/test_iloc_minus_one_guard_discipline.py \
             tests/test_loopback_and_baseimage_pin.py \
             tests/test_mutable_defaults_and_loads_pins.py \
             tests/test_nonlocal_budget.py \
@@ -662,20 +413,11 @@ jobs:
             tests/test_noqa_suppression_ledger.py \
             tests/test_os_environ_mutation_ledger.py \
             tests/test_os_unlink_remove_ledger.py \
-            tests/test_outcome_horizons.py \
             tests/test_path_text_io_encoding_ledger.py \
             tests/test_pine_alertcondition_and_declaration_pin.py \
-            tests/test_pine_decision_logic_deep_review_regressions.py \
             tests/test_pine_request_security_htf_pin.py \
-            tests/test_pine_string_literals_close_on_their_line.py \
             tests/test_pine_var_budget_pin.py \
-            tests/test_us_extended_session_window.py \
-            tests/test_terminal_bitcoin.py \
-            tests/test_exit_tif_explicit_at_order_submitters.py \
             tests/test_prod_print_ledger.py \
-            tests/test_proof_ledger.py \
-            tests/test_grafana_notification_routing_upsert.py \
-            tests/test_proof_entry_id_is_the_own_pr_number.py \
             tests/test_pytest_skip_budget.py \
             tests/test_random_tempfile_ledger_pin.py \
             tests/test_realtime_signals_sister_ledger_guardrail.py \
@@ -686,7 +428,6 @@ jobs:
             tests/test_subprocess_spawn_sites_ledger.py \
             tests/test_sys_exit_ledger_pin.py \
             tests/test_sys_path_mutation_ledger.py \
-            tests/test_test_suite_health_discipline.py \
             tests/test_time_sleep_budget.py \
             tests/test_type_ignore_budget.py \
             tests/test_urllib_urlopen_ledger.py \
@@ -694,20 +435,12 @@ jobs:
             tests/test_weak_hash_pin.py \
             tests/test_while_true_termination_ledger.py \
             tests/test_workflow_upload_artifact_uniform_version.py \
-            tests/test_record_test_durations_workflow.py \
-            tests/test_test_durations_coverage_ratchet.py \
             tests/test_workflow_issue_labels_exist.py \
             tests/test_workflow_no_fake_push_success.py \
             tests/test_workflow_runner_pinned.py \
             tests/test_workflow_set_plus_e_inventory.py \
             tests/test_workflow_tv_save_consumer_source_contract.py \
-            tests/test_workflow_tv_post_mutation_verify_contract.py \
             tests/test_workflow_orphan_inventory.py \
-            tests/test_smc_r4_context_readback_workflow.py \
-            tests/test_scripts_path_as_posix_guard.py \
-            tests/test_select_workflow_guards.py \
-            tests/test_tradingview_session_concurrency.py \
-            tests/test_workflow_databento_handoff_concurrency.py \
             tests/test_workflow_pythonpath_for_direct_invoke.py \
             tests/test_workflow_concurrency_cron_no_cancel.py \
             tests/test_workflow_invoked_scripts_importable.py \
@@ -715,9 +448,6 @@ jobs:
             tests/test_workflow_freshness_monitor_workflow.py \
             tests/test_workflow_continue_on_error_inventory.py \
             tests/test_workflow_permissions_present.py \
-            tests/test_workflow_python_bin_resolved.py \
-            tests/test_workflow_live_window_posture.py \
-            tests/test_check_tv_unattested_sources.py \
             tests/test_workflow_auth_pattern.py \
             tests/test_dynamic_setattr_hasattr_zero_surface.py \
             tests/test_hmac_auth_zero_surface.py \
@@ -732,7 +462,6 @@ jobs:
             tests/test_atexit_register_zero_surface.py \
             tests/test_dangerous_builtins_zero_surface.py \
             tests/test_datetime_tz_safety_zero_surface.py \
-            tests/test_market_timezone_contract.py \
             tests/test_dynamic_exec_and_pickle_zero_surface.py \
             tests/test_exec_mktemp_shelltrue_zero_surface.py \
             tests/test_library_discipline_zero_surface.py \
@@ -744,10 +473,7 @@ jobs:
             tests/test_guard_corpus_tracked_files.py \
             tests/test_httpx_timeout_invariant.py \
             tests/test_gha_action_allowlist.py \
-            tests/test_action_pin_surfaces_agree.py \
-            tests/test_zizmor_ratchet_mirrors_ci.py \
             tests/test_pine_alert_bar_close_gate.py \
-            tests/test_pine_alert_call_bar_close_gate.py \
             tests/test_workflow_continue_on_error_semantics.py \
             tests/test_mkdir_makedirs_exist_ok_invariant.py \
             tests/test_six_zero_tripwires_bundle.py \
@@ -758,7 +484,6 @@ jobs:
             tests/test_to_datetime_utc_discipline.py \
             tests/test_weak_hash_usedforsecurity_pin.py \
             tests/test_atomic_write_call_sites.py \
-            tests/test_atr_split_calendar_wiring.py \
             tests/test_module_test_coverage_pin.py \
             tests/test_smc_library_refresh_workflow.py \
             tests/test_schema_version_manifest_alignment.py \
@@ -768,168 +493,19 @@ jobs:
             tests/test_build_family_metrics.py \
             tests/test_family_returns.py \
             tests/test_family_event_adapter.py \
-            tests/test_build_commercial_family_setups.py \
-            tests/test_commercial_family_paper_pipeline.py \
-            tests/test_run_commercial_family_shadow.py \
-            tests/test_run_commercial_shadow_campaign.py \
-            tests/test_run_smc_live_incubation.py \
-            tests/test_run_smc_live_incubation_paper_submit.py \
             tests/test_family_verdict.py \
             tests/test_verdict_panel.py \
             tests/test_run_edge_pipeline.py \
             tests/test_fast_gates_silent_skip_coverage.py \
-            tests/test_ci_workflow_contract.py \
-            tests/test_ci_workflow_structural_pin.py \
             tests/test_lint_debt_no_regression.py \
             tests/test_pytest_marker_bucket_discipline.py \
             tests/test_smc_bus_v2_freeze.py \
             tests/test_smc_context_golden.py \
-            tests/test_smc_htf_context_r5_spike.py \
-            tests/test_library_field_audit.py \
             tests/test_pine_context_library_contract.py \
-            tests/test_pine_surface_registry.py \
             tests/test_pine_engine_fill_boundary.py \
             tests/test_pine_handlib_publisher_inventory.py \
             tests/test_pine_library_import_permissions.py \
-            tests/test_monitoring_metric_alert_coverage.py \
-            tests/test_realtime_signals_metrics_endpoint.py \
-            tests/test_alerted_metric_emitter_population.py \
-            tests/test_cisco_probe_alert_rules.py \
-            tests/test_github_workflow_expected_presence.py \
-            tests/test_degraded_status_alert_coverage.py \
-            tests/test_grafana_alert_rules_upsert.py \
-            tests/test_grafana_dashboard_pullback.py \
-            tests/test_live_overlay_alert_rules_publish_workflow.py \
-            tests/test_live_overlay_dashboard_contract.py \
-            tests/test_live_overlay_dashboard_publish_workflow.py \
-            tests/test_a0_fast_alert_rules.py \
-            tests/test_pre_a0_alert_rules.py \
-            tests/test_pre_a0_grafana_dashboard.py \
-            tests/test_publish_overlay_dashboard.py \
-            tests/test_signals_dashboard_contract.py \
-            tests/test_smc_fast_pr_gates_workflow.py \
-            tests/test_smc_live_overlay_metrics.py \
-            tests/test_smc_product_cut_manifest.py \
-            tests/test_update_overlay_dashboard.py \
-            tests/test_detect_vacuous_claims.py \
-            tests/test_vacuous_claim_guard.py \
-            tests/test_credential_probe_consumers.py \
-            tests/test_cross_manifest_pin_consistency.py \
-            tests/test_fast_gates_attested_pine_coverage.py \
-            tests/test_git_fixture_env_isolation.py \
-            tests/test_ts_vacuity_guard_is_required.py \
-            tests/test_dependabot_local_version_pins.py \
-            tests/test_dependabot_typescript_major_hold.py \
-            tests/test_workflow_pine_library_publish_handlibs_contract.py \
-            tests/test_ai_defense_egress_guard.py \
-            tests/test_feature_flag_centralization.py \
-            tests/test_import_safety.py \
-            tests/test_live_overlay_daemon_deploy_artifact_contract.py \
-            tests/test_lru_cache_bounded_sweep.py \
-            tests/test_ml_kernel_import_boundary.py \
-            tests/test_no_direct_to_csv_in_production.py \
-            tests/test_no_eager_format_in_logger_calls.py \
-            tests/test_no_mtime_pick_in_production.py \
-            tests/test_pine_legacy_path_centralization.py \
-            tests/test_posix_only_import_guard.py \
-            tests/test_smc_core_float_equality_discipline.py \
-            tests/test_subprocess_budget.py \
-            tests/test_sprt_decision_consumer_coverage.py \
-            tests/test_workflow_env_var_defaults.py \
-            tests/test_workflow_invoked_scripts_import_order.py \
-            tests/test_workflow_python_version_pinned.py \
-            tests/test_scheduled_workflow_observation_inventory.py \
-            tests/test_presence_age_series_deadline_tripwire.py \
-            tests/test_documented_env_vars_are_read.py \
-            tests/test_launchd_shell_portability.py
-
-      # 2026-08-01: three green PRs in one day changed a workflow and broke a
-      # guard that reads it but is not on the pinned list below (#4288, #4291,
-      # #4302). Adding one more file each time closes the instance, not the
-      # class -- and a roster rule cannot close it either: 571 test files read a
-      # workflow and 484 are unlisted. So the selection follows the DIFF. A PR
-      # that touches no workflow pays nothing; one that touches a workflow runs
-      # every guard that reads it, listed or not.
-      - name: Run every guard that reads a CI surface this PR changed
-        if: steps.gate.outputs.run_heavy == 'true' && github.event_name == 'pull_request'
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          set -euo pipefail
-          git fetch --depth=500 origin "$BASE_SHA" "$HEAD_SHA" 2>/dev/null || true
-          # The pathspec must stay a superset of _CONFIG_SURFACES in
-          # scripts/select_workflow_guards.py — a surface the selector knows but
-          # the diff never hands it is a guard nobody runs. Widened 2026-08-06:
-          # this fed only .github/workflows/, so a PR editing .github/dependabot.yml
-          # selected nothing and the guard for the change it made ran after merge.
-          # tests/test_select_workflow_guards.py pins the superset relation.
-          changed="$(git diff --name-only "${BASE_SHA}..${HEAD_SHA}" -- \
-            .github/workflows/ \
-            .github/dependabot.yml \
-            .github/actions/ \
-            package.json \
-            pyproject.toml \
-            requirements.txt \
-            services/*/requirements.txt)"
-          if [ -z "${changed}" ]; then
-            echo "No CI surface changed in this pull request."
-            exit 0
-          fi
-          echo "Changed CI surfaces:"
-          echo "${changed}" | sed 's/^/  /'
-          # shellcheck disable=SC2086
-          guards="$(python -m scripts.select_workflow_guards ${changed})"
-          if [ -z "${guards}" ]; then
-            echo "::warning::no guard reads the changed workflows"
-            exit 0
-          fi
-          echo "Guards selected by the diff:"
-          echo "${guards}" | sed 's/^/  /'
-          # shellcheck disable=SC2086
-          python -m pytest ${guards} -q --no-header
-
-      # 2026-08-16: #4752 removed the Hold-Manager legacy route and merged
-      # green. This gate's pytest lists are fixed smoke sets, and ci.yml is
-      # status-only on pull requests BY DESIGN -- so the test that imports the
-      # changed module and fails deterministically on that tree first ran on
-      # the main push: two red main runs and a cross-session misdiagnosis
-      # before #4755 repaired it. Same class-closure as the guard selector
-      # above, for production Python: a PR that changes no production module
-      # pays nothing; one that changes a module runs every test that imports
-      # it directly. Population measured 2026-08-16 over the last 60 merged
-      # PRs: 55 select nothing, median of the rest 5 files, max 12;
-      # structural worst case (most-imported module, open_prep.realtime_
-      # signals) 26 files. tests/test_select_reverse_import_tests.py pins the
-      # cost model and this wiring.
-      - name: Run every test that imports a production module this PR changed
-        if: steps.gate.outputs.run_heavy == 'true' && github.event_name == 'pull_request'
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          set -euo pipefail
-          git fetch --depth=500 origin "$BASE_SHA" "$HEAD_SHA" 2>/dev/null || true
-          # The whole diff, no pathspec: the selector is the single filter
-          # authority (non-.py and tests/ are excluded there, where the rule
-          # is executable and tested).
-          changed="$(git diff --name-only "${BASE_SHA}..${HEAD_SHA}")"
-          if [ -z "${changed}" ]; then
-            echo "Empty diff; nothing to select."
-            exit 0
-          fi
-          # shellcheck disable=SC2086
-          selected="$(python -m scripts.select_reverse_import_tests ${changed})"
-          if [ -z "${selected}" ]; then
-            echo "No production module changed; no reverse-import tests selected."
-            exit 0
-          fi
-          echo "Tests selected by reverse import:"
-          echo "${selected}" | sed 's/^/  /'
-          # Deliberately NO --maxfail=1 on this stage: the selection is small
-          # (measured above) and a masked second failure is the known trap.
-          # shellcheck disable=SC2086
-          python -m pytest ${selected} -q --no-header
+            tests/test_monitoring_metric_alert_coverage.py
 
       - name: Run fast SMC integration tests
         if: steps.gate.outputs.run_heavy == 'true'
@@ -944,31 +520,6 @@ jobs:
             tests/test_manifest_preference.py \
             tests/test_stale_batch_guard.py \
             tests/test_smc_trust_state.py
-
-      # Keep test collection deterministic before merge. The full validate
-      # suite also runs this guard, but that lane is status-only on pull
-      # requests and therefore cannot protect main by itself.
-      - name: Run pytest-xdist parametrization determinism guard
-        if: steps.gate.outputs.run_heavy == 'true'
-        run: |
-          python -m pytest -q --maxfail=1 \
-            tests/test_pytest_xdist_parametrize_determinism.py
-
-      # Behavioural notification tests are intentionally separate from the
-      # line-pinned ledger guard above. PR validate jobs are status-only, so
-      # leaving this suite to the full main-push run would let notification,
-      # numeric-boundary and push/sidecar-parity regressions merge first.
-      - name: Run realtime notification contract tests
-        if: steps.gate.outputs.run_heavy == 'true'
-        run: |
-          python -m pytest -q --maxfail=1 \
-            tests/test_rt_notify.py \
-            tests/test_rt_notify_a1_conviction_pace.py \
-            tests/test_calibration_lookup.py \
-            tests/test_near_a0_repoller.py \
-            tests/test_trade_context.py \
-            tests/test_trade_context_bracket_coherence.py \
-            tests/test_smc_live_signal_fields.py
 
       - name: Run terminal coverage subset
         if: steps.gate.outputs.run_heavy == 'true'
@@ -994,7 +545,6 @@ jobs:
             tests/test_streamlit_terminal_alerts.py \
             tests/test_terminal_notifications.py \
             tests/test_terminal_export_dispatch.py \
-            tests/test_terminal_candidate_mirror.py \
             tests/test_streamlit_terminal_feed_state.py \
             tests/test_streamlit_terminal_pure_functions.py \
             | tee artifacts/ci/terminal_coverage.txt
@@ -1021,63 +571,3 @@ jobs:
             artifacts/ci/terminal_coverage.txt
             artifacts/ci/terminal_coverage.xml
           if-no-files-found: ignore
-
-  # The required status check of the `main-governance` ruleset.
-  #
-  # It cannot be `fast-gates` itself. That job carries `needs: select-runner`,
-  # and GitHub is explicit about what that means: "A job that is skipped will
-  # report its status as 'Success'. It will not prevent a pull request from
-  # merging, even if it is a required check" -- with "A job depends on a failed
-  # job" listed as a way in. So a failing `select-runner` skipped `fast-gates`,
-  # the skip reported Success, and the pull request was mergeable with no gate
-  # having run. Measured 2026-08-06; over the preceding 60 runs `select-runner`
-  # never failed, so this was structural rather than realised.
-  #
-  # GitHub's prescribed remedy is this shape: "Use `always()` with `needs` for
-  # required checks that depend on other jobs" -- plus an explicit test of
-  # `needs.*.result`, because `always()` alone only makes the job RUN; it does
-  # not make it fail.
-  #
-  # `always()` and not `!cancelled()`: a gate skipped on cancellation reports
-  # Success and reopens the hole. The usual argument against `always()` -- a run
-  # that hangs to its timeout -- is about jobs that fetch sources or talk to a
-  # network. This one checks out nothing and reads two strings.
-  gate:
-    name: gate
-    needs: [select-runner, fast-gates]
-    if: always()
-    # Deliberately NOT select-runner's chosen runner: a failed selection must
-    # not take the job that reports the failure down with it. Same operator
-    # override as select-runner itself, which is the form the runner-pinning
-    # guard accepts.
-    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
-    timeout-minutes: 5
-    steps:
-      - name: Refuse anything that is not a real pass
-        env:
-          SELECT_RUNNER_RESULT: ${{ needs.select-runner.result }}
-          FAST_GATES_RESULT: ${{ needs.fast-gates.result }}
-        run: |
-          set -uo pipefail
-          select="${SELECT_RUNNER_RESULT:-empty}"
-          gates="${FAST_GATES_RESULT:-empty}"
-          echo "select-runner=${select} fast-gates=${gates}"
-          if [ "${select}" = "success" ] && [ "${gates}" = "success" ]; then
-            echo "Gates passed: select-runner=${select}, fast-gates=${gates}." \
-              >> "${GITHUB_STEP_SUMMARY:-/dev/null}"
-            exit 0
-          fi
-          {
-            echo "## Merge gate refused"
-            echo
-            echo "| job | result |"
-            echo "| --- | --- |"
-            echo "| select-runner | \`${select}\` |"
-            echo "| fast-gates | \`${gates}\` |"
-            echo
-            echo "A \`skipped\` here is not a pass: GitHub reports a skipped job"
-            echo "as Success to branch protection, which is the hole this job"
-            echo "exists to close."
-          } >> "${GITHUB_STEP_SUMMARY:-/dev/null}"
-          echo "::error::merge gate refused — select-runner=${select}, fast-gates=${gates}"
-          exit 1

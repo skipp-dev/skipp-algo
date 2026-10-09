@@ -25,8 +25,8 @@ def test_library_refresh_rejects_stale_fallback_on_automated_runs() -> None:
     body = _read_workflow("smc-library-refresh.yml")
     assert "Reject stale Databento fallback on automated refresh" in body
     assert "github.event_name != 'workflow_dispatch'" in body
-    assert "steps.restore_export_bundle.outputs.artifact_mode == 'fallback'" in body
-    assert "scripts/restore_databento_export_bundle.py" in body
+    assert "steps.restore_export_bundle_today.outputs.found_artifact != 'true'" in body
+    assert "steps.restore_export_bundle_fallback.outputs.found_artifact == 'true'" in body
     assert (
         "Refusing to publish against a stale producer bundle" in body
         or "Refusing to generate from a stale producer bundle" in body
@@ -62,8 +62,7 @@ def test_live_news_secret_is_in_step_env_not_inline_shell() -> None:
     assert "FMP_API_KEY: ${{ secrets.FMP_API_KEY }}" in body
     assert "FMP_API_KEY='${{ secrets.FMP_API_KEY }}'" not in body
     assert "NEWSAPI_KEY" not in body, "NEWSAPI_KEY must not be re-added (NewsAPI.ai retired)"
-    assert "scripts/publish_bot_snapshot.py" in body
-    assert "refusing a cold start that could replace rolling dedup state" in body
+    assert "live-news state persistence warning" in body
 
 
 def test_restore_bundle_filters_deprecated_monolith_artifacts(monkeypatch) -> None:
@@ -92,24 +91,15 @@ def test_restore_bundle_filters_deprecated_monolith_artifacts(monkeypatch) -> No
         },
     ]
 
-    # 2026-10-01: the filter is structural now. The helper lists the runs of
-    # the canonical sharded producer FILE and reads artifacts per run, so the
-    # monolith's run 101 is never asked for — its same-prefix artifact cannot
-    # become a candidate. Asking for it (or for the repo-wide artifact index,
-    # which answers HTTP 500 since 2026-09-25) fails this test.
-    by_run = {int(item["workflow_run"]["id"]): [item] for item in artifacts}
-    canonical_runs = (
-        "repos/skippALGO/skipp-algo/actions/workflows/"
-        "smc-databento-production-export-sharded.yml/runs"
-        "?branch=main&created=%3E%3D2026-05-06&per_page=100&page=1"
-    )
-
     def fake_api_get_json(_token: str, path: str) -> dict:
-        if path == canonical_runs:
-            return {"workflow_runs": [{"id": 303}, {"id": 202}]}
-        for run_id in (202, 303):
-            if path == f"repos/skippALGO/skipp-algo/actions/runs/{run_id}/artifacts?per_page=100":
-                return {"artifacts": by_run[run_id]}
+        if path == "repos/skippALGO/skipp-algo/actions/artifacts?per_page=100&page=1":
+            return {"artifacts": artifacts}
+        if path == "repos/skippALGO/skipp-algo/actions/runs/101":
+            return {"path": ".github/workflows/smc-databento-production-export.yml", "name": "smc-databento-production-export"}
+        if path == "repos/skippALGO/skipp-algo/actions/runs/202":
+            return {"path": ".github/workflows/smc-databento-production-export-sharded.yml", "name": "smc-databento-production-export-sharded"}
+        if path == "repos/skippALGO/skipp-algo/actions/runs/303":
+            return {"path": ".github/workflows/smc-databento-production-export-sharded.yml", "name": "smc-databento-production-export-sharded"}
         raise AssertionError(f"unexpected API path: {path}")
 
     monkeypatch.setattr(restore_bundle, "_api_get_json", fake_api_get_json)

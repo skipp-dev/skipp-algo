@@ -123,32 +123,3 @@ def test_get_quote_fail_soft_on_http_error(monkeypatch) -> None:
 
     monkeypatch.setattr(loader.session, "get", _boom)
     assert loader.get_quote("^VIX") is None
-
-
-def test_historical_price_drops_missing_ohlc_keys(monkeypatch) -> None:
-    """Missing OHLC keys must not be coerced to 0.0 and treated as valid."""
-    loader = _loader()
-    rows = [
-        {"date": "2026-07-01 10:00:00", "open": 100.0, "high": 101.0,
-         "low": 99.0, "close": 100.5, "volume": 1000},
-        {"date": "2026-07-01 11:00:00", "high": 101.0,
-         "low": 99.0, "close": 100.5, "volume": 1000},
-        {"date": "2026-07-01 12:00:00", "open": 100.0,
-         "low": 99.0, "close": 100.5, "volume": 1000},
-        {"date": "2026-07-01 13:00:00", "open": 100.0, "high": 101.0,
-         "close": 100.5, "volume": 1000},
-        {"date": "2026-07-01 14:00:00", "open": 100.5, "high": 102.0,
-         "low": 100.0, "close": 101.5, "volume": None},
-    ]
-    monkeypatch.setattr(
-        loader, "_fetch_chart_rows", lambda *args, **kwargs: list(rows)
-    )
-
-    candles = loader.get_historical_price("NVDA", period="1hour")
-
-    assert [c["timestamp"] for c in candles] == [
-        "2026-07-01 10:00:00",
-        "2026-07-01 14:00:00",
-    ]
-    assert candles[0]["open"] == 100.0
-    assert candles[1]["close"] == 101.5

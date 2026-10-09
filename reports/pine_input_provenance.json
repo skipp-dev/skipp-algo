@@ -1,7 +1,7 @@
 {
   "schema": "pine-input-provenance/v2",
-  "total_inputs": 621,
-  "total_hidden": 410,
+  "total_inputs": 523,
+  "total_hidden": 315,
   "files": [
     {
       "file": "SMC_Breakout_Overlay.pine",
@@ -227,7 +227,7 @@
         {
           "varname": "show_arrows",
           "kind": "bool",
-          "label": "Show \u25b2/\u25bc markers",
+          "label": "Show ▲/▼ markers",
           "group": "g_vis",
           "has_display_none": false,
           "visibility": null
@@ -267,7 +267,7 @@
         {
           "varname": "atrMult",
           "kind": "float",
-          "label": "ATR \u00d7 mult \u2192 SL",
+          "label": "ATR × mult → SL",
           "group": "g_sim",
           "has_display_none": false,
           "visibility": null
@@ -434,663 +434,617 @@
       ]
     },
     {
-      "file": "SMC_Context_Bus.pine",
-      "input_count": 11,
+      "file": "SMC_Event_Overlay.pine",
+      "input_count": 10,
       "hidden_count": 0,
       "inputs": [
         {
-          "varname": "swing_len",
-          "kind": "int",
-          "label": "Structure swing length",
-          "group": "g_build",
+          "varname": "show_event_line",
+          "kind": "bool",
+          "label": "Show event vertical line",
+          "group": "g_ev",
           "has_display_none": false,
           "visibility": null
         },
         {
-          "varname": "fresh_bars",
-          "kind": "int",
-          "label": "Event freshness bars",
-          "group": "g_build",
+          "varname": "show_event_zone",
+          "kind": "bool",
+          "label": "Show pre/post event zone",
+          "group": "g_ev",
           "has_display_none": false,
           "visibility": null
         },
         {
-          "varname": "fvg_size_threshold",
-          "kind": "float",
-          "label": "FVG size threshold",
-          "group": "g_build",
+          "varname": "show_event_label",
+          "kind": "bool",
+          "label": "Show event label",
+          "group": "g_ev",
           "has_display_none": false,
           "visibility": null
         },
         {
-          "varname": "atr_len",
-          "kind": "int",
-          "label": "Order-block ATR length",
-          "group": "g_build",
+          "varname": "high_impact_only",
+          "kind": "bool",
+          "label": "High-impact events only",
+          "group": "g_ev",
           "has_display_none": false,
           "visibility": null
         },
         {
-          "varname": "ob_min_mult",
-          "kind": "float",
-          "label": "Order-block minimum ATR",
-          "group": "g_build",
+          "varname": "col_event_line",
+          "kind": "color",
+          "label": "Event line color",
+          "group": "g_ev",
           "has_display_none": false,
           "visibility": null
         },
         {
-          "varname": "ob_max_mult",
-          "kind": "float",
-          "label": "Order-block maximum ATR",
-          "group": "g_build",
+          "varname": "col_zone_pre",
+          "kind": "color",
+          "label": "Pre-event zone",
+          "group": "g_ev",
           "has_display_none": false,
           "visibility": null
         },
         {
-          "varname": "sweep_pivot_len",
-          "kind": "int",
-          "label": "Sweep pivot length",
-          "group": "g_build",
+          "varname": "col_zone_post",
+          "kind": "color",
+          "label": "Post-event zone",
+          "group": "g_ev",
           "has_display_none": false,
           "visibility": null
         },
         {
-          "varname": "sweep_volume_len",
-          "kind": "int",
-          "label": "Sweep volume length",
-          "group": "g_build",
+          "varname": "col_label_text",
+          "kind": "color",
+          "label": "Label text color",
+          "group": "g_ev",
           "has_display_none": false,
           "visibility": null
         },
         {
-          "varname": "pool_pivot_len",
-          "kind": "int",
-          "label": "Pool pivot length",
-          "group": "g_build",
+          "varname": "src_lean_pack_a",
+          "kind": "source",
+          "label": "BUS LeanPackA",
+          "group": "g_ev",
           "has_display_none": false,
           "visibility": null
         },
         {
-          "varname": "pool_tolerance_pct",
-          "kind": "float",
-          "label": "Pool tolerance %",
-          "group": "g_build",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "pool_max_levels",
-          "kind": "int",
-          "label": "Pool candidate limit",
-          "group": "g_build",
+          "varname": "barCloseOnly",
+          "kind": "bool",
+          "label": "Alerts nur am Bar-Close",
+          "group": "g_alerts",
           "has_display_none": false,
           "visibility": null
         }
       ]
     },
     {
-      "file": "SMC_Context_Overlay.pine",
-      "input_count": 69,
-      "hidden_count": 62,
+      "file": "SMC_Exit_Signal.pine",
+      "input_count": 14,
+      "hidden_count": 0,
       "inputs": [
         {
-          "varname": "src_schema",
+          "varname": "tp1_r",
+          "kind": "float",
+          "label": "TP1 (R-multiple)",
+          "group": "g_plan",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "varname": "tp2_r",
+          "kind": "float",
+          "label": "TP2 (R-multiple)",
+          "group": "g_plan",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "varname": "move_be_after_tp1",
+          "kind": "bool",
+          "label": "Move stop to break-even after TP1",
+          "group": "g_plan",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "varname": "use_defensive_exit",
+          "kind": "bool",
+          "label": "Defensive exit on setup invalidation",
+          "group": "g_plan",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "varname": "defensive_grace_bars",
+          "kind": "int",
+          "label": "Defensive grace bars",
+          "group": "g_plan",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "varname": "confirm_bars_only",
+          "kind": "bool",
+          "label": "Evaluate on confirmed bars only",
+          "group": "g_plan",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "varname": "show_levels",
+          "kind": "bool",
+          "label": "Show Stop/TP1/TP2 lines while in trade",
+          "group": "g_visual",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "varname": "show_labels",
+          "kind": "bool",
+          "label": "Show ENTER / EXIT labels",
+          "group": "g_visual",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "varname": "show_table",
+          "kind": "bool",
+          "label": "Show status table",
+          "group": "g_visual",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "varname": "src_armed",
           "kind": "source",
-          "label": "CTX SchemaVersion",
-          "group": "g_meta",
-          "has_display_none": true,
+          "label": "BUS Armed",
+          "group": "g_bus_state",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "varname": "src_confirmed",
+          "kind": "source",
+          "label": "BUS Confirmed",
+          "group": "g_bus_state",
+          "has_display_none": false,
           "visibility": null
         },
         {
           "varname": "src_ready",
           "kind": "source",
-          "label": "CTX Ready",
-          "group": "g_meta",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_mask",
-          "kind": "source",
-          "label": "CTX AvailabilityMask",
-          "group": "g_meta",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_epoch",
-          "kind": "source",
-          "label": "CTX ConfirmedEpoch",
-          "group": "g_meta",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_bias",
-          "kind": "source",
-          "label": "CTX Bias",
-          "group": "g_meta",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_domains",
-          "kind": "source",
-          "label": "CTX AvailableDomains",
-          "group": "g_meta",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_quality",
-          "kind": "source",
-          "label": "CTX QualityScore",
-          "group": "g_meta",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "max_age_minutes",
-          "kind": "int",
-          "label": "Maximum live producer age (minutes)",
-          "group": "g_meta",
+          "label": "BUS Ready",
+          "group": "g_bus_state",
           "has_display_none": false,
           "visibility": null
         },
         {
-          "varname": "show_structure",
+          "varname": "src_trigger",
+          "kind": "source",
+          "label": "BUS Trigger",
+          "group": "g_bus_plan",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "varname": "src_invalidation",
+          "kind": "source",
+          "label": "BUS Invalidation",
+          "group": "g_bus_plan",
+          "has_display_none": false,
+          "visibility": null
+        }
+      ]
+    },
+    {
+      "file": "SMC_HTF_Confluence.pine",
+      "input_count": 6,
+      "hidden_count": 0,
+      "inputs": [
+        {
+          "varname": "show_atr_regime",
           "kind": "bool",
-          "label": "Show structure",
-          "group": "g_structure",
+          "label": "Show ATR regime",
+          "group": "g_htf",
           "has_display_none": false,
           "visibility": null
         },
         {
-          "varname": "src_structure_trend",
-          "kind": "source",
-          "label": "CTX StructureTrend",
-          "group": "g_structure",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_structure_bos",
-          "kind": "source",
-          "label": "CTX StructureBos",
-          "group": "g_structure",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_structure_choch",
-          "kind": "source",
-          "label": "CTX StructureChoch",
-          "group": "g_structure",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_structure_dir",
-          "kind": "source",
-          "label": "CTX StructureEventDirection",
-          "group": "g_structure",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_resistance",
-          "kind": "source",
-          "label": "CTX StructureResistance",
-          "group": "g_structure",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_support",
-          "kind": "source",
-          "label": "CTX StructureSupport",
-          "group": "g_structure",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_structure_age",
-          "kind": "source",
-          "label": "CTX StructureEventAgeBars",
-          "group": "g_structure",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "show_imbalance",
+          "varname": "show_squeeze",
           "kind": "bool",
-          "label": "Show FVG / BPR / liquidity void",
-          "group": "g_imbalance",
+          "label": "Show squeeze markers",
+          "group": "g_htf",
           "has_display_none": false,
           "visibility": null
         },
         {
-          "varname": "src_imbalance_state",
-          "kind": "source",
-          "label": "CTX ImbalanceState",
-          "group": "g_imbalance",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_fvg_bias",
-          "kind": "source",
-          "label": "CTX FvgBias",
-          "group": "g_imbalance",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_bull_fvg_active",
-          "kind": "source",
-          "label": "CTX BullFvgActive",
-          "group": "g_imbalance",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_bear_fvg_active",
-          "kind": "source",
-          "label": "CTX BearFvgActive",
-          "group": "g_imbalance",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_bull_fvg_top",
-          "kind": "source",
-          "label": "CTX BullFvgTop",
-          "group": "g_imbalance",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_bull_fvg_bottom",
-          "kind": "source",
-          "label": "CTX BullFvgBottom",
-          "group": "g_imbalance",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_bear_fvg_top",
-          "kind": "source",
-          "label": "CTX BearFvgTop",
-          "group": "g_imbalance",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_bear_fvg_bottom",
-          "kind": "source",
-          "label": "CTX BearFvgBottom",
-          "group": "g_imbalance",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_bpr_active",
-          "kind": "source",
-          "label": "CTX BprActive",
-          "group": "g_imbalance",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_bpr_dir",
-          "kind": "source",
-          "label": "CTX BprDirection",
-          "group": "g_imbalance",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_bpr_top",
-          "kind": "source",
-          "label": "CTX BprTop",
-          "group": "g_imbalance",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_bpr_bottom",
-          "kind": "source",
-          "label": "CTX BprBottom",
-          "group": "g_imbalance",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_void_active",
-          "kind": "source",
-          "label": "CTX LiquidityVoidActive",
-          "group": "g_imbalance",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_void_top",
-          "kind": "source",
-          "label": "CTX LiquidityVoidTop",
-          "group": "g_imbalance",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_void_bottom",
-          "kind": "source",
-          "label": "CTX LiquidityVoidBottom",
-          "group": "g_imbalance",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "show_zones",
+          "varname": "show_reversal",
           "kind": "bool",
-          "label": "Show order-block zones",
-          "group": "g_zone",
+          "label": "Show reversal context",
+          "group": "g_htf",
           "has_display_none": false,
           "visibility": null
         },
         {
-          "varname": "src_zone_state",
-          "kind": "source",
-          "label": "CTX ZoneState",
-          "group": "g_zone",
-          "has_display_none": true,
+          "varname": "col_compression",
+          "kind": "color",
+          "label": "Compression",
+          "group": "g_htf",
+          "has_display_none": false,
           "visibility": null
         },
         {
-          "varname": "src_ob_bias",
-          "kind": "source",
-          "label": "CTX ObBias",
-          "group": "g_zone",
-          "has_display_none": true,
+          "varname": "col_expansion",
+          "kind": "color",
+          "label": "Expansion",
+          "group": "g_htf",
+          "has_display_none": false,
           "visibility": null
         },
         {
-          "varname": "src_bull_ob_top",
-          "kind": "source",
-          "label": "CTX BullObTop",
-          "group": "g_zone",
-          "has_display_none": true,
+          "varname": "col_exhaustion",
+          "kind": "color",
+          "label": "Exhaustion",
+          "group": "g_htf",
+          "has_display_none": false,
+          "visibility": null
+        }
+      ]
+    },
+    {
+      "file": "SMC_Hold_Manager.pine",
+      "input_count": 13,
+      "hidden_count": 0,
+      "inputs": [
+        {
+          "varname": "i_arm_long",
+          "kind": "bool",
+          "label": "Arm Long (Webhook-Toggle)",
+          "group": "gIn",
+          "has_display_none": false,
           "visibility": null
         },
         {
-          "varname": "src_bull_ob_bottom",
-          "kind": "source",
-          "label": "CTX BullObBottom",
-          "group": "g_zone",
-          "has_display_none": true,
+          "varname": "i_entry",
+          "kind": "price",
+          "label": "Entry / Trigger",
+          "group": "gIn",
+          "has_display_none": false,
           "visibility": null
         },
         {
-          "varname": "src_bear_ob_top",
-          "kind": "source",
-          "label": "CTX BearObTop",
-          "group": "g_zone",
-          "has_display_none": true,
+          "varname": "i_stop",
+          "kind": "price",
+          "label": "Initial Invalidation",
+          "group": "gIn",
+          "has_display_none": false,
           "visibility": null
         },
         {
-          "varname": "src_bear_ob_bottom",
-          "kind": "source",
-          "label": "CTX BearObBottom",
-          "group": "g_zone",
-          "has_display_none": true,
+          "varname": "i_t1_R",
+          "kind": "float",
+          "label": "Target-1 (R)",
+          "group": "gIn",
+          "has_display_none": false,
           "visibility": null
         },
         {
-          "varname": "src_bull_ob_new",
-          "kind": "source",
-          "label": "CTX BullObNew",
-          "group": "g_zone",
-          "has_display_none": true,
+          "varname": "i_t2_R",
+          "kind": "float",
+          "label": "Target-2 (R)",
+          "group": "gIn",
+          "has_display_none": false,
           "visibility": null
         },
         {
-          "varname": "src_bear_ob_new",
-          "kind": "source",
-          "label": "CTX BearObNew",
-          "group": "g_zone",
-          "has_display_none": true,
+          "varname": "i_simple_mode",
+          "kind": "bool",
+          "label": "Simple Mode (BE-after-T1 only)",
+          "group": "gMgmt",
+          "has_display_none": false,
           "visibility": null
         },
         {
-          "varname": "src_bull_ob_broken",
-          "kind": "source",
-          "label": "CTX BullObBroken",
-          "group": "g_zone",
-          "has_display_none": true,
+          "varname": "i_use_chand",
+          "kind": "bool",
+          "label": "ATR-Chandelier-Trail aktiv",
+          "group": "gMgmt",
+          "has_display_none": false,
           "visibility": null
         },
         {
-          "varname": "src_bear_ob_broken",
-          "kind": "source",
-          "label": "CTX BearObBroken",
-          "group": "g_zone",
-          "has_display_none": true,
+          "varname": "i_atr_mult",
+          "kind": "float",
+          "label": "ATR-Mult (TODO: family-aware in v3)",
+          "group": "gMgmt",
+          "has_display_none": false,
           "visibility": null
         },
+        {
+          "varname": "i_breakeven",
+          "kind": "bool",
+          "label": "Breakeven nach T1",
+          "group": "gMgmt",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "varname": "i_t1_partial",
+          "kind": "float",
+          "label": "Partial-Exit % @ T1",
+          "group": "gMgmt",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "varname": "i_use_tstop",
+          "kind": "bool",
+          "label": "Time-Stop aktiv",
+          "group": "gMgmt",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "varname": "i_reset_now",
+          "kind": "bool",
+          "label": "Force Reset (Trade beenden)",
+          "group": "gSafe",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "varname": "i_close_only",
+          "kind": "bool",
+          "label": "Trigger nur bei barstate.isconfirmed",
+          "group": null,
+          "has_display_none": false,
+          "visibility": null
+        }
+      ]
+    },
+    {
+      "file": "SMC_Imbalance_Context.pine",
+      "input_count": 8,
+      "hidden_count": 0,
+      "inputs": [
+        {
+          "varname": "show_fvg_zones",
+          "kind": "bool",
+          "label": "Show FVG zones",
+          "group": "g_im",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "varname": "show_bpr_zone",
+          "kind": "bool",
+          "label": "Show BPR zone",
+          "group": "g_im",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "varname": "show_liq_voids",
+          "kind": "bool",
+          "label": "Show liquidity voids",
+          "group": "g_im",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "varname": "show_state_label",
+          "kind": "bool",
+          "label": "Show imbalance state label",
+          "group": "g_im",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "varname": "col_bull_fvg",
+          "kind": "color",
+          "label": "Bull FVG",
+          "group": "g_im",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "varname": "col_bear_fvg",
+          "kind": "color",
+          "label": "Bear FVG",
+          "group": "g_im",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "varname": "col_bpr",
+          "kind": "color",
+          "label": "BPR zone",
+          "group": "g_im",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "varname": "col_liq_void",
+          "kind": "color",
+          "label": "Liquidity void",
+          "group": "g_im",
+          "has_display_none": false,
+          "visibility": null
+        }
+      ]
+    },
+    {
+      "file": "SMC_Liquidity_Context.pine",
+      "input_count": 5,
+      "hidden_count": 0,
+      "inputs": [
+        {
+          "varname": "show_primary_levels",
+          "kind": "bool",
+          "label": "Show primary S/R levels",
+          "group": "g_zn",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "varname": "show_zone_label",
+          "kind": "bool",
+          "label": "Show zone context label",
+          "group": "g_zn",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "varname": "show_sweep_markers",
+          "kind": "bool",
+          "label": "Show sweep/mitigation info",
+          "group": "g_zn",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "varname": "col_support",
+          "kind": "color",
+          "label": "Support color",
+          "group": "g_zn",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "varname": "col_resistance",
+          "kind": "color",
+          "label": "Resistance color",
+          "group": "g_zn",
+          "has_display_none": false,
+          "visibility": null
+        }
+      ]
+    },
+    {
+      "file": "SMC_Liquidity_Structure.pine",
+      "input_count": 7,
+      "hidden_count": 0,
+      "inputs": [
         {
           "varname": "show_sweeps",
           "kind": "bool",
-          "label": "Show sweeps and reclaims",
-          "group": "g_sweep",
+          "label": "Show sweep markers",
+          "group": "g_ls",
           "has_display_none": false,
           "visibility": null
         },
         {
-          "varname": "src_sweep_dir",
-          "kind": "source",
-          "label": "CTX SweepDirection",
-          "group": "g_sweep",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_sweep_type",
-          "kind": "source",
-          "label": "CTX SweepType",
-          "group": "g_sweep",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_sweep_top",
-          "kind": "source",
-          "label": "CTX SweepZoneTop",
-          "group": "g_sweep",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_sweep_bottom",
-          "kind": "source",
-          "label": "CTX SweepZoneBottom",
-          "group": "g_sweep",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_sweep_reclaim",
-          "kind": "source",
-          "label": "CTX SweepReclaimActive",
-          "group": "g_sweep",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_sweep_quality",
-          "kind": "source",
-          "label": "CTX SweepQualityScore",
-          "group": "g_sweep",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_sweep_age",
-          "kind": "source",
-          "label": "CTX SweepEventAgeBars",
-          "group": "g_sweep",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "show_pools",
+          "varname": "show_pool_imb",
           "kind": "bool",
-          "label": "Show liquidity pools",
-          "group": "g_pool",
+          "label": "Show pool imbalance",
+          "group": "g_ls",
           "has_display_none": false,
           "visibility": null
         },
         {
-          "varname": "src_buy_pool",
-          "kind": "source",
-          "label": "CTX BuyPoolLevel",
-          "group": "g_pool",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_sell_pool",
-          "kind": "source",
-          "label": "CTX SellPoolLevel",
-          "group": "g_pool",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_buy_strength",
-          "kind": "source",
-          "label": "CTX BuyPoolStrength",
-          "group": "g_pool",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_sell_strength",
-          "kind": "source",
-          "label": "CTX SellPoolStrength",
-          "group": "g_pool",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_pool_magnet",
-          "kind": "source",
-          "label": "CTX PoolMagnetDirection",
-          "group": "g_pool",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_pool_imbalance",
-          "kind": "source",
-          "label": "CTX PoolImbalance",
-          "group": "g_pool",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "show_session",
+          "varname": "show_magnet",
           "kind": "bool",
-          "label": "Show session and opening range",
-          "group": "g_session",
+          "label": "Show magnet direction",
+          "group": "g_ls",
           "has_display_none": false,
           "visibility": null
         },
         {
-          "varname": "src_session_code",
+          "varname": "show_quality",
+          "kind": "bool",
+          "label": "Show quality score bar",
+          "group": "g_ls",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "varname": "col_bullish",
+          "kind": "color",
+          "label": "Bullish color",
+          "group": "g_ls",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "varname": "col_bearish",
+          "kind": "color",
+          "label": "Bearish color",
+          "group": "g_ls",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "varname": "col_neutral",
+          "kind": "color",
+          "label": "Neutral color",
+          "group": "g_ls",
+          "has_display_none": false,
+          "visibility": null
+        }
+      ]
+    },
+    {
+      "file": "SMC_Long_Dip_Alerts.pine",
+      "input_count": 6,
+      "hidden_count": 4,
+      "inputs": [
+        {
+          "varname": "bar_close_only",
+          "kind": "bool",
+          "label": "Bar-close only",
+          "group": "g_gate",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "varname": "swing_len",
+          "kind": "int",
+          "label": "Swing length",
+          "group": "g_struct",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "varname": "src_schema",
           "kind": "source",
-          "label": "CTX SessionCode",
-          "group": "g_session",
+          "label": "BUS SchemaVersion",
+          "group": "g_bus",
           "has_display_none": true,
           "visibility": null
         },
         {
-          "varname": "src_killzone",
+          "varname": "src_zone",
           "kind": "source",
-          "label": "CTX SessionKillzone",
-          "group": "g_session",
+          "label": "BUS ZoneActive",
+          "group": "g_bus",
           "has_display_none": true,
           "visibility": null
         },
         {
-          "varname": "src_session_top",
+          "varname": "src_armed",
           "kind": "source",
-          "label": "CTX SessionRangeTop",
-          "group": "g_session",
+          "label": "BUS Armed",
+          "group": "g_bus",
           "has_display_none": true,
           "visibility": null
         },
         {
-          "varname": "src_session_bottom",
+          "varname": "src_state_code",
           "kind": "source",
-          "label": "CTX SessionRangeBottom",
-          "group": "g_session",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_or_active",
-          "kind": "source",
-          "label": "CTX OpeningRangeActive",
-          "group": "g_session",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_or_top",
-          "kind": "source",
-          "label": "CTX OpeningRangeTop",
-          "group": "g_session",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_or_bottom",
-          "kind": "source",
-          "label": "CTX OpeningRangeBottom",
-          "group": "g_session",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_session_dir",
-          "kind": "source",
-          "label": "CTX SessionDirection",
-          "group": "g_session",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_session_mss_bull",
-          "kind": "source",
-          "label": "CTX SessionMssBull",
-          "group": "g_session",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_session_mss_bear",
-          "kind": "source",
-          "label": "CTX SessionMssBear",
-          "group": "g_session",
+          "label": "BUS StateCode",
+          "group": "g_bus",
           "has_display_none": true,
           "visibility": null
         }
       ]
     },
     {
-      "file": "SMC_Decision_Board.pine",
+      "file": "SMC_Long_Dip_Dashboard.pine",
       "input_count": 81,
-      "hidden_count": 70,
+      "hidden_count": 67,
       "inputs": [
         {
           "varname": "tm_enable",
@@ -1184,24 +1138,24 @@
           "varname": "calibration_sha",
           "kind": "string",
           "label": ", ",
-          "group": "g_operator_ops",
-          "has_display_none": true,
+          "group": "g_surface",
+          "has_display_none": false,
           "visibility": null
         },
         {
           "varname": "calibration_breach_banner",
           "kind": "bool",
           "label": "Calibration Breach Banner",
-          "group": "g_operator_ops",
-          "has_display_none": true,
+          "group": "g_surface",
+          "has_display_none": false,
           "visibility": null
         },
         {
           "varname": "fvg_context_health_text",
           "kind": "string",
           "label": ", ",
-          "group": "g_operator_ops",
-          "has_display_none": true,
+          "group": "g_surface",
+          "has_display_none": false,
           "visibility": null
         },
         {
@@ -1743,734 +1697,6 @@
       ]
     },
     {
-      "file": "SMC_Event_Overlay.pine",
-      "input_count": 10,
-      "hidden_count": 0,
-      "inputs": [
-        {
-          "varname": "show_event_line",
-          "kind": "bool",
-          "label": "Show exact event-time line",
-          "group": "g_ev",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "show_event_zone",
-          "kind": "bool",
-          "label": "Show pre/post event zone",
-          "group": "g_ev",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "show_event_label",
-          "kind": "bool",
-          "label": "Show event label",
-          "group": "g_ev",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "high_impact_only",
-          "kind": "bool",
-          "label": "High-impact events only",
-          "group": "g_ev",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "col_event_line",
-          "kind": "color",
-          "label": "Event line color",
-          "group": "g_ev",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "col_zone_pre",
-          "kind": "color",
-          "label": "Pre-event zone",
-          "group": "g_ev",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "col_zone_post",
-          "kind": "color",
-          "label": "Post-event zone",
-          "group": "g_ev",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "col_label_text",
-          "kind": "color",
-          "label": "Label text color",
-          "group": "g_ev",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "src_lean_pack_a",
-          "kind": "source",
-          "label": "BUS LeanPackA",
-          "group": "g_ev",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "barCloseOnly",
-          "kind": "bool",
-          "label": "Alerts nur am Bar-Close",
-          "group": "g_alerts",
-          "has_display_none": false,
-          "visibility": null
-        }
-      ]
-    },
-    {
-      "file": "SMC_Exit_Signal.pine",
-      "input_count": 16,
-      "hidden_count": 9,
-      "inputs": [
-        {
-          "varname": "move_be_after_tp1",
-          "kind": "bool",
-          "label": "Move stop to break-even after TP1",
-          "group": "g_plan",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "use_defensive_exit",
-          "kind": "bool",
-          "label": "Defensive exit on setup invalidation",
-          "group": "g_plan",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "defensive_grace_bars",
-          "kind": "int",
-          "label": "Defensive grace bars",
-          "group": "g_plan",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "confirm_bars_only",
-          "kind": "bool",
-          "label": "Evaluate on confirmed bars only",
-          "group": "g_plan",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "show_levels",
-          "kind": "bool",
-          "label": "Show Stop/TP1/TP2 lines while in trade",
-          "group": "g_visual",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "show_labels",
-          "kind": "bool",
-          "label": "Show ENTER / EXIT labels",
-          "group": "g_visual",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "show_table",
-          "kind": "bool",
-          "label": "Show status table",
-          "group": "g_visual",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "src_schema",
-          "kind": "source",
-          "label": "BUS SchemaVersion",
-          "group": "g_bus_state",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_armed",
-          "kind": "source",
-          "label": "BUS Armed",
-          "group": "g_bus_state",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_confirmed",
-          "kind": "source",
-          "label": "BUS Confirmed",
-          "group": "g_bus_state",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_ready",
-          "kind": "source",
-          "label": "BUS Ready",
-          "group": "g_bus_state",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_trigger",
-          "kind": "source",
-          "label": "BUS Trigger",
-          "group": "g_bus_plan",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_invalidation",
-          "kind": "source",
-          "label": "BUS Invalidation",
-          "group": "g_bus_plan",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_stop",
-          "kind": "source",
-          "label": "BUS StopLevel",
-          "group": "g_bus_plan",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_target1",
-          "kind": "source",
-          "label": "BUS Target1",
-          "group": "g_bus_plan",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_target2",
-          "kind": "source",
-          "label": "BUS Target2",
-          "group": "g_bus_plan",
-          "has_display_none": true,
-          "visibility": null
-        }
-      ]
-    },
-    {
-      "file": "SMC_HTF_Confluence.pine",
-      "input_count": 6,
-      "hidden_count": 0,
-      "inputs": [
-        {
-          "varname": "tf_fast",
-          "kind": "timeframe",
-          "label": "15",
-          "group": "GROUP_FRAMES",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "tf_medium",
-          "kind": "timeframe",
-          "label": "60",
-          "group": "GROUP_FRAMES",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "tf_slow",
-          "kind": "timeframe",
-          "label": "240",
-          "group": "GROUP_FRAMES",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "show_atr",
-          "kind": "bool",
-          "label": "Show ATR regime",
-          "group": "GROUP_VIEW",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "show_reversal",
-          "kind": "bool",
-          "label": "Show reversal scores",
-          "group": "GROUP_VIEW",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "show_table",
-          "kind": "bool",
-          "label": "Show confirmed-source table",
-          "group": "GROUP_VIEW",
-          "has_display_none": false,
-          "visibility": null
-        }
-      ]
-    },
-    {
-      "file": "SMC_Hold_Manager.pine",
-      "input_count": 26,
-      "hidden_count": 13,
-      "inputs": [
-        {
-          "varname": "i_plan_source",
-          "kind": "string",
-          "label": "Engine BUS v2",
-          "group": null,
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "src_schema",
-          "kind": "source",
-          "label": "BUS SchemaVersion",
-          "group": "gBus",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_zone_active",
-          "kind": "source",
-          "label": "BUS ZoneActive",
-          "group": "gBus",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_armed",
-          "kind": "source",
-          "label": "BUS Armed",
-          "group": "gBus",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_confirmed",
-          "kind": "source",
-          "label": "BUS Confirmed",
-          "group": "gBus",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_ready",
-          "kind": "source",
-          "label": "BUS Ready",
-          "group": "gBus",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_trigger",
-          "kind": "source",
-          "label": "BUS Trigger",
-          "group": "gBus",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_invalidation",
-          "kind": "source",
-          "label": "BUS Invalidation",
-          "group": "gBus",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_quality",
-          "kind": "source",
-          "label": "BUS QualityScore",
-          "group": "gBus",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_source_kind",
-          "kind": "source",
-          "label": "BUS SourceKind",
-          "group": "gBus",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_state_code",
-          "kind": "source",
-          "label": "BUS StateCode",
-          "group": "gBus",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_stop",
-          "kind": "source",
-          "label": "BUS StopLevel",
-          "group": "gBus",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_target1",
-          "kind": "source",
-          "label": "BUS Target1",
-          "group": "gBus",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_target2",
-          "kind": "source",
-          "label": "BUS Target2",
-          "group": "gBus",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "i_arm_long",
-          "kind": "bool",
-          "label": "Arm Long (manueller Toggle)",
-          "group": "gIn",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "i_entry",
-          "kind": "price",
-          "label": "Entry / Trigger",
-          "group": "gIn",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "i_stop",
-          "kind": "price",
-          "label": "Initial Invalidation",
-          "group": "gIn",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "i_t1_R",
-          "kind": "float",
-          "label": "Target-1 (R)",
-          "group": "gIn",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "i_t2_R",
-          "kind": "float",
-          "label": "Target-2 (R)",
-          "group": "gIn",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "i_simple_mode",
-          "kind": "bool",
-          "label": "Simple Mode (BE-after-T1 only)",
-          "group": "gMgmt",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "i_use_chand",
-          "kind": "bool",
-          "label": "ATR-Chandelier-Trail aktiv",
-          "group": "gMgmt",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "i_atr_mult",
-          "kind": "float",
-          "label": "ATR-Mult (TODO: family-aware in v3)",
-          "group": "gMgmt",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "i_breakeven",
-          "kind": "bool",
-          "label": "Breakeven nach T1",
-          "group": "gMgmt",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "i_t1_partial",
-          "kind": "float",
-          "label": "Partial-Exit % @ T1",
-          "group": "gMgmt",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "i_use_tstop",
-          "kind": "bool",
-          "label": "Time-Stop aktiv",
-          "group": "gMgmt",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "i_recovery_at",
-          "kind": "time",
-          "label": "Recovery-Zeitpunkt (UTC; 0 = aus)",
-          "group": "gSafe",
-          "has_display_none": false,
-          "visibility": null
-        }
-      ]
-    },
-    {
-      "file": "SMC_Imbalance_Context.pine",
-      "input_count": 8,
-      "hidden_count": 0,
-      "inputs": [
-        {
-          "varname": "show_fvg_zones",
-          "kind": "bool",
-          "label": "Show FVG zones",
-          "group": "g_im",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "show_bpr_zone",
-          "kind": "bool",
-          "label": "Show BPR zone",
-          "group": "g_im",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "show_liq_voids",
-          "kind": "bool",
-          "label": "Show liquidity voids",
-          "group": "g_im",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "show_state_label",
-          "kind": "bool",
-          "label": "Show imbalance state label",
-          "group": "g_im",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "col_bull_fvg",
-          "kind": "color",
-          "label": "Bull FVG",
-          "group": "g_im",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "col_bear_fvg",
-          "kind": "color",
-          "label": "Bear FVG",
-          "group": "g_im",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "col_bpr",
-          "kind": "color",
-          "label": "BPR zone",
-          "group": "g_im",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "col_liq_void",
-          "kind": "color",
-          "label": "Liquidity void",
-          "group": "g_im",
-          "has_display_none": false,
-          "visibility": null
-        }
-      ]
-    },
-    {
-      "file": "SMC_Liquidity_Context.pine",
-      "input_count": 5,
-      "hidden_count": 0,
-      "inputs": [
-        {
-          "varname": "show_primary_levels",
-          "kind": "bool",
-          "label": "Show primary S/R levels",
-          "group": "g_zn",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "show_zone_label",
-          "kind": "bool",
-          "label": "Show zone context label",
-          "group": "g_zn",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "show_sweep_markers",
-          "kind": "bool",
-          "label": "Show sweep/mitigation info",
-          "group": "g_zn",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "col_support",
-          "kind": "color",
-          "label": "Support color",
-          "group": "g_zn",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "col_resistance",
-          "kind": "color",
-          "label": "Resistance color",
-          "group": "g_zn",
-          "has_display_none": false,
-          "visibility": null
-        }
-      ]
-    },
-    {
-      "file": "SMC_Liquidity_Structure.pine",
-      "input_count": 7,
-      "hidden_count": 0,
-      "inputs": [
-        {
-          "varname": "show_sweeps",
-          "kind": "bool",
-          "label": "Show sweep markers",
-          "group": "g_ls",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "show_pool_imb",
-          "kind": "bool",
-          "label": "Show pool imbalance",
-          "group": "g_ls",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "show_magnet",
-          "kind": "bool",
-          "label": "Show magnet direction",
-          "group": "g_ls",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "show_quality",
-          "kind": "bool",
-          "label": "Show quality score bar",
-          "group": "g_ls",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "col_bullish",
-          "kind": "color",
-          "label": "Bullish color",
-          "group": "g_ls",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "col_bearish",
-          "kind": "color",
-          "label": "Bearish color",
-          "group": "g_ls",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "col_neutral",
-          "kind": "color",
-          "label": "Neutral color",
-          "group": "g_ls",
-          "has_display_none": false,
-          "visibility": null
-        }
-      ]
-    },
-    {
-      "file": "SMC_Long_Dip_Alerts.pine",
-      "input_count": 6,
-      "hidden_count": 4,
-      "inputs": [
-        {
-          "varname": "bar_close_only",
-          "kind": "bool",
-          "label": "Bar-close only",
-          "group": "g_gate",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "swing_len",
-          "kind": "int",
-          "label": "Swing length",
-          "group": "g_struct",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "src_schema",
-          "kind": "source",
-          "label": "BUS SchemaVersion",
-          "group": "g_bus",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_zone",
-          "kind": "source",
-          "label": "BUS ZoneActive",
-          "group": "g_bus",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_armed",
-          "kind": "source",
-          "label": "BUS Armed",
-          "group": "g_bus",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "src_state_code",
-          "kind": "source",
-          "label": "BUS StateCode",
-          "group": "g_bus",
-          "has_display_none": true,
-          "visibility": null
-        }
-      ]
-    },
-    {
       "file": "SMC_Long_Dip_Mobile.pine",
       "input_count": 13,
       "hidden_count": 8,
@@ -2718,8 +1944,8 @@
     },
     {
       "file": "SMC_Long_Dip_Suite.pine",
-      "input_count": 232,
-      "hidden_count": 220,
+      "input_count": 230,
+      "hidden_count": 218,
       "inputs": [
         {
           "varname": "signal_mode",
@@ -2868,7 +2094,7 @@
         {
           "varname": "mtf_trend_tf0",
           "kind": "timeframe",
-          "label": "Trend TF 0 (optional 2H \u2014 scaffold, inactive)",
+          "label": "Trend TF 0 (optional 2H — scaffold, inactive)",
           "group": "g_mtf",
           "has_display_none": true,
           "visibility": null
@@ -3598,22 +2824,6 @@
           "kind": "string",
           "label": "Internal CHoCH only",
           "group": "g_long",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "use_ready_min_count",
-          "kind": "bool",
-          "label": "Ready: Min-Count instead of AND chain",
-          "group": "g_quality",
-          "has_display_none": true,
-          "visibility": null
-        },
-        {
-          "varname": "ready_min_soft_gates",
-          "kind": "int",
-          "label": "Ready: Min Soft Gates (of 12)",
-          "group": "g_quality",
           "has_display_none": true,
           "visibility": null
         },
@@ -4581,7 +3791,7 @@
     },
     {
       "file": "SMC_Orderflow_Overlay.pine",
-      "input_count": 11,
+      "input_count": 7,
       "hidden_count": 0,
       "inputs": [
         {
@@ -4637,38 +3847,6 @@
           "kind": "color",
           "label": "Neutral color",
           "group": "g_fl",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "use_real_footprint",
-          "kind": "bool",
-          "label": "Use real footprint delta",
-          "group": "g_fp",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "fp_ticks_per_row",
-          "kind": "int",
-          "label": "Ticks per row",
-          "group": "g_fp",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "fp_value_area_pct",
-          "kind": "int",
-          "label": "Value area %",
-          "group": "g_fp",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "fp_imbalance_pct",
-          "kind": "int",
-          "label": "Imbalance %",
-          "group": "g_fp",
           "has_display_none": false,
           "visibility": null
         }
@@ -4761,46 +3939,70 @@
     },
     {
       "file": "SMC_Session_Context.pine",
-      "input_count": 5,
+      "input_count": 8,
       "hidden_count": 0,
       "inputs": [
         {
-          "varname": "show_session_table",
+          "varname": "show_session_label",
           "kind": "bool",
-          "label": "Show session status",
-          "group": "GROUP_VIEW",
+          "label": "Show session label",
+          "group": "g_sc",
           "has_display_none": false,
           "visibility": null
         },
         {
           "varname": "show_killzone_bg",
           "kind": "bool",
-          "label": "Show active-session background",
-          "group": "GROUP_VIEW",
+          "label": "Show killzone background",
+          "group": "g_sc",
           "has_display_none": false,
           "visibility": null
         },
         {
           "varname": "show_mss_markers",
           "kind": "bool",
-          "label": "Show confirmed MSS markers",
-          "group": "GROUP_VIEW",
+          "label": "Show MSS markers",
+          "group": "g_sc",
           "has_display_none": false,
           "visibility": null
         },
         {
           "varname": "show_context_score",
           "kind": "bool",
-          "label": "Show context score",
-          "group": "GROUP_VIEW",
+          "label": "Show context score bar",
+          "group": "g_sc",
           "has_display_none": false,
           "visibility": null
         },
         {
-          "varname": "opening_minutes",
-          "kind": "int",
-          "label": "Opening-range minutes",
-          "group": "GROUP_VIEW",
+          "varname": "col_bullish",
+          "kind": "color",
+          "label": "Bullish color",
+          "group": "g_sc",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "varname": "col_bearish",
+          "kind": "color",
+          "label": "Bearish color",
+          "group": "g_sc",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "varname": "col_neutral",
+          "kind": "color",
+          "label": "Neutral color",
+          "group": "g_sc",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "varname": "col_killzone",
+          "kind": "color",
+          "label": "Killzone bg",
+          "group": "g_sc",
           "has_display_none": false,
           "visibility": null
         }
@@ -4809,14 +4011,14 @@
     {
       "file": "SMC_Setup_Check.pine",
       "input_count": 6,
-      "hidden_count": 6,
+      "hidden_count": 0,
       "inputs": [
         {
           "varname": "src_schema",
           "kind": "source",
           "label": "BUS SchemaVersion",
           "group": "g_bus",
-          "has_display_none": true,
+          "has_display_none": false,
           "visibility": null
         },
         {
@@ -4824,7 +4026,7 @@
           "kind": "source",
           "label": "BUS Armed",
           "group": "g_bus",
-          "has_display_none": true,
+          "has_display_none": false,
           "visibility": null
         },
         {
@@ -4832,7 +4034,7 @@
           "kind": "source",
           "label": "BUS Trigger",
           "group": "g_bus",
-          "has_display_none": true,
+          "has_display_none": false,
           "visibility": null
         },
         {
@@ -4840,7 +4042,7 @@
           "kind": "source",
           "label": "BUS Invalidation",
           "group": "g_bus",
-          "has_display_none": true,
+          "has_display_none": false,
           "visibility": null
         },
         {
@@ -4848,7 +4050,7 @@
           "kind": "source",
           "label": "BUS QualityScore",
           "group": "g_bus",
-          "has_display_none": true,
+          "has_display_none": false,
           "visibility": null
         },
         {
@@ -4856,7 +4058,7 @@
           "kind": "source",
           "label": "BUS StateCode",
           "group": "g_bus",
-          "has_display_none": true,
+          "has_display_none": false,
           "visibility": null
         }
       ]

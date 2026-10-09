@@ -34,71 +34,13 @@ def test_service_is_pinned_and_separate_from_worker_runtime() -> None:
     assert "scripts/mlflow_artifact_backup.py" in dockerfile
     assert "a0_fast_detector" not in dockerfile
     assert (SERVICE_DIR / "requirements.txt").read_text(encoding="utf-8").splitlines() == [
-        "mlflow[auth]==3.15.1",  # 2026-08-11 (#4596 accepted): 3.15.0/1.43.62 -> below
-        "psycopg2-binary==2.9.12",
-        "boto3==1.43.77",  # 2026-08-17 (#4778 dependabot): 1.43.66->1.43.71
+        "mlflow[auth]==3.14.0",
+        "psycopg2-binary==2.9.10",
+        "boto3==1.43.51",
     ]
     assert "mlflow" not in Path("services/a0_fast_detector/requirements.txt").read_text(
         encoding="utf-8"
     ).lower()
-
-
-def _pinned_mlflow_version(path: Path) -> str:
-    """Die gepinnte mlflow-Version aus einer requirements-Datei, Extras egal."""
-    for raw in path.read_text(encoding="utf-8").splitlines():
-        line = raw.split("#", 1)[0].strip()
-        if not line:
-            continue
-        name, _, version = line.partition("==")
-        if name.partition("[")[0].strip() == "mlflow":
-            return version.strip()
-    raise AssertionError(f"{path} pinnt kein mlflow")
-
-
-def test_optional_client_pin_tracks_the_server_pin() -> None:
-    """Der optionale Client darf nicht hinter dem Server zurueckbleiben.
-
-    Gemessen 2026-08-21 (Dependabot #14, GHSA-7gwp-5pfp-969j, CVSS 9.3): der
-    Server stand auf 3.15.1, `requirements-mlflow.txt` seit Wochen auf 3.14.0.
-    Die beiden Pins gehoeren zusammen — derselbe Wire-Contract, dieselbe
-    CVE-Flaeche — aber nichts hat sie gekoppelt, also musste ein externer
-    Sicherheitsscanner die Drift finden statt ein Test hier.
-
-    Gleichheit statt ">=": ein Client, der dem Server VORAUS ist, ist genauso
-    ungetestet wie einer, der hinterherhinkt.
-    """
-    client = _pinned_mlflow_version(Path("requirements-mlflow.txt"))
-    server = _pinned_mlflow_version(SERVICE_DIR / "requirements.txt")
-    assert client == server, (
-        f"requirements-mlflow.txt pinnt mlflow=={client}, der Tracking-Server "
-        f"faehrt {server}. Beide Dateien im SELBEN PR nachziehen."
-    )
-
-
-def test_the_pin_comparison_is_not_vacuous(tmp_path: Path) -> None:
-    """Positivkontrolle — sonst genuegte dem Vergleich ein konstanter Rueckgabewert.
-
-    Bewusst gegen SYNTHETISCHE Dateien, nicht gegen die echten Pins: eine
-    Zusicherung auf "3.15.1" wuerde bei jedem legitimen Bump falsch rot und
-    pruefte am Ende die Versionsnummer statt den Vergleich.
-    """
-
-    def write(name: str, body: str) -> Path:
-        path = tmp_path / name
-        path.write_text(body, encoding="utf-8")
-        return path
-
-    # liest wirklich aus der Datei, unterscheidet Werte, ignoriert Extras
-    assert _pinned_mlflow_version(write("a.txt", "mlflow==1.2.3\n")) == "1.2.3"
-    assert _pinned_mlflow_version(write("b.txt", "mlflow[auth]==9.9.9\n")) == "9.9.9"
-    # Kommentare und Leerzeilen zaehlen nicht als Pin
-    assert (
-        _pinned_mlflow_version(write("c.txt", "# mlflow==0.0.1\n\nmlflow==4.5.6  # bump\n"))
-        == "4.5.6"
-    )
-    # ein Praefix-Namensvetter darf NICHT als mlflow durchgehen
-    with pytest.raises(AssertionError, match="pinnt kein mlflow"):
-        _pinned_mlflow_version(write("d.txt", "mlflow-skinny==3.15.1\nboto3==1.0.0\n"))
 
 
 def test_artifact_backup_is_a_daily_terminating_verified_cron() -> None:

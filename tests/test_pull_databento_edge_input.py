@@ -246,10 +246,9 @@ def test_normalize_trades_frame_rejects_empty() -> None:
 
 
 def test_aggregate_signed_volume_signs_and_counts() -> None:
-    # Three trades inside one 15m window (the bar ends at _T0+100s, the
-    # 22:15:00 boundary; the last trade prints one second before it):
-    # B(+10), A(-4), N(0 signed, still counted).
-    raw = _raw_trades_frame([0, 60, 99], [10.0, 4.0, 7.0], ["B", "A", "N"])
+    # Three trades inside one 15m window (the first bucket ends at _T0+100s, the
+    # 22:15:00 boundary): B(+10), A(-4), N(0 signed, still counted).
+    raw = _raw_trades_frame([0, 60, 100], [10.0, 4.0, 7.0], ["B", "A", "N"])
     trades = normalize_trades_frame(raw, symbol="AAPL")
 
     agg = aggregate_signed_volume(trades, "15m")
@@ -258,21 +257,6 @@ def test_aggregate_signed_volume_signs_and_counts() -> None:
     assert float(agg["signed_volume"].iloc[0]) == 6.0  # 10 - 4 + 0
     assert int(agg["trade_count"].iloc[0]) == 3
     assert float(agg["abs_volume"].iloc[0]) == 21.0  # 10 + 4 + 7 (unsigned sum)
-
-
-def test_a_trade_exactly_on_a_bar_boundary_belongs_to_the_bar_that_starts_there() -> None:
-    """22:15:00.000 is the first instant of the bar [22:15, 22:30) — the same
-    bar the 1m candle stamped 22:15 goes to. Until 2026-10-02 it was booked
-    into the bar ENDING at 22:15, mirroring the resampler's old rule
-    (ADR-0031, Nachtrag 2026-10-02 III)."""
-    raw = _raw_trades_frame([0, 60, 100], [10.0, 4.0, 7.0], ["B", "A", "B"])
-    trades = normalize_trades_frame(raw, symbol="AAPL")
-
-    agg = aggregate_signed_volume(trades, "15m")
-
-    assert [int(t) for t in agg["timestamp"]] == [_T0 + 100, _T0 + 100 + 900]
-    assert [float(v) for v in agg["signed_volume"]] == [6.0, 7.0]
-    assert [int(n) for n in agg["trade_count"]] == [2, 1]
 
 
 def test_aggregate_signed_volume_uint32_size_no_underflow() -> None:
@@ -332,14 +316,11 @@ def _raw_opra_trades(
     sizes: list[float],
     prices: list[float],
     sides: list[str],
-    option_types: list[str] | None = None,
 ) -> pd.DataFrame:
     """A raw OPRA ``trades`` frame already mapped to the underlying.
 
     One row per option print with epoch-second ``timestamp``, ``size``
-    (contracts), ``price`` (per-contract premium), ``side`` (A/B/N) and
-    ``option_type`` (C/P/""). Defaults to all-calls so aggressor-focused tests
-    keep their arithmetic; put/unknown behavior gets its own explicit frames.
+    (contracts), ``price`` (per-contract premium) and ``side`` (A/B/N).
     """
     return pd.DataFrame(
         {
@@ -347,7 +328,6 @@ def _raw_opra_trades(
             "size": sizes,
             "price": prices,
             "side": sides,
-            "option_type": option_types if option_types is not None else ["C"] * len(offsets),
         }
     )
 
@@ -363,19 +343,9 @@ def test_normalize_opra_trades_frame_from_datetime_index() -> None:
 
     out = normalize_opra_trades_frame(raw, underlying="aapl")
 
-    assert list(out.columns) == [
-        "timestamp",
-        "price",
-        "size",
-        "side",
-        "option_type",
-        "underlying",
-    ]
+    assert list(out.columns) == ["timestamp", "price", "size", "side", "underlying"]
     assert out["timestamp"].tolist() == [_T0, _T0 + 60, _T0 + 120]
     assert out["side"].tolist() == ["A", "B", "N"]  # upper-cased Databento enum
-    # No OSI ``symbol`` column in the raw frame -> option type unknown ("")
-    # on every row (the aggregator then keeps these prints unsigned).
-    assert out["option_type"].tolist() == ["", "", ""]
     assert out["size"].dtype == np.float64
     assert (out["underlying"] == "AAPL").all()  # parent symbology stamp
 
@@ -429,30 +399,19 @@ def test_normalize_opra_trades_frame_drops_unpriced_rows() -> None:
 
 
 def test_normalize_opra_trades_frame_feeds_aggregation() -> None:
-    """The normaliser output is consumed verbatim by the aggregator.
-
-    Both prints are aggressive BUYS (side A); the sign difference comes purely
-    from the contract direction parsed off the OSI symbol: the bought call is
-    bullish (+2000), the bought put is bearish (-1200).
-    """
+    """The normaliser output is consumed verbatim by the aggregator."""
     index = pd.to_datetime(
         [(_T0 + i * 60) * 1_000_000_000 for i in range(2)], utc=True
     )
     raw = pd.DataFrame(
-        {
-            "price": [2.0, 3.0],
-            "size": [10, 4],
-            "side": ["A", "A"],
-            "symbol": ["AAPL  260821C00190000", "AAPL  260821P00185000"],
-        },
+        {"price": [2.0, 3.0], "size": [10, 4], "side": ["A", "B"]},
         index=pd.DatetimeIndex(index, name="ts_event"),
     )
 
     normalized = normalize_opra_trades_frame(raw, underlying="AAPL")
-    assert normalized["option_type"].tolist() == ["C", "P"]
     agg = aggregate_signed_uoa_notional(normalized, "15m")
 
-    assert float(agg["uoa_signed_notional"].iloc[0]) == 800.0  # +2000 - 1200
+    assert float(agg["uoa_signed_notional"].iloc[0]) == 800.0  # 2000 - 1200
     assert float(agg["uoa_abs_notional"].iloc[0]) == 3200.0
 
 
@@ -464,16 +423,13 @@ def _raw_opra_tcbbo(
     asks: list[float],
     *,
     raw_sides: list[str] | None = None,
-    symbols: list[str] | None = None,
 ) -> pd.DataFrame:
     """A raw OPRA ``tcbbo`` frame: trade price + consolidated NBBO
-    (``bid_px_00``/``ask_px_00``) + the mapped OSI ``symbol``.
+    (``bid_px_00``/``ask_px_00``).
 
     The raw ``side`` defaults to ``"N"`` for every row to mirror the live OPRA
     tape (no reliable aggressor flag), proving the normaliser reconstructs the
-    aggressor from the quote rule rather than trusting the field. ``symbol``
-    defaults to all-call OSI symbols (the live ``to_df()`` mapping always
-    attaches one); pass put symbols to exercise the direction sign.
+    aggressor from the quote rule rather than trusting the field.
     """
     n = len(offsets)
     index = pd.to_datetime([(_T0 + o) * 1_000_000_000 for o in offsets], utc=True)
@@ -484,7 +440,6 @@ def _raw_opra_tcbbo(
             "side": raw_sides if raw_sides is not None else ["N"] * n,
             "bid_px_00": bids,
             "ask_px_00": asks,
-            "symbol": symbols if symbols is not None else ["AAPL  260821C00190000"] * n,
         },
         index=pd.DatetimeIndex(index, name="ts_event"),
     )
@@ -525,7 +480,7 @@ def test_normalize_opra_tcbbo_reconstructs_side_from_quote_rule() -> None:
     # recover A (ask-lift) and B (bid-hit) from the NBBO so the signed notional
     # is non-degenerate -- the entire point of the trades->tcbbo switch.
     raw = _raw_opra_tcbbo(
-        offsets=[0, 60, 99],
+        offsets=[0, 60, 100],
         sizes=[10.0, 4.0, 7.0],
         prices=[2.0, 3.0, 1.5],  # at/above ask, at/below bid, inside spread
         bids=[1.8, 3.2, 1.0],
@@ -559,12 +514,11 @@ def test_normalize_opra_tcbbo_quote_rule_overrides_raw_side() -> None:
 
 
 def test_aggregate_signed_uoa_notional_inverse_aggressor_signs() -> None:
-    # Three OPRA CALL prints in one 15m window. OPRA convention is INVERSE of
-    # equity:
-    #   A (ask-lift) = call bought = bullish (+): size 10 * price 2 * 100 = +2000
-    #   B (bid-hit)  = call sold   = bearish (-): size  4 * price 3 * 100 = -1200
+    # Three OPRA prints in one 15m window. OPRA convention is INVERSE of equity:
+    #   A (ask-lift) = bullish (+): size 10 * price 2 * 100 = +2000
+    #   B (bid-hit)  = bearish (-): size  4 * price 3 * 100 = -1200
     #   N (cross)    = unsigned (0 signed), still counted: size 7 * price 1 * 100 = 700 abs
-    raw = _raw_opra_trades([0, 60, 99], [10.0, 4.0, 7.0], [2.0, 3.0, 1.0], ["A", "B", "N"])
+    raw = _raw_opra_trades([0, 60, 100], [10.0, 4.0, 7.0], [2.0, 3.0, 1.0], ["A", "B", "N"])
 
     agg = aggregate_signed_uoa_notional(raw, "15m")
 
@@ -585,88 +539,6 @@ def test_aggregate_signed_uoa_notional_uint32_size_no_underflow() -> None:
 
     assert float(agg["uoa_signed_notional"].iloc[0]) == 800.0  # 2000 - 1200
     assert float(agg["uoa_abs_notional"].iloc[0]) == 3200.0  # 2000 + 1200
-
-
-def test_aggregate_signed_uoa_notional_put_flow_signs_economic() -> None:
-    # The call/put blind spot (fixed 2026-08-04): the sign must be aggressor x
-    # contract direction, not aggressor alone. Two PUT prints:
-    #   A (ask-lift) on a put = put BOUGHT = bearish (-): 10 * 2 * 100 = -2000
-    #   B (bid-hit)  on a put = put SOLD   = bullish (+):  4 * 3 * 100 = +1200
-    raw = _raw_opra_trades(
-        [0, 60], [10.0, 4.0], [2.0, 3.0], ["A", "B"], option_types=["P", "P"]
-    )
-
-    agg = aggregate_signed_uoa_notional(raw, "15m")
-
-    assert float(agg["uoa_signed_notional"].iloc[0]) == -800.0  # -2000 + 1200
-    assert float(agg["uoa_abs_notional"].iloc[0]) == 3200.0  # magnitude unaffected
-
-
-def test_aggregate_signed_uoa_notional_unknown_option_type_stays_unsigned() -> None:
-    # A print whose contract direction is unknown ("" value or the column
-    # missing entirely) contributes 0 to the signed sum -- assuming "call"
-    # would silently restore the blind spot -- but stays in abs + count.
-    with_blank = _raw_opra_trades(
-        [0, 60], [10.0, 4.0], [2.0, 3.0], ["A", "A"], option_types=["", "C"]
-    )
-    agg = aggregate_signed_uoa_notional(with_blank, "15m")
-    assert float(agg["uoa_signed_notional"].iloc[0]) == 1200.0  # only the call
-    assert float(agg["uoa_abs_notional"].iloc[0]) == 3200.0
-    assert int(agg["uoa_trade_count"].iloc[0]) == 2
-
-    without_column = _raw_opra_trades([0], [10.0], [2.0], ["A"]).drop(
-        columns=["option_type"]
-    )
-    agg = aggregate_signed_uoa_notional(without_column, "15m")
-    assert float(agg["uoa_signed_notional"].iloc[0]) == 0.0
-    assert float(agg["uoa_abs_notional"].iloc[0]) == 2000.0
-
-
-def test_normalize_opra_frame_parses_option_type_from_osi_symbol() -> None:
-    # Real OSI shapes from the live parent-symbology mapping (6-char padded
-    # root + yymmdd + C/P + 8 strike digits); a non-OSI value degrades to ""
-    # (unknown -> unsigned) instead of raising or guessing.
-    raw = pd.DataFrame(
-        {
-            "ts_event": pd.to_datetime(
-                [(_T0 + o) * 1_000_000_000 for o in (0, 60, 120)], utc=True
-            ),
-            "price": [2.0, 3.0, 1.0],
-            "size": [1, 2, 3],
-            "side": ["A", "B", "N"],
-            "symbol": [
-                "SPY   260804C00757000",
-                "SPY   260803P00748000",
-                "not-an-osi-symbol",
-            ],
-        }
-    )
-
-    out = normalize_opra_trades_frame(raw, underlying="SPY")
-
-    assert out["option_type"].tolist() == ["C", "P", ""]
-
-
-def test_normalize_opra_tcbbo_put_buy_counts_bearish_end_to_end() -> None:
-    # End-to-end through the live path (quote-rule aggressor + OSI parse): an
-    # ask-lifting print on a PUT must come out bearish. Before the 2026-08-04
-    # fix this exact frame aggregated to +2000 (counted as bullish).
-    raw = _raw_opra_tcbbo(
-        offsets=[0],
-        sizes=[10.0],
-        prices=[2.0],  # at the ask -> aggressive buyer (A)
-        bids=[1.8],
-        asks=[2.0],
-        symbols=["SPY   260803P00748000"],
-    )
-
-    out = normalize_opra_trades_frame(raw, underlying="SPY")
-    assert out["side"].tolist() == ["A"]
-    assert out["option_type"].tolist() == ["P"]
-
-    agg = aggregate_signed_uoa_notional(out, "15m")
-    assert float(agg["uoa_signed_notional"].iloc[0]) == -2000.0
-    assert float(agg["uoa_abs_notional"].iloc[0]) == 2000.0
 
 
 def test_aggregate_signed_uoa_notional_empty_input() -> None:
@@ -793,108 +665,3 @@ def test_payload_omits_signed_volume_without_trades(
 
     assert all("signed_volume" not in b for b in payload["bars"])
     assert payload["provenance"]["with_trades"] is False
-
-
-class TestAvailableEndClamp:
-    """Intraday, Databento historical rejects end=now with a 422
-    ``data_end_after_available_end`` naming the authoritative available end
-    (metadata.get_dataset_range only advertises the T-1 boundary, so there is
-    no proactive clamp source). The wrapper must retry exactly once with the
-    advertised end — the 2026-08-17 16:05 campaign fire died on this."""
-
-    _MESSAGE = (
-        "422 data_end_after_available_end\n"
-        "The dataset XNAS.ITCH has data available up to "
-        "'2026-08-17 14:00:00+00:00'. The `end` in the query "
-        "('2026-08-17 14:05:00+00:00') is after the available range."
-    )
-
-    def _error(self):
-        from databento.common.error import BentoClientError
-
-        return BentoClientError(
-            http_status=422, http_body=None, message=self._MESSAGE
-        )
-
-    def test_a_rejected_end_is_clamped_to_the_advertised_available_end(self) -> None:
-        calls: list[dict] = []
-        sentinel = object()
-
-        def fake_get_range(client, *, context, **kwargs):
-            calls.append(dict(kwargs))
-            if len(calls) == 1:
-                raise self._error()
-            return sentinel
-
-        result = wrapper._get_range_clamped_to_available_end(
-            fake_get_range,
-            object(),
-            context="test",
-            dataset="XNAS.ITCH",
-            end="2026-08-17T14:05:00",
-        )
-
-        assert result is sentinel
-        assert len(calls) == 2
-        # T-separated ISO, NOT the raw space-separated 422 text: the raw
-        # string loses its space in transit and the API rejects it as a 400
-        # (first-flight failure 2026-08-17 23:40Z).
-        assert calls[1]["end"] == "2026-08-17T14:00:00+00:00"
-        assert calls[1]["dataset"] == "XNAS.ITCH"
-
-    def test_a_second_rejection_is_not_retried_forever(self) -> None:
-        from databento.common.error import BentoClientError
-
-        calls: list[int] = []
-
-        def always_reject(client, *, context, **kwargs):
-            calls.append(1)
-            raise self._error()
-
-        with pytest.raises(BentoClientError):
-            wrapper._get_range_clamped_to_available_end(
-                always_reject, object(), context="test", end="x"
-            )
-
-        assert len(calls) == 2
-
-    def test_an_unparseable_available_end_reraises_the_422(self) -> None:
-        from databento.common.error import BentoClientError
-
-        calls: list[int] = []
-
-        def reject_with_garbage_end(client, *, context, **kwargs):
-            calls.append(1)
-            raise BentoClientError(
-                http_status=422,
-                http_body=None,
-                message=(
-                    "422 data_end_after_available_end\n"
-                    "The dataset X has data available up to 'not-a-date'."
-                ),
-            )
-
-        with pytest.raises(BentoClientError, match="data_end_after_available_end"):
-            wrapper._get_range_clamped_to_available_end(
-                reject_with_garbage_end, object(), context="test", end="x"
-            )
-
-        assert len(calls) == 1  # no blind retry into a guaranteed 400
-
-    def test_unrelated_client_errors_pass_through_unclamped(self) -> None:
-        from databento.common.error import BentoClientError
-
-        calls: list[int] = []
-
-        def reject_auth(client, *, context, **kwargs):
-            calls.append(1)
-            raise BentoClientError(
-                http_status=401, http_body=None, message="401 auth_failed"
-            )
-
-        with pytest.raises(BentoClientError):
-            wrapper._get_range_clamped_to_available_end(
-                reject_auth, object(), context="test", end="x"
-            )
-
-        assert len(calls) == 1

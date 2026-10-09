@@ -106,23 +106,22 @@ class TestPineSurfaceDefault:
     """The Pine surface_mode default must match DEFAULT_VIEW_MODE."""
 
     def test_pine_surface_mode_default_is_decision_brief(self) -> None:
-        text = Path("SMC_Decision_Board.pine").read_text(encoding="utf-8")
+        text = Path("SMC_Long_Dip_Dashboard.pine").read_text(encoding="utf-8")
         # Match: surface_mode = input.string("<default>", "View", ...)
         match = re.search(
             r'surface_mode\s*=\s*input\.string\(\s*"([^"]+)"', text
         )
-        assert match is not None, "surface_mode input not found in SMC_Decision_Board.pine"
+        assert match is not None, "surface_mode input not found in SMC_Long_Dip_Dashboard.pine"
         assert match.group(1) == DEFAULT_VIEW_MODE
 
     def test_pine_surface_mode_options_match_visual_budget(self) -> None:
-        text = Path("SMC_Decision_Board.pine").read_text(encoding="utf-8")
+        text = Path("SMC_Long_Dip_Dashboard.pine").read_text(encoding="utf-8")
         match = re.search(
             r'surface_mode\s*=\s*input\.string\([^)]*options\s*=\s*\[([^\]]+)\]',
             text,
         )
         assert match is not None, "surface_mode options not found"
         options = re.findall(r'"([^"]+)"', match.group(1))
-        assert options, "surface_mode declares no option — the budget check would pass vacuously"
         # All Pine view modes must be priced in the visual budget.
         for mode in options:
             assert mode in VISUAL_BUDGET, f"Pine view mode {mode!r} missing budget"

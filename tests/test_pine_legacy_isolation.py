@@ -43,9 +43,6 @@ _LEGACY_FILENAMES: frozenset[str] = frozenset({
     "REV-BUY.pine",
     "REV-Ladder-CHoCH.pine",
     "REV-Ladder.pine",
-    # 2026-07-30 (R5-REBUILD): snapshot-era rollback references, see PINE_LEGACY.md
-    "SMC_HTF_Confluence_v1_snapshot.pine",
-    "SMC_Session_Context_v1_snapshot.pine",
     "USI_Lines.pine",
     "USI_Strategy.pine",
     "USI-CHOCH.pine",
@@ -83,9 +80,6 @@ _REFERENCE_ALLOWLIST_NAMES: frozenset[str] = frozenset({
     "smc_surface_matrix.py",
     "pine_apply_surface_reduction.py",
     "test_usi_lint.py",
-    # 2026-07-30 (R5-REBUILD): the traceability matrix cites the archived
-    # snapshot sources as the phase's rollback evidence.
-    "pine_extended_migration_traceability.json",
 })
 
 

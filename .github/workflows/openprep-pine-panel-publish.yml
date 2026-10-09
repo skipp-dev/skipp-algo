@@ -46,28 +46,9 @@ permissions:
   contents: read
 
 concurrency:
-  # 2026-08-01: one AUTOMATED browser session at a time — CI against CI only.
-  # This group does NOT serialise the account: the operator's own browser is
-  # a second, unserialised writer on the same layouts, and TradingView
-  # autosaves from it (operator-confirmed 2026-08-01: autosave active, and a
-  # chart tab on this account was open all day while runs mutated layouts —
-  # nothing here knew). No mechanism detects or excludes that session;
-  # mutating runs coordinate with the operator by convention, not by code.
-  # Every workflow below drives the SAME external account, and until now each
-  # one only serialised against itself — two of these blocks already said
-  # "TradingView is a single shared external target" while keeping a private
-  # group, so the guarantee was stated but never implemented. Measured trigger:
-  # a manual tv-save-consumer-source dispatch ran while an R4 readback was
-  # being prepared; nothing in CI would have stopped them overlapping.
-  # cancel-in-progress stays false everywhere: these runs save layouts and
-  # publish scripts, so a queued run must wait, never pre-empt.
-  group: tradingview-session
+  # Serialize Open-Prep panel publishes — TradingView is a single shared target.
+  group: openprep-pine-panel-publish
   cancel-in-progress: false
-  # 2026-08-06: cancel-in-progress governs only the RUNNING run, so `false`
-  # never protected the waiter. Under the default `queue: single` a group holds
-  # exactly one pending run and the next entrant CANCELS it -- that is what
-  # dropped dispatches here. `queue: max` queues up to 100 runs FIFO instead.
-  queue: max
 
 # Top-level env so PYTHONUNBUFFERED / PYTHONPATH propagate to every step,
 # including the direct python scripts/generate_openprep_pine_panel.py invoke.
@@ -88,7 +69,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           persist-credentials: false
 
@@ -99,7 +80,7 @@ jobs:
           cache-dependency-path: requirements.txt
 
       - name: Set up Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: "20"
           cache: "npm"
@@ -116,12 +97,6 @@ jobs:
 
       - name: Regenerate panel (traded data-branch outcomes preferred)
         if: ${{ inputs.regenerate || github.event_name == 'schedule' }}
-        env:
-          # Scoped auth for the data-branch fetch only. The job checkout runs
-          # with persist-credentials: false (hardening: the Playwright/TV steps
-          # must not see ambient git credentials — PR #3217), which broke this
-          # fetch when the repo went private (fatal: could not read Username).
-          GH_TOKEN: ${{ github.token }}
         run: |
           # Option-a decision (2026-07-09): the PUBLISHED panel shows the
           # TRADED universe. The local audit-push (17:30 ET) lands the traded,
@@ -133,28 +108,10 @@ jobs:
           # universe would shrink the 929-symbol signal watchlist to ~10.
           # Fail-soft on every step; a disjoint universe still warns loudly in
           # the generator.
-          #
-          # URL-scoped token (repo idiom, cf. adr0023-magnitude-shadow-daily):
-          # auth lives only in this one fetch command, never in git config, so
-          # the persist-credentials: false posture of the job is preserved. The
-          # runner masks the token in logs.
-          git fetch --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
-            data/phase-a-audit:refs/remotes/origin/data/phase-a-audit || true
-          # `|| true` INSIDE the substitutions: under set -e -o pipefail an
-          # empty glob (ls rc=2) or a missing origin/data/phase-a-audit ref
-          # (grep rc=1) otherwise kills the assignment line itself — exactly
-          # the silent 90ms death this step died of when the fetch broke.
-          committed_latest="$(ls artifacts/open_prep/outcomes/outcomes_*.json 2>/dev/null | sort | tail -1 || true)"
+          git fetch --depth 1 origin data/phase-a-audit || true
+          committed_latest="$(ls artifacts/open_prep/outcomes/outcomes_*.json 2>/dev/null | sort | tail -1)"
           committed_date="$(basename "${committed_latest:-}" .json | sed 's/^outcomes_//')"
-          # Prefer outcomes_local/ — the traded STATIC-universe file the
-          # audit-push driver publishes since 2026-08-18. The legacy
-          # outcomes/ fallback only covers branch history from before that
-          # fix, when the pushed file was the CI screener (FMP) universe and
-          # Option-a never took effect (Grenzgänger-Sweep B5).
-          db_latest="$(git ls-tree -r --name-only origin/data/phase-a-audit -- artifacts/open_prep/outcomes_local/ 2>/dev/null | grep -E 'outcomes_[0-9-]+\.json$' | sort | tail -1 || true)"
-          if [ -z "${db_latest}" ]; then
-            db_latest="$(git ls-tree -r --name-only origin/data/phase-a-audit -- artifacts/open_prep/outcomes/ 2>/dev/null | grep -E 'outcomes_[0-9-]+\.json$' | sort | tail -1 || true)"
-          fi
+          db_latest="$(git ls-tree -r --name-only origin/data/phase-a-audit -- artifacts/open_prep/outcomes/ 2>/dev/null | grep -E 'outcomes_[0-9-]+\.json$' | sort | tail -1)"
           db_date="$(basename "${db_latest:-}" .json | sed 's/^outcomes_//')"
           outcomes_args=()
           panel_date="${committed_date}"
@@ -246,6 +203,6 @@ jobs:
           name: openprep-panel-publish-report
           path: |
             automation/tradingview/reports/publish-openprep-panel-*.json
-            automation/tradingview/reports/screenshots/*Open-Prep*.png
+            automation/tradingview/reports/screenshots/**
           if-no-files-found: ignore
           retention-days: 14

@@ -51,7 +51,6 @@ permissions:
 concurrency:
   group: open-prep-outcome-backfill
   cancel-in-progress: false
-  queue: max  # F-V5-C2: without this the next tick cancels the PENDING run
 
 env:
   PYTHONUNBUFFERED: "1"  # F-V5-A2 (2026-05-01)
@@ -74,7 +73,7 @@ jobs:
       matched_runner_name: ${{ steps.resolve.outputs.matched_runner_name }}
     steps:
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           persist-credentials: false
 
@@ -104,7 +103,7 @@ jobs:
           echo "matched_runner_name=${{ needs.select-runner.outputs.matched_runner_name }}"
 
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           # GH_PAT is required so the `bot/*` push + `gh pr create` below
           # trigger the `fast-gates` required check. Workflows opened with
@@ -197,33 +196,7 @@ jobs:
           # without this the workflow silently went green even when no
           # outcomes were resolved, skipped or failed.
           ARGS+=(--require-progress)
-          # §G3 (2026-07-27): also resolve labels for BOTH A/B arm records
-          # into artifacts/open_prep/ab_arms/labels_<day>.json — the input
-          # the g3 bridge folds into docs/ab/g23_history.jsonl. Separate
-          # store by design: arm-B shadow rows must never contaminate
-          # outcomes_<day>.json (compute_hit_rates / FI ledger).
-          ARGS+=(--ab-arm-labels)
           "$SMC_PYTHON_BIN" -m open_prep.outcome_backfill "${ARGS[@]}"
-
-      - name: Measure FMP volume basis
-        env:
-          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
-          INPUT_DATE: ${{ github.event.inputs.date }}
-        run: |
-          set -euo pipefail
-          SESSION_DATE="${INPUT_DATE:-$(date -u +%F)}"
-          SOURCE="artifacts/open_prep/outcomes/outcomes_${SESSION_DATE}.json"
-          if [ "$SESSION_DATE" != "$(date -u +%F)" ]; then
-            echo "::warning::FMP quote.volume is current-only; historical dispatch ${SESSION_DATE} cannot produce a same-session basis measurement"
-          elif [ ! -s "$SOURCE" ]; then
-            echo "::warning::No outcome snapshot for ${SESSION_DATE}; FMP volume-basis measurement skipped"
-          else
-            "$SMC_PYTHON_BIN" scripts/measure_fmp_volume_basis.py \
-              --session-date "$SESSION_DATE" \
-              --symbols-from "$SOURCE" \
-              --output-dir artifacts/open_prep/volume_source_audit \
-              --max-symbols 20 --minimum-sessions 5
-          fi
 
       - name: Warn on persistent failed-status streak
         # Audit D-3 (2026-06-12): every run log 2026-04-30..2026-06-11
@@ -296,7 +269,6 @@ jobs:
           path: |
             artifacts/open_prep/outcome_backfill/
             artifacts/open_prep/feature_importance/
-            artifacts/open_prep/volume_source_audit/
           if-no-files-found: warn
 
       - name: Commit refreshed outcomes via PR
@@ -316,10 +288,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          git add artifacts/open_prep/outcomes/ artifacts/open_prep/outcome_backfill/ artifacts/open_prep/feature_importance/ artifacts/open_prep/volume_source_audit/ || true
-          # §G3 arm labels (labels_<day>.json) accumulate next to the arm
-          # records so the bridge can fold them on the next watchdog run.
-          git add artifacts/open_prep/ab_arms/ || true
+          git add artifacts/open_prep/outcomes/ artifacts/open_prep/outcome_backfill/ artifacts/open_prep/feature_importance/ || true
           if git diff --staged --quiet; then
             echo "No changes to commit."
             exit 0

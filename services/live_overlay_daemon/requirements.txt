@@ -1,23 +1,6 @@
-fastapi==0.141.1
-starlette==1.6.0  # 2026-08-04: pinned at the version this file already
-                  # resolves to (verified via a fresh throwaway-venv
-                  # install; a no-op today). Unpinned ASGI-layer majors
-                  # are the real risk on the deployed daemon, the
-                  # production path with the highest blast radius — see
-                  # requirements.txt for the root-cause writeup.
-uvicorn==0.52.4
-databento==0.84.0
-psutil==7.2.2
-holidays==0.103
-# fmp_data_loader imports httpx at module level for the VIX poll; without it
-# `_ensure_vix_loader` swallows the ImportError and vix_level stays null in the
-# /smc_live payload. Absent here until 2026-08-05.
-httpx==0.28.1
-tzdata==2026.3
-
-# NOTE (2026-08-05): production does NOT install this file. Railway builds the
-# whole repo tree, so the ROOT requirements.txt is what the container gets
-# (measured: /app carries repo-root modules and pip reports the root fastapi
-# pin, 0.136.1, not the 0.141.1 above). Anything the daemon needs at runtime
-# must therefore ALSO be pinned in the root file — enforced by
-# tests/test_live_overlay_daemon_deploy_artifact_contract.py.
+fastapi==0.136.1
+uvicorn==0.34.3
+databento==0.79.0
+psutil==6.1.1
+holidays==0.76
+tzdata==2025.2

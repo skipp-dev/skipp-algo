@@ -1,9 +1,7 @@
 """Tests for terminal_notifications.py — push notification module."""
 from __future__ import annotations
 
-import os
 import time
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -27,11 +25,8 @@ from terminal_notifications import (
 
 
 @pytest.fixture(autouse=True)
-def _clear_throttle(monkeypatch: pytest.MonkeyPatch, tmp_path):
+def _clear_throttle():
     """Reset throttle state before each test."""
-    # Redirect the persisted throttle BEFORE resetting: reset_throttle() now
-    # deletes that file, and it must never be the repo's real one.
-    monkeypatch.setenv("TERMINAL_NOTIFY_STATE_PATH", str(tmp_path / "throttle.json"))
     reset_throttle()
     yield
     reset_throttle()
@@ -100,23 +95,6 @@ class TestNotifyConfig:
     def test_has_pushover_channel(self):
         cfg = NotifyConfig()
         assert cfg.has_any_channel is True
-
-    @pytest.mark.parametrize(
-        "name,value,field,expected",
-        [
-            ("TERMINAL_NOTIFY_MIN_SCORE", "nan", "min_score", 0.85),
-            ("TERMINAL_NOTIFY_MIN_SCORE", "1.1", "min_score", 0.85),
-            ("TERMINAL_NOTIFY_THROTTLE_S", "0", "throttle_s", 600),
-            ("TERMINAL_NOTIFY_THROTTLE_S", "-5", "throttle_s", 600),
-            ("TERMINAL_NOTIFY_MAX_AGE_MIN", "inf", "max_age_minutes", 20.0),
-            ("TERMINAL_NOTIFY_MAX_AGE_MIN", "-1", "max_age_minutes", 20.0),
-        ],
-    )
-    def test_invalid_numeric_env_falls_back_to_safe_default(
-        self, monkeypatch, name, value, field, expected,
-    ):
-        monkeypatch.setenv(name, value)
-        assert getattr(NotifyConfig(), field) == expected
 
 
 # ---------------------------------------------------------------------------
@@ -377,35 +355,6 @@ class TestNotifyHighScoreItems:
 
     @patch("terminal_notifications._is_market_hours", return_value=True)
     @patch("terminal_notifications._send_telegram", return_value=True)
-    @patch("terminal_notifications._send_discord", side_effect=[False, True])
-    def test_partial_channel_failure_retries_only_the_failed_channel(
-        self, mock_discord, mock_tg, _,
-    ):
-        cfg = NotifyConfig(
-            enabled=True,
-            min_score=0.85,
-            throttle_s=600,
-            max_age_minutes=20.0,
-            telegram_bot_token="telegram-secret",
-            telegram_chat_id="123",
-            discord_webhook_url="https://discord.com/api/webhooks/discord-secret",
-        )
-        item = _make_item(score=0.92)
-
-        first = notify_high_score_items([item], config=cfg)
-        second = notify_high_score_items([item], config=cfg)
-        third = notify_high_score_items([item], config=cfg)
-
-        assert len(first) == 1 and len(second) == 1 and third == []
-        assert mock_tg.call_count == 1
-        assert mock_discord.call_count == 2
-
-        state_text = os.environ["TERMINAL_NOTIFY_STATE_PATH"]
-        persisted = Path(state_text).read_text(encoding="utf-8")
-        assert "telegram-secret" not in persisted and "discord-secret" not in persisted
-
-    @patch("terminal_notifications._is_market_hours", return_value=True)
-    @patch("terminal_notifications._send_telegram", return_value=True)
     def test_catalyst_score_overrides_story_score(self, mock_send, _):
         cfg = NotifyConfig.__new__(NotifyConfig)
         object.__setattr__(cfg, "enabled", True)
@@ -476,103 +425,3 @@ class TestNotifyHighScoreItems:
         result = notify_high_score_items([item], config=cfg)
         assert result == []
         mock_send.assert_not_called()
-
-
-# ---------------------------------------------------------------------------
-# Restart survival
-# ---------------------------------------------------------------------------
-
-
-def _restart_throttle() -> None:
-    """Simulate a redeploy: in-memory throttle gone, persisted copy kept.
-
-    Deliberately not reset_throttle(), which also drops the file — that is the
-    manual re-arm, the opposite of what a restart must do.
-    """
-    import terminal_notifications as tn
-
-    tn._last_notified.clear()
-    tn._loaded.clear()
-
-
-def test_throttle_survives_a_restart() -> None:
-    """A redeploy must not let every ticker alert again inside its window."""
-    import os
-    from pathlib import Path
-
-    _mark_notified("AAPL")
-    assert Path(os.environ["TERMINAL_NOTIFY_STATE_PATH"]).exists()
-
-    _restart_throttle()
-
-    assert _is_throttled("AAPL", 600) is True
-
-
-def test_a_restart_after_the_window_does_not_throttle() -> None:
-    """A mark older than the retention horizon must not be restored."""
-    import terminal_notifications as tn
-
-    tn._last_notified["AAPL"] = time.time() - (tn._STATE_MAX_AGE_SECS + 60)
-    with tn._throttle_lock:
-        tn._save_state_locked()
-
-    _restart_throttle()
-
-    assert _is_throttled("AAPL", 600) is False
-
-
-def test_configured_long_throttle_survives_a_restart() -> None:
-    """Persistence must not silently cap a configured throttle at one hour."""
-    import terminal_notifications as tn
-
-    tn._last_notified["AAPL"] = time.time() - 3_700.0
-    with tn._throttle_lock:
-        tn._save_state_locked()
-
-    _restart_throttle()
-
-    assert _is_throttled("AAPL", 7_200) is True
-
-
-def test_longer_lookup_reloads_entries_outside_the_first_horizon() -> None:
-    """A short lookup must not permanently hide valid long-window state."""
-    import terminal_notifications as tn
-
-    tn._last_notified["AAPL"] = time.time() - 3_700.0
-    with tn._throttle_lock:
-        tn._save_state_locked()
-
-    _restart_throttle()
-
-    assert _is_throttled("AAPL", 600) is False
-    assert _is_throttled("AAPL", 7_200) is True
-
-
-def test_long_throttle_survives_size_based_eviction() -> None:
-    """The in-memory size guard must honor a configured window over one hour."""
-    import terminal_notifications as tn
-
-    old_mark = time.time() - 3_700.0
-    tn._last_notified["AAPL"] = old_mark
-    for index in range(tn._THROTTLE_DICT_MAX):
-        tn._last_notified[f"FILL{index}"] = time.time()
-
-    tn._mark_notified("MSFT", "telegram", 7_200)
-
-    assert tn._last_notified["AAPL"] == old_mark
-
-
-def test_reset_throttle_drops_the_persisted_copy() -> None:
-    import os
-    from pathlib import Path
-
-    from terminal_notifications import reset_throttle
-
-    _mark_notified("AAPL")
-    state_file = Path(os.environ["TERMINAL_NOTIFY_STATE_PATH"])
-    assert state_file.exists()
-
-    reset_throttle()
-
-    assert not state_file.exists()
-    assert _is_throttled("AAPL", 600) is False

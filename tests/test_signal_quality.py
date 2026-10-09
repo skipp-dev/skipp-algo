@@ -349,19 +349,6 @@ class TestComponentContributions:
         # Structure(20) + compression(4) - event_elevated(-9) = 15
         assert result["SIGNAL_QUALITY_SCORE"] == 15
 
-    def test_max_quality_sweep_reaches_full_liquidity_budget(self):
-        """SWEEP_QUALITY_SCORE is producer-clamped to 0-5, so a max-quality sweep must
-        award the full MAX_LIQUIDITY budget. The band divided by 10 (assuming a stale 0-10
-        scale), capping sweep support at 7/15 (47%). Isolate the band by holding
-        SWEEP_DIRECTION constant (bias votes identical) and toggling only RECENT_BULL_SWEEP.
-        """
-        from scripts.smc_signal_quality import MAX_LIQUIDITY
-
-        base = build_signal_quality(enrichment=_make_enrichment(sweep_direction="BULL", sweep_quality=5, recent_bull_sweep=False))
-        with_sweep = build_signal_quality(enrichment=_make_enrichment(sweep_direction="BULL", sweep_quality=5, recent_bull_sweep=True))
-        contrib = with_sweep["SIGNAL_QUALITY_SCORE"] - base["SIGNAL_QUALITY_SCORE"]
-        assert contrib == MAX_LIQUIDITY, f"max-quality sweep should reach full {MAX_LIQUIDITY}, got {contrib}"
-
     def test_fresh_ob_fvg_confluence(self):
         """Fresh OB + fresh FVG confluence → strong score."""
         enr = _make_enrichment(

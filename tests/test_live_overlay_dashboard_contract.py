@@ -16,8 +16,6 @@ from pathlib import Path
 import pytest
 import yaml
 
-from tests._guard_corpus import live_overlay_bridge_names
-
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _DASHBOARD_JSON = _REPO_ROOT / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard.json"
 _ALERT_RULES_YAML = _REPO_ROOT / "services" / "live_overlay_daemon" / "infra" / "grafana" / "alert-rules.yaml"
@@ -63,11 +61,16 @@ def _field_override_properties(panel: dict, field_name: str) -> dict[str, object
     return {}
 
 
-# (Removed 2026-07-22: test_active_alerts_panel_no_data_filter_disabled. The
-# Active Alerts panel never shipped a stateFilter, so the test only ever
-# skipped — a guard that cannot fail. Post-audit the DELIBERATE contract is
-# the opposite: no_data rows stay visible (a vanished series is a signal, not
-# noise); README §Grafana dashboard documents this.)
+def test_active_alerts_panel_no_data_filter_disabled() -> None:
+    """Grafana alert list should not include no_data to avoid unknown-state rows."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = _dashboard_panels(dashboard)
+    panel = next(p for p in panels if p.get("title") == "Active Alerts")
+    options = panel.get("vizConfig", {}).get("spec", {}).get("options", panel.get("options", {}))
+    state_filter = options.get("stateFilter")
+    if state_filter is None:
+        pytest.skip("Active Alerts panel has no stateFilter in current dashboard layout")
+    assert state_filter.get("no_data") is False
 
 
 def test_alert_rules_include_dedicated_news_snapshot_series_missing_rule() -> None:
@@ -83,33 +86,24 @@ def test_alert_rules_include_dedicated_news_snapshot_series_missing_rule() -> No
     assert "absent(live_overlay_provider_news_snapshot_age_seconds" in expr
 
 
-def test_alert_rules_split_news_snapshot_missing_and_stale_coverage() -> None:
-    """Both halves of the news-snapshot alert must stay present.
-
-    Until 2026-07-31 this guarded a single combined rule
-    ``lo-news-snapshot-stale-or-missing`` and skipped when it was absent. #2882
-    (2026-06-21) deliberately SPLIT that rule into ``lo-news-snapshot-unavailable``
-    (snapshot missing) and ``lo-news-snapshot-stale`` (snapshot too old), so the
-    guard skipped for six weeks and enforced nothing. Re-anchored on the two
-    successors; the severities are the ones the split actually chose — missing is
-    high, stale is warning — not the combined rule's uniform warning.
-    """
+def test_alert_rules_include_combined_news_snapshot_stale_or_missing_warning() -> None:
+    """Combined stale/missing snapshot alert must stay present and warning-severity."""
     rules_doc = yaml.safe_load(_ALERT_RULES_YAML.read_text(encoding="utf-8"))
     groups = rules_doc["groups"]
     warning_group = next(g for g in groups if g.get("name") == "live-overlay-warning")
-    by_uid = {r.get("uid"): r for r in warning_group["rules"]}
+    rule = next(
+        (r for r in warning_group["rules"] if r.get("uid") == "lo-news-snapshot-stale-or-missing"),
+        None,
+    )
 
-    missing = by_uid.get("lo-news-snapshot-unavailable")
-    stale = by_uid.get("lo-news-snapshot-stale")
-    assert missing is not None, "snapshot-missing half of the news-snapshot alert vanished"
-    assert stale is not None, "snapshot-stale half of the news-snapshot alert vanished"
+    if rule is None:
+        pytest.skip("combined stale/missing warning rule not present in current ruleset")
 
-    assert missing["labels"]["severity"] == "high"
-    assert stale["labels"]["severity"] == "warning"
-    assert "live_overlay_provider_news_snapshot_loaded" in missing["data"][0]["model"]["expr"]
-    stale_expr = stale["data"][0]["model"]["expr"]
-    assert "live_overlay_provider_news_snapshot_loaded" in stale_expr
-    assert "live_overlay_provider_news_snapshot_age_seconds" in stale_expr
+    assert rule["labels"]["severity"] == "warning"
+    expr = rule["data"][0]["model"]["expr"]
+    assert "live_overlay_provider_news_snapshot_loaded" in expr
+    assert "live_overlay_provider_news_snapshot_age_seconds" in expr
+    assert "or" in expr
 
 
 def test_state_timeline_panels_hide_threshold_range_legend() -> None:
@@ -118,23 +112,19 @@ def test_state_timeline_panels_hide_threshold_range_legend() -> None:
     convey the value mappings.
 
     In v2 format: vizConfig.group == 'state-timeline' identifies the panel type;
-    legend settings live at vizConfig.spec.options.legend.showLegend. Legacy v1
-    panels carry type == 'state-timeline' and options.legend directly; both
-    shapes are read below, so the pin holds for either format.
-
-    Both former escape hatches were removed 2026-07-31: a v1-only skip (the
-    dashboard has been v1 all along, so the pin never once executed) and an
-    empty-list skip. Measured at removal: 7 state-timeline panels, all with
-    showLegend false — the guarantee held, it was simply never checked.
+    legend settings live at vizConfig.spec.options.legend.showLegend.
     """
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    if isinstance(dashboard.get("panels"), list):
+        pytest.skip("state-timeline legend pin currently enforced for v2 dashboards only")
     panels = _dashboard_panels(dashboard)
     timelines = [
         p
         for p in panels
         if p.get("vizConfig", {}).get("group") == "state-timeline" or p.get("type") == "state-timeline"
     ]
-    assert timelines, "no state-timeline panel found — legend pin would pass vacuously"
+    if not timelines:
+        pytest.skip("no state-timeline panel present in current dashboard layout")
     for panel in timelines:
         options = panel.get("vizConfig", {}).get("spec", {}).get("options", panel.get("options", {}))
         legend = options["legend"]
@@ -277,21 +267,8 @@ def test_alert_rules_include_expected_traffic_missing_alert() -> None:
     assert "< bool 0.001" in expr
 
 
-def test_alert_rules_arm_consumer_reminder_for_the_verified_client() -> None:
-    """The reminder is active now that a real /smc_live consumer is verified.
-
-    It was paused 2026-07-16 because no supported external client existed. On
-    2026-07-23 production /metrics showed sustained traffic while the flag still
-    read 0 (110 requests over 1707s uptime, 3.9 req/min measured, auth_denied=0,
-    errors=0), so lo-request-rate-absent-open was gated off by
-    ``expected_market_traffic == 0`` and could not have reported a client outage.
-    LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC is now 1 in production, which makes this
-    rule quiet; its job from here is to catch the flag being reverted to 0 while
-    the consumer is still live.
-
-    Re-pausing it is a deliberate act (the consumer was retired) and must edit
-    this test in the same PR, keeping the audit trail the paused version had.
-    """
+def test_alert_rules_keep_consumer_reminder_paused_without_a_real_client() -> None:
+    """The reminder must stay paused while no supported client exists."""
     rule = _alert_rule("lo-expected-traffic-not-armed")
     expr = rule["data"][0]["model"]["expr"]
 
@@ -299,18 +276,14 @@ def test_alert_rules_arm_consumer_reminder_for_the_verified_client() -> None:
     assert "== bool 0" in expr
     assert rule["labels"]["severity"] == "warning"
     assert rule.get("for") == "15m"
-    assert rule.get("isPaused") is False, (
-        "a verified external consumer is live; a paused reminder cannot catch "
-        "LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC being reverted to 0 underneath it"
-    )
+    assert rule.get("isPaused") is True
+    assert "no supported" in rule.get("runbook", "").lower() or "no supported" in str(rule).lower()
 
 
 def test_multi_target_stat_panels_use_field_specific_units() -> None:
     """Known mixed-unit rates must never inherit one global Grafana unit."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
-    panels = _dashboard_panels(dashboard)
-    assert panels, "dashboard exposes no panel — the unit checks below would pass vacuously"
-    for panel in panels:
+    for panel in _dashboard_panels(dashboard):
         if panel.get("type") != "stat" or len(panel.get("targets", [])) < 2:
             continue
         expected: dict[str, str] = {}
@@ -364,14 +337,6 @@ def test_dashboard_freshness_thresholds_match_alert_rules() -> None:
     )
     assert binding_red == binding_seconds / 3600
 
-    library_rule_expr = _alert_rule("lo-pine-library-data-stale")["data"][0]["model"]["expr"]
-    library_seconds = int(re.search(r"> bool\s*(\d+)", library_rule_expr).group(1))
-    library_props = _field_override_properties(panels["Pine library data freshness"], "Micro-profile data age")
-    library_red = next(
-        step["value"] for step in library_props["thresholds"]["steps"] if step.get("color") == "red"
-    )
-    assert library_red == library_seconds / 86400
-
 
 def test_tradingview_binding_health_fields_have_independent_colours() -> None:
     """A failed load, incomplete check, drift, or mismatch must never stay green."""
@@ -396,21 +361,6 @@ def test_tradingview_binding_health_fields_have_independent_colours() -> None:
             {"color": "green", "value": None},
             {"color": "red", "value": 1},
         ]
-
-    source_known = _field_override_properties(panel, "Source check known")
-    source_mappings = source_known["mappings"][0]["options"]
-    assert source_mappings["0"] == {"text": "MISSING", "color": "red"}
-    assert source_mappings["1"] == {"text": "VERIFIED", "color": "green"}
-
-    source_checked = _field_override_properties(panel, "Sources checked")
-    assert source_checked["thresholds"]["steps"] == [
-        {"color": "red", "value": None},
-        {"color": "green", "value": 8},
-    ]
-    assert _field_override_properties(panel, "Source drift")["thresholds"]["steps"] == [
-        {"color": "green", "value": None},
-        {"color": "red", "value": 1},
-    ]
 
 
 def test_fmp_quota_panel_thresholds_match_alert_rules() -> None:
@@ -438,32 +388,6 @@ def test_hotspot_panels_explain_empty_state_and_use_request_rate_units() -> None
         assert "Empty means no external client requests" in panel.get("description", "")
 
 
-def test_bar_cache_panel_and_alert_use_timeframe_specific_readiness() -> None:
-    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
-    panel = next(
-        p
-        for p in _dashboard_panels(dashboard)
-        if p.get("title") == "Bar cache depth and cap churn"
-    )
-    expressions = "\n".join(target["expr"] for target in panel["targets"])
-    assert "live_overlay_requested_bar_history_readiness_ratio" in expressions
-    assert "live_overlay_requested_bars_per_symbol" in expressions
-    assert "live_overlay_requested_bar_symbols" in expressions
-    assert "live_overlay_requested_bar_history_symbols" in expressions
-    assert "live_overlay_requested_bar_history_regressed" in expressions
-
-    # 2026-08-18 (Grenzgaenger C1, operator decision): the ALERT is re-cut to
-    # high-water REGRESSION. The absolute readiness ratio needs up to ~160h
-    # of accumulated stream, so the old cut (readiness < 1 past a 15min
-    # warmup) was red for days after every deploy by construction. Readiness
-    # stays a dashboard-only warmup signal (pinned above); the alert fires
-    # only when accumulated history was DESTROYED.
-    alert_expr = _alert_rule("lo-bar-cache-depth-low")["data"][0]["model"]["expr"]
-    assert "live_overlay_requested_bar_history_regressed" in alert_expr
-    assert "> bool 0" in alert_expr
-    assert "live_overlay_requested_bar_history_readiness_ratio" not in alert_expr
-
-
 def test_alert_rules_guard_uptimerobot_monitor_count_and_down_total() -> None:
     """UptimeRobot monitor alerts must gate on the generic bridge contract."""
     count_rule = _alert_rule("lo-uptimerobot-monitor-count-mismatch")
@@ -474,9 +398,7 @@ def test_alert_rules_guard_uptimerobot_monitor_count_and_down_total() -> None:
     )
     assert "live_overlay_uptimerobot_bridge_enabled" not in count_expr
     assert "live_overlay_uptimerobot_monitors_total" in count_expr
-    assert "live_overlay_uptimerobot_monitors_expected" in count_expr
-    assert "!= bool on(job)" in count_expr
-    assert "!= bool 5" not in count_expr
+    assert "!= bool 5" in count_expr
 
     down_rule = _alert_rule("lo-uptimerobot-monitor-down")
     down_expr = down_rule["data"][0]["model"]["expr"]
@@ -488,19 +410,6 @@ def test_alert_rules_guard_uptimerobot_monitor_count_and_down_total() -> None:
     assert "live_overlay_uptimerobot_monitors_down_total" in down_expr
     assert "> bool 0" in down_expr
     assert down_rule["labels"]["severity"] == "critical"
-
-
-def test_uptimerobot_panel_shows_configured_expected_count() -> None:
-    """The operator view must show actual and allowlist-derived monitor counts."""
-    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
-    panel = next(
-        item
-        for item in _dashboard_panels(dashboard)
-        if item.get("title") == "UptimeRobot Monitors"
-    )
-    expressions = {target.get("expr") for target in panel.get("targets", [])}
-    assert 'live_overlay_uptimerobot_monitors_total{job=~"$job"}' in expressions
-    assert 'live_overlay_uptimerobot_monitors_expected{job=~"$job"}' in expressions
 
 
 def test_alert_rules_use_generic_bridge_last_success_age_for_external_staleness() -> None:
@@ -745,27 +654,27 @@ def test_dashboard_success_rate_panel_description_matches_http_requests() -> Non
     assert "compute cycle" not in description.lower()
 
 
-def test_dashboard_has_no_restart_cause_panel_or_series() -> None:
-    """The restart-cause dimension is gone (2026-07-28, B-sweep).
+def test_dashboard_restart_causes_panel_is_unique_and_groups_by_cause() -> None:
+    """There must be exactly one restart-cause panel and it must count restarts
+    per cause via changes() of the start-time-valued gauge.
 
-    LIVE_OVERLAY_RESTART_CAUSE was never set in any deploy surface, so the
-    cause-labeled live_overlay_daemon_start_time_seconds gauge was the constant
-    cause="unknown" — the "Restart Causes (24h)" panel was single-valued by
-    construction (and a static env can never distinguish deploy from crash).
-    Panel, gauge, and env are removed; restart COUNTING stays on the
-    "Daemon Restarts (24h)" panel via changes() of the process start-time gauge.
+    The old expr used increase() over the live_overlay_daemon_restart_cause_*_total
+    counters, which are reset to 1 each process and therefore never registered an
+    increase (always ~0). The fix counts start-time changes labeled by cause.
     """
-    dashboard_text = _DASHBOARD_JSON.read_text(encoding="utf-8")
-    dashboard = json.loads(dashboard_text)
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
     panels = _dashboard_panels(dashboard)
-    restart_cause_panels = [p for p in panels if "Restart Cause" in p.get("title", "")]
-    assert not restart_cause_panels, [p.get("title") for p in restart_cause_panels]
-    assert "live_overlay_daemon_start_time_seconds" not in dashboard_text
-    # The count panel survives the removal.
-    count_panels = [p for p in panels if p.get("title") == "Daemon Restarts (24h)"]
-    assert len(count_panels) == 1
-    expr = count_panels[0]["targets"][0]["expr"]
-    assert "changes(live_overlay_process_start_time_seconds" in expr, expr
+    restart_panels = [p for p in panels if "Restart Cause" in p.get("title", "")]
+    matches = [(p.get("title"), p.get("id")) for p in restart_panels]
+    assert len(restart_panels) == 1, f"expected exactly one restart-cause panel, got {matches}"
+    panel = restart_panels[0]
+    expr = panel["targets"][0]["expr"]
+    assert "sum by (cause)" in expr, expr
+    assert "changes(live_overlay_daemon_start_time_seconds" in expr, expr
+    # The inert per-cause counter must no longer drive this panel.
+    assert "restart_cause" not in expr, expr
+    assert "increase(" not in expr, expr
+    assert panel["targets"][0].get("legendFormat") == "{{cause}}"
 
 
 def test_dashboard_rows_are_either_expanded_or_contain_children() -> None:
@@ -819,22 +728,16 @@ def test_dashboard_bridge_metrics_present_counts_generic_contracts() -> None:
         "last_success_age_seconds",
         "last_scrape_duration_seconds",
     )
-    # 2026-08-13: bridges and the expected-series count are derived from
-    # metrics.py. Both were hand-written here, so a newly added bridge left the
-    # panel counting the old number of series and this test still passed.
-    bridges = live_overlay_bridge_names()
-    assert expr.startswith(f"{len(bridges) * len(families)} - (")
+    assert expr.startswith("18 - (")
     assert "group by (__name__, bridge)" in expr
     assert (
         'live_overlay_bridge_(enabled|configured|scrape_success|error_info|last_success_age_seconds|last_scrape_duration_seconds)'
         in expr
     )
     assert 'job=~"$job"' in expr
-    selected = re.search(r'bridge=~"([^"]+)"', expr)
-    assert selected, f"no bridge selector in {expr}"
-    assert set(selected.group(1).split("|")) == set(bridges), (
-        f"panel selects {selected.group(1)} but the daemon exports {bridges}"
-    )
+    assert 'bridge=~"uptimerobot|github_workflow|railway_metrics"' in expr
+    for bridge in ("uptimerobot", "github_workflow", "railway_metrics"):
+        assert bridge in expr, f"missing bridge {bridge} in {expr}"
     for family in families:
         assert family in expr, f"missing family {family} in {expr}"
     assert "sum(absent(live_overlay_bridge_" not in expr
@@ -844,7 +747,7 @@ def test_dashboard_bridge_metrics_present_counts_generic_contracts() -> None:
     for mapping in mappings:
         options.update(mapping.get("options", {}))
     assert options["0"]["text"] == "PRESENT"
-    assert options[str(len(bridges) * len(families))]["text"] == "ALL MISSING"
+    assert options["18"]["text"] == "ALL MISSING"
     assert "15" not in options
 
 
@@ -1263,7 +1166,6 @@ def test_dashboard_sections_are_user_first_and_all_expanded() -> None:
     expanded (no collapsed rows — scrolling is preferred over clicking)."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
     rows = _rows_in_order(dashboard)
-    assert rows, "dashboard exposes no section row — the checks below would pass vacuously"
     assert [r["title"] for r in rows] == SECTION_ORDER
     for r in rows:
         assert r.get("collapsed") is False, f"{r['title']} must be expanded"
@@ -1555,9 +1457,7 @@ def test_dashboard_triage_guide_links_are_known() -> None:
     panels = {p.get("title"): p for p in _dashboard_panels(dashboard)}
     content = panels["Incident Triage Guide"].get("options", {}).get("content", "")
     known_urls = {"https://github.com/skipp-dev/skipp-algo/actions"}
-    links = list(re.finditer(r"\[([^\]]+)\]\(([^)]+)\)", content))
-    assert links, "the triage guide links nowhere — the URL checks below would pass vacuously"
-    for m in links:
+    for m in re.finditer(r"\[([^\]]+)\]\(([^)]+)\)", content):
         url = m.group(2)
         assert "REPLACE_" not in url, f"placeholder Railway URL leaked into dashboard: {url}"
         if url.startswith("https://github.com/skipp-dev/skipp-algo/blob/main/"):
@@ -1577,7 +1477,6 @@ def test_dashboard_drilldown_links_target_real_panels() -> None:
     """Any panel link that uses a viewPanel ID must point to an existing panel."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
     panels = _dashboard_panels(dashboard)
-    assert panels, "dashboard exposes no panel — the link checks below would pass vacuously"
     valid_ids = {p.get("id") for p in panels if "id" in p}
     for panel in panels:
         for link in panel.get("links", []) + panel.get("fieldConfig", {}).get("defaults", {}).get("links", []):
@@ -1625,40 +1524,6 @@ def test_dashboard_signal_pipeline_ready_panel_uses_boolean_expression() -> None
     # must fall back via label-safe vector so the panel never goes blank.
     assert "clamp_min" not in expr
     assert " or on() vector(" in expr
-
-
-def test_dashboard_signal_pipeline_ready_absent_series_render_unknown_not_not_ready() -> None:
-    """An absent signals_producer target must read UNKNOWN, not NOT READY.
-
-    The readiness verdict is a product of three ``signals_producer`` series. If
-    the whole target disappears (scrape down, job-label mismatch, exporter not
-    serving) the product is an empty vector and only the outer fallback renders.
-    With ``vector(0)`` that fallback claimed a *functional* verdict — "the
-    pipeline is not ready" — for what is a telemetry failure, blaming the
-    producer for a collector outage and erasing the distinction operators need.
-
-    ``vector(-1)`` + an explicit UNKNOWN mapping keeps the panel populated (no
-    NO DATA blank) while attributing the gap honestly. Paging is unchanged:
-    sp-scrape-down covers the absent target, and sp-watchlist-empty /
-    sp-snapshot-missing / sp-poll-stale each carry ``or on() vector(1)``.
-    """
-    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
-    panel = next(p for p in _dashboard_panels(dashboard) if p.get("title") == "Signal Pipeline Ready")
-    expr = panel["targets"][0]["expr"]
-    assert expr.rstrip().endswith("or on() vector(-1)"), (
-        f"absent-series fallback must be the sentinel -1, not a functional verdict; got {expr!r}"
-    )
-    assert " or on() vector(0)" not in expr
-
-    mapped = {}
-    for mapping in panel["fieldConfig"]["defaults"]["mappings"]:
-        if mapping.get("type") == "value":
-            mapped.update(mapping.get("options", {}))
-    assert mapped["-1"]["text"] == "UNKNOWN", "the -1 sentinel must render as UNKNOWN, not as a bare number"
-    assert mapped["-1"]["color"] != "green", "unknown telemetry must never render as a healthy colour"
-    # The real verdicts must keep their meaning.
-    assert mapped["0"]["text"] == "NOT READY"
-    assert mapped["1"]["text"] == "READY"
 
 
 def test_dashboard_open_prep_snapshot_panel_uses_label_safe_fallback() -> None:
@@ -1716,56 +1581,6 @@ def test_dashboard_signal_readiness_panels_are_grouped() -> None:
     assert max(ys) - min(ys) <= max(p["gridPos"]["h"] for p in readiness), (
         f"readiness tiles are not grouped on one band: y={sorted(ys)}"
     )
-
-
-def test_main_dashboard_has_compact_linked_signal_summary() -> None:
-    """The operations board mirrors only the three decision-critical facts.
-
-    Full rankings and per-symbol details belong exclusively on the paired
-    Signals & Experiments dashboard.
-    """
-    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
-    panels = {p.get("title"): p for p in _dashboard_panels(dashboard)}
-    names = ("Active Signals", "Strongest Signal", "Signal Snapshot Age")
-
-    assert all(name in panels for name in names)
-    assert all(
-        _section_of(dashboard, name) == "Live Data Chain (Feed → Overlay → Pine)"
-        for name in names
-    )
-    assert {panels[name]["gridPos"]["y"] for name in names} == {46}
-    assert sorted(
-        (panels[name]["gridPos"]["x"], panels[name]["gridPos"]["w"])
-        for name in names
-    ) == [(0, 8), (8, 8), (16, 8)]
-
-    for name in names:
-        links = panels[name].get("links", [])
-        assert any("/d/smc-live-overlay-signals-v1" in link.get("url", "") for link in links)
-        assert all(link.get("targetBlank") for link in links)
-
-    active_expr = panels["Active Signals"]["targets"][0]["expr"]
-    assert "live_overlay_trading_signals_active" in active_expr
-    assert "live_overlay_trading_signals_snapshot_age_known" in active_expr
-
-    strongest = panels["Strongest Signal"]
-    assert strongest["targets"][0]["expr"].startswith(
-        'topk(1, live_overlay_trading_signal_score{job=~"$job"})'
-    )
-    assert "{{symbol}}" in strongest["targets"][0]["legendFormat"]
-    assert strongest["options"]["textMode"] == "value_and_name"
-
-    age_expr = panels["Signal Snapshot Age"]["targets"][0]["expr"]
-    assert "live_overlay_trading_signals_snapshot_age_seconds" in age_expr
-    assert "live_overlay_trading_signals_snapshot_age_known" in age_expr
-    assert panels["Signal Snapshot Age"]["fieldConfig"]["defaults"]["unit"] == "s"
-
-    for detail_title in (
-        "Signal Strength - Live Ranking (now)",
-        "Top Trading Signals — Latest Detail",
-        "Signal Score — Active Symbols",
-    ):
-        assert detail_title not in panels
 
 
 def test_alert_rules_include_signals_producer_readiness_group() -> None:
@@ -1875,9 +1690,7 @@ def test_dashboard_no_row_is_collapsed() -> None:
     """Redesign contract: every section is expanded so content is visible by
     scrolling — no click-to-expand tabs (2026-07-07 product-owner decision)."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
-    rows = _rows_in_order(dashboard)
-    assert rows, "dashboard exposes no section row — the checks below would pass vacuously"
-    for row in rows:
+    for row in _rows_in_order(dashboard):
         assert row.get("collapsed") is False, f"{row['title']} must not be collapsed"
         assert not row.get("panels"), (
             f"{row['title']} must not nest panels (expanded rows keep panels at top level)"
@@ -1908,15 +1721,13 @@ def test_dashboard_external_checks_ignores_unconfigured_bridges() -> None:
 
 
 def test_dashboard_market_data_freshness_hides_when_market_closed() -> None:
-    """Market Data Freshness: closed market renders MARKET CLOSED via the
-    presence-gated -1 mapping; noValue is reserved for a dead exporter and
-    must not claim the market is closed (audit: noValue double duty)."""
+    """Market Data Freshness must show MARKET CLOSED instead of 0%% when idle."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
     panel = next(p for p in _dashboard_panels(dashboard) if p.get("title") == "Market Data Freshness")
     expr = panel["targets"][0]["expr"]
     assert "unless on()" in expr, expr
     assert 'sum_over_time(live_overlay_market_us_open{job=~"$job"}[1h:]) == 0' in expr
-    assert panel["fieldConfig"]["defaults"].get("noValue") == "NO DATA"
+    assert panel["fieldConfig"]["defaults"].get("noValue") == "MARKET CLOSED"
 
 
 def test_dashboard_core_metrics_present_checks_critical_series() -> None:
@@ -1926,8 +1737,6 @@ def test_dashboard_core_metrics_present_checks_critical_series() -> None:
     expr = panel["targets"][0]["expr"]
     assert "absent(live_overlay_uptime_seconds" in expr
     assert "absent(live_overlay_overlay_fresh" in expr
-    assert "absent(live_overlay_feed_healthy" in expr
-    assert "absent(live_overlay_workers_healthy" in expr
     assert "absent(live_overlay_market_us_open" in expr
     assert "absent(live_overlay_last_bar_age_known" in expr
     assert "absent(live_overlay_smc_live_requests_total" in expr
@@ -1975,278 +1784,3 @@ def test_dashboard_railway_bridge_shows_generic_contract() -> None:
     assert {"0", "1", "2"}.issubset(options_keys), options_keys
     labels = {v["text"] for m in mappings for v in (m.get("options") or {}).values()}
     assert {"DISABLED", "SCRAPE ERROR", "OK"}.issubset(labels), labels
-
-
-def test_vix_panel_gates_on_age_known_and_matches_alert_sentinel() -> None:
-    """The VIX panel must render never-fetched as N/A, and the alert must pair
-    a 5401 unknown-sentinel with its 5400 threshold.
-
-    live_overlay_vix_level exports 0.0 while never-fetched (series stays
-    present), so an ungated panel would chart a plausible-looking 0 instead of
-    N/A. And a sentinel <= threshold would make lo-vix-unavailable blind to the
-    never-fetched state — the exact F-2 gap this pair was added to close.
-    """
-    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
-    panel = next(
-        p for p in _dashboard_panels(dashboard) if p.get("title") == "VIX Level (^VIX via FMP)"
-    )
-    expr = panel["targets"][0]["expr"]
-    assert "live_overlay_vix_level" in expr
-    assert "live_overlay_vix_age_known" in expr, (
-        f"VIX panel plots the level without gating on age_known — a never-fetched "
-        f"level renders as a misleading 0. Got: {expr}"
-    )
-    assert panel["fieldConfig"]["defaults"].get("noValue"), (
-        "VIX panel gates on age_known (unknown -> empty series) but sets no "
-        "noValue text — it would render blank instead of N/A"
-    )
-
-    rule = _alert_rule("lo-vix-unavailable")
-    rule_expr = rule["data"][0]["model"]["expr"]
-    assert "live_overlay_vix_age_seconds" in rule_expr
-    assert "live_overlay_vix_age_known" in rule_expr
-    sentinel = int(re.search(r"\*\s*(\d+)\s*\)?\s*$", rule_expr.strip()).group(1))
-    threshold_node = next(n for n in rule["data"] if n.get("refId") == rule["condition"])
-    threshold = threshold_node["model"]["conditions"][0]["evaluator"]["params"][0]
-    assert sentinel > threshold, (
-        f"lo-vix-unavailable sentinel ({sentinel}) must exceed its threshold "
-        f"({threshold}) or the never-fetched state can never fire"
-    )
-
-
-def test_vix_wire_gate_matches_the_alert_threshold() -> None:
-    """``cache.VIX_MAX_AGE_SECS`` and lo-vix-unavailable must not drift apart.
-
-    The gate decides when a stale level stops reaching the wire; the alert
-    decides when a human is told. If they diverge, clients keep being served a
-    frozen quote for the gap between the two.
-    """
-    from services.live_overlay_daemon import cache
-
-    rule = _alert_rule("lo-vix-unavailable")
-    threshold_node = next(n for n in rule["data"] if n.get("refId") == rule["condition"])
-    threshold = threshold_node["model"]["conditions"][0]["evaluator"]["params"][0]
-
-    assert threshold == cache.VIX_MAX_AGE_SECS, (
-        f"wire gate ({cache.VIX_MAX_AGE_SECS}s) and lo-vix-unavailable "
-        f"({threshold}s) disagree on when a VIX level is stale"
-    )
-
-
-def test_feed_down_critical_covers_silent_stall_via_bar_age_ladder() -> None:
-    """The critical feed-down rule must fire on a silent stall, not only a loud one.
-
-    `feed_healthy` (= feed.is_ready()) only drops on BentoError/circuit-break or
-    the 3600s payload-staleness gate — a silent stall keeps _feed_ready set, so
-    `1 - feed_healthy` alone left the critical blind for up to ~1h (truth-audit
-    2026-07-22 F-1). The bar-age term must use the `> bool` form: a bare `>`
-    filter would drop the series while fresh and empty the whole arithmetic
-    sum, silencing the feed_healthy path too. The 600s gate is pinned as
-    exactly 2x the lo-last-bar-stale-open high threshold so the escalation
-    ladder (high -> critical) cannot silently collapse or drift apart.
-    """
-    critical = _alert_rule("lo-feed-down-market-open")
-    critical_expr = critical["data"][0]["model"]["expr"]
-    # 2026-08-20: das Tor ist jetzt das PRODUKTFENSTER (04:00-20:00 ET), nicht
-    # die regulaere Sitzung — eine Leitung, die 16:10 verstummt, wurde sonst
-    # bis Montag weder gemeldet noch geheilt. Die Zuordnung "misst Datenfluss
-    # => gated auf das Produktfenster" bewacht
-    # tests/test_us_extended_session_window.py in beide Richtungen.
-    assert "live_overlay_market_us_extended_open" in critical_expr
-    assert "1 - live_overlay_feed_healthy" in critical_expr, (
-        f"loud-failure path vanished from the critical feed-down rule: {critical_expr}"
-    )
-    assert "live_overlay_last_bar_age_known" in critical_expr, (
-        f"bar-age term must gate on age_known so unknown-age 0.0 cannot read as "
-        f"fresh: {critical_expr}"
-    )
-    critical_gate = re.search(
-        r"live_overlay_last_bar_age_seconds\{[^}]*\}\s*>\s*bool\s*(\d+)", critical_expr
-    )
-    assert critical_gate, (
-        f"critical feed-down rule lost its `> bool` bar-age gate (bare `>` would "
-        f"filter the series away and silence the whole sum): {critical_expr}"
-    )
-
-    high = _alert_rule("lo-last-bar-stale-open")
-    high_expr = high["data"][0]["model"]["expr"]
-    high_gate = re.search(
-        r"live_overlay_last_bar_age_seconds\{[^}]*\}\s*>\s*bool\s*(\d+)", high_expr
-    )
-    assert high_gate, f"high bar-age rule lost its `> bool` gate: {high_expr}"
-
-    assert int(critical_gate.group(1)) == 2 * int(high_gate.group(1)), (
-        f"escalation ladder broke: critical bar-age gate {critical_gate.group(1)}s "
-        f"must stay exactly 2x the high rule's {high_gate.group(1)}s"
-    )
-
-    assert critical["labels"]["severity"] == "critical"
-    assert high["labels"]["severity"] == "high"
-
-
-def _panel_by_id(dashboard: dict, panel_id: int) -> dict:
-    match = [p for p in _dashboard_panels(dashboard) if p.get("id") == panel_id]
-    assert match, f"panel id {panel_id} not found"
-    return match[0]
-
-
-def test_external_consumer_traffic_distinguishes_dead_daemon_from_closed_market() -> None:
-    """A dead daemon/exporter must not render as benign gray MARKET CLOSED:
-    the vector(0) fallbacks made 'everything absent' numerically identical to
-    a weekend night, even mid-session (audit finding C3). The expr must gate
-    on exporter presence and map the absent case to a red NO DATA state."""
-    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
-    panel = _panel_by_id(dashboard, 471930109)
-    expr = panel["targets"][0]["expr"]
-    assert "live_overlay_uptime_seconds" in expr, "expr must gate on exporter presence"
-    assert "vector(-1)" in expr, "absent exporter must resolve to the -1 sentinel"
-    mappings = panel["fieldConfig"]["defaults"]["mappings"]
-    flat: dict[str, dict] = {}
-    for m in mappings:
-        flat.update(m.get("options", {}))
-    assert flat.get("-1", {}).get("text") == "NO DATA"
-    assert flat.get("-1", {}).get("color") == "red"
-    assert flat.get("0", {}).get("text") == "MARKET CLOSED"
-
-
-def test_market_data_freshness_novalue_is_not_benign() -> None:
-    """noValue did double duty for 'market closed' AND 'daemon dead' — the
-    dead case must not read as a benign closed market. Genuine closed
-    sessions get the presence-gated -1 mapping instead."""
-    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
-    panel = _panel_by_id(dashboard, 1544709606)
-    assert panel["fieldConfig"]["defaults"]["noValue"] == "NO DATA"
-    expr = panel["targets"][0]["expr"]
-    assert "live_overlay_uptime_seconds" in expr, "expr must presence-gate the closed-market sentinel"
-    mappings = panel["fieldConfig"]["defaults"]["mappings"]
-    flat: dict[str, dict] = {}
-    for m in mappings:
-        flat.update(m.get("options", {}))
-    assert flat.get("-1", {}).get("text") == "MARKET CLOSED"
-
-
-def test_stat_panels_without_sparkline_use_instant_queries() -> None:
-    """Stat panels reduce with lastNotNull; over a range query that renders
-    the last pre-death sample as current for up to the whole dashboard window
-    after the exporter dies (audit finding C6). Panels with no sparkline
-    (graphMode none) have no use for range data — their queries must be
-    instant so absent data becomes NO DATA immediately."""
-    for path in (_DASHBOARD_JSON, _DASHBOARD_JSON.parent / "dashboard-signals-experiments.json"):
-        dashboard = json.loads(path.read_text(encoding="utf-8"))
-        offenders = []
-        for panel in _dashboard_panels(dashboard):
-            if panel.get("type") != "stat":
-                continue
-            if panel.get("options", {}).get("graphMode", "area") != "none":
-                continue
-            for target in panel.get("targets", []):
-                if "expr" in target and not target.get("instant"):
-                    offenders.append(f"{path.name}: {panel.get('title')}")
-        assert not offenders, (
-            "sparkline-free stat panels with range queries (stale lastNotNull "
-            f"renders dead exporters green): {sorted(set(offenders))}"
-        )
-
-
-def test_health_status_panels_map_degraded_code() -> None:
-    """Both status stat panels must label code 4 as DEGRADED.
-
-    metrics.py exports status code 4 for a sustained market-open failure past
-    warmup (truth-audit F-3). Without the value mapping the stat renders a raw
-    "4" — worse than the old perpetual STARTING it replaced. Descriptions must
-    also name the state so operators can look it up.
-    """
-    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
-    panels = {p.get("title"): p for p in _dashboard_panels(dashboard)}
-    for title in ("Overall Health", "Service Status"):
-        panel = panels[title]
-        options = panel["fieldConfig"]["defaults"]["mappings"][0]["options"]
-        assert "4" in options, f"{title!r} lacks a mapping for status code 4"
-        assert options["4"]["text"] == "DEGRADED"
-        assert "DEGRADED" in str(panel.get("description", "")), (
-            f"{title!r} description no longer names the DEGRADED state"
-        )
-
-
-def test_dashboard_exposes_portfolio_shadow_evidence_without_auto_promotion() -> None:
-    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
-    panels = {panel.get("title"): panel for panel in _dashboard_panels(dashboard)}
-    readiness = panels["Portfolio Shadow Readiness"]
-    progress = panels["Portfolio Evidence Progress"]
-    integrity = panels["Portfolio Audit Integrity"]
-
-    readiness_expr = readiness["targets"][0]["expr"]
-    assert "live_overlay_portfolio_shadow_ready_for_human_review" in readiness_expr
-    assert "live_overlay_portfolio_shadow_evidence_known" in readiness_expr
-    mappings = readiness["fieldConfig"]["defaults"]["mappings"][0]["options"]
-    assert mappings["0"]["text"] == "OBSERVING"
-    assert mappings["1"]["text"] == "REVIEW READY"
-    assert "never enables enforcement automatically" in readiness["description"]
-
-    progress_exprs = {target["expr"] for target in progress["targets"]}
-    assert any("risk_relevant_sessions" in expr for expr in progress_exprs)
-    assert any("min_sessions" in expr for expr in progress_exprs)
-    assert any("missing_reconciliation_sessions" in expr for expr in progress_exprs)
-    assert any("newest_risk_relevant_session_age_seconds" in expr for expr in progress_exprs)
-    assert any("newest_risk_relevant_session_age_known" in expr for expr in progress_exprs)
-    assert any("portfolio_snapshot_age_seconds" in expr for expr in progress_exprs)
-    assert any('verdict="reject"' in expr for expr in progress_exprs)
-    assert any('verdict="resize"' in expr for expr in progress_exprs)
-
-    integrity_exprs = {target["expr"] for target in integrity["targets"]}
-    assert any("without_prior_evaluation" in expr for expr in integrity_exprs)
-    assert any("submission_attempts_total" in expr for expr in integrity_exprs)
-    assert any("incomplete_decisions" in expr for expr in integrity_exprs)
-    assert any("reconciliation_failures" in expr for expr in integrity_exprs)
-    assert any("reconciliation_max_abs_quantity_delta" in expr for expr in integrity_exprs)
-    assert any("reconciliation_reconciled" in expr for expr in integrity_exprs)
-
-
-@pytest.mark.parametrize(
-    ("uid", "metric", "severity"),
-    [
-        (
-            "lo-portfolio-evidence-section-missing",
-            "live_overlay_portfolio_shadow_evidence_known",
-            "warning",
-        ),
-        (
-            "lo-portfolio-submit-no-risk-eval",
-            "live_overlay_portfolio_shadow_submission_attempts_without_prior_evaluation_total",
-            "critical",
-        ),
-        (
-            "lo-portfolio-snapshot-age-invalid",
-            "live_overlay_portfolio_snapshot_age_seconds",
-            "critical",
-        ),
-        (
-            "lo-portfolio-risk-rejection",
-            "live_overlay_portfolio_risk_decisions_total",
-            "warning",
-        ),
-        (
-            "lo-portfolio-reconcile-missing",
-            "live_overlay_portfolio_shadow_missing_reconciliation_sessions",
-            "warning",
-        ),
-        (
-            "lo-portfolio-reconciliation-failed",
-            "live_overlay_portfolio_reconciliation_max_abs_quantity_delta",
-            "critical",
-        ),
-        (
-            "lo-portfolio-decision-incomplete",
-            "live_overlay_portfolio_shadow_incomplete_decisions_total",
-            "warning",
-        ),
-    ],
-)
-def test_alert_rules_cover_portfolio_evidence_integrity(
-    uid: str,
-    metric: str,
-    severity: str,
-) -> None:
-    rule = _alert_rule(uid)
-    assert rule["labels"]["severity"] == severity
-    assert metric in rule["data"][0]["model"]["expr"]

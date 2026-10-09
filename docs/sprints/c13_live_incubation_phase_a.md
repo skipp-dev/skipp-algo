@@ -259,7 +259,7 @@ Diese Marktdaten / Drittanbieter sind sinnvoll, aber gehören in Folge-Sprints:
 
 ## Cleanup-Backlog (deferred Anker, nicht in Phase-A)
 
-- ~~Strategy-Permutation auf Schema B umrouten~~ (2026-07-28 hinfällig: `scripts/strategy_permutation.py` wurde 2026-07-13 entfernt — null Produktions-Aufrufer)
+- Strategy-Permutation auf Schema B umrouten ([`scripts/strategy_permutation.py`](https://github.com/skippALGO/skipp-algo/blob/main/scripts/strategy_permutation.py))
 - Output-Fixture-Pin zusätzlich zum AST-Pin
 - C11 Skip-Anker-Trigger bei Phase-B-Sign-off automatisch öffnen
 - `_atomic_append_audit` O(n²) → O(n) bei Phase-C-Migration

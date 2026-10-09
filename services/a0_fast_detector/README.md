@@ -11,12 +11,8 @@ Regular-Hours-Volumen und verwendet die gemeinsame Kernentscheidung aus
 - Keine Notification-, Slack-, Pine- oder Signals-Publication-Abhängigkeit.
 - Explizites Symbolset; kein implizites `ALL_SYMBOLS`.
 - Referenzdatei muss Previous Close und ADV aus Databento enthalten.
-- Jeder Verbindungsaufbau nutzt Databento Live Intraday Replay ab dem früheren
-  Zeitpunkt von Verbindungszeit und 09:30 ET. Damit ist auch bei einem
-  Mid-session-Deploy die Lücke zwischen dem verzögerten Historical-Ende und
-  dem Echtzeitstrom vollständig belegt, bevor PRE-A0 ausgewertet wird.
-- Eine später im laufenden Stream erkannte Lücke löst weiterhin vor einer
-  Entscheidung eine vollständige Databento-Rekonstruktion ab Session-Open aus.
+- Mid-session-Start und erkannte Lücken lösen vor einer Entscheidung eine
+  vollständige Databento-Historical-Rekonstruktion ab Session-Open aus.
 - Fehlgeschlagene oder nicht belegbar vollständige Rekonstruktion sowie eine
   fehlende Referenz erzeugen kein A0.
 - Ausgaben sind `A0_FAST_SHADOW`-Logereignisse mit `decision_scope=core_only`.
@@ -30,11 +26,8 @@ Regular-Hours-Volumen und verwendet die gemeinsame Kernentscheidung aus
 - PRE-A0 ist optional in denselben vollständigen Snapshotpfad eingebunden. Ein
   PRE-A0-Fehler wird protokolliert, darf aber die A0-Kernentscheidung nicht
   unterdrücken oder verändern.
-- Der Worker-Prozess besitzt weiterhin keinen Notification-Pfad. `notify` wird
-  auch bei gesetzter Freigabe fail-closed abgelehnt. Der optionale
-  PRE-A0-Pilot-Tailer (siehe „PRE-A0 Pilotbetrieb") ist ein separater,
-  read-only Prozess hinter dem Logstrom — kein Import und keine Codeänderung
-  im Worker.
+- Dieser Worker besitzt weiterhin keinen Notification-Pfad. `notify` wird auch
+  bei gesetzter Freigabe fail-closed abgelehnt.
 
 ## Pflichtvariablen
 
@@ -65,32 +58,8 @@ bleibt ausschließlich PRE-A0 aus; A0-Fast und FMP-A0 laufen unabhängig weiter.
 Sampling: ruhige Grundgesamtheit alle fünf Sekunden mit `sample_weight=5`,
 ab `WATCH` jede Sekunde mit `sample_weight=1`. Recovery, Queue-Lücke und
 Disconnect löschen den rollierenden PRE-A0-Zustand. `observe` schreibt nur ein
-klar unbestätigtes `PRE_A0_OBSERVE`-Operatorlog; der Worker-Prozess selbst hat
-weiterhin keinen Versandpfad. Optional konsumiert der Pilot-Tailer dieses Log
-(siehe „PRE-A0 Pilotbetrieb").
-
-## PRE-A0 Pilotbetrieb
-
-Explizit freigeschalteter Pilot-Pfad (2026-07-21): `start.sh` pipet den
-Logstrom des Workers durch `pilot_alert_tailer.py`. Der Tailer reicht jede
-Zeile unverändert weiter (Railway-Logs bleiben intakt) und postet beim
-Übergang eines Symbols in `IMMINENT` eine klar gelabelte Pilot-Nachricht in
-einen dedizierten Slack-Kanal. Er ist bewusst **nicht** der `notify`-Pfad des
-Rollout-Runbooks und übernimmt dessen User-Semantik: kein A0-Claim, keine
-bestätigte Formulierung, ETA nur als Range, niemals eine Wahrscheinlichkeit
-(Bootstrap-Kalibrierung ist degeneriert, siehe #3847).
-
-| Variable | Bedeutung |
-| --- | --- |
-| `RT_PRE_A0_PILOT` | `1` schaltet den Tailer ein; sonst reiner Passthrough |
-| `RT_PRE_A0_PILOT_WEBHOOK_URL` | https-Slack-Incoming-Webhook des Pilot-Kanals |
-| `RT_PRE_A0_PILOT_COOLDOWN_S` | Re-Alert-Sperre je Symbol+Richtung, Default `1800` |
-| `RT_PRE_A0_PILOT_MAX_ALERTS_PER_HOUR` | hartes Stundenbudget, Default `20` |
-
-Voraussetzung: `RT_PRE_A0_MODE=observe` (das Bootstrap-Artefakt erfüllt das
-`offline_evaluated`-Gate). Fehlende oder ungültige Pilot-Variablen lassen den
-Tailer fail-closed als Passthrough laufen. Kill-Switch: `RT_PRE_A0_PILOT`
-entfernen (oder `RT_PRE_A0_MODE=shadow`) und redeployen.
+klar unbestätigtes `PRE_A0_OBSERVE`-Operatorlog; es existiert weiterhin kein
+Versandpfad.
 
 Optional: `A0_FAST_MAX_GAP_SECONDS`, `A0_FAST_A0_VOLUME`,
 `A0_FAST_A0_PRICE` und die entsprechenden A1-/A2-Schwellen sowie:
@@ -109,11 +78,6 @@ fail-closed Zustand über den Mid-session-Bootstrap.
 
 ## Metrics und Alerts
 
-- Grafana: [PRE-A0 Shadow Operations](https://bronzeporridge977.grafana.net/d/pre-a0-shadow-v1/pre-a0-shadow-operations)
-  bündelt Shadow-Readiness, Modellidentität, Live-Datenpfad, Inferenzqualität,
-  Persistenz, Runtime-Resilienz und Promotion-Guardrails. Die versionierte Quelle
-  ist `services/live_overlay_daemon/infra/grafana/dashboard-pre-a0.json`; sie wird
-  bei Änderungen auf `main` automatisch in den Grafana-Ordner `PRE-A0` publiziert.
 - `/metrics`: Prometheus-Textformat für Verbindung, Datenalter, Queue-Tiefe und
   -Kapazität, Drops, Resync-Pflicht, Disconnects, Recoveries, Live-/Historical-
   Nutzung, Entscheidungen, CPU und Peak-RSS.
@@ -121,40 +85,9 @@ fail-closed Zustand über den Mid-session-Bootstrap.
   Missingness, Out-of-range-Werte, Zustände, Score-Buckets, Snapshotwrites und
   Persistenzfehler. `pre_a0_enabled=0` unterdrückt Modellalarme im Off-Modus.
 - `/healthz`: `200` nur bei verbundener Quelle ohne ausstehende Resync-Pflicht,
-  andernfalls `503`; empfangene, aber dauerhaft unverarbeitete Records sind
-  ebenfalls ungesund.
-- `/evidencez`: `200` erst wenn die laufende Instanz Records empfängt und
-  verarbeitet, PRE-A0-Inferenz ausführt und mindestens einen Snapshot-Puffer
-  erfolgreich auf das persistente Volume gespült hat. Ein erfolgreiches
-  Railway-Deployment oder `/healthz=200` allein belegt ausdrücklich **nicht**,
-  dass die Messperiode läuft.
-- **Alarmregeln** (Disconnect, Slow-Reader-Drops, festhängender Resync,
-  Queue-Druck, stale Daten, Markttraffic ohne persistierten
-  PRE-A0-Evidenzfluss) stehen in
-  `services/live_overlay_daemon/infra/grafana/alert-rules.yaml`, Gruppe
-  `pre-a0-shadow`. Die früheren lokalen `alert-rules.yml` /
-  `pre-a0-alert-rules.yml` wurden am 2026-08-19 gelöscht: sie hatten **keinen
-  Deploy-Pfad** (kein Prometheus liest sie), sieben ihrer Regeln existierten
-  nirgends sonst, und zwei Tests bescheinigten „Abdeckung“ über eine Datei, die
-  nichts ausführt. Publiziert wird ausschließlich über
-  `.github/workflows/live-overlay-alert-rules-publish.yml`.
-
-## Verbindlicher Deployment-Nachweis
-
-„PRE-A0 sammelt Messdaten“ darf erst berichtet werden, wenn derselbe laufende
-Container alle folgenden Nachweise liefert:
-
-1. `/healthz` und `/evidencez` antworten beide mit HTTP 200.
-2. `a0_fast_records_processed_total`, `pre_a0_scores_total` und
-   `pre_a0_snapshots_recorded_total` steigen über zwei zeitlich getrennte
-   Abfragen während der Regular Session.
-3. `pre_a0_snapshot_rows_flushed_total > 0` und
-   `pre_a0_persistence_errors_total == 0`.
-4. Unter `RT_PRE_A0_SNAPSHOT_DIR` existiert mindestens eine aktuelle
-   Parquet-Partition samt Manifest auf dem persistenten Volume.
-5. Die Session-/Episodenzählung wird aus diesen Dateien ermittelt; Deployment-
-   Alter, Stream-Verbindung und Modellbereitschaft werden niemals als
-   empirische Session-Evidenz gezählt.
+  andernfalls `503`.
+- `alert-rules.yml`: Regeln für Disconnect, Slow-Reader-Drops, festhängenden
+  Resync, Queue-Druck und stale Daten.
 
 ## Reproduzierbare Lastprobe
 
@@ -202,11 +135,7 @@ Report verbindet diese Datei mit dem Fast-Journal reproduzierbar:
   --output /volume/a0_parity_2026-07-17.json
 ```
 
-Der Report trennt ab Schema 2 zwei Verträge: `engine_parity` replayt die
-gemeinsame A0-Schwellenlogik je kanonischem Snapshot; `source_equivalence`
-vergleicht die tatsächlich unterschiedlichen Provider-Snapshots und nennt
-Preis-, Previous-Close-, Volume-Pace- und Timing-Ursachen. Jeder Matchstatus,
-beide Decision-IDs, Lead-Zeit, Reason Codes sowie die Roh-Snapshots bleiben für
-den Drill-down erhalten. Der Output wird atomar und mit `fsync` geschrieben.
-Der vollständige Cutover-Vertrag steht in
-`docs/CROSS_SOURCE_VOLUME_DECISION.md`.
+Der Report enthält nicht nur die Gesamtzahlen, sondern jeden Matchstatus, beide
+Decision-IDs, Lead-Zeit, Reason Codes sowie die Preis-, Volumen- und
+Schwellen-Snapshots für den Drill-down. Der Output wird atomar und mit `fsync`
+geschrieben.

@@ -46,7 +46,6 @@ from scripts.run_magnitude_shadow_ledger import (
     CANDIDATE_FAMILIES,
     DEFAULT_LEDGER,
     load_ledger,
-    rows_under_current_rule,
 )
 
 _STATUS_PASS = "PASS"
@@ -156,19 +155,10 @@ def gate_snapshots(
 
     Control families (FVG / OB) are excluded: they FAIL by design and are not
     promotion targets, so their ``False`` must never reach the gate.
-
-    Only rows graded under the CURRENT return rule are considered (ADR-0031,
-    Nachtrag 2026-10-02 II). The move-size target is the size of the realized
-    return; a proof measured under Variant A says nothing about returns under
-    ``next_open_then_horizon_close``. A ledger that holds only other-rule rows
-    — the frozen 15m seed — therefore yields no snapshot, and the gate reports
-    the family's move-size resolution as unmeasured, which is what it is.
     """
-    rows, _other_rules = rows_under_current_rule(load_ledger(ledger_path))
-    latest = latest_rows_by_family(rows)
     return {
-        family: snapshot_from_row(row)
-        for family, row in sorted(latest.items())
+        family: snap
+        for family, snap in load_magnitude_snapshots(ledger_path).items()
         if family in candidate_families
     }
 

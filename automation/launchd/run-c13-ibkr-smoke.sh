@@ -118,20 +118,10 @@ case "${SMOKE_EXIT}" in
         exit 3
         ;;
     *)
-        # Connection error, unexpected exception, etc. — day marker ONLY.
-        #
-        # 2026-08-02: this branch used to raise the sticky sentinel too. It
-        # is where a merely unreachable TWS lands (ConnectionRefused on
-        # 7497), and that was 10 of the 19 recorded smoke days — every one
-        # of them EXIT=1. Since the sentinel never auto-clears, honouring it
-        # downstream would have meant a permanent block after the first such
-        # day. Nothing here carries state a human must inspect: if TWS is
-        # still down at 09:28 ET the submit fails on its own, and if it came
-        # back there is nothing to protect against. The day is recorded in
-        # the status marker either way.
+        # Connection error, unexpected exception, etc.
         _write_marker "DEGRADED" "unexpected:EXIT=${SMOKE_EXIT}:audit=${AUDIT}"
-        echo "ibkr-smoke: unexpected EXIT=${SMOKE_EXIT} (no sentinel — see" \
-             "the day's status marker); the 09:28 ET submit is NOT blocked." >&2
+        _write_halt "unexpected:EXIT=${SMOKE_EXIT}"
+        echo "ibkr-smoke: unexpected EXIT=${SMOKE_EXIT} — smoke_HALT written." >&2
         exit "${SMOKE_EXIT}"
         ;;
 esac

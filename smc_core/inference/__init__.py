@@ -1,7 +1,12 @@
-"""Inference primitives package.
+"""Sprint C3.1 — inference helpers (bootstrap, permutation).
 
-2026-07-28: the C3.1 public bootstrap API re-exports were removed together
-with the stranded API itself (see ``smc_core/inference/bootstrap.py`` — same
-REMOVED treatment as C4.1's permutation stack). The package now only hosts
-the resampling primitives ``governance.family_significance`` imports directly.
+See ``docs/IMPROVEMENTS_C2_C12_ROADMAP_2026-04-26.md`` (X1-X3 + C2.1-C12.1).
 """
+from smc_core.inference.bootstrap import (
+    BootstrapConfig,
+    BootstrapResult,
+    CIMethod,
+    bootstrap_ci,
+)
+
+__all__ = ["BootstrapConfig", "BootstrapResult", "CIMethod", "bootstrap_ci"]

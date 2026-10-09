@@ -42,10 +42,10 @@ These fields are read from lean families and drive the engine directly.
 | Event Risk Light | 7 | event_risk gate, dashboard |
 | Session Context Light | 4 required + 1 optional | session gate, dashboard |
 | OB Context Light | 5 | OB gate, dashboard |
-| FVG Lifecycle Light | 7 | FVG gate, dashboard |
+| FVG Lifecycle Light | 6 | FVG gate, dashboard |
 | Structure State Light | 4 | structure gate, dashboard |
 | Signal Quality | 5 | quality scoring, dashboard |
-| **Total** | **33** | |
+| **Total** | **32** | |
 
 ### BUS Backward Compat (broad fields, Dashboard only)
 

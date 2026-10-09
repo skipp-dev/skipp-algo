@@ -32,11 +32,9 @@ What we *can* derive today:
   (PSR / MinTRL / BH-FDR). This closes the gap that the EV-20 Tier-1
   verdicts exist only for the 15m plane while the daily gate consumes
   the 1D pool: the gate now measures direction edge on the SAME event
-  population its magnitude axis uses. Since #2667 that pool is genuinely
-  multi-TF, so ``--plane`` (issue #3872 follow-up) filters to the
-  governed plane per event before grading; the governed plane and the
-  filter arithmetic are recorded in ``provenance`` (``measurement_plane``,
-  ``governed_plane``, ``plane_filter_kept/total``). Fail-soft: a
+  population its magnitude axis uses. The events' bar interval is
+  derived from the data (never asserted) and recorded as
+  ``provenance.measurement_plane`` (e.g. ``"1D"``). Fail-soft: a
   missing/unreadable pool leaves the fields ``None`` ("not measured"),
   never blocks the bundle;
 * a ``provenance`` dict naming the source artifact + run date so the
@@ -59,16 +57,12 @@ import sys
 from pathlib import Path
 from typing import Any, get_args
 
-from governance.family_returns import DEFAULT_COST_BPS, RETURN_RULE, extract_family_returns, record_grain_events
+from governance.family_returns import DEFAULT_COST_BPS, RETURN_RULE, extract_family_returns
 from governance.family_significance import family_fdr_qvalues
 from governance.types import EventFamily
 from scripts.build_family_metrics import build_family_metrics_from_returns
 from scripts.magnitude_snapshot_wiring import MagnitudeSnapshot, gate_snapshots
-from scripts.run_magnitude_shadow_ledger import (
-    DEFAULT_LEDGER,
-    derive_measurement_plane,
-    event_measurement_plane,
-)
+from scripts.run_magnitude_shadow_ledger import DEFAULT_LEDGER, derive_measurement_plane
 from scripts.smc_atomic_write import atomic_write_json
 
 ALL_FAMILIES: tuple[str, ...] = get_args(EventFamily)
@@ -161,9 +155,7 @@ def _load_pool_events(events_path: str | None) -> list[dict[str, Any]]:
             file=sys.stderr,
         )
         return []
-    # The pool also carries coarse BOS events (ADR-0031, Nachtrag 2026-10-03
-    # IV); the Tier-1 direction metrics measure the record's grain.
-    return record_grain_events([e for e in data if isinstance(e, dict)])
+    return [e for e in data if isinstance(e, dict)]
 
 
 def _tier1_metrics_from_events(
@@ -257,35 +249,12 @@ def build_bundle(
     magnitude_ledger: str | None = DEFAULT_LEDGER,
     events_path: str | None = None,
     universe_survivorship_bias_risk: bool | None = None,
-    plane: str | None = None,
 ) -> list[dict[str, Any]]:
     rollup = _read_rollup(scoring_root)
     n_events_per_family = _aggregate_family_events(rollup)
     magnitude_snapshots = _load_magnitude_snapshots(magnitude_ledger)
     pool_events = _load_pool_events(events_path)
-    # Issue #3872 follow-up: since #2667 the accumulated pool is genuinely
-    # multi-TF (observed 2026-07-20: 5m-dominated, zero 1D), so the Tier-1
-    # direction metrics silently measured a plane governance never chose.
-    # With a governed plane, grade only events whose OWN modal bar cadence
-    # matches — mirroring the shadow daily's --plane filter (#3874). Zero
-    # matching events leaves the fields None ("not measured"), never a
-    # foreign-plane number.
-    plane_kept: int | None = None
-    plane_total: int | None = None
-    if plane and pool_events:
-        plane_total = len(pool_events)
-        pool_events = [
-            event
-            for event in pool_events
-            if event_measurement_plane(event) == plane
-        ]
-        plane_kept = len(pool_events)
-        print(
-            f"plane filter: kept {plane_kept}/{plane_total} pool events on "
-            f"governed plane {plane}",
-            file=sys.stderr,
-        )
-    measurement_plane = plane if plane else derive_measurement_plane(pool_events)
+    measurement_plane = derive_measurement_plane(pool_events)
     tier1_metrics = _tier1_metrics_from_events(
         pool_events, families=families, date=date
     )
@@ -304,13 +273,6 @@ def build_bundle(
         # provenance_common copy) so run_promotion_gate refuses to PROMOTE it in
         # production — no --universe-trade-date / snapshot store needed.
         provenance_common["universe_survivorship_bias_risk"] = bool(universe_survivorship_bias_risk)
-    if plane:
-        # Disclose the governed plane and the filter arithmetic so a gate
-        # report can never silently pass off a starved pool as measured.
-        provenance_common["governed_plane"] = plane
-        if plane_total is not None:
-            provenance_common["plane_filter_kept"] = int(plane_kept or 0)
-            provenance_common["plane_filter_total"] = int(plane_total)
 
     bundle: list[dict[str, Any]] = []
     for fam in families:
@@ -436,19 +398,6 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     parser.add_argument(
-        "--plane",
-        type=str,
-        default=None,
-        help=(
-            "Governed measurement plane (e.g. '1D'): grade Tier-1 direction "
-            "metrics only on pool events whose OWN modal bar cadence matches "
-            "(issue #3872 follow-up — the accumulated pool is multi-TF since "
-            "#2667 and was 5m-dominated, so unfiltered Tier-1 numbers "
-            "silently measured a plane governance never chose). Zero "
-            "matching events => fields stay None ('not measured')."
-        ),
-    )
-    parser.add_argument(
         "--universe-manifest",
         type=Path,
         default=None,
@@ -484,7 +433,6 @@ def main(argv: list[str] | None = None) -> int:
         magnitude_ledger=args.magnitude_ledger or None,
         events_path=args.events,
         universe_survivorship_bias_risk=_read_universe_survivorship_flag(args.universe_manifest),
-        plane=args.plane,
     )
     atomic_write_json(bundle, args.output, indent=2, sort_keys=False)
     n_magnitude = sum(1 for entry in bundle if "magnitude_resolution_pass" in entry)

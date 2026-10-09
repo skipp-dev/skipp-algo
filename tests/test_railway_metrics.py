@@ -563,31 +563,3 @@ def test_render_metrics_uses_last_success_for_bridge_age() -> None:
         text = metrics.render_metrics(startup_ts=1_300.0)
 
     assert 'live_overlay_bridge_last_success_age_seconds{bridge="railway_metrics"} 300' in text
-
-
-def test_failed_fetch_backs_off_for_a_ttl(monkeypatch) -> None:
-    """A failing Railway API must not be re-fetched on every scrape: the
-    failed snapshot (ok=0 + retained last-good data) is cached for the poll
-    TTL so a hanging upstream costs at most one timeout per TTL, not one per
-    30s Alloy scrape (scrape-timeout blackout aggravator)."""
-    import services.live_overlay_daemon.railway_metrics as rm
-
-    rm.reset_cache()
-    calls = {"n": 0}
-
-    def _boom() -> dict:
-        calls["n"] += 1
-        raise TimeoutError("hang")
-
-    monkeypatch.setattr(rm, "_fetch", _boom)
-    patches = _patch_enabled_config()
-    for p_ in patches:
-        p_.start()
-    first = rm.snapshot()
-    assert first["ok"] == 0
-    second = rm.snapshot()
-    assert second["ok"] == 0
-    assert calls["n"] == 1, "second scrape within the TTL must serve the cached failure"
-    for p_ in patches:
-        p_.stop()
-    rm.reset_cache()

@@ -14,10 +14,8 @@ from terminal_tabs._shared import (
     render_event_clusters_expander,
     render_forecast_expander,
     render_technicals_expander,
-    tv_symbol_column,
 )
-from terminal_tabs.style import dir_glyph, style_table
-from terminal_ui_helpers import format_age_string, tv_linkify_rows
+from terminal_ui_helpers import format_age_string
 
 
 def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
@@ -30,7 +28,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
         st.info("Set `FMP_API_KEY` and/or `BENZINGA_API_KEY` in `.env` for rankings.")
         return
 
-    st.subheader("Rankings — Sector & Market-Cap View")
+    st.subheader("🏅 Rankings — Sector & Market-Cap View")
     st.caption(
         f"**{SESSION_ICONS.get(current_session, current_session)}** — "
         "Movers ranked by magnitude with sector overlay."
@@ -80,9 +78,10 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
                 avg_chg = sum(
                     x.get("chg_pct", 0) for x in sec_items
                 ) / max(len(sec_items), 1)
+                icon = "🟢" if avg_chg > 0 else "🔴"
                 st.metric(
                     sec_name[:15],
-                    f"{avg_chg:+.2f}%",
+                    f"{icon} {avg_chg:+.2f}%",
                     delta=f"{len(sec_items)} stocks",
                 )
 
@@ -91,9 +90,10 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
     now = time.time()
     rank_rows: list[dict[str, Any]] = []
     for rank, m in enumerate(sorted_rank[:100], 1):
+        dir_icon = "🟢" if m.get("chg_pct", 0) > 0 else "🔴"
         rank_rows.append({
             "#": rank,
-            "Dir": dir_glyph(m.get("chg_pct", 0)),
+            "Dir": dir_icon,
             "Symbol": m["symbol"],
             "Name": m.get("name", ""),
             "Price": f"${m['price']:.2f}" if m["price"] >= 1 else f"${m['price']:.4f}",
@@ -105,13 +105,12 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
             "Source": m.get("source", ""),
         })
 
-    df_rank = pd.DataFrame(tv_linkify_rows(rank_rows))
+    df_rank = pd.DataFrame(rank_rows)
     st.dataframe(
-        style_table(df_rank, directional=["Dir", "Change %"]),
+        df_rank,
         width="stretch",
         height=min(800, 40 + 35 * len(df_rank)),
         hide_index=True,
-        column_config={"Symbol": tv_symbol_column()},
     )
 
     # Shared expanders

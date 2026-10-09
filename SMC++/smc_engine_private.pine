@@ -6,10 +6,10 @@
 library("smc_engine_private", overlay = true)
 
 import preuss_steffen/smc_core_types/5 as ct
-import preuss_steffen/smc_utils/4 as u
+import preuss_steffen/smc_utils/3 as u
 import preuss_steffen/smc_draw/3 as d
 import preuss_steffen/smc_lifecycle_private/3 as ll
-import preuss_steffen/smc_profile_engine/3 as pe
+import preuss_steffen/smc_profile_engine/2 as pe
 
 /////////////////////////////////////////////////////////////////////////////////
 
@@ -1473,11 +1473,9 @@ export resolve_core_product_state(int long_visual_state) =>
 
 export resolve_trust_tier(string signal_quality_tier, string signal_freshness, string provider_status) =>
     string trust_tier = 'Insufficient'
-    bool freshness_expired = signal_freshness == 'stale' or signal_freshness == 'expired'
-    bool freshness_current = signal_freshness == 'fresh' or signal_freshness == 'very_fresh'
-    if provider_status != 'ok' or freshness_expired
+    if provider_status != 'ok' or signal_freshness == 'stale'
         trust_tier := signal_quality_tier == 'high' or signal_quality_tier == 'good' or signal_quality_tier == 'ok' ? 'Degraded' : 'Insufficient'
-    else if signal_quality_tier == 'high' and freshness_current
+    else if signal_quality_tier == 'high' and signal_freshness == 'fresh'
         trust_tier := 'High'
     else if signal_quality_tier == 'high' or signal_quality_tier == 'good' or signal_quality_tier == 'ok'
         trust_tier := 'Guarded'
@@ -1501,8 +1499,8 @@ export compose_trust_tier_suffix(string trust_tier, int sq_score, string sq_fres
 export resolve_bus_ready_blocker_code(bool long_ready_state, bool long_setup_confirmed, bool setup_hard_gate_ok, bool trade_hard_gate_ok, bool environment_hard_gate_ok, bool close_safe_mode, bool ready_bar_gap_ok, bool long_confirm_expired, bool ready_is_fresh, bool long_confirm_bearish_guard_ok, bool require_main_break_for_ready, bool bull_bos_sig, bool main_bos_recent, bool session_structure_gate_ok, bool micro_session_gate_ok, bool micro_freshness_gate_ok, bool overhead_zone_ok, bool market_regime_gate_ok, bool vola_regime_gate_safe, bool quality_gate_ok, bool accel_ready_gate_ok, bool sd_ready_gate_ok, bool vol_ready_context_ok, bool stretch_ready_context_ok, bool ddvi_ready_ok_safe) =>
     ll.resolve_long_ready_reason_code(long_ready_state, long_setup_confirmed, close_safe_mode, ready_bar_gap_ok, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready, bull_bos_sig, main_bos_recent, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok, market_regime_gate_ok, vola_regime_gate_safe, quality_gate_ok, accel_ready_gate_ok, sd_ready_gate_ok, vol_ready_context_ok, stretch_ready_context_ok, ddvi_ready_ok_safe)
 
-export resolve_bus_strict_blocker_code(bool long_entry_strict_state, bool long_ready_state, bool strict_signal_quality_gate_ok, bool strict_entry_ltf_ok, bool htf_alignment_ok, bool accel_strict_entry_gate_ok, bool sd_entry_strict_gate_ok, bool vol_entry_strict_context_ok_safe, bool stretch_entry_strict_context_ok, bool ddvi_entry_strict_ok_safe, bool trust_allows_entry) =>
-    trust_allows_entry ? ll.resolve_long_strict_reason_code(long_entry_strict_state, long_ready_state, strict_signal_quality_gate_ok, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe) : 11
+export resolve_bus_strict_blocker_code(bool long_entry_strict_state, bool long_ready_state, bool strict_signal_quality_gate_ok, bool strict_entry_ltf_ok, bool htf_alignment_ok, bool accel_strict_entry_gate_ok, bool sd_entry_strict_gate_ok, bool vol_entry_strict_context_ok_safe, bool stretch_entry_strict_context_ok, bool ddvi_entry_strict_ok_safe) =>
+    ll.resolve_long_strict_reason_code(long_entry_strict_state, long_ready_state, strict_signal_quality_gate_ok, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe)
 
 
 

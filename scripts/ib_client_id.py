@@ -107,51 +107,24 @@ def _save(path: Path, registry: dict[str, dict]) -> None:
 def _reap_stale(
     registry: dict[str, dict], *, timeout_seconds: int
 ) -> dict[str, dict]:
-    # 2026-08-18 (Grenzgaenger B7): a LIVE pid keeps its lease regardless of
-    # last_seen age. The old AND-condition also demanded a fresh last_seen,
-    # so any long-running holder (allocates once, never refreshes) was
-    # reaped after timeout_seconds and its id re-handed to the next caller —
-    # IBKR error 326, the exact collision this registry exists to prevent
-    # (phase-a and collect-imbalance share identical plist minutes, so
-    # concurrent allocation happens every trading day). last_seen now only
-    # decides entries whose liveness is unknowable (invalid/missing pid).
     now = time.time()
-    kept: dict[str, dict] = {}
-    for cid, info in registry.items():
-        if not isinstance(info, dict):
-            continue
-        pid = info.get("pid", -1)
-        if isinstance(pid, int) and pid > 0:
-            if _process_alive(pid):
-                kept[cid] = info
-            continue
-        if (now - float(info.get("last_seen", 0))) <= timeout_seconds:
-            kept[cid] = info
-    return kept
-
-
-# Fixed clientId defaults that live INSIDE DEFAULT_PREFERRED_RANGE and are
-# NEVER registered in this cooperative file, so the allocator must never hand
-# them out — otherwise a lock-less random fallback (or an ascending scan that
-# has exhausted the low end) could return one and collide with a concurrently
-# pinned session (IBKR error 326), the very failure this registry exists to
-# prevent.
-#
-# 71 was the original entry (IBKRConnectionConfig default: run_smc_live_
-# incubation's paper submitter and the execute_ibkr_watchlist runners).
-# 2026-08-19 (Doppelgaenger K9): three more fixed defaults were sitting in the
-# range unreserved — the reservation had been treated as a one-off for 71
-# instead of as the rule for every pinned id. The population is enforced by
-# tests/test_ib_client_id.py, which derives it from the argparse defaults in
-# scripts/ instead of trusting this literal.
-_RESERVED_CLIENT_IDS = frozenset(
-    {
-        71,  # execute_ibkr_watchlist / smoke_smc_to_ibkr_adapter
-        73,  # ibkr_portfolio_snapshot --client-id
-        74,  # c13_eod_flatten --client-id
-        87,  # reconcile_incubation_fills --client-id
+    return {
+        cid: info
+        for cid, info in registry.items()
+        if isinstance(info, dict)
+        and _process_alive(info.get("pid", -1))
+        and (now - float(info.get("last_seen", 0))) <= timeout_seconds
     }
-)
+
+
+# The execution/incubation default clientId is pinned to 71 (the
+# IBKRConnectionConfig default used by run_smc_live_incubation's paper submitter
+# and the execute_ibkr_watchlist runners) and is NEVER registered in this
+# cooperative file, so the allocator must never hand it out — otherwise a
+# lock-less random fallback (or an ascending scan that has exhausted 40..70)
+# could return 71 and collide with a concurrently-pinned 71 session (IBKR error
+# 326), the very failure this registry exists to prevent.
+_RESERVED_CLIENT_IDS = frozenset({71})
 
 
 def _pick_random_id(preferred_range: tuple[int, int]) -> int:

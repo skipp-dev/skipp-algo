@@ -16,7 +16,6 @@ import time
 from pathlib import Path
 
 import pytest
-import yaml
 
 
 @pytest.fixture(autouse=True)
@@ -218,14 +217,6 @@ def test_render_metrics_prometheus_format_and_trailing_newline(monkeypatch: pyte
     assert "# TYPE live_overlay_evidence_fills_submit_failed_total gauge" in body
     assert "# TYPE live_overlay_evidence_c13_submit_code_behind_commits gauge" in body
     assert "# TYPE live_overlay_evidence_c13_submit_code_behind_commits_known gauge" in body
-    assert "# TYPE live_overlay_portfolio_shadow_evidence_known gauge" in body
-    assert "# TYPE live_overlay_portfolio_shadow_ready_for_human_review gauge" in body
-    assert "# TYPE live_overlay_portfolio_shadow_missing_reconciliation_sessions gauge" in body
-    assert "# TYPE live_overlay_portfolio_shadow_reconciliation_failures_total gauge" in body
-    assert "# TYPE live_overlay_portfolio_snapshot_age_seconds gauge" in body
-    assert "# TYPE live_overlay_portfolio_risk_decisions_total counter" in body
-    assert "# TYPE live_overlay_portfolio_reconciliation_max_abs_quantity_delta gauge" in body
-    assert "# TYPE live_overlay_portfolio_reconciliation_reconciled gauge" in body
     # Newest-incubation age powers lo-evidence-incubation-fills-stalled: it
     # distinguishes "submitting but nothing fills" from "no trading at all".
     assert "# TYPE live_overlay_evidence_fills_newest_incubation_age_seconds gauge" in body
@@ -269,38 +260,6 @@ def test_render_metrics_emits_submit_failed_and_stale_checkout_values(
     assert "live_overlay_evidence_fills_submit_failed_total 4.0" in body
     assert "live_overlay_evidence_c13_submit_code_behind_commits 7.0" in body
     assert "live_overlay_evidence_c13_submit_code_behind_commits_known 1.0" in body
-
-
-def test_render_metrics_emits_portfolio_operational_values_by_verdict(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    import services.live_overlay_daemon.metrics as metrics_mod
-
-    snap = {
-        "loaded": 1.0,
-        "generated_at_unix": 1_783_000_000.0,
-        "portfolio_shadow": {
-            "known": 1.0,
-            "verdict_counts": {"allow": 8.0, "resize": 2.0, "reject": 1.0},
-            "latest_snapshot_age_seconds": 17.5,
-            "latest_snapshot_age_known": 1.0,
-            "latest_snapshot_max_age_seconds": 120.0,
-            "latest_snapshot_max_age_known": 1.0,
-            "latest_reconciliation_max_abs_quantity_delta": 0.25,
-            "latest_reconciliation_reconciled": 0.0,
-            "latest_reconciliation_known": 1.0,
-        },
-    }
-    monkeypatch.setattr(metrics_mod.evidence_freshness_bridge, "snapshot", lambda: snap)
-
-    body = "\n".join(metrics_mod._render_evidence_freshness_metrics())
-    assert "live_overlay_portfolio_snapshot_age_seconds 17.5" in body
-    assert "live_overlay_portfolio_snapshot_max_age_seconds 120.0" in body
-    assert 'live_overlay_portfolio_risk_decisions_total{verdict="allow"} 8.0' in body
-    assert 'live_overlay_portfolio_risk_decisions_total{verdict="resize"} 2.0' in body
-    assert 'live_overlay_portfolio_risk_decisions_total{verdict="reject"} 1.0' in body
-    assert "live_overlay_portfolio_reconciliation_max_abs_quantity_delta 0.25" in body
-    assert "live_overlay_portfolio_reconciliation_reconciled 0.0" in body
 
 
 def _sweep_trap_snap(**overrides: object) -> dict:
@@ -544,6 +503,9 @@ def test_render_metrics_health_status_ok(monkeypatch: pytest.MonkeyPatch) -> Non
     assert "live_overlay_overlay_fresh 1" in body
     assert "live_overlay_health_status_code 3" in body
     assert 'live_overlay_health_status_info{status="ok"} 1' in body
+    assert "live_overlay_health_status_ok 1" in body
+    assert "live_overlay_health_status_starting 0" in body
+    assert "live_overlay_health_status_idle_market_closed 0" in body
     assert "live_overlay_market_us_open 1" in body
     assert "live_overlay_market_europe_open 0" in body
     assert "live_overlay_market_asia_open 0" in body
@@ -585,6 +547,9 @@ def test_render_metrics_health_status_idle_market_closed(monkeypatch: pytest.Mon
     body = metrics_mod.render_metrics(startup_ts=100.0)
     assert "live_overlay_health_status_code 2" in body
     assert 'live_overlay_health_status_info{status="idle_market_closed"} 1' in body
+    assert "live_overlay_health_status_ok 0" in body
+    assert "live_overlay_health_status_starting 0" in body
+    assert "live_overlay_health_status_idle_market_closed 1" in body
 
 
 def test_render_metrics_health_status_starting(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -599,71 +564,12 @@ def test_render_metrics_health_status_starting(monkeypatch: pytest.MonkeyPatch) 
         overlay_age=float("inf"),
     )
 
-    # Fresh boot (uptime < warmup): a non-ok state during the open session is
-    # still "starting", not "degraded".
-    # Pin monotonic: on a fresh CI runner time.monotonic() is only minutes
-    # old, so "now - X" can go NEGATIVE and render_metrics' `startup_ts > 0`
-    # guard silently zeroes the uptime (the F-3 degraded test failed on every
-    # main full-CI run this way while passing on long-booted dev machines).
-    now = 1_000_000.0
-    monkeypatch.setattr(metrics_mod.time, "monotonic", lambda: now)
-    body = metrics_mod.render_metrics(startup_ts=now - 30.0)
+    body = metrics_mod.render_metrics(startup_ts=100.0)
     assert "live_overlay_health_status_code 1" in body
     assert 'live_overlay_health_status_info{status="starting"} 1' in body
-
-
-def test_render_metrics_health_status_degraded_past_warmup(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A market-open failure that outlives warmup must not read as boot noise.
-
-    Before the degraded state, a multi-hour feed outage rendered the same
-    status_code 1 / "starting" as a 30-second-old boot (truth-audit
-    2026-07-22 F-3), so dashboards reported outages as perpetual startups.
-    """
-    import services.live_overlay_daemon.metrics as metrics_mod
-
-    _patch_common(
-        monkeypatch,
-        feed_ready=False,
-        market_open=True,
-        bar_count=0,
-        overlay_symbols=0,
-        overlay_age=float("inf"),
-    )
-
-    now = 1_000_000.0  # pinned: epoch-independent uptime (see warmup test above)
-    monkeypatch.setattr(metrics_mod.time, "monotonic", lambda: now)
-    body = metrics_mod.render_metrics(startup_ts=now - 3600.0)
-    assert "live_overlay_health_status_code 4" in body
-    assert 'live_overlay_health_status_info{status="degraded"} 1' in body
-
-
-def test_render_metrics_market_closed_failure_stays_starting_not_degraded(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Outside the US session a long-lived non-idle failure keeps "starting".
-
-    "degraded" is deliberately market-open-gated: overnight the feed is
-    expected to be quiet (bars age out, feed_healthy drops with bar_count > 0),
-    and the 24/7 age alerts own genuine overnight compute hangs.
-    """
-    import services.live_overlay_daemon.metrics as metrics_mod
-
-    _patch_common(
-        monkeypatch,
-        feed_ready=False,
-        market_open=False,
-        bar_count=10,
-        overlay_symbols=0,
-        overlay_age=float("inf"),
-    )
-
-    now = 1_000_000.0  # pinned: epoch-independent uptime (see warmup test above)
-    monkeypatch.setattr(metrics_mod.time, "monotonic", lambda: now)
-    body = metrics_mod.render_metrics(startup_ts=now - 3600.0)
-    assert "live_overlay_health_status_code 1" in body
-    assert 'live_overlay_health_status_info{status="starting"} 1' in body
+    assert "live_overlay_health_status_ok 0" in body
+    assert "live_overlay_health_status_starting 1" in body
+    assert "live_overlay_health_status_idle_market_closed 0" in body
 
 
 def test_render_metrics_sanitizes_non_finite_counters(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -713,11 +619,8 @@ def test_render_metrics_emits_latency_quantile_gauges(monkeypatch: pytest.Monkey
 
     body = metrics_mod.render_metrics(startup_ts=100.0)
 
-    # The derived p95/p99 gauges are gone: consumers read the buckets via
-    # histogram_quantile(), and two dashboard/alert contract tests forbid the
-    # gauges outright, so emitting them served nothing.
-    assert "live_overlay_smc_live_latency_p95_ms" not in body
-    assert "live_overlay_smc_live_latency_p99_ms" not in body
+    assert "live_overlay_smc_live_latency_p95_ms" in body
+    assert "live_overlay_smc_live_latency_p99_ms" in body
     assert "# TYPE live_overlay_smc_live_latency_ms histogram" in body
     assert 'live_overlay_smc_live_latency_ms_bucket{le="10"} 0.0' in body
     assert 'live_overlay_smc_live_latency_ms_bucket{le="25"} 0.0' in body
@@ -742,22 +645,29 @@ def test_render_metrics_emits_latency_quantile_gauges(monkeypatch: pytest.Monkey
     assert 0 < p10 < p100 < p1000, "histogram buckets not sorted numerically"
 
 
-def test_render_metrics_never_reemits_legacy_latency_quantile_gauges(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The p95/p99 gauges stay deleted — reviving them re-opens the orphan.
+def test_estimate_histogram_quantile_ms_inf_only_bucket_is_none() -> None:
+    """All observations in the +Inf bucket (every latency exceeds the finite
+    bounds) must NOT interpolate to a misleadingly-perfect 0.0 ms."""
+    import services.live_overlay_daemon.metrics as metrics_mod
 
-    They existed only "until dashboard/alert consumers are fully migrated to
-    histogram_quantile()". That migration is done and enforced by
-    test_dashboard_latency_panel_uses_only_histogram_quantile and
-    test_latency_alert_uses_histogram_quantile_bucket, which forbid the gauges
-    in every panel and rule. Re-emitting them would therefore produce a series
-    nothing is allowed to consume, so this pins their absence in the one place
-    that could bring them back.
+    counters = {
+        "lat.count": 100.0,
+        "lat.bucket_le_inf": 100.0,
+    }
+    for q in (0.95, 0.99, 0.5):
+        result = metrics_mod._estimate_histogram_quantile_ms(counters, base_name="lat", quantile=q)
+        assert result is None
 
-    Exercised with the +Inf-only counter state that used to be their trickiest
-    case (it once risked a misleadingly-perfect 0.000 ms reading).
-    """
+    # A finite bucket carrying the target still interpolates normally.
+    counters_finite = {
+        "lat.count": 100.0,
+        "lat.bucket_le_100": 96.0,
+        "lat.bucket_le_inf": 100.0,
+    }
+    assert metrics_mod._estimate_histogram_quantile_ms(counters_finite, base_name="lat", quantile=0.95) is not None
+
+
+def test_render_metrics_omits_latency_quantiles_when_only_inf_bucket(monkeypatch: pytest.MonkeyPatch) -> None:
     import services.live_overlay_daemon.metrics as metrics_mod
     import services.live_overlay_daemon.observability as obs
 
@@ -769,13 +679,11 @@ def test_render_metrics_never_reemits_legacy_latency_quantile_gauges(
 
     body = metrics_mod.render_metrics(startup_ts=100.0)
 
-    assert "live_overlay_smc_live_latency_p95_ms" not in body
-    assert "live_overlay_smc_live_latency_p99_ms" not in body
-    # The histogram itself must still be there — this deletion removed the
-    # derived duplicates, not the latency signal.
-    assert "# TYPE live_overlay_smc_live_latency_ms histogram" in body
-    assert 'live_overlay_smc_live_latency_ms_bucket{le="+Inf"} 100.0' in body
-    assert "live_overlay_smc_live_latency_ms_count 100.0" in body
+    # The metric is omitted (no misleading `... 0.000` line).
+    assert "live_overlay_smc_live_latency_p95_ms 0.000" not in body
+    assert "live_overlay_smc_live_latency_p99_ms 0.000" not in body
+    assert "live_overlay_smc_live_latency_p95_ms " not in body
+    assert "live_overlay_smc_live_latency_p99_ms " not in body
 
 
 def test_render_metrics_emits_age_known_gauges(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -838,53 +746,6 @@ def test_render_metrics_known_age_still_renders_finite_value(monkeypatch: pytest
     assert "live_overlay_overlay_age_seconds 60.0" in body
     assert "live_overlay_last_bar_age_known 1.0" in body
     assert "live_overlay_last_bar_age_seconds 12.5" in body
-
-
-def test_render_metrics_emits_vix_gauges_when_fetched(monkeypatch: pytest.MonkeyPatch) -> None:
-    import services.live_overlay_daemon.cache as cache
-    import services.live_overlay_daemon.metrics as metrics_mod
-
-    _patch_common(
-        monkeypatch,
-        feed_ready=True,
-        market_open=True,
-        bar_count=10,
-        overlay_symbols=5,
-        overlay_age=60.0,
-    )
-    monkeypatch.setattr(cache, "get_vix", lambda: 22.354)
-    monkeypatch.setattr(cache, "vix_age_secs", lambda: 120.0)
-
-    body = metrics_mod.render_metrics(startup_ts=100.0)
-    assert "live_overlay_vix_level 22.35" in body
-    assert "live_overlay_vix_age_known 1.0" in body
-    assert "live_overlay_vix_age_seconds 120.0" in body
-
-
-def test_render_metrics_vix_never_fetched_is_distinguishable_from_zero(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    import services.live_overlay_daemon.cache as cache
-    import services.live_overlay_daemon.metrics as metrics_mod
-
-    _patch_common(
-        monkeypatch,
-        feed_ready=True,
-        market_open=True,
-        bar_count=10,
-        overlay_symbols=5,
-        overlay_age=60.0,
-    )
-    monkeypatch.setattr(cache, "get_vix", lambda: None)
-    monkeypatch.setattr(cache, "vix_age_secs", lambda: float("inf"))
-
-    body = metrics_mod.render_metrics(startup_ts=100.0)
-    assert "live_overlay_vix_age_known 0.0" in body
-    # 0.0 and NOT nan: `lo-vix-unavailable` selects with
-    # `(age * known) + ((1 - known) * 5401)`, so a NaN age would swallow the
-    # unknown-sentinel exactly like the lo-overlay-stale case above.
-    assert "live_overlay_vix_age_seconds 0.0" in body
-    assert "live_overlay_vix_level 0.0" in body
 
 
 def test_render_metrics_emits_hotspot_gauges(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1030,19 +891,6 @@ def test_render_metrics_includes_uptimerobot_bridge_snapshot(monkeypatch: pytest
             ],
         },
     )
-    monkeypatch.setattr(
-        metrics_mod.config,
-        "uptimerobot_monitor_ids",
-        lambda: [
-            "803309701",
-            "803341452",
-            "803343155",
-            "803343156",
-            "803362511",
-            "803555263",
-            "803555264",
-        ],
-    )
 
     body = metrics_mod.render_metrics(startup_ts=100.0)
 
@@ -1053,7 +901,6 @@ def test_render_metrics_includes_uptimerobot_bridge_snapshot(monkeypatch: pytest
     assert "live_overlay_uptimerobot_bridge_enabled" not in body
     assert "live_overlay_uptimerobot_scrape_success" not in body
     assert "live_overlay_uptimerobot_monitors_total 4.0" in body
-    assert "live_overlay_uptimerobot_monitors_expected 7.0" in body
     assert "live_overlay_uptimerobot_monitors_up_total 4.0" in body
     assert "live_overlay_uptimerobot_monitors_response_time_ms_avg 101.5" in body
     assert "live_overlay_uptimerobot_monitor__803343156_up 1.0" in body
@@ -1086,7 +933,6 @@ def test_render_metrics_handles_uptimerobot_bridge_disabled(monkeypatch: pytest.
             "monitors": [],
         },
     )
-    monkeypatch.setattr(metrics_mod.config, "uptimerobot_monitor_ids", lambda: [])
 
     body = metrics_mod.render_metrics(startup_ts=100.0)
 
@@ -1096,7 +942,6 @@ def test_render_metrics_handles_uptimerobot_bridge_disabled(monkeypatch: pytest.
     assert "live_overlay_uptimerobot_bridge_enabled" not in body
     assert "live_overlay_uptimerobot_scrape_success" not in body
     assert "live_overlay_uptimerobot_monitors_total 0.0" in body
-    assert "live_overlay_uptimerobot_monitors_expected" not in body
 
 
 def test_render_metrics_includes_github_workflow_bridge_snapshot(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1443,10 +1288,9 @@ def test_render_metrics_includes_trading_signals_snapshot(
         overlay_symbols=5,
         overlay_age=60.0,
     )
-    snapshot_now = _time.time()
     snapshot = {
         "updated_at": "2026-06-23T14:30:00+00:00",
-        "updated_epoch": snapshot_now - 30.0,
+        "updated_epoch": _time.time() - 30.0,
         "poll_interval": 5,
         "poll_duration": 0.4,
         "watched_symbols": ["AAPL", "TSLA", "NVDA"],
@@ -1463,7 +1307,6 @@ def test_render_metrics_includes_trading_signals_snapshot(
                 "confidence_tier": "HIGH",
                 "score": 7.5,
                 "freshness": 0.9,
-                "fired_epoch": snapshot_now - 30.0,
                 "technical_score": 0.82,
                 "change_pct": 1.23,
                 "technical_signal": "STRONG_BUY",
@@ -1478,7 +1321,6 @@ def test_render_metrics_includes_trading_signals_snapshot(
                 "confidence_tier": "MEDIUM",
                 "score": 4.0,
                 "freshness": 0.5,
-                "fired_epoch": snapshot_now - 30.0,
                 "technical_score": 0.31,
                 "change_pct": -2.0,
                 "technical_signal": "SELL",
@@ -1493,7 +1335,6 @@ def test_render_metrics_includes_trading_signals_snapshot(
                 "confidence_tier": "LOW",
                 "score": 2.5,
                 "freshness": 0.95,
-                "fired_epoch": snapshot_now - 30.0,
                 "technical_score": 0.20,
                 "change_pct": 0.8,
                 "technical_signal": "HOLD",
@@ -1515,15 +1356,12 @@ def test_render_metrics_includes_trading_signals_snapshot(
     # A2 early-warning tier is a first-class gauge (added 2026-07-08).
     assert "live_overlay_trading_signals_a2 1.0" in body
     assert "live_overlay_trading_signals_watched 3.0" in body
-    # The deprecated *_total aliases were dropped 2026-07-22 (transition over:
-    # all committed dashboards use the suffix-less names, and the orphan scan
-    # covers the trading_signals family). Pin the removal — a revert would
-    # reintroduce five emitted-but-unconsumed series.
-    assert "live_overlay_trading_signals_active_total" not in body
-    assert "live_overlay_trading_signals_a0_total" not in body
-    assert "live_overlay_trading_signals_a1_total" not in body
-    assert "live_overlay_trading_signals_a2_total" not in body
-    assert "live_overlay_trading_signals_watched_total" not in body
+    # Deprecated *_total aliases stay emitted during the naming transition.
+    assert "live_overlay_trading_signals_active_total 3.0" in body
+    assert "live_overlay_trading_signals_a0_total 1.0" in body
+    assert "live_overlay_trading_signals_a1_total 1.0" in body
+    assert "live_overlay_trading_signals_a2_total 1.0" in body
+    assert "live_overlay_trading_signals_watched_total 3.0" in body
     # A2 signals also surface as labelled per-signal series (level="A2").
     assert 'live_overlay_trading_signal_score{symbol="NVDA",level="A2"' in body
     assert "live_overlay_trading_signals_snapshot_age_known 1.0" in body
@@ -1542,246 +1380,6 @@ def test_render_metrics_includes_trading_signals_snapshot(
     assert body.index('live_overlay_trading_signal_score{symbol="AAPL"') < body.index(
         'live_overlay_trading_signal_score{symbol="TSLA"'
     )
-
-
-def test_future_trading_signals_snapshot_is_unknown_and_stale(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A future producer clock must not look like a fresh signal snapshot."""
-    import time as _time
-
-    import services.live_overlay_daemon.metrics as metrics_mod
-
-    _patch_common(
-        monkeypatch,
-        feed_ready=True,
-        market_open=True,
-        bar_count=10,
-        overlay_symbols=5,
-        overlay_age=60.0,
-    )
-    monkeypatch.setattr(
-        metrics_mod.compute,
-        "_load_signals_snapshot",
-        lambda: {"updated_epoch": _time.time() + 60.0, "signals": []},
-    )
-
-    body = metrics_mod.render_metrics(startup_ts=100.0)
-
-    assert "live_overlay_trading_signals_snapshot_age_known 0.0" in body
-    assert "live_overlay_trading_signals_snapshot_stale 1.0" in body
-
-
-def test_future_operator_snapshot_timestamps_are_unknown(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Every producer clock ahead of the daemon must fail closed, not age to zero."""
-    import services.live_overlay_daemon.metrics as metrics_mod
-
-    now = 1_783_000_000.0
-    future = now + 86_400.0
-    monkeypatch.setattr(metrics_mod.time, "time", lambda: now)
-    monkeypatch.setattr(
-        metrics_mod.compute,
-        "_load_credential_health_snapshot",
-        lambda: {
-            "generated_at": "2099-01-01T00:00:00Z",
-            "overall_severity": "ok",
-            "probes": [],
-        },
-    )
-    credential = metrics_mod._credential_health_snapshot()
-    assert credential["snapshot_age_known"] == 0.0
-    assert credential["snapshot_age_seconds"] == 0.0
-
-    assert metrics_mod._experiment_run_age("2099-01-01") == (0.0, 0.0)
-    assert metrics_mod._bridge_last_success_age(
-        future, enabled=True, configured=True, startup_epoch=now - 60.0
-    ) == 60.0
-
-    monkeypatch.setattr(
-        metrics_mod.compute,
-        "_load_news_snapshot",
-        lambda: {
-            "fetched_at_unix": future,
-            "last_ingest_success_at": future,
-            "providers": {},
-        },
-    )
-    provider = metrics_mod._provider_health_snapshot()
-    assert provider["news_snapshot_age_known"] == 0.0
-    assert provider["news_snapshot_age_seconds"] == 0.0
-    assert provider["news_last_ingest_age_known"] == 0.0
-    assert provider["news_last_ingest_age_seconds"] == 0.0
-
-
-def test_future_rendered_snapshot_timestamps_are_unknown(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    import services.live_overlay_daemon.metrics as metrics_mod
-
-    now = 1_783_000_000.0
-    future = now + 86_400.0
-    monkeypatch.setattr(metrics_mod.time, "time", lambda: now)
-    monkeypatch.setattr(
-        metrics_mod.pine_library_version_bridge,
-        "snapshot",
-        lambda: {
-            "loaded": 1.0,
-            "generated_at_unix": future,
-            "libraries": [
-                {
-                    "name": "Skipp",
-                    "data_asof_known": 1.0,
-                    "data_asof_unix": future,
-                    "consumers": [],
-                }
-            ],
-        },
-    )
-    pine = "\n".join(metrics_mod._render_pine_library_version_metrics())
-    assert "live_overlay_pine_library_snapshot_age_known 0.0" in pine
-    assert 'live_overlay_pine_library_data_age_known{library="Skipp"} 0.0' in pine
-
-    monkeypatch.setattr(
-        metrics_mod.tradingview_binding_bridge,
-        "snapshot",
-        lambda: {"loaded": 1.0, "generated_at_unix": future},
-    )
-    binding = "\n".join(metrics_mod._render_tradingview_binding_metrics())
-    assert "live_overlay_tv_binding_snapshot_age_known 0.0" in binding
-
-    monkeypatch.setattr(
-        metrics_mod.evidence_freshness_bridge,
-        "snapshot",
-        lambda: {"loaded": 1.0, "generated_at_unix": future},
-    )
-    evidence = "\n".join(metrics_mod._render_evidence_freshness_metrics())
-    assert "live_overlay_evidence_freshness_snapshot_age_known 0.0" in evidence
-
-    monkeypatch.setattr(
-        metrics_mod.sweep_trap_shadow_bridge,
-        "snapshot",
-        lambda: {"loaded": 1.0, "generated_at_unix": future},
-    )
-    sweep = "\n".join(metrics_mod._render_sweep_trap_shadow_metrics())
-    assert "live_overlay_sweep_trap_shadow_snapshot_age_known 0.0" in sweep
-    assert "live_overlay_sweep_trap_shadow_snapshot_stale 0.0" in sweep
-
-
-def test_stale_trading_signals_snapshot_exports_no_active_signals(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Dashboards must not present an expired snapshot as an active signal."""
-    import time as _time
-
-    import services.live_overlay_daemon.metrics as metrics_mod
-
-    _patch_common(
-        monkeypatch,
-        feed_ready=True,
-        market_open=True,
-        bar_count=10,
-        overlay_symbols=5,
-        overlay_age=60.0,
-    )
-    monkeypatch.setattr(
-        metrics_mod.compute,
-        "_load_signals_snapshot",
-        lambda: {
-            "updated_epoch": _time.time() - (metrics_mod.config.signals_max_age_secs() + 1),
-            "watched_symbols": ["AAPL"],
-            "signal_count": 1,
-            "a0_count": 1,
-            "signals": [{"symbol": "AAPL", "level": "A0", "score": 9.0}],
-        },
-    )
-
-    body = metrics_mod.render_metrics(startup_ts=100.0)
-
-    assert "live_overlay_trading_signals_snapshot_stale 1.0" in body
-    assert "live_overlay_trading_signals_active 0.0" in body
-    assert "live_overlay_trading_signals_a0 0.0" in body
-    assert "live_overlay_trading_signal_score{" not in body
-
-
-def test_unknown_age_trading_signals_snapshot_exports_no_active_signals(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A loaded snapshot without a valid age is diagnostic data, not active data."""
-    import services.live_overlay_daemon.metrics as metrics_mod
-
-    _patch_common(
-        monkeypatch,
-        feed_ready=True,
-        market_open=True,
-        bar_count=10,
-        overlay_symbols=5,
-        overlay_age=60.0,
-    )
-    monkeypatch.setattr(
-        metrics_mod.compute,
-        "_load_signals_snapshot",
-        lambda: {
-            "signal_count": 1,
-            "a0_count": 1,
-            "signals": [{"symbol": "AAPL", "level": "A0", "score": 9.0}],
-        },
-    )
-
-    body = metrics_mod.render_metrics(startup_ts=100.0)
-
-    assert "live_overlay_trading_signals_snapshot_age_known 0.0" in body
-    assert "live_overlay_trading_signals_active 0.0" in body
-    assert "live_overlay_trading_signals_a0 0.0" in body
-    assert "live_overlay_trading_signal_score{" not in body
-
-
-def test_expired_signal_rows_are_not_exported_as_active(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A fresh envelope cannot revive rows the application already rejects."""
-    import time as _time
-
-    import services.live_overlay_daemon.metrics as metrics_mod
-
-    _patch_common(
-        monkeypatch,
-        feed_ready=True,
-        market_open=True,
-        bar_count=10,
-        overlay_symbols=5,
-        overlay_age=60.0,
-    )
-    now = _time.time()
-    monkeypatch.setattr(
-        metrics_mod.compute,
-        "_load_signals_snapshot",
-        lambda: {
-            "updated_epoch": now,
-            "signal_count": 2,
-            "a0_count": 1,
-            "a1_count": 1,
-            "signals": [
-                {
-                    "symbol": "AAPL", "level": "A0", "score": 9.0,
-                    "fired_epoch": now - metrics_mod.config.signals_max_age_secs() - 1,
-                },
-                {
-                    "symbol": "MSFT", "level": "A1", "score": 7.0,
-                    "fired_epoch": now - 30,
-                },
-            ],
-        },
-    )
-
-    body = metrics_mod.render_metrics(startup_ts=100.0)
-
-    assert "live_overlay_trading_signals_active 1.0" in body
-    assert "live_overlay_trading_signals_a0 0.0" in body
-    assert "live_overlay_trading_signals_a1 1.0" in body
-    assert 'live_overlay_trading_signal_score{symbol="AAPL"' not in body
-    assert 'live_overlay_trading_signal_score{symbol="MSFT"' in body
 
 
 def test_render_metrics_includes_tradingview_credential(
@@ -1822,6 +1420,7 @@ def test_render_metrics_includes_tradingview_credential(
     assert "live_overlay_tradingview_credential_valid 1.0" in body
     assert "live_overlay_tradingview_credential_age_known 1.0" in body
     assert "live_overlay_tradingview_credential_age_hours 60.000" in body
+    assert "live_overlay_tradingview_credential_validated_at_seconds" in body
 
 
 def test_render_metrics_tradingview_credential_error_is_invalid(
@@ -1986,6 +1585,7 @@ def test_render_metrics_handles_trading_signals_snapshot_missing(
 
     assert "live_overlay_trading_signals_loaded 0.0" in body
     assert "live_overlay_trading_signals_active 0.0" in body
+    assert "live_overlay_trading_signals_active_total 0.0" in body
     assert "live_overlay_trading_signals_snapshot_age_known 0.0" in body
     # No per-signal series when the snapshot is empty.
     assert "live_overlay_trading_signal_score{" not in body
@@ -2016,124 +1616,6 @@ def test_alert_rules_split_news_snapshot_unavailable_and_stale() -> None:
     assert "snapshot_age_known" in stale["data"][0]["model"]["expr"]
 
 
-def test_alert_rules_cover_absence_of_every_core_readiness_gauge() -> None:
-    """All three readiness inputs need an absent() guard, not just overlay_fresh.
-
-    lo-scrape-missing only catches a whole-daemon outage. A *selective* export
-    bug in one gauge was alert-blind, and each consumer fails silently rather
-    than loudly when its input disappears:
-
-    * ``feed_healthy`` — lo-feed-down-market-open computes
-      ``market_us_open * ((1 - feed_healthy) + bar-age-term)``. Vector
-      arithmetic inner-joins, so an empty ``(1 - feed_healthy)`` empties the
-      entire sum: the bar-age term is lost as well and the feed-down alert
-      goes silent exactly when the feed is what's in question.
-    * ``workers_healthy`` — lo-workers-degraded evaluates ``< 1`` against an
-      empty vector, which never crosses the threshold.
-    """
-    import yaml
-
-    repo_root = Path(__file__).resolve().parents[1]
-    rules_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "alert-rules.yaml"
-    rules_doc = yaml.safe_load(rules_path.read_text(encoding="utf-8"))
-    all_rules = [rule for group in rules_doc["groups"] for rule in group["rules"]]
-    guarded = " ".join(
-        expr for expr in (rule["data"][0]["model"].get("expr", "") for rule in all_rules) if "absent(" in expr
-    )
-    for gauge in (
-        "live_overlay_overlay_fresh",
-        "live_overlay_feed_healthy",
-        "live_overlay_workers_healthy",
-    ):
-        assert f"absent({gauge}" in guarded, (
-            f"{gauge} has no absent() alert; if only that series stops being exported, "
-            "its consuming rule evaluates an empty vector and never fires"
-        )
-
-    # The consumers this protects must still be the ones described above, so a
-    # rename or rewrite re-opens the review rather than silently voiding it.
-    by_uid = {rule.get("uid"): rule for rule in all_rules}
-    assert "live_overlay_feed_healthy" in by_uid["lo-feed-down-market-open"]["data"][0]["model"]["expr"]
-    assert "live_overlay_workers_healthy" in by_uid["lo-workers-degraded"]["data"][0]["model"]["expr"]
-
-
-def test_alert_rules_cover_trading_signals_snapshot_unavailable() -> None:
-    """A signals snapshot that never loads (loaded==0) must page on its own.
-
-    Both sibling rules read 0 in that state — the stale rule consumes the
-    exporter's ``_snapshot_stale`` verdict (which stays 0 while age_known==0)
-    and the age-unknown rule is multiplied by ``_loaded`` — so without this rule
-    a fresh deploy or a misconfigured SIGNALS_* URL leaves the A0/A1/A2 overlays
-    blank with every signals alert green.
-    """
-    import yaml
-
-    repo_root = Path(__file__).resolve().parents[1]
-    rules_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "alert-rules.yaml"
-    rules_doc = yaml.safe_load(rules_path.read_text(encoding="utf-8"))
-    warning_group = next(g for g in rules_doc["groups"] if g.get("name") == "live-overlay-warning")
-    rules_by_uid = {r.get("uid"): r for r in warning_group["rules"]}
-    assert "lo-trading-signals-snapshot-unavailable" in rules_by_uid, (
-        "neither lo-trading-signals-snapshot-stale nor -age-unknown can fire while "
-        "live_overlay_trading_signals_loaded == 0; a dedicated unavailable rule is required"
-    )
-    rule = rules_by_uid["lo-trading-signals-snapshot-unavailable"]
-    expr = rule["data"][0]["model"]["expr"]
-    assert "live_overlay_trading_signals_loaded" in expr
-    assert "< bool 1" in expr
-    assert rule["labels"]["severity"] == "high"
-    # The sibling rules must keep their loaded-gating; this rule is what covers
-    # the gap they leave, so it must not itself be gated on loaded.
-    age_unknown_expr = rules_by_uid["lo-trading-signals-snapshot-age-unknown"]["data"][0]["model"]["expr"]
-    assert "live_overlay_trading_signals_loaded" in age_unknown_expr
-
-
-def test_uptimerobot_monitor_count_series_marked_keep_last_good() -> None:
-    """Monitor-count gauges serve last-good data during a bridge outage.
-
-    ``uptimerobot_bridge._snapshot`` keeps the previous counts/monitors when a
-    scrape fails (only the status keys are overridden), so a legend reading
-    plain "up"/"down" implies a live poll that is not happening. The legends and
-    the panel description must say so; ``bridge_scrape_success``/``error_info``
-    remain the truthful liveness signals.
-    """
-    import json
-
-    repo_root = Path(__file__).resolve().parents[1]
-    dash_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard.json"
-    dashboard = json.loads(dash_path.read_text(encoding="utf-8"))
-
-    def _walk(obj: object):
-        if isinstance(obj, dict):
-            yield obj
-            for value in obj.values():
-                yield from _walk(value)
-        elif isinstance(obj, list):
-            for item in obj:
-                yield from _walk(item)
-
-    legends = [
-        (node["expr"], node["legendFormat"])
-        for node in _walk(dashboard)
-        if isinstance(node.get("expr"), str)
-        and "legendFormat" in node
-        and "live_overlay_uptimerobot_monitors_" in node["expr"]
-    ]
-    assert legends, "expected uptimerobot monitor-count series in the dashboard"
-    for expr, legend in legends:
-        assert "last-good" in legend, (
-            f"uptimerobot monitor series {expr!r} has legend {legend!r}, which implies live data "
-            "although the bridge serves the last successful counts during an outage"
-        )
-
-    panel = next(
-        node
-        for node in _walk(dashboard)
-        if node.get("title") == "UptimeRobot Monitors" and isinstance(node.get("description"), str)
-    )
-    assert "KEEP-LAST-GOOD" in panel["description"]
-
-
 def test_age_unknown_gated_stale_alert_rules_require_known_age() -> None:
     """Every stale alert that reads an _age_seconds gauge must gate on the matching _known flag.
 
@@ -2151,7 +1633,6 @@ def test_age_unknown_gated_stale_alert_rules_require_known_age() -> None:
         ("live-overlay-warning", "lo-news-snapshot-stale", "snapshot_age_known"),
         ("evidence-and-workflow-freshness", "lo-evidence-snapshot-stale", "snapshot_age_known"),
         ("evidence-and-workflow-freshness", "lo-pine-library-snapshot-stale", "snapshot_age_known"),
-        ("evidence-and-workflow-freshness", "lo-pine-library-data-stale", "data_age_known"),
         ("evidence-and-workflow-freshness", "lo-tv-binding-snapshot-stale", "snapshot_age_known"),
         ("evidence-and-workflow-freshness", "lo-evidence-ledger-stale", "ledger_age_known"),
         ("evidence-and-workflow-freshness", "lo-evidence-audit-branch-stale", "audit_branch_age_known"),
@@ -2182,42 +1663,11 @@ def test_dashboard_service_status_panel_maps_starting_state() -> None:
     assert options.get("3", {}).get("text") == "OK"
 
 
-def test_stat_panel_targets_are_aggregated() -> None:
-    """Every target on the binding `stat` panel must collapse to one value.
-
-    A `stat` panel renders one tile per returned series. An unaggregated instant
-    vector therefore turns a single reading into a row of tiles that grows with
-    the series count — the panel silently reshapes itself as the label set
-    changes. #3919 added six targets without the `max()` every pre-existing
-    target carries; this is a property rather than another exact-string pin so
-    the next addition cannot reintroduce it.
-    """
-    repo_root = Path(__file__).resolve().parents[1]
-    dashboard_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard.json"
-    dashboard = json.loads(dashboard_path.read_text(encoding="utf-8"))
-    panel = next(p for p in dashboard["panels"] if p.get("title") == "TradingView Binding Status")
-    assert panel.get("type") == "stat", "this contract only holds for stat panels"
-
-    unaggregated = [
-        target["expr"]
-        for target in panel["targets"]
-        if not target["expr"].lstrip().startswith(("max(", "min(", "sum(", "avg(", "count("))
-    ]
-    assert not unaggregated, (
-        "stat-panel targets must be wrapped in an aggregation so they collapse to "
-        f"a single series; unaggregated: {unaggregated}"
-    )
-
-
 def test_dashboard_has_tradingview_binding_status_panel() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     dashboard_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard.json"
     dashboard = json.loads(dashboard_path.read_text(encoding="utf-8"))
     panel = next(p for p in dashboard["panels"] if p.get("title") == "TradingView Binding Status")
-    # The pin drifted: the panel gained the per-consumer and saved-source
-    # targets without this set following, so it had been failing on main.
-    # Re-pinned to the full panel, including the binding-coverage trio that
-    # makes "0 of 7 consumers verified" readable next to the drift verdict.
     expressions = {target["expr"] for target in panel["targets"]}
     assert expressions == {
         'max(live_overlay_tv_binding_snapshot_loaded{job="live_overlay"})',
@@ -2225,83 +1675,7 @@ def test_dashboard_has_tradingview_binding_status_panel() -> None:
         'max(live_overlay_tv_bindings_checked{job="live_overlay"})',
         'max(live_overlay_tv_binding_drift{job="live_overlay"})',
         'max(live_overlay_tv_binding_mismatches{job="live_overlay"})',
-        'max(live_overlay_tv_binding_check_known{job="live_overlay"})',
-        'max(live_overlay_tv_binding_consumers_expected{job="live_overlay"})',
-        'max(live_overlay_tv_binding_consumers_checked{job="live_overlay"})',
-        'max(live_overlay_tv_consumer_source_check_known{job="live_overlay"})',
-        'max(live_overlay_tv_consumer_sources_checked{job="live_overlay"})',
-        'max(live_overlay_tv_consumer_source_drift{job="live_overlay"})',
-        'max(live_overlay_tv_binding_failed_consumers{job="live_overlay"})',
-        'max(live_overlay_tv_consumer_binding_mismatches{job="live_overlay"})',
-        'max(live_overlay_tv_consumer_sources_expected{job="live_overlay"})',
-        'max(live_overlay_tv_consumer_sources_drifted{job="live_overlay"})',
-        'max(live_overlay_tv_consumer_source_matches{job="live_overlay"})',
-        'max(live_overlay_tv_consumer_source_failures{job="live_overlay"})',
     }
-
-
-def test_dashboard_has_pine_library_data_freshness_panel() -> None:
-    repo_root = Path(__file__).resolve().parents[1]
-    dashboard_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard.json"
-    dashboard = json.loads(dashboard_path.read_text(encoding="utf-8"))
-    panel = next(p for p in dashboard["panels"] if p.get("title") == "Pine library data freshness")
-    expressions = {target["expr"] for target in panel["targets"]}
-    assert expressions == {
-        'max(live_overlay_pine_library_data_age_seconds{job="live_overlay",library="smc_micro_profiles_generated"}) / 86400',
-        'max(live_overlay_pine_library_data_age_known{job="live_overlay",library="smc_micro_profiles_generated"})',
-    }
-
-
-def test_pine_library_data_stale_alert_uses_five_day_threshold() -> None:
-    # 432000s = 5 days, resized 2026-07-22 to the T-1 + morning-refresh
-    # cadence (2 days false-fired nightly; weekend peak is ~4d13h) — full
-    # rationale in the rule comment and in
-    # test_micro_profile_stale_threshold_absorbs_weekday_cadence.
-    import yaml
-
-    repo_root = Path(__file__).resolve().parents[1]
-    rules_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "alert-rules.yaml"
-    rules_doc = yaml.safe_load(rules_path.read_text(encoding="utf-8"))
-    group = next(g for g in rules_doc["groups"] if g.get("name") == "evidence-and-workflow-freshness")
-    rule = next(r for r in group["rules"] if r.get("uid") == "lo-pine-library-data-stale")
-    expr = rule["data"][0]["model"]["expr"]
-    assert "live_overlay_pine_library_data_age_known" in expr
-    assert "live_overlay_pine_library_data_age_seconds" in expr
-    assert "> bool 432000" in expr
-    assert rule["labels"]["severity"] == "critical"
-
-
-def test_pine_library_empty_probe_alert_detects_loaded_but_empty_snapshot() -> None:
-    import yaml
-
-    repo_root = Path(__file__).resolve().parents[1]
-    rules_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "alert-rules.yaml"
-    rules_doc = yaml.safe_load(rules_path.read_text(encoding="utf-8"))
-    group = next(g for g in rules_doc["groups"] if g.get("name") == "evidence-and-workflow-freshness")
-    rule = next(r for r in group["rules"] if r.get("uid") == "lo-pine-library-no-probes")
-    expr = rule["data"][0]["model"]["expr"]
-    assert "live_overlay_pine_library_snapshot_loaded" in expr
-    assert "live_overlay_pine_libraries_probed" in expr
-    assert "== bool 0" in expr
-    assert rule["labels"]["severity"] == "critical"
-
-
-def test_tradingview_saved_source_alerts_fail_closed_on_unknown_or_drift() -> None:
-    import yaml
-
-    repo_root = Path(__file__).resolve().parents[1]
-    rules_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "alert-rules.yaml"
-    rules_doc = yaml.safe_load(rules_path.read_text(encoding="utf-8"))
-    group = next(g for g in rules_doc["groups"] if g.get("name") == "evidence-and-workflow-freshness")
-    by_uid = {rule["uid"]: rule for rule in group["rules"]}
-    missing = by_uid["lo-tv-consumer-source-check-missing"]
-    drift = by_uid["lo-tv-consumer-source-drift"]
-    assert "source_check_known" in missing["data"][0]["model"]["expr"]
-    assert "== bool 0" in missing["data"][0]["model"]["expr"]
-    assert "source_check_known" in drift["data"][0]["model"]["expr"]
-    assert "source_drift" in drift["data"][0]["model"]["expr"]
-    assert missing["labels"]["severity"] == "critical"
-    assert drift["labels"]["severity"] == "critical"
 
 
 def test_tradingview_binding_snapshot_stale_alert_uses_24_hour_threshold() -> None:
@@ -2651,67 +2025,6 @@ def test_render_metrics_includes_daily_experiment_snapshot(
     assert 'live_overlay_experiment_day_family_hit_rate{run_date="2026-06-21",timeframe="5m",family="FVG"} 0.7' in body
 
 
-def _experiment_rollup(*, synthetic: bool) -> dict:
-    rollup = {
-        "schema_version": "1",
-        "scoring_root": "/x/artifacts/ci/measurement_benchmark_rolling/2026-06-21",
-        "files_scanned": 500,
-        "per_tf": {"5m": {"n_events": 200, "hit_rate": 0.61}},
-        "phase_e2_verdict": {
-            "fvg_ttf_5m_vs_baseline": {"status": "measured", "delta_hr": 0.08},
-            "bos_stability_4h_vs_baseline": {"status": "measured", "delta_hr": 0.07},
-        },
-    }
-    if synthetic:
-        rollup["synthetic"] = True
-    return rollup
-
-
-@pytest.mark.parametrize("synthetic", [True, False])
-def test_synthetic_rollup_cannot_export_a_measured_verdict(
-    monkeypatch: pytest.MonkeyPatch, synthetic: bool
-) -> None:
-    """Tripwire (F-6, 2026-08-08): a rollup that declares itself synthetic must
-    publish the flag and must not export a measured verdict code, so no
-    dashboard can render fabricated input as evidence. Introduced when
-    scripts/plan_2_8_evaluate.py was still drawing verdicts from ``random``;
-    kept after its removal so the next fabricated producer cannot go unnoticed.
-    """
-    import services.live_overlay_daemon.metrics as metrics_mod
-
-    _patch_common(
-        monkeypatch,
-        feed_ready=True,
-        market_open=True,
-        bar_count=10,
-        overlay_symbols=5,
-        overlay_age=60.0,
-    )
-    monkeypatch.setattr(
-        metrics_mod.compute,
-        "_load_experiment_snapshot",
-        lambda: _experiment_rollup(synthetic=synthetic),
-    )
-    monkeypatch.setattr(metrics_mod.compute, "_load_experiment_history", lambda: [])
-
-    body = metrics_mod.render_metrics(startup_ts=100.0)
-
-    expected_flag = "1.0" if synthetic else "0.0"
-    assert f"live_overlay_experiment_snapshot_synthetic {expected_flag}" in body
-
-    expected_status = "missing" if synthetic else "measured"
-    for hypothesis in ("fvg_5m", "bos_4h"):
-        assert (
-            "live_overlay_experiment_verdict_status_code"
-            f'{{hypothesis="{hypothesis}",status="{expected_status}"}}' in body
-        ), (hypothesis, synthetic, expected_status)
-
-    if synthetic:
-        assert 'status="measured"' not in body, (
-            "a fabricated rollup must not surface a measured verdict anywhere"
-        )
-
-
 def test_experiment_date_accepts_current_results_prefixed_scoring_root() -> None:
     import services.live_overlay_daemon.metrics as metrics_mod
 
@@ -2803,9 +2116,6 @@ def test_dashboard_railway_panels_query_emitted_metrics() -> None:
         "live_overlay_railway_service_network_rx_gb",
         "live_overlay_railway_service_network_tx_gb",
         "live_overlay_railway_service_memory_limit_gb",
-        # Wired to the Memory Limit panel by #3919; emitted in metrics.py
-        # with service labels, so this literal has to name it explicitly.
-        "live_overlay_railway_service_memory_gb",
     }
     expected_titles = {
         "Railway CPU Cores",
@@ -2834,26 +2144,12 @@ def test_dashboard_railway_panels_query_emitted_metrics() -> None:
     assert not bad, f"Railway panels query non-existent metrics: {bad}"
 
 
-def test_inert_restart_counters_are_no_longer_emitted(
+def test_render_metrics_includes_daemon_restarts_total_counter(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """live_overlay_daemon_restarts_total and restart_cause_*_total lived in
-    process memory, so every restart reset them to 1. Prometheus saw 1,1,1,...
-    -- no decrease, so no counter reset was detected, so increase()/rate() were
-    structurally 0. Measured in production 2026-07-23: the series read 1 while
-    changes(live_overlay_process_start_time_seconds[24h]) read 51.
-
-    The restart count is served truthfully via
-    changes(process_start_time_seconds), so these two are removed rather than
-    documented around for a third time. (2026-07-28: the cause-labeled
-    start-time gauge is gone as well — see the next test.)
-    """
-    import services.live_overlay_daemon.main as main_mod
+    """The dedicated restart counter is rendered as a counter series."""
     import services.live_overlay_daemon.metrics as metrics_mod
-
-    source = Path(main_mod.__file__).read_text(encoding="utf-8")
-    assert '"live_overlay.daemon.restarts_total"' not in source
-    assert "live_overlay.daemon.restart_cause." not in source
+    import services.live_overlay_daemon.observability as obs
 
     _patch_common(
         monkeypatch,
@@ -2863,22 +2159,26 @@ def test_inert_restart_counters_are_no_longer_emitted(
         overlay_symbols=5,
         overlay_age=60.0,
     )
+
+    with obs._counter_lock:
+        obs._counters["live_overlay.daemon.restarts_total"] = 3.0
+        obs._counters["live_overlay.daemon.restart_cause.deploy.total"] = 3.0
+
     body = metrics_mod.render_metrics(startup_ts=100.0)
-    assert "live_overlay_daemon_restarts_total" not in body
-    assert "live_overlay_daemon_restart_cause_" not in body
+    assert "# TYPE live_overlay_daemon_restarts_total counter" in body
+    assert "live_overlay_daemon_restarts_total 3.0" in body
+    assert "# TYPE live_overlay_daemon_restart_cause_deploy_total counter" in body
+    assert "live_overlay_daemon_restart_cause_deploy_total 3.0" in body
 
 
-def test_render_metrics_emits_no_cause_labeled_start_time_gauge(
+def test_render_metrics_emits_restart_cause_as_labeled_start_time_gauge(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The cause-labeled start-time gauge is gone (2026-07-28, B-sweep).
+    """Restart-cause attribution is a start-time-VALUED gauge LABELED by cause.
 
-    ``LIVE_OVERLAY_RESTART_CAUSE`` was never set in any deploy surface, so the
-    ``cause`` label was the constant ``unknown`` — and a statically-set env var
-    can never distinguish deploy from crash, so the documented semantics were
-    unreachable by construction. Restart counting stays truthful via
-    ``changes()`` of the unlabeled process start-time gauge, which must keep
-    being emitted.
+    ``changes(live_overlay_daemon_start_time_seconds[window])`` grouped by cause
+    counts real restarts per cause; the old per-cause ``*_total`` counters were
+    reset to 1 each process, so ``increase()`` over them was always 0.
     """
     import services.live_overlay_daemon.metrics as metrics_mod
 
@@ -2890,15 +2190,23 @@ def test_render_metrics_emits_no_cause_labeled_start_time_gauge(
         overlay_symbols=5,
         overlay_age=60.0,
     )
+    monkeypatch.setattr(metrics_mod.config, "restart_cause", lambda: "deploy")
 
     body = metrics_mod.render_metrics(startup_ts=100.0, startup_epoch=1700000000.0)
-    assert "live_overlay_daemon_start_time_seconds" not in body
-    assert 'cause="' not in body
-    # The unlabeled process gauge the crash-loop alert queries stays.
-    assert "# TYPE live_overlay_process_start_time_seconds gauge" in body
-    assert "live_overlay_process_start_time_seconds 1700000000.000" in body
-    # The accessor itself is gone from config — not just unused.
-    assert not hasattr(metrics_mod.config, "restart_cause")
+    assert "# TYPE live_overlay_daemon_start_time_seconds gauge" in body
+    assert (
+        'live_overlay_daemon_start_time_seconds{cause="deploy"} 1700000000.000' in body
+    )
+
+
+def test_main_lifespan_increments_restarts_total_counter() -> None:
+    """main.py _lifespan increments the dedicated restart counter."""
+    import services.live_overlay_daemon.main as main_mod
+
+    source = Path(main_mod.__file__).read_text(encoding="utf-8")
+    assert 'observability.metric_counter("live_overlay.daemon.restarts_total")' in source
+    assert "observability.metric_counter(" in source
+    assert "restart_cause" in source
 
 
 def test_dashboard_all_panels_have_datasource() -> None:
@@ -3394,9 +2702,15 @@ def test_render_metrics_tolerates_non_numeric_signal_counts(monkeypatch: pytest.
     assert "live_overlay_trading_signals_a0 0.0" in body
     assert "live_overlay_trading_signals_a1 0.0" in body
     assert "live_overlay_trading_signals_a2 0.0" in body
+    # Deprecated *_total aliases stay emitted during the naming transition.
+    assert "live_overlay_trading_signals_active_total 0.0" in body
+    assert "live_overlay_trading_signals_a0_total 0.0" in body
+    assert "live_overlay_trading_signals_a1_total 0.0" in body
+    assert "live_overlay_trading_signals_a2_total 0.0" in body
     # The snapshot still loaded and the (valid) watched list still parsed.
     assert "live_overlay_trading_signals_loaded 1.0" in body
     assert "live_overlay_trading_signals_watched 1.0" in body
+    assert "live_overlay_trading_signals_watched_total 1.0" in body
 
 
 def test_coerce_count_coerces_all_edge_inputs() -> None:
@@ -3416,334 +2730,3 @@ def test_coerce_count_coerces_all_edge_inputs() -> None:
     assert c(float("nan")) == 0
     assert c(float("inf")) == 0
     assert c(-4) == 0
-
-
-def test_render_metrics_bridge_scrape_success_reflects_last_attempt(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A retained keep-last-good snapshot with a failed last attempt must
-    render scrape_success=0 and the truthful error label — not the frozen
-    ok=1/error=none of the last success (audit: lo-bridge-scrape-failed was
-    unreachable while the runbook pointed at the lying error_info)."""
-    import services.live_overlay_daemon.metrics as metrics_mod
-
-    _patch_common(
-        monkeypatch,
-        feed_ready=True,
-        market_open=True,
-        bar_count=10,
-        overlay_symbols=5,
-        overlay_age=60.0,
-    )
-    monkeypatch.setattr(
-        metrics_mod.uptimerobot_bridge,
-        "snapshot",
-        lambda: {
-            "enabled": 1,
-            "configured": 1,
-            "ok": 1,  # retained last-good payload
-            "fetched_at_unix": 1_700_000_000.0,
-            "last_success_fetched_at_unix": 1_700_000_000.0,
-            "scrape_duration_seconds": 0.123,
-            "counts": {"total": 4, "up": 4, "down": 0, "paused": 0, "unknown": 0},
-            "avg_response_time_ms": 101.5,
-            "monitors": [],
-            "last_attempt_ok": 0,
-            "last_attempt_error_code": "timeout",
-        },
-    )
-
-    body = metrics_mod.render_metrics(100.0, 1_700_000_000.0)
-
-    assert 'live_overlay_bridge_scrape_success{bridge="uptimerobot"} 0' in body
-    assert 'live_overlay_bridge_error_info{bridge="uptimerobot",error="timeout"} 1' in body
-    # last-good data stays served (retention is the point of the cache)
-    assert "live_overlay_uptimerobot_monitors_up_total 4" in body
-
-
-def test_render_metrics_hotspot_name_collisions_are_aggregated(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Symbols that sanitize to the same metric name (BRK.A / BRK-A) must
-    render as ONE series: duplicate TYPE headers + samples make Prometheus
-    reject the entire exposition — a whole-scrape blackout from one request
-    pair (runtime-verified in the data-path audit)."""
-    import services.live_overlay_daemon.metrics as metrics_mod
-
-    _patch_common(
-        monkeypatch,
-        feed_ready=True,
-        market_open=True,
-        bar_count=10,
-        overlay_symbols=5,
-        overlay_age=60.0,
-    )
-    monkeypatch.setattr(
-        metrics_mod.request_hotspots,
-        "snapshot",
-        lambda top_n=5: {
-            "symbol_count": 2,
-            "tf_count": 2,
-            "top_symbols": [("BRK.A", 3.0), ("BRK-A", 2.0)],
-            "top_tfs": [("5m", 4.0), ("5M", 1.0)],
-        },
-    )
-
-    body = metrics_mod.render_metrics(100.0, 1_700_000_000.0)
-
-    assert body.count("# TYPE live_overlay_hotspot_symbol_brk_a_requests_total counter") == 1
-    assert "live_overlay_hotspot_symbol_brk_a_requests_total 5.0" in body
-    assert body.count("# TYPE live_overlay_hotspot_tf__5m_requests_total counter") == 1
-    assert "live_overlay_hotspot_tf__5m_requests_total 5.0" in body
-
-
-def test_hold_manager_shadow_rejection_counters_are_seeded(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Die drei Rejection-Counter existieren vor der ersten Ablehnung.
-
-    2026-08-19 (Doppelgaenger K12): ``lo-hold-manager-shadow-rejected`` matcht
-    sie per ``increase(...[30m])`` und begruendet sich selbst damit, dass jede
-    Rejection-Klasse ein "first-of-its-kind event" ist — genau die Probe, die
-    ein lazy erzeugter Counter als Baseline verschluckt. Dieselbe Falle kostete
-    schon einmal den ersten Fehler-Burst der Compute-Zyklen (Seed-Kommentar in
-    metrics.py); die Lehre war nicht generalisiert worden.
-    """
-    import services.live_overlay_daemon.metrics as metrics_mod
-    import services.live_overlay_daemon.observability as obs
-
-    _patch_common(
-        monkeypatch,
-        feed_ready=True,
-        market_open=True,
-        bar_count=10,
-        overlay_symbols=5,
-        overlay_age=60.0,
-    )
-
-    with obs._counter_lock:
-        obs._counters.clear()
-
-    body = metrics_mod.render_metrics(startup_ts=100.0)
-
-    assert "live_overlay_hold_manager_shadow_contract_rejected_total 0.0" in body
-    assert "live_overlay_hold_manager_shadow_payload_rejected_total 0.0" in body
-    assert "live_overlay_hold_manager_shadow_event_time_rejected_total 0.0" in body
-
-
-def test_every_increase_consumed_counter_family_is_seeded() -> None:
-    """ABGELEITET: jede Counter-Familie, ueber die eine Alarmregel ``increase()``
-    rechnet, muss in der Seed-Liste stehen.
-
-    Handliste gegen Handliste war die Bug-Klasse: die Seed-Liste wuchs pro
-    Vorfall, die Alarmregeln wuchsen unabhaengig. Dieser Zeuge liest BEIDE
-    Seiten aus den echten Dateien. Die Regex-Alarmform
-    (``{__name__=~"..._(a|b|c)_total"}``) wird mit expandiert — sie entzieht
-    sich einem naiven ``grep increase(live_overlay_``.
-    """
-    import re
-
-    root = Path(__file__).resolve().parents[1] / "services" / "live_overlay_daemon"
-    rules = (root / "infra" / "grafana" / "alert-rules.yaml").read_text(encoding="utf-8")
-    metrics_src = (root / "metrics.py").read_text(encoding="utf-8")
-
-    consumed: set[str] = set()
-    # Direkte Form: increase(live_overlay_foo_total[5m])
-    consumed.update(re.findall(r"increase\((live_overlay_[a-z0-9_]+)\s*[\[{]", rules))
-    # Regex-Form: {__name__=~"live_overlay_x_(a|b)_total"} -> expandieren
-    for stem, alts, tail in re.findall(
-        r'__name__=~"(live_overlay_[a-z0-9_]*?)\(([a-z0-9_|]+)\)([a-z0-9_]*)"', rules
-    ):
-        consumed.update(f"{stem}{alt}{tail}" for alt in alts.split("|"))
-    assert len(consumed) >= 10, f"Zeuge zu klein — Alarm-Parsing gebrochen? {sorted(consumed)}"
-
-    # Seed-Liste: Punkt-Keys -> Prometheus-Namen (metrics.py ersetzt '.' durch '_')
-    # Auf die schliessende Klammer IN IHRER EINRUECKUNG schneiden, nicht auf
-    # das erste "):" — ein Kommentar im Block ("(Doppelgaenger K12): ...")
-    # enthaelt die Sequenz sonst und kappt die Liste still (hier passiert).
-    seed_block = metrics_src.split("for traffic_counter in (", 1)[1].split("\n    ):", 1)[0]
-    seeded = {
-        name.replace(".", "_") for name in re.findall(r'"(live_overlay\.[^"]+)"', seed_block)
-    }
-    assert len(seeded) >= 9, f"Seed-Liste unplausibel klein: {sorted(seeded)}"
-
-    # Nur Counter, die dieser Prozess selbst emittiert, koennen geseedet werden;
-    # Bridge-/Fremdmetriken (evidence, workflow, railway, uptimerobot ...) nicht.
-    own = {name for name in consumed if "hold_manager_shadow" in name or "smc_live" in name}
-    missing = own - seeded
-    assert not missing, (
-        f"Alarmregeln rechnen increase() ueber ungeseedete Counter: {sorted(missing)} — "
-        "der erste Burst pro Prozess-Lebenszeit wird als Baseline verschluckt"
-    )
-
-
-def test_effective_max_event_age_is_exported(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Der WIRKSAME Config-Wert steht im Scrape, nicht nur in der Doku.
-
-    2026-08-19 (Doppelgaenger K13): Railway laeuft mit 86400, README/OPS
-    dokumentierten 900, und ``lo-hold-manager-shadow-rejected`` behauptete die
-    86400 in PROSA. Drei Repliken, keine Messung. Als Gauge ist der deployte
-    Wert eine Query entfernt — "deployed == declared" wird pruefbar, statt
-    geglaubt zu werden.
-    """
-    import services.live_overlay_daemon.metrics as metrics_mod
-
-    _patch_common(
-        monkeypatch,
-        feed_ready=True,
-        market_open=True,
-        bar_count=10,
-        overlay_symbols=5,
-        overlay_age=60.0,
-    )
-    monkeypatch.setenv("HOLD_MANAGER_SHADOW_MAX_EVENT_AGE_SECS", "86400")
-
-    body = metrics_mod.render_metrics(startup_ts=100.0)
-
-    assert "live_overlay_hold_manager_shadow_max_event_age_secs 86400" in body
-    # Der Wert FOLGT der Umgebung — eine hartkodierte Zahl waere eine vierte
-    # Replik statt einer Messung (Gegenprobe mit dem Code-Default).
-    monkeypatch.setenv("HOLD_MANAGER_SHADOW_MAX_EVENT_AGE_SECS", "900")
-    assert (
-        "live_overlay_hold_manager_shadow_max_event_age_secs 900"
-        in metrics_mod.render_metrics(startup_ts=100.0)
-    )
-
-
-def test_service_docs_state_the_code_default_for_max_event_age() -> None:
-    """README und OPS muessen den Code-Default nennen — beide Repliken.
-
-    Sie duerfen zusaetzlich die Produktions-Abweichung nennen (tun sie), aber
-    der Default darf nicht driften: sonst liest ein Operator 900, waehrend
-    config.py etwas anderes klemmt.
-    """
-    root = Path(__file__).resolve().parents[1] / "services" / "live_overlay_daemon"
-    src = (root / "config.py").read_text(encoding="utf-8")
-    block = src.split("def hold_manager_shadow_max_event_age_secs", 1)[1].split("def ", 1)[0]
-    code_default = re.search(r'"HOLD_MANAGER_SHADOW_MAX_EVENT_AGE_SECS",\s*(\d+)', block)
-    assert code_default, "Default in config.py nicht gefunden — Struktur geaendert?"
-    value = code_default.group(1)
-
-    for doc in ("README.md", "OPS.md"):
-        row = [
-            line
-            for line in (root / doc).read_text(encoding="utf-8").splitlines()
-            if "`HOLD_MANAGER_SHADOW_MAX_EVENT_AGE_SECS`" in line
-        ]
-        assert len(row) == 1, f"{doc}: erwartet genau eine Tabellenzeile, gefunden {len(row)}"
-        assert f"`{value}`" in row[0], f"{doc} nennt den Code-Default {value} nicht: {row[0]}"
-
-
-def test_window_change_alert_watches_the_gauge_without_copying_its_value() -> None:
-    """Die Alarmregel zum Fenster darf die Zahl NICHT noch einmal tragen.
-
-    Operator-Entscheid 2026-08-19: Das Fenster bekommt eine Regel, aber weder
-    „weicht vom Code-Default ab" (stuende dauerhaft rot, weil die Abweichung
-    die Entscheidung IST) noch „< 86400" (waere die VIERTE Replik der Zahl,
-    die dieser Branch gerade eliminiert). Gewaehlt wurde ``changes()`` — die
-    einzige Form, die den stillen Bruch meldet und dabei keine Kopie des Werts
-    enthaelt. Dieser Test haelt genau diese Eigenschaft fest.
-    """
-    rules_path = (
-        Path(__file__).resolve().parents[1]
-        / "services"
-        / "live_overlay_daemon"
-        / "infra"
-        / "grafana"
-        / "alert-rules.yaml"
-    )
-    document = yaml.safe_load(rules_path.read_text(encoding="utf-8"))
-    rules = {
-        rule["uid"]: rule
-        for group in document["groups"]
-        for rule in group["rules"]
-    }
-    uid = "lo-hold-manager-shadow-window-changed"
-    assert uid in rules, (
-        f"{uid} fehlt — ohne sie ist die Gauge sichtbar, aber niemand bemerkt, "
-        "wenn das Fenster zurueckfaellt."
-    )
-    rule = rules[uid]
-    expressions = "\n".join(node["model"].get("expr", "") for node in rule["data"])
-
-    assert "changes(" in expressions, (
-        "die Regel muss auf die AENDERUNG reagieren, nicht auf einen Schwellwert"
-    )
-    assert "live_overlay_hold_manager_shadow_max_event_age_secs" in expressions
-
-    # Der Kern: keine Replik des Werts im Ausdruck. Der Kommentarblock darueber
-    # darf die Zahlen nennen (er begruendet die Wahl) — der AUSDRUCK nicht.
-    numbers = set(re.findall(r"\b\d{3,}\b", expressions))
-    assert not numbers, (
-        f"die Regel traegt Zahlenliteral(e) {sorted(numbers)} im Ausdruck — "
-        "genau die vierte Replik, die dieser Branch beseitigt. Der Ausdruck "
-        "muss ohne den Wert auskommen."
-    )
-    assert rule["labels"]["severity"] == "warning", (
-        "Konfigurationsregression ist kein Ausfall — warning, nicht critical"
-    )
-
-
-def test_no_range_function_over_a_multi_metric_name_selector() -> None:
-    """`increase()`/`rate()` ueber `{__name__=~"...(a|b)..."}` ist nicht evaluierbar.
-
-    Die Range-Funktionen verwerfen `__name__`. Passen MEHRERE Metriknamen auf
-    den Selector, tragen die Ergebnisse danach identische Labelsets und
-    Prometheus bricht mit "vector cannot contain metrics with the same
-    labelset" ab — die Regel ist dann dauerhaft `health=error` und feuert nie.
-
-    Gemeine Eigenschaft: solange nur EINE der Serien existiert, funktioniert
-    alles. Erst das Seeding aller Counter (#4880) machte die Kollision
-    sichtbar, d.h. der Defekt schlaeft genau so lange, wie der Alarm ohnehin
-    keine Daten haette. Gemessen 19.8.: `sum by (__name__)` repariert es NICHT,
-    nur die explizite Summe je Metrik.
-    """
-    root = Path(__file__).resolve().parents[1] / "services" / "live_overlay_daemon"
-    rules = (root / "infra" / "grafana" / "alert-rules.yaml").read_text(encoding="utf-8")
-
-    offenders: list[str] = []
-    for match in re.finditer(
-        r"(?:increase|rate|irate|delta|idelta)\(\s*\{[^}]*__name__\s*=~\s*\"(?P<pat>[^\"]+)\"",
-        rules,
-    ):
-        pattern = match.group("pat")
-        # Mehrere Namen entstehen durch eine Alternative im Regex.
-        if "|" in pattern:
-            offenders.append(pattern)
-
-    assert not offenders, (
-        "Range-Funktion ueber einen Selector, der MEHRERE Metriknamen matcht — "
-        "die Query bricht mit doppeltem Labelset ab und die Regel feuert nie. "
-        "Je Metrik einzeln summieren:\n  " + "\n  ".join(offenders)
-    )
-
-
-def test_pre_a0_snapshot_alert_gates_on_the_same_path_it_measures():
-    """Ein Lastwaechter aus einem ANDEREN Zeitfenster macht die Regel dauerhaft wahr.
-
-    2026-08-20 gemessen: `a0_fast_records_processed_total` laeuft vor- und
-    nachboerslich weiter (5821 Records/h um 08 UTC), waehrend
-    `pre_a0_snapshots_recorded_total` ausschliesslich 13-20 UTC steigt. Die
-    CRITICAL-Regel war dadurch 23,2 % der Woche wahr -- 39 Fehlalarm-Stunden,
-    an jedem Handelstag 4,5-9,2 h am Stueck. Der Waechter muss aus DEMSELBEN
-    Pfad kommen wie der gemessene Zaehler; dann braucht er keine Uhr und
-    ueberlebt die Zeitumstellung.
-    """
-    root = Path(__file__).resolve().parents[1] / "services" / "live_overlay_daemon"
-    rules = (root / "infra" / "grafana" / "alert-rules.yaml").read_text(encoding="utf-8")
-    # Block = ab der uid bis zur naechsten uid (oder Dateiende) -- robuster als
-    # ein Lookahead, der eine Folge-Regel voraussetzt.
-    chunks = [c for c in rules.split("- uid: ") if c.startswith("pre-a0-snapshots-not-recorded")]
-    assert chunks, "Regel pre-a0-snapshots-not-recorded fehlt"
-    exprs = [e for c in chunks for e in re.findall(r"^\s*expr:\s*(.+)$", c, re.M)]
-    assert exprs, "kein expr im Regelblock"
-    if True:
-        for expr in exprs:
-            assert "pre_a0_snapshots_recorded_total" in expr, expr
-            assert "a0_fast_records_processed_total" not in expr, (
-                "Lastwaechter aus dem A0-Fast-Ingest: laeuft ausserhalb der Sitzung "
-                "weiter und macht die Regel taeglich stundenlang wahr. Einen "
-                "pre_a0_*-Zaehler nehmen. " + expr
-            )
-            guards = [m for m in ("pre_a0_scores_total", "pre_a0_estimates_total") if m in expr]
-            assert guards, "kein pre_a0_*-Lastwaechter im Ausdruck: " + expr

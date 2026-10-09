@@ -1,8 +1,14 @@
-"""Legacy file-lifecycle compatibility view (ENG-WS6-04).
+"""Legacy / Experimental classification for product files (ENG-WS6-04).
 
-SMC product files are classified through the canonical registry exposed by
-``scripts.smc_surface_matrix``.  The override table is intentionally limited
-to non-SMC Pine files that live outside that registry.
+Builds on the surface matrix (WS6-01). Where WS6-01 declares the
+class for top-level product surfaces, this module classifies every
+Pine file in the workspace so later cleanup steps can act surgically
+instead of broadly.
+
+DoD:
+- Legacy- und Experimental-Dateien sind explizit markiert,
+- die Produktidentitaet wird dadurch nicht mehr verwaessert,
+- spaetere Cleanup-Schritte koennen gezielt statt breit erfolgen.
 """
 from __future__ import annotations
 
@@ -20,10 +26,25 @@ class FileLifecycle(StrEnum):
     UNCLASSIFIED = "unclassified"
 
 
-# Exact non-SMC filenames that are intentionally outside SURFACE_DEFINITIONS.
-# SMC entries must never be added here: their lifecycle belongs in the
-# canonical registry and flows through SURFACE_MATRIX.
+# Explicit overrides for files that are NOT in SURFACE_MATRIX but
+# still need a clear lifecycle classification. Keys are exact
+# filenames (basename); use this to mark scratch / single-purpose
+# Pine files.
 EXPLICIT_OVERRIDES: dict[str, FileLifecycle] = {
+    # Hero/Engine production-adjacent helpers.
+    "SMC_Long_Dip_Suite.pine": FileLifecycle.PRODUCTION,
+    "SMC_Structure_Context.pine": FileLifecycle.PRODUCTION,
+    "SMC_Liquidity_Context.pine": FileLifecycle.PRODUCTION,
+    "SMC_Liquidity_Structure.pine": FileLifecycle.PRODUCTION,
+    "SMC_Imbalance_Context.pine": FileLifecycle.PRODUCTION,
+    "SMC_Profile_Context.pine": FileLifecycle.PRODUCTION,
+    "SMC_Session_Context.pine": FileLifecycle.PRODUCTION,
+    "SMC_HTF_Confluence.pine": FileLifecycle.PRODUCTION,
+    "SMC_Long_Dip_Strategy.pine": FileLifecycle.PRODUCTION,
+    # Operator-facing helpers not in SURFACE_MATRIX.
+    # (SMC_Setup_Check / SMC_TV_Bridge / SMC_Event_Overlay are already
+    # in SURFACE_MATRIX.)
+    # Experimental.
     "BFI-Reversal.pine": FileLifecycle.EXPERIMENTAL,
     "Breakout_Finder_Intelligent.pine": FileLifecycle.EXPERIMENTAL,
     "REV-BUY.pine": FileLifecycle.EXPERIMENTAL,
@@ -31,12 +52,12 @@ EXPLICIT_OVERRIDES: dict[str, FileLifecycle] = {
     "REV-Ladder-CHoCH.pine": FileLifecycle.EXPERIMENTAL,
     "BTC 3m EV Scalper BALANCED (Harmonized).pine": FileLifecycle.EXPERIMENTAL,
     "test_div.pine": FileLifecycle.EXPERIMENTAL,
+    # Legacy CHoCH/QuickALGO family — non-matrix entries only.
+    # (CHOCH-Indicator / CHOCH-Strategy / QuickALGO are in SURFACE_MATRIX.)
     "CHOCH-Base_Indikator.pine": FileLifecycle.LEGACY,
     "CHOCH-Base_Strategy.pine": FileLifecycle.LEGACY,
-    "CHOCH-Indicator.pine": FileLifecycle.LEGACY,
-    "CHOCH-Strategy.pine": FileLifecycle.LEGACY,
     "CHoCH.pine": FileLifecycle.LEGACY,
-    "QuickALGO.pine": FileLifecycle.LEGACY,
+    "SMC_Confluence_Hub.pine": FileLifecycle.LEGACY,
 }
 
 
@@ -53,8 +74,8 @@ def classify_file(filename: str) -> FileLifecycle:
     """Return the lifecycle classification for a given Pine filename.
 
     Resolution order:
-      1. SURFACE_MATRIX (compatibility projection of the canonical registry).
-      2. EXPLICIT_OVERRIDES for non-SMC files.
+      1. SURFACE_MATRIX (top-level product surfaces).
+      2. EXPLICIT_OVERRIDES.
       3. UNCLASSIFIED — flagged so later cleanup steps see the gap.
     """
     for entry in SURFACE_MATRIX:

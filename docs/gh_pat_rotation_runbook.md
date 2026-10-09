@@ -18,8 +18,6 @@ this document describes how to act on it.
 - Expiry timestamp: `2027-06-06T05:55:43+00:00`.
 - The `bot/live-experiment-snapshot` publish from `plan-2-8-evaluation.yml`
   is working again (run `28431210453` pushed successfully on 2026-06-30).
-  (That workflow was deleted in #4549; the branch is now published by
-  `smc-measurement-benchmark-rolling.yml`.)
 
 No rotation is required right now. The `credential-health-check.yml` probe
 will raise a `warn` at 30 days before expiry and an `error` at 7 days. Treat
@@ -50,10 +48,7 @@ The probe thresholds live in `scripts/credential_health_check.py`
 as the **primary** push/PR identity, so they fail hardest on a bad token:
 
 - `credential-health-check.yml` — daily probe; also publishes the snapshot.
-- `smc-measurement-benchmark-rolling.yml` — publishes
-  `bot/live-experiment-snapshot`. This was `plan-2-8-evaluation.yml` until
-  #4549 deleted it; validate the rolling workflow instead, or the branch's
-  actual publisher goes unchecked during a rotation.
+- `plan-2-8-evaluation.yml` — publishes `bot/live-experiment-snapshot`.
 
 The remaining consumers use it for auto-PR creation, `update-branch` calls,
 and self-hosted runner resolution (where it falls back to `github.token`).
@@ -136,11 +131,12 @@ token's expiry.
 Then exercise the publish path that originally surfaced the alert:
 
 ```bash
-gh workflow run smc-measurement-benchmark-rolling.yml --repo skipp-dev/skipp-algo --ref main
+gh workflow run plan-2-8-evaluation.yml --repo skipp-dev/skipp-algo --ref main
 ```
 
-Success looks like a green **Publish experiment snapshot to rolling bot branch**
-step, with `bot/live-experiment-snapshot` advancing to a fresh commit.
+Success looks like `Pushed experiment snapshots to bot/live-experiment-snapshot`
+in the **Publish snapshots to rolling bot branch** step. The branch
+`bot/live-experiment-snapshot` should advance to a fresh commit.
 
 ---
 

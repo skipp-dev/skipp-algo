@@ -14,7 +14,6 @@ but CI itself is no longer a self-hosted Policy-B example.
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 
 import pytest
@@ -32,11 +31,6 @@ _ROUTED_MERGE_CRITICAL_WORKFLOWS = (
 )
 _COMPOSITE_USES_REF = "./.github/actions/setup-python-pinned"
 _HOSTED_RUNS_ON = "${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}"
-# 2026-08-29: zweite erlaubte Hosted-Form (arm64-Standard-Runner via
-# `SMC_CI_ARM_RUNNER`, siehe tests/test_workflow_runner_pinned.py). Was
-# dieser Test schuetzt — hosted, kein self-hosted-Selektor, gepinnter
-# Python-Bootstrap — bleibt davon unberuehrt.
-from tests._workflow_yaml import HOSTED_RUNS_ON_FORMS as _HOSTED_RUNS_ON_FORMS
 
 
 def _load(path: Path) -> dict:
@@ -81,36 +75,9 @@ def test_hosted_only_merge_critical_workflow_uses_pinned_bootstrap(workflow_path
     assert "select-runner" not in jobs, f"{workflow_path.name} must not route CI through self-hosted selector"
     validate = jobs.get("validate")
     assert isinstance(validate, dict), f"{workflow_path.name} must define validate job"
-    assert validate.get("runs-on") in _HOSTED_RUNS_ON_FORMS
+    assert validate.get("runs-on") == _HOSTED_RUNS_ON
     assert any(step.get("uses") == _COMPOSITE_USES_REF for step in validate.get("steps", []) or [])
     assert not any(str(step.get("uses", "")).startswith("actions/setup-python@") for step in validate.get("steps", []) or [])
-
-
-#: Tokens that mean a step needs the interpreter, so the job must bootstrap the
-#: pinned one. Narrow on purpose: `uses:` counts unconditionally because a
-#: third-party action may run Python without ever spelling it.
-_PYTHON_TOKENS = ("python", "pytest", "pip ", "pip3", "uv ", "coverage")
-
-
-def _runs_python(job: dict) -> bool:
-    """Does this job execute any Python at all?
-
-    Added 2026-08-06 for the `gate` job, whose whole point is to be the one
-    thing that cannot fail for an unrelated reason: it checks out nothing,
-    installs nothing and reads two `needs.*.result` strings in bash. Requiring
-    it to bootstrap an interpreter it never calls would hand the required merge
-    check extra ways to break.
-
-    Scoped so a job that DOES touch Python can never slip through: any `uses:`
-    at all, or any Python token in a `run:` body, puts the job back in scope.
-    """
-    for step in job.get("steps", []) or []:
-        if step.get("uses"):
-            return True
-        body = str(step.get("run", "")).lower()
-        if any(token in body for token in _PYTHON_TOKENS):
-            return True
-    return False
 
 
 @pytest.mark.parametrize("workflow_path", _ROUTED_MERGE_CRITICAL_WORKFLOWS, ids=lambda p: p.name)
@@ -124,7 +91,7 @@ def test_merge_critical_workflow_uses_hosted_bootstrap_and_portable_resolver(wor
     worker_jobs = {
         job_name: job
         for job_name, job in jobs.items()
-        if isinstance(job, dict) and job_name != "select-runner" and _runs_python(job)
+        if isinstance(job, dict) and job_name != "select-runner"
     }
     assert worker_jobs, f"{workflow_path.name} must have at least one worker job"
 
@@ -190,87 +157,3 @@ def test_merge_critical_workflow_uses_hosted_bootstrap_and_portable_resolver(wor
             f"{loud_fail_message!r} when Python 3.12 is missing on self-hosted, "
             f"or install it via the '{_COMPOSITE_USES_REF}' composite as a fallback."
         )
-
-
-def test_every_workflow_python_version_literal_matches_the_composite() -> None:
-    """DERIVED population: no workflow may pin a different interpreter.
-
-    2026-08-18 (Doppelgaenger-Sweep A4): the composite declared itself the
-    single source of truth ("3.12") while NINE cron workflows had drifted to a
-    hard "3.13" — two interpreters running against one requirements.lock that
-    was resolved for exactly one of them. The old guard listed 4 workflows by
-    name; this one scans them all, so the next drift fails on the PR that
-    introduces it.
-
-    Scope (2026-08-19, review follow-up to #4823): `${{ … }}` expressions
-    (matrix REFERENCES, vars) are skipped as deliberate constructs. A matrix
-    AXIS that spells versions inline (e.g. ["3.12", "3.13"]) is judged per
-    version and named as such — a second interpreter against the one
-    requirements.lock is exactly this defect class, so even a matrix must
-    arrive via the composite decision. A block-style axis (values on their own
-    `- "…"` lines) is refused outright: this scan is line-based on purpose
-    (immune to YAML's 3.10-as-float trap) and must not grow a shape it cannot
-    read. The vacuity witness counts composite adoptions too, so migrating
-    workflows onto `setup-python-pinned` — the preferred fix — never reads as
-    a vacuous scan.
-    """
-    composite = _load(_COMPOSITE_PATH)
-    steps = composite["runs"]["steps"]
-    pinned = next(
-        step["with"]["python-version"]
-        for step in steps
-        if str(step.get("uses", "")).startswith("actions/setup-python@")
-    )
-
-    pattern = re.compile(r"python-version:\s*['\"]?([^\s'\"]+)")
-    bare_key = re.compile(r"^\s*python-version:\s*$")
-    offenders: list[str] = []
-    scanned = 0
-    composite_adoptions = 0
-    workflows_dir = _REPO_ROOT / ".github" / "workflows"
-    # *.yml AND *.yaml — GitHub runs both; the sibling population guards
-    # (test_workflow_auth_pattern.py etc.) chain both globs for the same reason.
-    for workflow in sorted([*workflows_dir.glob("*.yml"), *workflows_dir.glob("*.yaml")]):
-        for lineno, line in enumerate(workflow.read_text(encoding="utf-8").splitlines(), 1):
-            stripped = line.split("#")[0]
-            if _COMPOSITE_USES_REF in stripped:
-                composite_adoptions += 1
-                continue
-            if bare_key.match(stripped.rstrip()):
-                offenders.append(
-                    f"{workflow.name}:{lineno} -> block-style python-version list; "
-                    "use a flow-style axis this scan can read, or the composite"
-                )
-                continue
-            match = pattern.search(stripped)
-            if not match:
-                continue
-            value = match.group(1)
-            if value.startswith("${{"):
-                continue  # expression (matrix reference/vars) — a deliberate construct, not a drifted literal
-            if value.startswith("["):
-                axis_raw = stripped.split(":", 1)[1].strip().strip("[]")
-                axis_versions = [
-                    v.strip().strip("'\"") for v in axis_raw.split(",") if v.strip().strip("'\"")
-                ]
-                scanned += len(axis_versions)
-                offenders.extend(
-                    f"{workflow.name}:{lineno} -> matrix axis {version!r}"
-                    for version in axis_versions
-                    if version != pinned
-                )
-                continue
-            scanned += 1
-            if value != pinned:
-                offenders.append(f"{workflow.name}:{lineno} -> {value!r}")
-    witness = scanned + composite_adoptions
-    assert witness >= 15, (
-        f"only {scanned} python-version literals + {composite_adoptions} composite "
-        "adoptions found — either the scan went vacuous (glob/regex broke) or the "
-        "population truly shrank; if so, lower this floor in the same PR and say why."
-    )
-    assert not offenders, (
-        f"workflows pin a different interpreter than the composite ({pinned!r}): "
-        f"{offenders}. Edit the composite to bump the toolchain — never one "
-        "workflow alone."
-    )

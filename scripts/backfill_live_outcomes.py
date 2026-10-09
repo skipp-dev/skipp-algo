@@ -14,10 +14,10 @@ This module is intentionally I/O-narrow:
   ``action``, ``entry_price``, ``stop_loss``, ``fill_price`` and
   ``size_usd``. Optional ``close_price`` and ``close_action`` come from
   the executor's reconcile-fills stage.
-* **Outputs.** The same JSONL file, atomically rewritten, with explicit
-  evidence class, gross outcome, optional fees/net outcome, entry slippage
-  and R-multiple populated on every closed trade. Unknown fees remain
-  unknown; the backfill never invents a zero-cost execution.
+* **Outputs.** The same JSONL file, atomically rewritten, with
+  ``outcome_pnl_usd`` and ``outcome_r_multiple`` populated on every
+  ``filled``-then-closed pair. Records that have not yet closed are
+  passed through unchanged.
 
 There is no network access, no IBKR client, and no clock. That makes
 the hook fast and trivially testable, and lets us call it from a cron
@@ -38,10 +38,6 @@ logger = logging.getLogger(__name__)
 
 R_MULTIPLE_KEY = "outcome_r_multiple"
 PNL_KEY = "outcome_pnl_usd"
-# Documented pre-GTC/EOD-flatten orphans (stamped by
-# scripts/c13_orphan_close_sweep.py, #4848-Nacharbeit): can never close,
-# counted separately instead of inflating records_pending_close forever.
-ORPHANED_STATUS = "orphaned"
 
 # C13/T8.3 — opening-auction imbalance annotation keys (additive). The
 # imbalance loader is a Phase-A passive enrichment; downstream
@@ -102,54 +98,55 @@ def _atomic_write_jsonl(path: Path, records: list[dict[str, Any]]) -> None:
         raise
 
 
-OUTCOME_SCHEMA_KEY = "outcome_schema_version"
-OUTCOME_SCHEMA_VERSION = 3
-
-
 def compute_trade_outcome(
     *,
-    fill_price: float,
+    entry_price: float,
     stop_loss: float,
     close_price: float,
     size_usd: float,
 ) -> tuple[float, float]:
     """Return ``(pnl_usd, r_multiple)`` for a long-only Phase-B trade.
 
-    The R-multiple is ``(close - fill) / (fill - stop)``. PnL uses the
-    same realised fill and the realised notional stamped by the fill
-    reconciler. The submitted limit remains available as ``entry_price``
-    for slippage analysis, but is not an execution outcome anchor.
+    The R-multiple is ``(close - entry) / (entry - stop)``. A close at
+    the entry yields ``0R``, a close at the take-profit yields ``+1R``
+    if the TP was placed at ``entry + (entry - stop)``, and a stop-out
+    yields ``-1R``. The PnL in USD is the R-multiple scaled by the
+    notional risk per trade (``size_usd / leverage`` is *not* applied —
+    the live runner already records the realised dollar exposure).
 
     Raises
     ------
     ValueError
-        If ``fill_price <= stop_loss`` (non-positive realised risk), or
-        if any input is non-finite / ``fill_price <= 0``.
+        If ``entry_price == stop_loss`` (zero-risk trade — this should
+        have been blocked by ``smc_to_ibkr_adapter`` already; defence
+        in depth), or if any price is non-finite / ``entry_price <= 0``
+        (corrupt ledger data — a zero entry would otherwise divide by
+        zero below).
     """
-    if not all(math.isfinite(v) for v in (fill_price, stop_loss, close_price, size_usd)):
-        raise ValueError("fill_price, stop_loss, close_price and size_usd must be finite")
-    if fill_price <= 0:
-        raise ValueError("fill_price must be positive; corrupt ledger record")
-    risk_per_share = fill_price - stop_loss
-    if risk_per_share <= 0:
+    if not all(math.isfinite(v) for v in (entry_price, stop_loss, close_price, size_usd)):
+        raise ValueError("entry_price, stop_loss, close_price and size_usd must be finite")
+    if entry_price <= 0:
+        raise ValueError("entry_price must be positive; corrupt ledger record")
+    risk_per_share = entry_price - stop_loss
+    if risk_per_share == 0:
         raise ValueError(
-            "fill_price must exceed stop_loss; non-positive-risk trade has no R-multiple"
+            "entry_price must differ from stop_loss; zero-risk trade has no R-multiple"
         )
-    pnl_per_dollar = (close_price - fill_price) / fill_price
+    pnl_per_dollar = (close_price - entry_price) / entry_price
     pnl_usd = pnl_per_dollar * size_usd
-    r_multiple = (close_price - fill_price) / risk_per_share
+    r_multiple = (close_price - entry_price) / risk_per_share
     return pnl_usd, r_multiple
 
 
 def _backfill_record(record: dict[str, Any]) -> dict[str, Any]:
     """Return a copy of ``record`` with outcome fields populated if possible."""
-    if record.get(PNL_KEY) is not None and record.get(OUTCOME_SCHEMA_KEY) == OUTCOME_SCHEMA_VERSION:
+    if PNL_KEY in record and record[PNL_KEY] is not None:
         return dict(record)  # already backfilled, idempotent.
     action = record.get("action")
     if action not in _CLOSED_ACTIONS:
         return dict(record)  # trade not yet closed.
     try:
-        fill_price = float(record["fill_price"])
+        entry_price = float(record["entry_price"])
         stop_loss = float(record["stop_loss"])
         size_usd = float(record["size_usd"])
         close_price = float(record["close_price"])
@@ -161,42 +158,15 @@ def _backfill_record(record: dict[str, Any]) -> dict[str, Any]:
         return dict(record)
 
     pnl_usd, r_multiple = compute_trade_outcome(
-        fill_price=fill_price,
+        entry_price=entry_price,
         stop_loss=stop_loss,
         close_price=close_price,
         size_usd=size_usd,
     )
     out = dict(record)
-    evidence_class = "PAPER" if record.get("phase") == "paper" else "LIVE"
-    entry_price = _optional_finite_float(record.get("entry_price"))
-    fees_usd = _optional_finite_float(record.get("fees_usd"))
-    fees_known = fees_usd is not None and fees_usd >= 0
-    entry_slippage_bps = None
-    if entry_price is not None and entry_price > 0:
-        entry_slippage_bps = (fill_price - entry_price) / entry_price * 10_000.0
-
     out[PNL_KEY] = pnl_usd
     out[R_MULTIPLE_KEY] = r_multiple
-    out["evidence_class"] = evidence_class
-    out["outcome_status"] = "closed"
-    out["gross_pnl_usd"] = pnl_usd
-    out["entry_slippage_bps"] = entry_slippage_bps
-    out["fees_known"] = fees_known
-    out["fees_usd"] = fees_usd if fees_known else None
-    out["net_pnl_usd"] = pnl_usd - fees_usd if fees_known else None
-    out[OUTCOME_SCHEMA_KEY] = OUTCOME_SCHEMA_VERSION
     return out
-
-
-def _optional_finite_float(value: Any) -> float | None:
-    """Return a finite float or ``None`` without inventing missing values."""
-    if value is None or isinstance(value, bool):
-        return None
-    try:
-        parsed = float(value)
-    except (TypeError, ValueError):
-        return None
-    return parsed if math.isfinite(parsed) else None
 
 
 def backfill_live_outcomes(path: Path | str) -> dict[str, int]:
@@ -210,13 +180,15 @@ def backfill_live_outcomes(path: Path | str) -> dict[str, int]:
             "records_already_resolved": <int>,
             "records_pending_close": <int>,
             "records_audit_only": <int>,
-            "records_submit_failed": <int>,
         }
 
-    ``records_audit_only`` and ``records_submit_failed`` are disjoint
-    subsets of ``records_pending_close`` whose intents never reached a
-    broker. They can structurally never close, so the cron's progress
-    assertion must exclude both from its actionable pending count.
+    ``records_audit_only`` (2026-06-10, F-V3-15 follow-up) is the subset
+    of ``records_pending_close`` whose ``action == "audit_only"`` —
+    journaled intents that never reached a broker (C13 T1 NO-GO) and
+    can structurally never close. The cron's progress assertion must
+    not treat them as "stuck pending" or the known NO-GO condition
+    would masquerade as an auth/quota regression (and hard-fail the
+    cron daily once F-V3-15 phase 2 lands).
 
     The summary is useful for cron-job logging and CI assertions.
     """
@@ -228,35 +200,23 @@ def backfill_live_outcomes(path: Path | str) -> dict[str, int]:
         "records_already_resolved": 0,
         "records_pending_close": 0,
         "records_audit_only": 0,
-        "records_submit_failed": 0,
-        "records_orphaned": 0,
     }
     out: list[dict[str, Any]] = []
     for record in records:
-        already = record.get(PNL_KEY) is not None and record.get(OUTCOME_SCHEMA_KEY) == OUTCOME_SCHEMA_VERSION
+        already = record.get(PNL_KEY) is not None
         action = record.get("action")
         if already:
             summary["records_already_resolved"] += 1
             out.append(record)
             continue
         if action not in _CLOSED_ACTIONS:
-            if record.get("outcome_status") == ORPHANED_STATUS:
-                # 2026-08-19 (#4848-Nacharbeit): dokumentierte Waisen der
-                # Vor-GTC/EOD-Flatten-Ära (c13_orphan_close_sweep) sind kein
-                # ausstehender Close mehr — sie koennen nie schliessen und
-                # duerfen pending_close/closable nicht ewig aufblaehen.
-                summary["records_orphaned"] += 1
-                out.append(record)
-                continue
             summary["records_pending_close"] += 1
             if action == "audit_only":
                 summary["records_audit_only"] += 1
-            elif action == "submit_failed":
-                summary["records_submit_failed"] += 1
             out.append(record)
             continue
         new_record = _backfill_record(record)
-        if new_record.get(PNL_KEY) is not None and new_record.get(OUTCOME_SCHEMA_KEY) == OUTCOME_SCHEMA_VERSION:
+        if new_record.get(PNL_KEY) is not None:
             summary["records_backfilled"] += 1
         out.append(new_record)
 

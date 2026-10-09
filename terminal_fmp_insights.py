@@ -12,7 +12,6 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-import os
 import re
 import threading
 import time
@@ -22,12 +21,7 @@ from typing import Any, cast
 
 import httpx
 
-from cisco_ai_defense import (
-    AIDefenseBlockedError,
-    append_assistant_message,
-    inspect_messages,
-    new_transaction_id,
-)
+from cisco_ai_defense import AIDefenseBlockedError, append_assistant_message, inspect_messages
 from open_prep_boundary import FMPClientLike, make_fmp_client
 from smc_core.resilient import resilient
 
@@ -61,40 +55,32 @@ def _cache_key(question: str, context_digest: str, model: str, api_key: str) -> 
 # burned API budget / quota. ``_set_cached_miss`` records a short-TTL
 # negative entry that self-heals after ``_MISS_TTL_S``.
 _MISS_SENTINEL: object = object()
-# Audit 2026-08-29: a policy block is a *decision*, not an outage. Both used to
-# share ``_MISS_SENTINEL``, so a blocked prompt repeated inside the TTL was
-# reported as a failure — and ``/ai-validation`` maps a failure to HTTP 502,
-# turning a working guardrail into apparent backend downtime for Cisco's
-# validator. The suppression is unchanged; only the reason is now preserved.
-_BLOCKED_SENTINEL: object = object()
 _MISS_TTL_S: float = 30.0
 
 
-def _get_cached_entry(key: str) -> tuple[bool, str, bool]:
-    """Return ``(hit, value, blocked_by_policy)``.
+def _get_cached(key: str) -> tuple[bool, str]:
+    """Return ``(hit, value)``.
 
-    * ``(True, text, False)`` -> cached success; caller MUST use this value.
-    * ``(True, "", blocked)`` -> cached negative entry within ``_MISS_TTL_S``;
-                                 caller MUST short-circuit and MUST NOT
-                                 re-issue the upstream LLM call. ``blocked``
-                                 distinguishes an AI Defense policy decision
-                                 from a provider/inspection failure.
-    * ``(False, "", False)``  -> no entry / expired; caller may fetch.
+    * ``(True, text)`` -> cached success; caller MUST use this value.
+    * ``(True, "")``   -> cached MISS within ``_MISS_TTL_S``;
+                          caller MUST short-circuit and MUST NOT
+                          re-issue the upstream LLM call.
+    * ``(False, "")``  -> no entry / expired; caller may fetch.
     """
     with _cache_lock:
         entry = _cache.get(key)
         if entry is None:
-            return (False, "", False)
+            return (False, "")
         ts, text = entry
-        if text is _MISS_SENTINEL or text is _BLOCKED_SENTINEL:
+        if text is _MISS_SENTINEL:
             if time.time() - ts > _MISS_TTL_S:
                 del _cache[key]
-                return (False, "", False)
-            return (True, "", text is _BLOCKED_SENTINEL)
+                return (False, "")
+            return (True, "")
         if time.time() - ts > _CACHE_TTL_S:
             del _cache[key]
-            return (False, "", False)
-        return (True, text, False)  # type: ignore[return-value]
+            return (False, "")
+        return (True, text)  # type: ignore[return-value]
 
 
 def _set_cached(key: str, text: str) -> None:
@@ -107,14 +93,12 @@ def _set_cached(key: str, text: str) -> None:
         _cache[key] = (time.time(), text)
 
 
-def _set_cached_miss(key: str, *, blocked: bool = False) -> None:
+def _set_cached_miss(key: str) -> None:
     """Record a negative LLM result so the next call within
     ``_MISS_TTL_S`` short-circuits without re-issuing the upstream
-    OpenAI request. See PR-G audit 2026-05-10. Pass ``blocked=True`` for an
-    AI Defense policy decision so the replay keeps the block semantics
-    instead of being reported as an outage (audit 2026-08-29)."""
+    OpenAI request. See PR-G audit 2026-05-10."""
     with _cache_lock:
-        _cache[key] = (time.time(), _BLOCKED_SENTINEL if blocked else _MISS_SENTINEL)
+        _cache[key] = (time.time(), _MISS_SENTINEL)
 
 
 # ---------------------------------------------------------------------------
@@ -424,10 +408,7 @@ Your role:
 Current date/time context is provided in the user message.
 """
 
-# Producer-side model selection: override with OPENAI_MODEL (service env)
-# so a model switch does not require a code change. The Terminal cannot pass
-# a model through the /ai-insights contract by design.
-_DEFAULT_MODEL = os.getenv("OPENAI_MODEL", "").strip() or "gpt-5.6-luna"
+_DEFAULT_MODEL = "gpt-4o"
 _API_TIMEOUT = httpx.Timeout(connect=10.0, read=120.0, write=10.0, pool=10.0)
 
 
@@ -466,8 +447,7 @@ def _call_openai_chat(payload: dict[str, Any], api_key: str) -> str:
     """
     messages = payload.get("messages") or []
     model = str(payload.get("model") or _DEFAULT_MODEL)
-    transaction_id = new_transaction_id()  # one id for both directions of this exchange
-    inspect_messages(messages, phase="request", source="terminal-fmp-insights", model=model, transaction_id=transaction_id)
+    inspect_messages(messages, phase="request", source="terminal-fmp-insights", model=model)
     with httpx.Client(timeout=_API_TIMEOUT) as client:
         resp = client.post(
             "https://api.openai.com/v1/chat/completions",
@@ -491,7 +471,6 @@ def _call_openai_chat(payload: dict[str, Any], api_key: str) -> str:
         phase="response",
         source="terminal-fmp-insights",
         model=model,
-        transaction_id=transaction_id,
     )
     return answer
 
@@ -528,28 +507,12 @@ def query_fmp_llm(
     # Check cache
     digest = hashlib.sha256(context_json.encode()).hexdigest()[:16]
     ck = _cache_key(question, digest, model, api_key)
-    hit, cached_text, blocked = _get_cached_entry(ck)
+    hit, cached_text = _get_cached(ck)
     if hit and not cached_text:
-        # Negative-cache hit: surface WHY nothing is returned instead of
-        # rendering a silent empty answer (review finding 2026-07-21).
-        # A replayed policy block answers exactly like the first block
-        # (audit 2026-08-29), so a denial never changes shape between the
-        # first and the second attempt and never reads as backend downtime.
-        if blocked:
-            return FMPLLMResponse(
-                answer=blocked_answer, model=model, cached=True,
-                context_articles=n_articles, context_tickers=n_tickers,
-                fmp_tickers=n_fmp,
-                error="" if blocked_answer else "Query blocked by AI security policy.",
-            )
         return FMPLLMResponse(
             answer=cached_text, model=model, cached=True,
             context_articles=n_articles, context_tickers=n_tickers,
             fmp_tickers=n_fmp,
-            error=(
-                "The identical query just failed; retry is paused for up to "
-                f"{int(_MISS_TTL_S)}s. Please try again shortly."
-            ),
         )
 
     now_str = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
@@ -566,22 +529,17 @@ def query_fmp_llm(
             {"role": "system", "content": _SYSTEM_PROMPT},
             {"role": "user", "content": user_message},
         ],
-        "max_completion_tokens": max_tokens, "reasoning_effort": "none",
+        "max_tokens": max_tokens,
         "temperature": temperature,
     }
 
     try:
         if hit:
-            # A cache delivery is one exchange too: both re-inspections carry
-            # the same id, so a cached answer blocked by a tightened policy is
-            # traceable back to its own allow decision.
-            cached_transaction_id = new_transaction_id()
             inspect_messages(
                 payload["messages"],
                 phase="request",
                 source="terminal-fmp-insights",
                 model=model,
-                transaction_id=cached_transaction_id,
             )
             answer = cached_text
             inspect_messages(
@@ -589,7 +547,6 @@ def query_fmp_llm(
                 phase="response",
                 source="terminal-fmp-insights",
                 model=model,
-                transaction_id=cached_transaction_id,
             )
         else:
             answer = _call_openai_chat(payload, api_key)
@@ -623,7 +580,7 @@ def query_fmp_llm(
             error="OpenAI returned empty choices",
         )
     except AIDefenseBlockedError:
-        _set_cached_miss(ck, blocked=True)
+        _set_cached_miss(ck)
         return FMPLLMResponse(
             answer=blocked_answer,
             model=model,

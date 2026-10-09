@@ -77,9 +77,12 @@ def _safe_float(value: Any) -> float | None:
 def _serialize_bias_verdict(bias_verdict: Any) -> dict[str, Any]:
     return {
         "direction": bias_verdict.direction,
-        # Fixed-table conviction/reliability weight from merge_bias; not a
-        # probability. The legacy ``confidence`` alias was removed after the
-        # four-week close window on 2026-08-10.
+        # Dual-write (confidence-vocabulary program): ``conviction_score`` is the
+        # honest name — a fixed-table conviction/reliability WEIGHT (merge_bias),
+        # not a probability. ``confidence`` stays as the legacy alias for any
+        # external payload consumer; drop it in a later close-window PR (#3535
+        # pattern). Values are always identical.
+        "confidence": bias_verdict.confidence,
         "conviction_score": bias_verdict.confidence,
         "chart_tf_direction": bias_verdict.chart_tf_direction,
         "htf_direction": bias_verdict.htf_direction,  # deprecated compatibility alias
@@ -287,21 +290,7 @@ def _resample_intraday_to_timeframe(bars: pd.DataFrame, timeframe: str) -> pd.Da
 
 def _load_symbol_bars_for_context(symbol: str, timeframe: str) -> pd.DataFrame:
     try:
-        # only_frames is load-bearing, not an optimisation. This function reads
-        # exactly three frames; loading the whole bundle materialised ~6-8 GB
-        # once #3941 restored the intraday grain, and a single unmocked test
-        # calling this ballooned a pytest worker to 5.95 GB — which is what
-        # killed the 7 GB github-hosted refresh runners on 2026-07-23
-        # ("The runner has received a shutdown signal", exit 143, five runs).
-        bundle = load_export_bundle(
-            _DEFAULT_EXPORT_DIR,
-            manifest_prefix="databento_volatility_production_",
-            only_frames=(
-                "daily_bars",
-                "benchmark_universe_ohlcv_1m",
-                "full_universe_second_detail_open",
-            ),
-        )
+        bundle = load_export_bundle(_DEFAULT_EXPORT_DIR, manifest_prefix="databento_volatility_production_")
     except Exception as exc:
         logger.warning(
             "Failed to load export bundle for context bars (%s, %s): %s",
@@ -762,7 +751,11 @@ def _build_market_context(*, context_payload: dict[str, Any], measurement_summar
     vol_regime_payload = context_payload["vol_regime"]
     return {
         "bias_direction": bias_payload["direction"],
-        "bias_conviction_score": bias_payload["conviction_score"],
+        # Dual-write: bias_conviction_score is the honest name (fixed-table
+        # conviction weight, not a probability); bias_confidence = legacy alias
+        # for external consumers until the close-window cleanup.
+        "bias_confidence": bias_payload["confidence"],
+        "bias_conviction_score": bias_payload["confidence"],
         "bars_available": context_diagnostics["bars_available"],
         "bar_count": context_diagnostics["bar_count"],
         "vol_regime_label": vol_regime_payload["label"],

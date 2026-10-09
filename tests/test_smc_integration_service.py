@@ -146,8 +146,7 @@ class TestSerializeBiasVerdict:
         )
         result = service._serialize_bias_verdict(verdict)
         assert result["direction"] == "BULLISH"
-        assert result["conviction_score"] == 0.8
-        assert "confidence" not in result
+        assert result["confidence"] == 0.8
         assert result["chart_tf_direction"] == "UP"
         assert result["source_detail"] == "MERGED_CHART_TF_SESSION"
         assert result["conflict"] is False

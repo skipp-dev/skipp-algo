@@ -357,37 +357,6 @@ Cadence and evidence-honesty rules:
   `magnitude_resolution_shadow_15m_seed.jsonl` is the **frozen 15m proof**
   (the BOS/SWEEP PASS the armed status rests on), read only by the
   promotion gate. Nothing pools the two.
-- **Governed-plane filter + 5m quarantine (2026-07-22, issue #3872).** The
-  rolling benchmark's accumulated pool became genuinely multi-TF (#2667
-  per-TF structure artifacts) and by 2026-07-16 was 5m-dominated with **zero
-  1D events**. The daily runner graded that mixed pool as-is and stamped the
-  rows with the pool's modal plane (`"5m"`), wedging the weekly plane guard —
-  and each such row pooled 5m/10m/15m/30m/1H evidence inside ONE grading,
-  which no single plane label can honestly carry. Those rows (2026-07-16,
-  -17, -21) are preserved in
-  `magnitude_resolution_shadow_5m_mixed_quarantine.jsonl` — quarantined, not
-  a seed: they are valid evidence for **no** plane and nothing reads them.
-  The daily append now passes `--plane 1D`, grading only events whose own
-  bar cadence is 1D; zero matching events appends `plane_starved` heartbeat
-  rows (rc 3) and an unchanged starved pool then exits rc 5, so the gap
-  guard escalates within its 10-day budget. **Decision (2026-07-22, Option
-  A): restore 1D event production.** Root cause of the starvation: the
-  export bundle spans only the short rolling window (`coverage_trade_days`
-  = 21 on 2026-07-21) — resolved to 1D that is fewer bars than detector
-  warmup plus the frame-integrity label horizons, so the 1D slice emitted
-  zero FamilyEvents for every family (the pre-July "1D events" existed only
-  because censored, incomplete-forward-window events were still admitted;
-  the frame-integrity work rightly stopped that). The rolling benchmark now
-  fetches a 420-trading-day daily-bars workbook per run
-  (`scripts/fetch_benchmark_daily_history.py`, same cached Databento
-  helpers as the production export) and feeds it to BOTH 1D consumers: the
-  structure exporter (`--workbook` without a bundle root = sole daily
-  source) and the measurement harness
-  (`SMC_DAILY_BARS_WORKBOOK_OVERRIDE`), so detection and labeling see the
-  same long frame; `--scoring-anchor-window-days-daily 40` widens the CI
-  anchor window that would otherwise censor every 1D label. The fetch is
-  fail-soft: on failure the 1D slice stays on the short bundle and the
-  shadow daily keeps recording `plane_starved` — visible, never silent.
 - **Thin-day heartbeat (2026-07-06).** When the 1D pool is too thin for any
   family to reach `MIN_OOS`, the daily runner appends one **INCONCLUSIVE**
   heartbeat row per family (`fail_reasons=["all_thin"]`, `n_oos` = per-family
@@ -470,13 +439,6 @@ Daily PASS/FAIL is noisy; **decisions are made weekly**, not daily:
    pool holds 40 BOS samples; SWEEP is too rare on the daily plane for either,
    hence `proof_of_concept_15m` — see
    [adr0023_plane_and_gate_clarification.md](adr0023_plane_and_gate_clarification.md).
-   *Operational wiring 2026-08-08:* `promotion-gate-daily.yml` now runs the
-   gate on the same explicitly filtered 1D FamilyEvent pool and persists its
-   verdict as `docs/calibration/gates/epnl_after_cost_<date>.json`; rc 2/3 are
-   honest FAIL/inconclusive evidence, while configuration errors fail the job.
-   The scheduled run honestly identifies its current 5 bps haircut as
-   `cost_source=flat_default`; empirical cost remains unavailable until a
-   measurable calibration artifact is supplied to the workflow.
 
 2. **The pipeline step that fills the snapshot fields.**
    *Status 2026-06-11: wired, twice over.* The Stage-1 runner

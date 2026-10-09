@@ -21,7 +21,9 @@
     {
       "adaptive_gate_warning": false,
       "adaptive_gates": {
-        "score_min": 0.35
+        "atr_ratio_min": 1.5,
+        "score_min": 0.35,
+        "trend_z_min": 0.3
       },
       "allowed_setups": [
         "orb",
@@ -32,7 +34,7 @@
       "analyst_catalyst_score": 0.4,
       "analyst_implied_upside_pct": null,
       "atr": 2.8,
-      "atr_pct": 2.3237,
+      "atr_pct": 2.32,
       "avg_volume": 50000000.0,
       "change": 0.0,
       "confidence_tier": "STANDARD",
@@ -43,14 +45,12 @@
         "low": false,
         "rel_volume_missing": false
       },
-      "days_since_last_earnings": null,
-      "days_to_next_earnings": null,
       "dist_to_pdh_atr": null,
       "dist_to_pdl_atr": null,
       "dividend_today": false,
       "earnings_bmo": true,
       "earnings_today": true,
-      "entry_probability": 0.8646,
+      "entry_probability": 0.8645,
       "estimate_revision_score": 0.3,
       "ext_hours_score": 0.6,
       "freshness_decay": 0.5,
@@ -98,9 +98,7 @@
       "premarket_high": null,
       "premarket_low": null,
       "price": 120.5,
-      "recent_eps_surprise_pct": null,
-      "revenue_surprise_pct": null,
-      "score": 10.6527,
+      "score": 10.6407,
       "score_breakdown": {
         "analyst_catalyst_component": 0.2,
         "corporate_action_penalty": 0.0,
@@ -120,7 +118,7 @@
         "momentum_component": 0.6,
         "news_component": 2.3049,
         "risk_off_penalty": 0.0,
-        "risk_penalty": 0.0955,
+        "risk_penalty": 0.1075,
         "rvol_component": 0.387,
         "vwap_distance_component": 0.783
       },
@@ -143,7 +141,9 @@
     {
       "adaptive_gate_warning": false,
       "adaptive_gates": {
-        "score_min": 0.35
+        "atr_ratio_min": 1.0,
+        "score_min": 0.35,
+        "trend_z_min": 0.3
       },
       "allowed_setups": [
         "orb",
@@ -154,7 +154,7 @@
       "analyst_catalyst_score": 0.0,
       "analyst_implied_upside_pct": null,
       "atr": 0.8,
-      "atr_pct": 6.4516,
+      "atr_pct": 6.45,
       "avg_volume": 400000.0,
       "change": 0.0,
       "confidence_tier": "STANDARD",
@@ -165,8 +165,6 @@
         "low": false,
         "rel_volume_missing": false
       },
-      "days_since_last_earnings": null,
-      "days_to_next_earnings": null,
       "dist_to_pdh_atr": null,
       "dist_to_pdl_atr": null,
       "dividend_today": false,
@@ -220,8 +218,6 @@
       "premarket_high": null,
       "premarket_low": null,
       "price": 12.4,
-      "recent_eps_surprise_pct": null,
-      "revenue_surprise_pct": null,
       "score": 9.6881,
       "score_breakdown": {
         "analyst_catalyst_component": 0.0,
@@ -265,7 +261,9 @@
     {
       "adaptive_gate_warning": false,
       "adaptive_gates": {
-        "score_min": 0.35
+        "atr_ratio_min": 1.0,
+        "score_min": 0.35,
+        "trend_z_min": 0.3
       },
       "allowed_setups": [
         "orb",
@@ -276,7 +274,7 @@
       "analyst_catalyst_score": 0.2,
       "analyst_implied_upside_pct": null,
       "atr": 1.4,
-      "atr_pct": 3.0973,
+      "atr_pct": 3.1,
       "avg_volume": 600000.0,
       "change": 0.0,
       "confidence_tier": "WATCHLIST",
@@ -287,8 +285,6 @@
         "low": false,
         "rel_volume_missing": false
       },
-      "days_since_last_earnings": null,
-      "days_to_next_earnings": null,
       "dist_to_pdh_atr": null,
       "dist_to_pdl_atr": null,
       "dividend_today": false,
@@ -339,9 +335,7 @@
       "premarket_high": null,
       "premarket_low": null,
       "price": 45.2,
-      "recent_eps_surprise_pct": null,
-      "revenue_surprise_pct": null,
-      "score": 9.375,
+      "score": 9.367,
       "score_breakdown": {
         "analyst_catalyst_component": 0.1,
         "corporate_action_penalty": 0.0,
@@ -361,7 +355,7 @@
         "momentum_component": 0.75,
         "news_component": 0.0,
         "risk_off_penalty": 0.0,
-        "risk_penalty": 0.132,
+        "risk_penalty": 0.14,
         "rvol_component": 0.6573,
         "vwap_distance_component": 1.1954
       },
@@ -384,7 +378,9 @@
     {
       "adaptive_gate_warning": false,
       "adaptive_gates": {
-        "score_min": 0.35
+        "atr_ratio_min": 1.5,
+        "score_min": 0.35,
+        "trend_z_min": 0.3
       },
       "allowed_setups": [
         "orb",
@@ -395,7 +391,7 @@
       "analyst_catalyst_score": 0.2,
       "analyst_implied_upside_pct": null,
       "atr": 2.1,
-      "atr_pct": 2.3864,
+      "atr_pct": 2.39,
       "avg_volume": 1500000.0,
       "change": 0.0,
       "confidence_tier": "WATCHLIST",
@@ -406,8 +402,6 @@
         "low": false,
         "rel_volume_missing": false
       },
-      "days_since_last_earnings": null,
-      "days_to_next_earnings": null,
       "dist_to_pdh_atr": null,
       "dist_to_pdl_atr": null,
       "dividend_today": false,
@@ -458,9 +452,7 @@
       "premarket_high": null,
       "premarket_low": null,
       "price": 88.0,
-      "recent_eps_surprise_pct": null,
-      "revenue_surprise_pct": null,
-      "score": 7.3426,
+      "score": 7.3366,
       "score_breakdown": {
         "analyst_catalyst_component": 0.1,
         "corporate_action_penalty": 0.0,
@@ -480,7 +472,7 @@
         "momentum_component": 0.9,
         "news_component": 0.0,
         "risk_off_penalty": 0.0,
-        "risk_penalty": 0.1045,
+        "risk_penalty": 0.1105,
         "rvol_component": 0.6573,
         "vwap_distance_component": 1.1905
       },
@@ -503,7 +495,9 @@
     {
       "adaptive_gate_warning": false,
       "adaptive_gates": {
-        "score_min": 0.35
+        "atr_ratio_min": 1.5,
+        "score_min": 0.35,
+        "trend_z_min": 0.3
       },
       "allowed_setups": [
         "orb",
@@ -514,7 +508,7 @@
       "analyst_catalyst_score": 0.15,
       "analyst_implied_upside_pct": null,
       "atr": 1.2,
-      "atr_pct": 2.1818,
+      "atr_pct": 2.18,
       "avg_volume": 700000.0,
       "change": 0.0,
       "confidence_tier": "WATCHLIST",
@@ -525,8 +519,6 @@
         "low": false,
         "rel_volume_missing": false
       },
-      "days_since_last_earnings": null,
-      "days_to_next_earnings": null,
       "dist_to_pdh_atr": null,
       "dist_to_pdl_atr": null,
       "dividend_today": false,
@@ -580,9 +572,7 @@
       "premarket_high": null,
       "premarket_low": null,
       "price": 55.0,
-      "recent_eps_surprise_pct": null,
-      "revenue_surprise_pct": null,
-      "score": 7.2193,
+      "score": 7.2133,
       "score_breakdown": {
         "analyst_catalyst_component": 0.075,
         "corporate_action_penalty": 0.0,
@@ -602,7 +592,7 @@
         "momentum_component": 0.5,
         "news_component": 1.6602,
         "risk_off_penalty": 0.0,
-        "risk_penalty": 0.0947,
+        "risk_penalty": 0.1007,
         "rvol_component": 0.4755,
         "vwap_distance_component": 0.8989
       },
@@ -625,7 +615,9 @@
     {
       "adaptive_gate_warning": false,
       "adaptive_gates": {
-        "score_min": 0.35
+        "atr_ratio_min": 1.5,
+        "score_min": 0.35,
+        "trend_z_min": 0.3
       },
       "allowed_setups": [
         "orb",
@@ -636,7 +628,7 @@
       "analyst_catalyst_score": 0.05,
       "analyst_implied_upside_pct": null,
       "atr": 0.95,
-      "atr_pct": 2.6389,
+      "atr_pct": 2.64,
       "avg_volume": 500000.0,
       "change": 0.0,
       "confidence_tier": "WATCHLIST",
@@ -647,8 +639,6 @@
         "low": false,
         "rel_volume_missing": false
       },
-      "days_since_last_earnings": null,
-      "days_to_next_earnings": null,
       "dist_to_pdh_atr": null,
       "dist_to_pdl_atr": null,
       "dividend_today": false,
@@ -701,9 +691,7 @@
       "premarket_high": null,
       "premarket_low": null,
       "price": 36.0,
-      "recent_eps_surprise_pct": null,
-      "revenue_surprise_pct": null,
-      "score": 5.9003,
+      "score": 5.8983,
       "score_breakdown": {
         "analyst_catalyst_component": 0.025,
         "corporate_action_penalty": 0.0,
@@ -723,7 +711,7 @@
         "momentum_component": 0.4,
         "news_component": 0.0,
         "risk_off_penalty": 0.0,
-        "risk_penalty": 0.1207,
+        "risk_penalty": 0.1227,
         "rvol_component": 0.5091,
         "vwap_distance_component": 1.1594
       },
@@ -746,7 +734,9 @@
     {
       "adaptive_gate_warning": false,
       "adaptive_gates": {
-        "score_min": 0.35
+        "atr_ratio_min": 1.5,
+        "score_min": 0.35,
+        "trend_z_min": 0.3
       },
       "allowed_setups": [
         "orb",
@@ -757,7 +747,7 @@
       "analyst_catalyst_score": 0.1,
       "analyst_implied_upside_pct": null,
       "atr": 1.4,
-      "atr_pct": 2.2581,
+      "atr_pct": 2.26,
       "avg_volume": 700000.0,
       "change": 0.0,
       "confidence_tier": "WATCHLIST",
@@ -768,8 +758,6 @@
         "low": false,
         "rel_volume_missing": false
       },
-      "days_since_last_earnings": null,
-      "days_to_next_earnings": null,
       "dist_to_pdh_atr": null,
       "dist_to_pdl_atr": null,
       "dividend_today": false,
@@ -822,9 +810,7 @@
       "premarket_high": null,
       "premarket_low": null,
       "price": 62.0,
-      "recent_eps_surprise_pct": null,
-      "revenue_surprise_pct": null,
-      "score": 5.6712,
+      "score": 5.6672,
       "score_breakdown": {
         "analyst_catalyst_component": 0.05,
         "corporate_action_penalty": 0.0,
@@ -844,7 +830,7 @@
         "momentum_component": 0.6,
         "news_component": 0.0,
         "risk_off_penalty": 0.0,
-        "risk_penalty": 0.1004,
+        "risk_penalty": 0.1044,
         "rvol_component": 0.5175,
         "vwap_distance_component": 0.9333
       },
@@ -867,7 +853,9 @@
     {
       "adaptive_gate_warning": false,
       "adaptive_gates": {
-        "score_min": 0.35
+        "atr_ratio_min": 1.0,
+        "score_min": 0.35,
+        "trend_z_min": 0.3
       },
       "allowed_setups": [
         "orb",
@@ -878,7 +866,7 @@
       "analyst_catalyst_score": 0.1,
       "analyst_implied_upside_pct": null,
       "atr": 1.1,
-      "atr_pct": 3.8261,
+      "atr_pct": 3.83,
       "avg_volume": 850000.0,
       "change": 0.0,
       "confidence_tier": "WATCHLIST",
@@ -889,8 +877,6 @@
         "low": false,
         "rel_volume_missing": false
       },
-      "days_since_last_earnings": null,
-      "days_to_next_earnings": null,
       "dist_to_pdh_atr": null,
       "dist_to_pdl_atr": null,
       "dividend_today": false,
@@ -941,8 +927,6 @@
       "premarket_high": null,
       "premarket_low": null,
       "price": 28.75,
-      "recent_eps_surprise_pct": null,
-      "revenue_surprise_pct": null,
       "score": 5.3116,
       "score_breakdown": {
         "analyst_catalyst_component": 0.05,
@@ -986,7 +970,9 @@
     {
       "adaptive_gate_warning": false,
       "adaptive_gates": {
-        "score_min": 0.35
+        "atr_ratio_min": 1.0,
+        "score_min": 0.35,
+        "trend_z_min": 0.3
       },
       "allowed_setups": [
         "orb",
@@ -997,7 +983,7 @@
       "analyst_catalyst_score": 0.0,
       "analyst_implied_upside_pct": null,
       "atr": 1.3,
-      "atr_pct": 3.0952,
+      "atr_pct": 3.1,
       "avg_volume": 600000.0,
       "change": 0.0,
       "confidence_tier": "WATCHLIST",
@@ -1008,8 +994,6 @@
         "low": false,
         "rel_volume_missing": false
       },
-      "days_since_last_earnings": null,
-      "days_to_next_earnings": null,
       "dist_to_pdh_atr": null,
       "dist_to_pdl_atr": null,
       "dividend_today": false,
@@ -1063,8 +1047,6 @@
       "premarket_high": null,
       "premarket_low": null,
       "price": 42.0,
-      "recent_eps_surprise_pct": null,
-      "revenue_surprise_pct": null,
       "score": 2.5921,
       "score_breakdown": {
         "analyst_catalyst_component": 0.0,
@@ -1108,7 +1090,9 @@
     {
       "adaptive_gate_warning": false,
       "adaptive_gates": {
-        "score_min": 0.35
+        "atr_ratio_min": 1.5,
+        "score_min": 0.35,
+        "trend_z_min": 0.3
       },
       "allowed_setups": [
         "orb",
@@ -1130,14 +1114,12 @@
         "low": false,
         "rel_volume_missing": false
       },
-      "days_since_last_earnings": null,
-      "days_to_next_earnings": null,
       "dist_to_pdh_atr": null,
       "dist_to_pdl_atr": null,
       "dividend_today": false,
       "earnings_bmo": false,
       "earnings_today": false,
-      "entry_probability": 0.5755,
+      "entry_probability": 0.5753,
       "estimate_revision_score": 0.0,
       "ext_hours_score": 0.1,
       "freshness_decay": 0.5,
@@ -1182,9 +1164,7 @@
       "premarket_high": null,
       "premarket_low": null,
       "price": 38.0,
-      "recent_eps_surprise_pct": null,
-      "revenue_surprise_pct": null,
-      "score": 1.2888,
+      "score": 1.2868,
       "score_breakdown": {
         "analyst_catalyst_component": 0.0,
         "corporate_action_penalty": 0.0,
@@ -1204,7 +1184,7 @@
         "momentum_component": -0.1,
         "news_component": 0.2372,
         "risk_off_penalty": 0.0,
-        "risk_penalty": 0.12,
+        "risk_penalty": 0.122,
         "rvol_component": 0.3286,
         "vwap_distance_component": 0.074
       },

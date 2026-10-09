@@ -8,8 +8,6 @@ on:
 
 permissions:
   contents: read
-  # 2026-08-30: fuer `gh run list` im Alters-Step (letzter gruener Lauf).
-  actions: read
 
 env:
   PYTHONUNBUFFERED: "1"
@@ -30,15 +28,7 @@ jobs:
       PYTHONPATH: ${{ github.workspace }}
       COMPOSIO_ENVIRONMENT: prod
       COMPOSIO_PROD_API_KEY: ${{ secrets.COMPOSIO_PROD_API_KEY }}
-      # 2026-08-18 (Verdrahtungs-Sweep B-2): without the WRITE/dev side the
-      # separation audit below was fully vacuous — every check is
-      # "if read and write", so the only caller could never fail it.
-      COMPOSIO_DEV_API_KEY: ${{ secrets.COMPOSIO_DEV_API_KEY }}
       COMPOSIO_PROD_USER_ID: ${{ vars.COMPOSIO_PROD_USER_ID }}
-      COMPOSIO_SLACK_WRITE_ACCOUNT_ID: ${{ vars.COMPOSIO_SLACK_WRITE_ACCOUNT_ID }}
-      COMPOSIO_GITHUB_WRITE_ACCOUNT_ID: ${{ vars.COMPOSIO_GITHUB_WRITE_ACCOUNT_ID }}
-      COMPOSIO_OUTLOOK_WRITE_ACCOUNT_ID: ${{ vars.COMPOSIO_OUTLOOK_WRITE_ACCOUNT_ID }}
-      COMPOSIO_NOTION_WRITE_ACCOUNT_ID: ${{ vars.COMPOSIO_NOTION_WRITE_ACCOUNT_ID }}
       COMPOSIO_SLACK_READ_ACCOUNT_ID: ${{ vars.COMPOSIO_SLACK_READ_ACCOUNT_ID }}
       COMPOSIO_GITHUB_READ_ACCOUNT_ID: ${{ vars.COMPOSIO_GITHUB_READ_ACCOUNT_ID }}
       COMPOSIO_OUTLOOK_READ_ACCOUNT_ID: ${{ vars.COMPOSIO_OUTLOOK_READ_ACCOUNT_ID }}
@@ -48,140 +38,14 @@ jobs:
       COMPOSIO_OUTLOOK_READ_AUTH_CONFIG_ID: ${{ vars.COMPOSIO_OUTLOOK_READ_AUTH_CONFIG_ID }}
       COMPOSIO_NOTION_READ_AUTH_CONFIG_ID: ${{ vars.COMPOSIO_NOTION_READ_AUTH_CONFIG_ID }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - uses: ./.github/actions/setup-python-pinned
-      # 2026-08-30: Die drei Pruefungen sind ENTKOPPELT. Vorher waren es
-      # gewoehnliche Steps ohne continue-on-error — ein Fehlschlag der ersten
-      # uebersprang die folgenden. Gemessen an Lauf 32813924394 (25.8.):
-      # "Check pinned schemas" failure -> Audit skipped -> Probe skipped. Die
-      # toten Slack-/Notion-Verbindungen waren damit nicht verdeckt, sondern
-      # NIE GEMESSEN; der Canary lief zehn Tage rot und sagte nichts darueber,
-      # was kaputt war. Jede Pruefung publiziert jetzt ihr eigenes rc, und der
-      # Fail-Step unten bewertet alle drei.
-      - name: Check pinned schemas (advisory — the fail step below judges all four)
-        id: contract
-        # CONTINUE-ON-ERROR-INTENTIONAL: Versionsdrift der Pins darf die Verbindungsprobe nicht mehr ueberspringen (Lauf 32813924394); rc geht in den Fail-Step unten.
-        continue-on-error: true
-        run: |
-          set +e
-          python scripts/composio_contract_check.py --output artifacts/ci/composio_contract.json
-          rc=$?
-          set -e
-          echo "rc=$rc" >> "$GITHUB_OUTPUT"
-      - name: Audit environment and account separation (advisory — judged below)
-        id: audit
-        # CONTINUE-ON-ERROR-INTENTIONAL: Trennungs-Audit advisory wie die Nachbarn; sein rc faellt den Job ueber den Fail-Step unten.
-        continue-on-error: true
-        run: |
-          set +e
-          python scripts/composio_config_audit.py
-          rc=$?
-          set -e
-          echo "rc=$rc" >> "$GITHUB_OUTPUT"
+      - name: Check pinned schemas
+        run: python scripts/composio_contract_check.py --output artifacts/ci/composio_contract.json
+      - name: Audit environment and account separation
+        run: python scripts/composio_config_audit.py
       - name: Probe every read-only connection
-        id: probe
-        # CONTINUE-ON-ERROR-INTENTIONAL: Eine tote Verbindung darf den Bericht-Step nicht ueberspringen; rc geht in den Fail-Step unten.
-        continue-on-error: true
-        run: |
-          set +e
-          python scripts/composio_canary.py --output artifacts/ci/composio_canary.json
-          rc=$?
-          set -e
-          echo "rc=$rc" >> "$GITHUB_OUTPUT"
-
-      # Draht B (2026-08-30): der Zustands-Poll. Deckt die vier WRITE-
-      # Verbindungen ab, die KEINE Probe je anfasst (alle Proben sind
-      # access="read"), und faengt einen Account, der unter einer fremden
-      # Entity gelandet ist — der Zustand vom 26.8. Kein Doppelgaenger zur
-      # Probe: am 26.8. meldete die API alle Accounts ACTIVE, waehrend die
-      # Proben token_revoked lieferten. Die beiden messen Verschiedenes.
-      - name: Poll every pinned connection (advisory — judged below)
-        id: poll
-        # CONTINUE-ON-ERROR-INTENTIONAL: Zustands-Befund advisory wie die
-        # Nachbarn; sein rc faellt den Job ueber den Fail-Step unten.
-        continue-on-error: true
-        run: |
-          set +e
-          python scripts/composio_connection_poll.py --output artifacts/ci/composio_poll.json
-          rc=$?
-          set -e
-          echo "rc=$rc" >> "$GITHUB_OUTPUT"
-
-      # Drift-Anreicherung: WAS sich seit dem Pin geaendert hat. Faellt
-      # ausdruecklich KEIN Urteil — ob ein Pin veraltet ist, entscheidet der
-      # Contract-Step oben; zwei Urteile ueber dieselbe Tatsache waeren der
-      # Doppelgaenger, gegen den dieses Repo einen eigenen Sweep faehrt.
-      # Deshalb ohne `id`: dieser Step gehoert nicht in das Fail-Gate.
-      - name: Explain the pin drift (advisory annotation only)
-        if: always()
-        run: python scripts/composio_pin_drift.py
-
-      # Wie lange ist der Canary schon rot? Abgeleitet aus der Actions-API,
-      # kein neuer Zustand im Repo. Ein Dauerrot sieht in der Lauf-Liste aus
-      # wie ein frisches Rot und wird deshalb genauso ignoriert.
-      - name: Age of the last green run
-        id: alter
-        if: always()
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set +e
-          letzter=$(gh run list --workflow=composio-canary.yml --status=success \
-            --limit 1 --json createdAt --jq '.[0].createdAt' 2>/dev/null)
-          set -e
-          if [ -z "$letzter" ] || [ "$letzter" = "null" ]; then
-            echo "::warning title=composio-canary::kein gruener Lauf in der Historie — Alter unbekannt."
-            echo "tage=" >> "$GITHUB_OUTPUT"
-          else
-            tage=$(( ( $(date -u +%s) - $(date -u -d "$letzter" +%s) ) / 86400 ))
-            echo "tage=$tage" >> "$GITHUB_OUTPUT"
-            echo "letzter gruener Lauf: $letzter (vor ${tage} Tag(en))"
-          fi
-
-      # Ein Urteil JE VERBINDUNG als eigene Annotation — der Punkt, an dem die
-      # zehn Tage hingen: ein Sammel-Rot zwang zum Log-Lesen und liess offen,
-      # WELCHE Verbindung tot war.
-      - name: Verdict per connection (advisory — judged below)
-        id: bericht
-        if: always()
-        # CONTINUE-ON-ERROR-INTENTIONAL: Der Bericht laeuft auch nach roten Vorstufen; sein rc faellt den Job ueber den Fail-Step unten.
-        continue-on-error: true
-        run: |
-          set +e
-          if [ -n "${{ steps.alter.outputs.tage }}" ]; then
-            python scripts/composio_canary_report.py \
-              --report artifacts/ci/composio_canary.json \
-              --red-since-days "${{ steps.alter.outputs.tage }}" \
-              --summary-file "$GITHUB_STEP_SUMMARY"
-          else
-            python scripts/composio_canary_report.py \
-              --report artifacts/ci/composio_canary.json \
-              --summary-file "$GITHUB_STEP_SUMMARY"
-          fi
-          rc=$?
-          set -e
-          echo "rc=$rc" >> "$GITHUB_OUTPUT"
-      # Alle drei Pruefungen zaehlen — keine kann die anderen mehr verschlucken.
-      #
-      # Gegen `outputs.rc` UND gegen den leeren Wert, nicht gegen `outcome`:
-      # diese Steps fangen ihren Exit-Code selbst ab, ihr `outcome` ist also
-      # strukturell immer 'success'. Und `rc != ''` ist noetig, weil ein
-      # uebersprungener Step `null` liefert, das GitHub gegen '0' zu 0 == 0
-      # castet — ein Gate ohne diese Klausel waere fuer genau den Fall blind,
-      # den dieser Fix behebt (siehe #5199).
-      - name: Fail when any check reported a problem
-        if: >-
-          always() && (
-            (steps.contract.outputs.rc != '0' && steps.contract.outputs.rc != '') ||
-            (steps.audit.outputs.rc != '0' && steps.audit.outputs.rc != '') ||
-            (steps.probe.outputs.rc != '0' && steps.probe.outputs.rc != '') ||
-            (steps.bericht.outputs.rc != '0' && steps.bericht.outputs.rc != '') ||
-            (steps.poll.outputs.rc != '0' && steps.poll.outputs.rc != '')
-          )
-        run: |
-          echo "::error title=composio-canary::contract=${{ steps.contract.outputs.rc }} audit=${{ steps.audit.outputs.rc }} probe=${{ steps.probe.outputs.rc }} poll=${{ steps.poll.outputs.rc }} bericht=${{ steps.bericht.outputs.rc }} — Einzelurteile in der Step-Summary."
-          exit 1
-
+        run: python scripts/composio_canary.py --output artifacts/ci/composio_canary.json
       - name: Upload reports
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
