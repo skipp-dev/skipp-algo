@@ -22,37 +22,6 @@ def test_approved_identities_pass() -> None:
     assert mod._offenders(rows) == []
 
 
-def test_dependabot_identity_passes() -> None:
-    """Dependabot authors AND commits its own updates, so both halves must pass.
-
-    Not hypothetical: .github/dependabot.yml landed on 2026-08-04 and every PR
-    it opened (#4424, #4425, #4426) died at this gate in 9-13 seconds, before
-    a single real check ran. Security-update PRs carry the same identity, so
-    the alert-to-PR path the config was added for was closed as well.
-    """
-    rows = [
-        ("1" * 40, "49699333+dependabot[bot]@users.noreply.github.com", "49699333+dependabot[bot]@users.noreply.github.com"),
-        ("2" * 40, "dependabot[bot]@users.noreply.github.com", "dependabot[bot]@users.noreply.github.com"),
-    ]
-    assert mod._offenders(rows) == []
-
-
-def test_a_lookalike_dependabot_address_is_still_flagged() -> None:
-    """The approval is the exact GitHub-app identity, not anything bot-shaped.
-
-    A substring or endswith check would let an attacker-controlled address
-    through; this pins that the gate stays an exact-membership test.
-    """
-    rows = [
-        ("3" * 40, "dependabot@corp.example", "221361569+skipp-dev@users.noreply.github.com"),
-        ("4" * 40, "12345+dependabot[bot]@users.noreply.github.com", "221361569+skipp-dev@users.noreply.github.com"),
-    ]
-    offenders = mod._offenders(rows)
-    assert len(offenders) == 2
-    assert "author=dependabot@corp.example" in offenders[0]
-    assert "author=12345+dependabot[bot]@users.noreply.github.com" in offenders[1]
-
-
 def test_corporate_author_is_flagged() -> None:
     rows = [
         ("c" * 40, "227788186+spreuss_cisco@users.noreply.github.com", "221361569+skipp-dev@users.noreply.github.com"),
@@ -69,25 +38,6 @@ def test_corporate_committer_is_flagged() -> None:
     offenders = mod._offenders(rows)
     assert len(offenders) == 1
     assert "committer=someone@corp.example" in offenders[0]
-
-
-def test_github_squash_merge_committer_is_allowed() -> None:
-    # A stacked PR squash-merged through the web UI: single parent, so
-    # --no-merges does not exempt it, but the author is still the maintainer.
-    rows = [
-        ("f" * 40, "221361569+skipp-dev@users.noreply.github.com", "noreply@github.com"),
-    ]
-    assert mod._offenders(rows) == []
-
-
-def test_github_identity_as_author_is_still_flagged() -> None:
-    # Committer-only approval must not leak into the author check.
-    rows = [
-        ("0" * 40, "noreply@github.com", "221361569+skipp-dev@users.noreply.github.com"),
-    ]
-    offenders = mod._offenders(rows)
-    assert len(offenders) == 1
-    assert "author=noreply@github.com" in offenders[0]
 
 
 def test_case_insensitive_match() -> None:

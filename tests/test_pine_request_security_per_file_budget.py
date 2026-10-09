@@ -43,9 +43,6 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # Per-file budget = current_count + 1 (small headroom for low-friction
 # additions; new calls beyond budget force explicit bump + review).
 _BUDGETS: dict[str, int] = {
-    # R5 live HTF companion: one confirmed tuple request for each fixed
-    # 15m/1h/4h source. No fourth context is permitted without review.
-    "SMC_HTF_Confluence.pine": 4,
     "SMC_Long_Dip_Suite.pine": 5,
     "SMC++/smc_utils.pine": 5,
 }

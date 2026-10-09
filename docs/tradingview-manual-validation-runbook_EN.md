@@ -9,7 +9,7 @@ This runbook describes the external manual TradingView runtime validation for th
 The validation covers:
 
 1. Producer: [../SMC_Long_Dip_Suite.pine](../SMC_Long_Dip_Suite.pine)
-2. Dashboard consumer: [../SMC_Decision_Board.pine](../SMC_Decision_Board.pine)
+2. Dashboard consumer: [../SMC_Long_Dip_Dashboard.pine](../SMC_Long_Dip_Dashboard.pine)
 3. Strategy consumer: [../SMC_Long_Dip_Strategy.pine](../SMC_Long_Dip_Strategy.pine)
 
 The goal is a clear pass/fail decision for the current TradingView contract state without making ad-hoc changes to production logic.
@@ -17,7 +17,7 @@ The goal is a clear pass/fail decision for the current TradingView contract stat
 ## Required Files
 
 1. [../SMC_Long_Dip_Suite.pine](../SMC_Long_Dip_Suite.pine)
-2. [../SMC_Decision_Board.pine](../SMC_Decision_Board.pine)
+2. [../SMC_Long_Dip_Dashboard.pine](../SMC_Long_Dip_Dashboard.pine)
 3. [../SMC_Long_Dip_Strategy.pine](../SMC_Long_Dip_Strategy.pine)
 4. [tradingview-validation-checklist.md](tradingview-validation-checklist.md)
 5. [tradingview-manual-validation-report-template_EN.md](tradingview-manual-validation-report-template_EN.md)
@@ -56,12 +56,12 @@ Workspace refresh: 2026-04-07
 
 ### Binding Convention
 
-1. The dashboard starts with `1. Product Surface`, then binds in eight `Chart Link` groups: `2. Chart Link - Decision State`, `3. Chart Link - Context Signals`, `4. Chart Link - Trade Plan`, `5. Chart Link - Context Rows`, `6. Chart Link - Blocker Codes`, `7. Chart Link - Detail Surface`, `8. Chart Link - Lean Surface`, `9. Chart Link - Preset Contract`.
-2. The strategy starts with `1. Execution Setup` and `2. Trade Plan`; its `source` bindings remain in `3. Chart Link - Entry States` and `4. Chart Link - Trade Plan`.
+1. The dashboard starts with `1. Product Surface`, then binds in six operator-only BUS groups: `2. Operator Only - Lifecycle BUS`, `3. Operator Only - Diagnostic Rows`, `4. Operator Only - Diagnostic Support`, `5. Operator Only - Trade Plan`, `6. Operator Only - Detail Surface`, `7. Operator Only - Lean Surface`.
+2. The strategy starts with `1. Execution Setup` and `2. Trade Plan`; its `source` bindings remain in `3. Expert Mapping - Entry States` and `4. Expert Mapping - Trade Plan`.
 3. The core settings surface now prioritizes `1. Core Setup`, `2. Output`, `3. Trade Plan`, `4. Session Gate`, and `5. Runtime Budget` before the advanced groups.
 4. In TradingView, both consumers are bound top-to-bottom to the matching BUS series from the core.
 5. [../scripts/smc_bus_manifest.py](../scripts/smc_bus_manifest.py) is the canonical source for names, order, and groups.
-6. The dashboard also has a local `10. Advanced - Debug Mirrors` group without `source` bindings. Set those three booleans manually only when you want `Debug Flags` or `Long Debug` to mirror the core's effective debug configuration.
+6. The dashboard also has a local `8. Operator Only - Local Debug Mirrors` group without `source` bindings. Set those three booleans manually only when you want `Debug Flags` or `Long Debug` to mirror the core's effective debug configuration.
 
 ### Canonical BUS Order
 
@@ -168,7 +168,7 @@ Fail:
 
 ### Dashboard Steps
 
-1. Add [../SMC_Decision_Board.pine](../SMC_Decision_Board.pine) to the same chart.
+1. Add [../SMC_Long_Dip_Dashboard.pine](../SMC_Long_Dip_Dashboard.pine) to the same chart.
 2. Bind all 64 `input.source()` fields exactly to the core series.
 3. Confirm that `View = Decision Brief` is active and that `Show Brief Panel` plus `Show Trade Plan` produce the expected companion cut.
 4. If you want to validate `Debug Flags` or `Long Debug`, set the three local debug mirror toggles in the dashboard to match the core's effective debug configuration.

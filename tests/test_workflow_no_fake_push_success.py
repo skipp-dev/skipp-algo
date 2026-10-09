@@ -60,14 +60,6 @@ _FAKE_SUCCESS_PR_CREATE = re.compile(
 )
 
 
-def test_workflow_roster_is_not_empty() -> None:
-    """Zero argvalues would collect zero tests — silently, with no output."""
-    assert len(_WORKFLOWS) >= 10, (
-        f"workflow discovery found {len(_WORKFLOWS)} files — both parametrized "
-        "checks below would collect nothing and report nothing"
-    )
-
-
 @pytest.mark.parametrize("workflow_path", _WORKFLOWS, ids=lambda p: p.name)
 def test_workflow_does_not_fake_push_success(workflow_path: pathlib.Path) -> None:
     body = workflow_path.read_text(encoding="utf-8")

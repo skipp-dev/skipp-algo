@@ -10,7 +10,7 @@ def _response(**overrides: object) -> dict[str, object]:
     payload: dict[str, object] = {
         "schema_version": 1,
         "answer": "Inspected answer",
-        "model": "gpt-5.6-luna",
+        "model": "gpt-4o",
         "cached": False,
         "context_articles": 3,
         "context_tickers": 2,

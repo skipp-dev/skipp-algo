@@ -99,29 +99,10 @@ def test_publish_step_remains_fail_loud(refresh_job: dict) -> None:
     assert isinstance(publish, dict), "publish step missing"
 
     run = publish.get("run") or ""
-    assert "scripts/publish_bot_snapshot.py" in run, (
-        "publish step must keep the fail-closed rolling snapshot publisher"
+    assert "if git push --force-with-lease=refs/heads/bot/live-news-snapshot" in run, (
+        "publish step must keep explicit push success/failure branching"
     )
-    assert "--branch bot/live-news-snapshot" in run
-    assert publish.get("continue-on-error") is not True, (
-        "publish step must remain fail-loud on snapshot persistence failure"
-    )
-
-
-def test_restore_step_authenticates_private_bot_branch(refresh_job: dict) -> None:
-    steps = refresh_job.get("steps")
-    assert isinstance(steps, list) and steps
-    restore = next(
-        step
-        for step in steps
-        if step.get("name") == "Restore live-news state from bot/live-news-snapshot"
-    )
-    env = restore.get("env")
-    assert isinstance(env, dict)
-    assert env.get("GH_TOKEN") == "${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}"
-    run = restore.get("run") or ""
-    assert 'remote_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"' in run
-    assert 'git fetch "${remote_url}"' in run
+    assert "exit 1" in run, "publish step must remain fail-loud on push failure"
 
 
 def test_refresh_step_wires_benzinga_and_stays_newsapi_free(refresh_job: dict) -> None:

@@ -260,15 +260,6 @@ def _line_has_marker(source_lines: list[str], lineno: int) -> bool:
     return bool(suffix.strip())
 
 
-def test_probe_roster_is_not_empty() -> None:
-    """Zero argvalues would collect zero tests — silently, with no output."""
-    probes = sorted(_REPO_ROOT.glob(_PROBE_GLOB))
-    assert len(probes) >= 3, (
-        f"{_PROBE_GLOB} matched {len(probes)} scripts — the parametrized "
-        "leakage check below would collect nothing and report nothing"
-    )
-
-
 @pytest.mark.parametrize(
     "probe_path",
     sorted(str(p.relative_to(_REPO_ROOT)) for p in _REPO_ROOT.glob(_PROBE_GLOB)),

@@ -5,7 +5,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
+  addCurrentScriptToChart,
   assertNoVisibleCompileError,
+  assertNoVisibleChartScriptError,
   closeTradingViewSession,
   collectOpenScriptIdentityTexts,
   ensurePineEditor,
@@ -66,8 +68,6 @@ type PublishPanelReport = {
   contractOk: boolean;
   publishAttempted: boolean;
   publishOk: boolean;
-  publishConfirmed: boolean;
-  publishSurfaceClosedAfterConfirm: boolean;
   openMode: OpenMode;
   openExistingRequested: boolean;
   openedExistingScript: boolean;
@@ -155,8 +155,6 @@ export async function runPublishOpenPrepPanelCli(): Promise<number> {
   let noChangeDetected = false;
   let identityEvidenceContext: string[] = [];
   let publishBodyText = "";
-  let publishConfirmed = false;
-  let publishSurfaceClosedAfterConfirm = false;
 
   try {
     if (!cli.openExisting && !cli.allowCreate) {
@@ -198,37 +196,22 @@ export async function runPublishOpenPrepPanelCli(): Promise<number> {
       await saveScript(session.page, details.scriptName);
       await waitForPostSaveCompileSettlement(session.page, details.scriptName);
       await assertNoVisibleCompileError(session.page);
+      await addCurrentScriptToChart(session.page, details.scriptName);
+      await assertNoVisibleChartScriptError(session.page, details.scriptName);
       await takeScreenshot(session.page, runId, `${details.scriptName}-compiled`, screenshots);
 
       publishAttempted = true;
-      let publishResult: Awaited<ReturnType<typeof publishPrivateScript>>;
-      try {
-        publishResult = await publishPrivateScript(session.page, {
-          scriptName: details.scriptName,
-          title: details.scriptName,
-          description: cli.description,
-          requireCleanChartBeforePublish: true,
-          publishMode: openedExistingScript ? "update_existing" : "auto",
-        });
-      } catch (publishError) {
-        await takeScreenshot(
-          session.page, runId, `${details.scriptName}-publish-failed`, screenshots,
-        ).catch(() => "");
-        throw publishError;
-      }
+      const publishResult = await publishPrivateScript(session.page, {
+        scriptName: details.scriptName,
+        title: details.scriptName,
+        description: cli.description,
+      });
       noChangeDetected = publishResult.noChangeDetected;
-      publishConfirmed = publishResult.publishConfirmed;
-      publishSurfaceClosedAfterConfirm = publishResult.publishSurfaceClosedAfterConfirm;
       publishBodyText = publishResult.bodyText;
       const publishCompileError = detectPineCompileErrorMarker(publishBodyText);
       if (publishCompileError) {
         throw new Error(
           `TradingView publish evidence contains a Pine compiler error for ${details.scriptName}: ${publishCompileError}`,
-        );
-      }
-      if (!publishSurfaceClosedAfterConfirm || (!noChangeDetected && !publishConfirmed)) {
-        throw new Error(
-          `TradingView Open-Prep publication was not confirmed: publish_confirmed=${publishConfirmed}, surface_closed=${publishSurfaceClosedAfterConfirm}, no_change_detected=${noChangeDetected}`,
         );
       }
       await takeScreenshot(session.page, runId, `${details.scriptName}-published`, screenshots);
@@ -237,7 +220,7 @@ export async function runPublishOpenPrepPanelCli(): Promise<number> {
       identityEvidenceContext = await collectOpenScriptIdentityTexts(session.page, details.scriptName).catch(() => []);
       let bodyText = publishResult.bodyText || (await session.page.locator("body").innerText().catch(() => ""));
       let identityEvidence = resolveOpenScriptIdentityEvidence(details.scriptName, {
-        dialogStillVisible: !publishSurfaceClosedAfterConfirm,
+        dialogStillVisible: false,
         editorContextTexts: identityEvidenceContext,
       });
       identityVerificationMode = identityEvidence.verificationMode;
@@ -248,7 +231,7 @@ export async function runPublishOpenPrepPanelCli(): Promise<number> {
         identityEvidenceContext = await collectOpenScriptIdentityTexts(session.page, details.scriptName).catch(() => []);
         bodyText = await session.page.locator("body").innerText().catch(() => "");
         identityEvidence = resolveOpenScriptIdentityEvidence(details.scriptName, {
-          dialogStillVisible: !publishSurfaceClosedAfterConfirm,
+          dialogStillVisible: false,
           editorContextTexts: identityEvidenceContext,
         });
         identityVerificationMode = identityEvidence.verificationMode;
@@ -271,8 +254,6 @@ export async function runPublishOpenPrepPanelCli(): Promise<number> {
       contractOk: true,
       publishAttempted,
       publishOk: true,
-      publishConfirmed,
-      publishSurfaceClosedAfterConfirm,
       openMode,
       openExistingRequested: cli.openExisting,
       openedExistingScript,
@@ -297,8 +278,6 @@ export async function runPublishOpenPrepPanelCli(): Promise<number> {
       contractOk: details !== null,
       publishAttempted,
       publishOk: false,
-      publishConfirmed,
-      publishSurfaceClosedAfterConfirm,
       openMode,
       openExistingRequested: cli.openExisting,
       openedExistingScript,

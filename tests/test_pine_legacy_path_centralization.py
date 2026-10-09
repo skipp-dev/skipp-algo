@@ -29,8 +29,6 @@ import ast
 import re
 from pathlib import Path
 
-from tests._guard_corpus import iter_production_py_files
-
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # Separator-tolerant: matches `pine/legacy`, `pine\legacy`, escaped
@@ -84,7 +82,12 @@ def _docstring_constant_ids(tree: ast.AST) -> set[int]:
 
 
 def _iter_production_py_files() -> list[Path]:
-    return iter_production_py_files(_SKIP_DIR_NAMES)
+    files: list[Path] = []
+    for path in REPO_ROOT.rglob("*.py"):
+        if any(part in _SKIP_DIR_NAMES for part in path.relative_to(REPO_ROOT).parts):
+            continue
+        files.append(path)
+    return files
 
 
 def _string_literal_violations(path: Path) -> list[tuple[int, str]]:

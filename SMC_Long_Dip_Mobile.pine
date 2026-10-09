@@ -8,10 +8,10 @@
 
 indicator("SMC Long-Dip Mobile", overlay = true)
 
-import preuss_steffen/smc_micro_profiles_generated/569 as mp
+import preuss_steffen/smc_micro_profiles_generated/158 as mp
 
 var string g_mobile_surface = "Mobile Surface"
-color_theme = input.string("Standard", "Color Theme", options = ["Standard", "Colorblind Safe"], group = g_mobile_surface, tooltip = "Match this to the SMC Long-Dip Suite color theme. Colorblind Safe replaces red/green with orange/blue.")
+color_theme = input.string("Standard", "Color Theme", options = ["Standard", "Colorblind Safe"], group = g_mobile_surface, tooltip = "Match this to the Core Engine color theme. Colorblind Safe replaces red/green with orange/blue.")
 var bool _cb = color_theme == "Colorblind Safe"
 var color M_BULL    = _cb ? #1f77b4 : color.green
 var color M_ALT     = _cb ? color.new(#1f77b4, 20) : color.teal
@@ -19,7 +19,7 @@ var color M_CAUTION = _cb ? #bcbd22 : color.orange
 var color M_BEAR    = _cb ? #ff7f0e : color.red
 var color M_NEUTRAL = color.gray
 
-var string g_bus = "Chart Link - SMC Long-Dip Suite"
+var string g_bus = "Operator Only - BUS"
 
 // Declared in the Suite's BUS plot() order. TradingView lists a source study's
 // outputs in that plot order, so matching it here means each row's dropdown pick
@@ -35,9 +35,9 @@ src_state_code         = input.source(close, "BUS StateCode",      group = g_bus
 
 var string g_trade_mgmt = "Trade Management (optional)"
 tm_enable      = input.bool(false, "Enable Trade-Mgmt rows",        group = g_trade_mgmt, tooltip = "Adds 2 extra rows to the table: Trade-State (FLAT/ARMED/IN-TRADE) and live Stop. Same logic as SMC_Exit_Signal.")
-tm_tp1_r       = input.float(1.5,  "TP1 (R-multiple)",              group = g_trade_mgmt, minval = 0.25, step = 0.25, active = tm_enable)
-tm_tp2_r       = input.float(3.0,  "TP2 (R-multiple)",              group = g_trade_mgmt, minval = 0.5,  step = 0.25, active = tm_enable)
-tm_be_after_t1 = input.bool(true,  "Move stop to break-even after TP1", group = g_trade_mgmt, active = tm_enable)
+tm_tp1_r       = input.float(1.5,  "TP1 (R-multiple)",              group = g_trade_mgmt, minval = 0.25, step = 0.25)
+tm_tp2_r       = input.float(3.0,  "TP2 (R-multiple)",              group = g_trade_mgmt, minval = 0.5,  step = 0.25)
+tm_be_after_t1 = input.bool(true,  "Move stop to break-even after TP1", group = g_trade_mgmt)
 
 // ── BUS Schema Version Check ──
 int expected_bus_version = 7001
@@ -164,6 +164,6 @@ if barstate.islast and bus_ok
         tm_entry_price := na, tm_entry_stop := na, tm_tp1_price := na, tm_tp2_price := na, tm_tp1_hit := false
 else if barstate.islast and not bus_ok
     table.cell(mob, 0, 0, "SMC Mobile", text_color = chart.fg_color, bgcolor = color.new(color.red, 70), text_size = size.normal)
-    table.cell(mob, 1, 0, "❌ Add SMC Long-Dip Suite first", text_color = chart.fg_color, bgcolor = color.new(color.red, 70), text_size = size.normal)
+    table.cell(mob, 1, 0, "❌ Add SMC Core Engine first", text_color = chart.fg_color, bgcolor = color.new(color.red, 70), text_size = size.normal)
 
 // No overlays — mobile-optimized, table only

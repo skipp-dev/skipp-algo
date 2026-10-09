@@ -28,7 +28,7 @@ from pathlib import Path
 
 import pytest
 
-from tests._guard_corpus import iter_production_py_files, parse_module
+from tests._guard_corpus import parse_module
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _DIR_EXCLUDE = frozenset({
@@ -40,9 +40,9 @@ _DIR_EXCLUDE = frozenset({
 # ---- Layer 1: random.* ledger -------------------------------------------------
 
 _RANDOM_LEDGER: frozenset[tuple[str, int]] = frozenset({
-    ("open_prep/error_taxonomy.py", 117),  # retry-jitter; non-security  # 2026-07-27 (adoption note above): 111->117
+    ("open_prep/error_taxonomy.py", 111),  # retry-jitter; non-security
     ("newsstack_fmp/_bz_http.py", 35),  # retry-jitter; non-security
-    ("services/opra_live_daemon/feed.py", 376),  # reconnect jitter; non-security. 257->275 (2026-08-04): control-sink routing added above (definition-sink outage fix). 275->327 (2026-08-05): bootstrap retry planner added above; 327->376 when the retry moved to its own thread
+    ("services/opra_live_daemon/feed.py", 134),  # reconnect jitter; non-security
     # ADR-0023 magnitude-resolution gate: seeded RNG for the bootstrap-CI /
     # permutation-null estimators (deterministic, reproducible); non-security.
     ("governance/magnitude_resolution_gate.py", 204),
@@ -53,10 +53,8 @@ _RANDOM_LEDGER: frozenset[tuple[str, int]] = frozenset({
     # of the empirical round-turn cost (deterministic); non-security.
     # 2026-06-11 (#2697 review findings): 322→329 after the fee-only-leg
     # comment block above the call site, then 329→332 after the
-    # non-finite cost-input guard landed three lines above it, then 332→334
-    # (2026-08-05) when the CI moved above the fail-reason list so the
-    # non-positive-cost guard could judge the bound the gate actually uses.
-    ("governance/execution_costs.py", 334),
+    # non-finite cost-input guard landed three lines above it.
+    ("governance/execution_costs.py", 332),
 })
 
 # ---- Layer 2: tempfile.* ledger ----------------------------------------------
@@ -64,7 +62,7 @@ _RANDOM_LEDGER: frozenset[tuple[str, int]] = frozenset({
 _ALLOWED_TEMPFILE_METHODS: frozenset[str] = frozenset({"mkstemp"})
 
 _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
-    ("databento_reference.py", 142, "mkstemp"),  # 2026-08-18 (D7 retry helper above): 106->142
+    ("databento_reference.py", 106, "mkstemp"),
     ("databento_utils.py", 144, "mkstemp"),
     # F-002 (PR #2295): cache-probe helpers added near the top of
     # ``databento_volatility_screener.py`` shifted the only ``mkstemp`` site
@@ -85,17 +83,17 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     ("open_prep/alerts.py", 73, "mkstemp"),  # 2026-07-13 (throttle-comment truth-fix +1): 72->73
     # 2026-07-03 (WP-3 holdout rescoring): helper additions shifted mkstemp
     # site from 150 -> 472.
-    ("open_prep/candidate_weights.py", 486, "mkstemp"),  # 2026-07-28 (Arm-B eligible-date split): 479->486
-    ("open_prep/diff.py", 64, "mkstemp"),  # 2026-08-18 (Sweep-Doku-Kommentar): 60->64
+    ("open_prep/candidate_weights.py", 479, "mkstemp"),  # 2026-07-10: eps_surprise_pct→recent_eps_surprise_pct reconstruction swap +1 (479->480)
+    ("open_prep/diff.py", 60, "mkstemp"),
     # 2026-06-13 (audit-e2/aw7-reader-observability, PR #2759): _load_previous_latest
     #   DEBUG log insertion shifted mkstemp from 249 → 250.
     # 2026-07-15 (ops-digest truth): _DIAGNOSTIC_COUNTERS constant + the top-level
     #   counter copy in generate_report shifted mkstemp 251 → 271 (pure shift).
-    ("open_prep/feature_importance_report.py", 318, "mkstemp"),  # 2026-07-28 (dedicated EWMA recalibration status): 271->318
+    ("open_prep/feature_importance_report.py", 271, "mkstemp"),
     # 2026-06-11 (backfill defer-unpublished): 88→107, 531→581.
     # 2026-06-17 (F1 lint fix): remove unused import sys → 116→115.
     # 2026-07-05 (bug-hunt round 7): import math → 115→116.
-    ("open_prep/outcome_backfill.py", 178, "mkstemp"),  # 2026-07-23 (A1 horizons: docstring + horizon constants above): 138->178
+    ("open_prep/outcome_backfill.py", 138, "mkstemp"),  # 2026-07-18 (dataset-role import): 137->138
     # 2026-06-11 (eval-findings B1/B2): direction+TB code shifted 581→660.
     # 2026-06-11 (c10b FI component persistence): era-gate block 660→682.
     # 2026-06-11 (Copilot sweep #2677): deferred-summary accounting 682→694.
@@ -105,8 +103,8 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     # 2026-06-17 (F1 lint fix): remove unused import sys → 709→708.
     # 2026-07-05 (bug-hunt round 7): import math + non-finite entry/exit
     # price guard in compute_pnl_from_bars → 716→721.
-    ("open_prep/outcome_backfill.py", 1120, "mkstemp"),  # 2026-08-08 (backfill keeps a horizon's earlier label): 1107->1120
-    ("open_prep/outcomes.py", 213, "mkstemp"),  # 2026-07-23 (A1 horizons: module docstring above): 209->213
+    ("open_prep/outcome_backfill.py", 774, "mkstemp"),  # 2026-07-18 (dataset-role import): 773->774
+    ("open_prep/outcomes.py", 209, "mkstemp"),  # 2026-07-09 robustness: _null_non_finite_floats helper + sanitize call above
     # 2026-06-11 (trend-state features): 419→437, snapshot keys +
     # FEATURE_KEYS/PASS_THROUGH block added above.
     # 2026-06-11 (eval-findings B5/B1): gap-playbook report + direction
@@ -119,26 +117,23 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     # 2026-07-03 (WP-3 sample_dates helper): +1 -> 604.
     # 2026-07-04 (market-microstructure observe-only): snapshot fields +
     # FEATURE_KEYS/PASS_THROUGH entries +16 -> 620.
-    ("open_prep/outcomes.py", 856, "mkstemp"),  # 2026-07-28 (EWMA shadow outcome/FI field): 851->856
+    ("open_prep/outcomes.py", 714, "mkstemp"),  # 2026-07-13 (directional-era cutoff + loader skip; _pearson_r removed): 704->714
     # 2026-07-03 (WP-4 holiday gate): +2 (import) then +8 below the gate.
-    ("open_prep/realtime_signals.py", 122, "mkstemp"),  # 2026-07-25 (databento-signal-migration): 121->122
+    ("open_prep/realtime_signals.py", 121, "mkstemp"),  # 2026-07-16 market-session import shifted site: 120->121
     # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
     # 2768 -> 2849 and 2815 -> 2896.
     # 2026-06-28 (semantic monitoring): shifted +80/+82 lines by readiness metrics.
-    # 2026-07-26 (merge Databento source after re-qual fixes):
-    # combined branch additions shifted the two reviewed temp-file sites.
-    ("open_prep/realtime_signals.py", 4031, "mkstemp"),  # 2026-08-18 (railway-token startup guard): 3981->4005 (2026-08-21 cisco-probe: 4020->4031)
-    ("open_prep/realtime_signals.py", 4087, "mkstemp"),  # 2026-08-18 (railway-token startup guard): 4037->4061 (2026-08-21 cisco-probe: 4076->4087)
-
-    ("open_prep/watchlist.py", 69, "mkstemp"),  # 2026-07-27 (persistence note above): 63->69
+    ("open_prep/realtime_signals.py", 3715, "mkstemp"),  # 2026-07-20 private AI endpoint shifted site: 3708->3715
+    ("open_prep/realtime_signals.py", 3771, "mkstemp"),  # 2026-07-20 private AI endpoint shifted site: 3764->3771
+    ("open_prep/watchlist.py", 63, "mkstemp"),
     ("smc_core/benchmark.py", 30, "mkstemp"),
     ("smc_core/ensemble_quality.py", 53, "mkstemp"),  # 2026-07-13 doc truth-fix comments shifted (49->53)
     ("smc_core/event_ledger.py", 178, "mkstemp"),  # 2026-07-13 schema-v1.2 rename+calibrated_prob (event_ledger mkstemp 143->178); null_cache.py removed upstream
     ("smc_core/scoring.py", 1267, "mkstemp"),  # 2026-07-13: 1216->1258 (normalize_sweep_side + calibration-honesty docstrings); 1258->1267 (frame_integrity extras in export_scoring_artifact)
     ("smc_integration/batch.py", 26, "mkstemp"),
-    ("smc_integration/provider_health.py", 71, "mkstemp"),  # 2026-07-28 (ws5 observe-only): +11 from _resolve_structure_artifact_preference helper
+    ("smc_integration/provider_health.py", 60, "mkstemp"),
     ("smc_integration/structure_batch.py", 34, "mkstemp"),  # 2026-07-13 (manifest generator provenance imports): 30->34
-    ("streamlit_terminal.py", 2312, "mkstemp"),  # 2026-07-23 (News Ingest label + sidebar source lines above): 2298->2312
+    ("streamlit_terminal.py", 2191, "mkstemp"),  # 2026-07-20 source-priority UI shifted site: 2184->2191
     ("terminal_export.py", 177, "mkstemp"),
     ("terminal_export.py", 229, "mkstemp"),
     ("terminal_export.py", 603, "mkstemp"),  # 2026-07-12 (drop dead social read): 606->603
@@ -147,7 +142,13 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
 
 
 def _iter_prod_py() -> list[Path]:
-    return iter_production_py_files(_DIR_EXCLUDE)
+    out: list[Path] = []
+    for p in sorted(_REPO_ROOT.rglob("*.py")):
+        rel_parts = p.relative_to(_REPO_ROOT).parts
+        if any(part in _DIR_EXCLUDE for part in rel_parts):
+            continue
+        out.append(p)
+    return out
 
 
 def _scan() -> tuple[set[tuple[str, int]], set[tuple[str, int, str]]]:

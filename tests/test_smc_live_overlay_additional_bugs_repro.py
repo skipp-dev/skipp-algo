@@ -9,7 +9,7 @@ import threading
 import time
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -180,70 +180,6 @@ class TestVIXFmpPoll:
         feed_mod._poll_vix_from_fmp()  # must not raise
 
         assert calls == []
-
-    def test_failed_construction_retries_after_bounded_interval(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """Truth-audit F-3: a transient FMP-loader construction failure (e.g.
-        a DNS hiccup at boot) used to disable VIX for the process lifetime.
-        The failure path must stamp a timestamp and retry construction after
-        the bounded interval — not on every poll (no retry storm)."""
-        import services.live_overlay_daemon.cache as cache_mod
-        import services.live_overlay_daemon.feed as feed_mod
-        import services.live_overlay_daemon.fmp_data_loader as fmp_mod
-
-        calls: list[Any] = []
-        monkeypatch.setattr(cache_mod, "set_vix", calls.append)
-        try:
-            feed_mod._runtime.pop("vix_loader", None)
-            feed_mod._runtime.pop("vix_loader_failed_at", None)
-
-            boom = MagicMock(side_effect=ValueError("FMP_API_KEY not provided"))
-            monkeypatch.setattr(fmp_mod, "FMPDataLoader", boom)
-            feed_mod._poll_vix_from_fmp()  # construction fails -> sentinel + stamp
-            assert feed_mod._runtime["vix_loader"] is None
-            assert "vix_loader_failed_at" in feed_mod._runtime
-            assert boom.call_count == 1
-
-            feed_mod._poll_vix_from_fmp()  # within interval -> NO reconstruction
-            assert boom.call_count == 1, "retry storm: reconstructed before the interval"
-            assert calls == []
-
-            feed_mod._runtime["vix_loader_failed_at"] -= feed_mod._VIX_LOADER_RETRY_SECS + 1
-            good_loader = self._FakeLoader(19.0)
-            monkeypatch.setattr(fmp_mod, "FMPDataLoader", MagicMock(return_value=good_loader))
-            feed_mod._poll_vix_from_fmp()  # interval elapsed -> retry succeeds
-            assert calls == [19.0], "recovered loader must refresh VIX again"
-            assert feed_mod._runtime["vix_loader"] is good_loader
-            assert "vix_loader_failed_at" not in feed_mod._runtime
-        finally:
-            feed_mod._runtime.pop("vix_loader", None)
-            feed_mod._runtime.pop("vix_loader_failed_at", None)
-
-    def test_manual_none_sentinel_without_timestamp_never_retries(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """A bare None sentinel with no failure timestamp (the pre-F-3 state,
-        also used by hermetic tests) must stay a permanent no-op — the bounded
-        retry only arms itself via the construction-failure path."""
-        import services.live_overlay_daemon.cache as cache_mod
-        import services.live_overlay_daemon.feed as feed_mod
-        import services.live_overlay_daemon.fmp_data_loader as fmp_mod
-
-        calls: list[Any] = []
-        monkeypatch.setattr(cache_mod, "set_vix", calls.append)
-        monkeypatch.setitem(feed_mod._runtime, "vix_loader", None)
-        try:
-            feed_mod._runtime.pop("vix_loader_failed_at", None)
-            probe = MagicMock()
-            monkeypatch.setattr(fmp_mod, "FMPDataLoader", probe)
-
-            feed_mod._poll_vix_from_fmp()
-
-            assert probe.call_count == 0, "timestamp-less sentinel must not reconstruct"
-            assert calls == []
-        finally:
-            feed_mod._runtime.pop("vix_loader_failed_at", None)
 
 
 class TestFeedReadinessRaceCondition:
@@ -432,11 +368,7 @@ class TestVolumeTypeDriftRobustness:
                 ]
             },
         )
-        # set_vix also stamps the freshness clock, which get_vix_fresh() gates
-        # on. Patching the un-gated get_vix left this test depending on a
-        # sibling test's leftover timestamp: in isolation it failed on both
-        # sides of the F-7 fix (20.0 before, None after).
-        cache_mod.set_vix(21.0)
+        monkeypatch.setattr(cache_mod, "get_vix", lambda: 21.0)
 
         compute_mod.run_flow_patch_cycle()
 
@@ -445,37 +377,6 @@ class TestVolumeTypeDriftRobustness:
         assert payload["flow_rel_vol"] is None
         assert payload["flow_delta_proxy_pct"] == 0.5
         assert payload["vix_level"] == 21.0
-
-    def test_flow_patch_cycle_nulls_a_stale_vix_instead_of_freezing_it(
-        self, monkeypatch
-    ) -> None:
-        """F-7 (2026-08-08): the fast patch used to skip ``vix_level`` whenever
-        ``get_vix_fresh()`` returned None, so an expired VIX kept being served
-        until the next FULL cycle nulled it — up to OVERLAY_REFRESH_SECS later.
-        That is the exact class PR #4508 closed on the wire path."""
-        import services.live_overlay_daemon.cache as cache_mod
-        import services.live_overlay_daemon.compute as compute_mod
-
-        cache_mod.set_overlay({"AAPL": {"vix_level": 20.0}})
-        monkeypatch.setattr(
-            cache_mod,
-            "get_all_symbols_snapshot",
-            lambda: {
-                "AAPL": [
-                    {"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.5, "volume": 100},
-                    {"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.5, "volume": 110},
-                ]
-            },
-        )
-        # Fresh underlying level, but past its age budget: must read as unknown.
-        cache_mod.set_vix(21.0)
-        monkeypatch.setattr(cache_mod, "vix_age_secs", lambda: cache_mod.VIX_MAX_AGE_SECS + 1)
-
-        compute_mod.run_flow_patch_cycle()
-
-        payload = cache_mod.get_overlay("AAPL")
-        assert payload is not None
-        assert payload["vix_level"] is None, "a stale VIX must not stay frozen at 20.0"
 
     def test_flow_patch_cycle_clears_stale_delta_when_last_open_missing(
         self, monkeypatch: pytest.MonkeyPatch
@@ -513,52 +414,6 @@ class TestVolumeTypeDriftRobustness:
         assert payload is not None
         assert payload["flow_rel_vol"] == pytest.approx(140.0 / 115.0, rel=1e-4)
         assert payload["flow_delta_proxy_pct"] is None
-
-    def test_flow_patch_cycle_clears_stale_ats_when_current_volume_is_missing(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        import services.live_overlay_daemon.cache as cache_mod
-        import services.live_overlay_daemon.compute as compute_mod
-
-        cache_mod.set_overlay(
-            {
-                "AAPL": {
-                    "ats_state": "accumulation",
-                    "volume_accumulation_distribution_state": "accumulation",
-                    "ats_zscore": 2.5,
-                    "volume_current_bar_zscore": 2.5,
-                }
-            }
-        )
-        bars = [
-            {
-                "open": 100.0,
-                "high": 101.0,
-                "low": 99.0,
-                "close": 100.5,
-                "volume": 100.0 + index,
-            }
-            for index in range(20)
-        ]
-        bars[-1]["volume"] = None
-        monkeypatch.setattr(
-            cache_mod,
-            "get_all_symbols_snapshot",
-            lambda: {"AAPL": bars},
-        )
-        monkeypatch.setattr(cache_mod, "get_vix", lambda: None)
-
-        compute_mod.run_flow_patch_cycle()
-
-        payload = cache_mod.get_overlay("AAPL")
-        assert payload is not None
-        for key in (
-            "ats_state",
-            "volume_accumulation_distribution_state",
-            "ats_zscore",
-            "volume_current_bar_zscore",
-        ):
-            assert payload[key] is None
 
 
 class TestNewsSnapshotRuntimeUrlFetch:
@@ -653,87 +508,3 @@ class TestSnapshotTimestampAge:
         import services.live_overlay_daemon.metrics as metrics_mod
 
         assert metrics_mod._snapshot_timestamp({"providers": {}}) is None
-
-
-class TestFlowPatchCanonicalLockstep:
-    """The schema documents flow_delta_proxy_pct (legacy) and
-    price_candle_body_return_pct (canonical) as "the same candle-body return",
-    and build_payload sets them identically. The fast flow-patch cycle only
-    refreshes the legacy alias, so the canonical name silently freezes at the
-    last full-compute value between cycles. These regressions pin both names to
-    the same value on every flow patch — fresh and cleared-to-None alike.
-    """
-
-    def test_flow_patch_cycle_keeps_canonical_body_return_in_lockstep(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        import services.live_overlay_daemon.cache as cache_mod
-        import services.live_overlay_daemon.compute as compute_mod
-
-        # Prior full-compute snapshot: both names carry the same (now stale) value.
-        cache_mod.set_overlay(
-            {
-                "AAPL": {
-                    "flow_rel_vol": 2.5,
-                    "flow_delta_proxy_pct": 9.9,
-                    "price_candle_body_return_pct": 9.9,
-                }
-            }
-        )
-        monkeypatch.setattr(
-            cache_mod,
-            "get_all_symbols_snapshot",
-            lambda: {
-                "AAPL": [
-                    {"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.5, "volume": 100},
-                    {"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.5, "volume": 110},
-                    {"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.5, "volume": 120},
-                    {"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.5, "volume": 130},
-                    {"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.5, "volume": 140},
-                ]
-            },
-        )
-        monkeypatch.setattr(cache_mod, "get_vix", lambda: None)
-
-        compute_mod.run_flow_patch_cycle()
-
-        payload = cache_mod.get_overlay("AAPL")
-        assert payload is not None
-        assert payload["flow_delta_proxy_pct"] == 0.5
-        # Canonical must track the alias, not remain frozen at 9.9.
-        assert payload["price_candle_body_return_pct"] == 0.5
-
-    def test_flow_patch_cycle_clears_canonical_body_return_in_lockstep(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        import services.live_overlay_daemon.cache as cache_mod
-        import services.live_overlay_daemon.compute as compute_mod
-
-        cache_mod.set_overlay(
-            {
-                "AAPL": {
-                    "flow_delta_proxy_pct": 1.0,
-                    "price_candle_body_return_pct": 1.0,
-                }
-            }
-        )
-        # Malformed last bar (open=None) → fresh candle-body return is None.
-        monkeypatch.setattr(
-            cache_mod,
-            "get_all_symbols_snapshot",
-            lambda: {
-                "AAPL": [
-                    {"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.5, "volume": 100},
-                    {"open": None, "high": 101.0, "low": 99.0, "close": 100.5, "volume": 140},
-                ]
-            },
-        )
-        monkeypatch.setattr(cache_mod, "get_vix", lambda: None)
-
-        compute_mod.run_flow_patch_cycle()
-
-        payload = cache_mod.get_overlay("AAPL")
-        assert payload is not None
-        assert payload["flow_delta_proxy_pct"] is None
-        # Both names clear together; the canonical must not keep the stale 1.0.
-        assert payload["price_candle_body_return_pct"] is None

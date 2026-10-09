@@ -13,13 +13,11 @@ export resolve_long_environment_focus_text(bool market_regime_gate_ok, bool vola
         environment_focus_text := 'Event Block'
     environment_focus_text
 
-// 2026-08-26 (#4756): die zwei parameterlosen Kompositionen sind nackte
-// String-Literale — der Konstanz-Vorbehalt aus dem Issue ist damit geprueft
-// und erfuellt; als `export const` migriert (Namenskonvention der Konstanten,
-// vgl. UNIVERSE_SIZE im generierten Pendant). Die parametrisierten
-// compose_*-Funktionen darunter bleiben Funktionen.
-export const string PASSED_STATUS_TEXT   = 'Passed'
-export const string ELIGIBLE_STATUS_TEXT = 'Eligible'
+export compose_passed_status_text() =>
+    'Passed'
+
+export compose_eligible_status_text() =>
+    'Eligible'
 
 export compose_awaiting_status_text(string status_label) =>
     'Awaiting ' + status_label
@@ -196,7 +194,7 @@ export resolve_long_ready_reason_code(bool long_ready_state, bool long_setup_con
     reason_code
 
 export resolve_long_ready_blocker_text_from_reason_code(int reason_code) =>
-    string ready_blocker_text = PASSED_STATUS_TEXT
+    string ready_blocker_text = compose_passed_status_text()
     if reason_code == 2
         ready_blocker_text := compose_awaiting_status_text('Confirm')
     else if reason_code == 3
@@ -271,7 +269,7 @@ export resolve_long_strict_reason_code(bool long_entry_strict_state, bool long_r
     reason_code
 
 export resolve_long_strict_blocker_text_from_reason_code(int reason_code, string long_ready_blocker_text) =>
-    string strict_blocker_text = PASSED_STATUS_TEXT
+    string strict_blocker_text = compose_passed_status_text()
     if reason_code == 2
         strict_blocker_text := compose_need_ready_status_text(long_ready_blocker_text)
     else if reason_code == 3

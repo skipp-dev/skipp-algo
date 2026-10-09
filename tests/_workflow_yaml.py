@@ -8,7 +8,6 @@ depend on brittle 1-based line numbers or regex line-pinning.
 
 from __future__ import annotations
 
-import re
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -18,113 +17,10 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parent.parent
 WORKFLOWS_DIR = REPO_ROOT / ".github" / "workflows"
 
-#: Die erlaubten Schreibweisen fuer "GitHub-hosted, kein self-hosted-Selektor".
-#: Drei Guard-Tests pinnen dieselbe Form (runner_pinned, python_version_pinned,
-#: ci_workflow_*) — sie liegt deshalb HIER und nicht dreimal nebeneinander.
-#: Ein privater Helfer, der quer ueber Testmodule importiert wird, hat in
-#: diesem Repo schon einmal main gebrochen (#4383 zog `_run_gate` unter #4385
-#: weg); der sanktionierte Weg ist dieses geteilte Modul.
-#:
-#: `_ARM` steht seit 2026-08-29 daneben: `SMC_CI_ARM_RUNNER` erlaubt einzelnen
-#: Lanes einen arm64-STANDARD-Runner (-17 % je Minute, zaehlt weiter gegen das
-#: Freikontingent), ohne die globale `SMC_GH_HOSTED_RUNNER` zu bewegen — die
-#: steuert ~80 Stellen inklusive der Playwright/TV-Lanes. Bewusst eine
-#: benannte Variante statt einer Datei-Ausnahme: der Hosted-Rueckfall und das
-#: `ubuntu-latest`-Literal bleiben gepinnt, eine dritte Schreibweise faellt
-#: weiter durch.
-HOSTED_RUNS_ON = "${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}"
-HOSTED_RUNS_ON_ARM = (
-    "${{ vars.SMC_CI_ARM_RUNNER || vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}"
-)
-HOSTED_RUNS_ON_FORMS = (HOSTED_RUNS_ON, HOSTED_RUNS_ON_ARM)
-
-
-COMPOSITE_ACTIONS_DIR = REPO_ROOT / ".github" / "actions"
-WORKFLOW_TEMPLATES_DIR = REPO_ROOT / ".github" / "workflow-templates"
-
 
 def iter_workflow_files() -> list[Path]:
-    """Return the sorted list of all ``.github/workflows/*.yml`` files.
-
-    Deliberately NOT widened to composite actions or templates: most callers
-    walk ``jobs:``, which only a workflow has. Use
-    :func:`iter_action_pin_surfaces` for guards that reason about ``uses:``
-    pins rather than about job structure.
-    """
+    """Return the sorted list of all ``.github/workflows/*.yml`` files."""
     return sorted(WORKFLOWS_DIR.glob("*.yml")) + sorted(WORKFLOWS_DIR.glob("*.yaml"))
-
-
-def iter_composite_action_files() -> list[Path]:
-    """Every ``action.yml`` under ``.github/actions/``.
-
-    These are real CI code — ``uses: ./.github/actions/<name>`` runs them — but
-    they are not workflows, so the workflow corpus above never saw them.
-    """
-    if not COMPOSITE_ACTIONS_DIR.is_dir():
-        return []
-    return sorted(COMPOSITE_ACTIONS_DIR.rglob("action.yml")) + sorted(
-        COMPOSITE_ACTIONS_DIR.rglob("action.yaml")
-    )
-
-
-def iter_workflow_template_files() -> list[Path]:
-    """Every workflow template offered for creating new workflows.
-
-    Not executed by CI, but copied verbatim into new workflows, so a rotten pin
-    here is a rotten pin in whatever gets created from it tomorrow.
-    """
-    if not WORKFLOW_TEMPLATES_DIR.is_dir():
-        return []
-    # rglob, matching the composite walker: a template in a subdirectory is
-    # still a template, and a corpus that silently omits one is the failure
-    # mode every guard reading it inherits.
-    return sorted(WORKFLOW_TEMPLATES_DIR.rglob("*.yml")) + sorted(
-        WORKFLOW_TEMPLATES_DIR.rglob("*.yaml")
-    )
-
-
-def iter_action_pin_surfaces() -> list[Path]:
-    """Every file in this repo that pins a GitHub Action by ``uses:``.
-
-    Three surfaces, and until 2026-08-04 only the first was guarded — which is
-    how ``.github/workflow-templates/`` came to pin
-    ``astral-sh/setup-uv@caf0cab7a…`` (v3.2.4, 2024-11-23) while every workflow
-    ran v8.2.0 (2026-06-03), unnoticed for twenty months.
-    """
-    return (
-        iter_workflow_files() + iter_composite_action_files() + iter_workflow_template_files()
-    )
-
-
-# ONE regex, in one place, because the bug it replaces lived in two.
-#
-# The previous form excluded the quote characters from the capture class
-# (``[^\s#'\"]+``). On ``uses: "actions/checkout@main"`` the very first
-# character after ``uses:`` is a quote, so the ``+`` could not match and the
-# WHOLE LINE was skipped — silently, by both supply-chain guards. Measured
-# 2026-08-04: a quoted mutable tag in a workflow, a quoted mutable tag in the
-# composite action, and an untrusted non-resolvable owner in the composite each
-# left all 18 assertions green. Quoted scalars are identical YAML; Actions runs
-# them.
-#
-# The quotes are stripped after capture instead, which is what the (previously
-# dead) ``.strip("'\"")`` in both callers always believed was happening.
-USES_RE = re.compile(r"^\s*-?\s*uses:\s*([^\s#]+)")
-
-
-def iter_uses(paths: list[Path]) -> list[tuple[Path, int, str]]:
-    """``(path, lineno, ref)`` for every ``uses:`` line in ``paths``.
-
-    Line-based on purpose: the guards report a file and a line an operator can
-    open, and a YAML round-trip would lose that. The ``lineno`` is 1-based.
-    """
-    out: list[tuple[Path, int, str]] = []
-    for path in paths:
-        for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-            match = USES_RE.match(line)
-            if match:
-                out.append((path, lineno, match.group(1).strip().strip("'\"")))
-    return out
 
 
 def load_workflow(path: Path) -> dict[str, Any]:

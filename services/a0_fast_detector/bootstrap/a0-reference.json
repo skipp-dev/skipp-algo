@@ -631,6 +631,16 @@
   },
   {
     "as_of_session": "2026-07-09",
+    "average_daily_volume": 8157.866666666667,
+    "corporate_action_version": "databento-adjusted-ohlcv-1d-v1",
+    "lookback_sessions": 15,
+    "previous_close": 5.03,
+    "reference_version": "databento-bootstrap-d14d4b8da95c",
+    "source": "databento:daily",
+    "symbol": "EEX"
+  },
+  {
+    "as_of_session": "2026-07-09",
     "average_daily_volume": 7523.066666666667,
     "corporate_action_version": "databento-adjusted-ohlcv-1d-v1",
     "lookback_sessions": 15,
@@ -3301,6 +3311,16 @@
   },
   {
     "as_of_session": "2026-07-09",
+    "average_daily_volume": 21508.333333333332,
+    "corporate_action_version": "databento-adjusted-ohlcv-1d-v1",
+    "lookback_sessions": 15,
+    "previous_close": 0.0311,
+    "reference_version": "databento-bootstrap-d14d4b8da95c",
+    "source": "databento:daily",
+    "symbol": "QTEXW"
+  },
+  {
+    "as_of_session": "2026-07-09",
     "average_daily_volume": 6916.933333333333,
     "corporate_action_version": "databento-adjusted-ohlcv-1d-v1",
     "lookback_sessions": 15,
@@ -3751,6 +3771,16 @@
   },
   {
     "as_of_session": "2026-07-09",
+    "average_daily_volume": 17100.733333333334,
+    "corporate_action_version": "databento-adjusted-ohlcv-1d-v1",
+    "lookback_sessions": 15,
+    "previous_close": 10.04,
+    "reference_version": "databento-bootstrap-d14d4b8da95c",
+    "source": "databento:daily",
+    "symbol": "FGMC"
+  },
+  {
+    "as_of_session": "2026-07-09",
     "average_daily_volume": 8488.066666666668,
     "corporate_action_version": "databento-adjusted-ohlcv-1d-v1",
     "lookback_sessions": 15,
@@ -3978,6 +4008,16 @@
     "reference_version": "databento-bootstrap-d14d4b8da95c",
     "source": "databento:daily",
     "symbol": "RKDA"
+  },
+  {
+    "as_of_session": "2026-07-08",
+    "average_daily_volume": 5114.0,
+    "corporate_action_version": "databento-adjusted-ohlcv-1d-v1",
+    "lookback_sessions": 15,
+    "previous_close": 0.77,
+    "reference_version": "databento-bootstrap-d14d4b8da95c",
+    "source": "databento:daily",
+    "symbol": "APM"
   },
   {
     "as_of_session": "2026-07-09",

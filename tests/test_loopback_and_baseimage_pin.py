@@ -28,8 +28,6 @@ from pathlib import Path
 
 import pytest
 
-from tests._guard_corpus import iter_production_py_files
-
 ROOT = Path(__file__).resolve().parent.parent
 
 _DIR_EXCLUDE = frozenset(
@@ -52,7 +50,10 @@ _DIR_EXCLUDE = frozenset(
 
 
 def _iter_prod_py() -> Iterator[Path]:
-    return iter_production_py_files(_DIR_EXCLUDE)
+    for p in ROOT.rglob("*.py"):
+        if any(part in _DIR_EXCLUDE for part in p.relative_to(ROOT).parts):
+            continue
+        yield p
 
 
 # ---------------------------------------------------------------------------

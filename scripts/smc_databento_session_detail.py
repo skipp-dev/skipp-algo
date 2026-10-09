@@ -14,7 +14,6 @@ import hashlib
 import json
 import logging
 import warnings
-from dataclasses import dataclass
 from datetime import UTC, date, datetime, time
 from pathlib import Path
 from typing import Any
@@ -122,115 +121,6 @@ def _write_cached_frame(path: Path, frame: pd.DataFrame) -> None:
 
 
 # ── Main collection function ───────────────────────────────────────
-
-
-# ── Shared coercion ─────────────────────────────────────────────
-# Lifted verbatim from smc_microstructure_base_runtime so the runtime and the
-# export derive the session-minute coverage scope through ONE implementation.
-# `_coerce_bool` is semantic about strings: a parquet round-trip can deliver
-# "false"/"no"/"0", and a naive astype(bool) would read every one of those as
-# True — silently making the whole universe a hard coverage expectation.
-def _coerce_trade_date_series(values: pd.Series) -> pd.Series:
-    codes, uniques = pd.factorize(values, sort=False)
-    parsed_uniques = np.asarray(
-        [
-            pd.NaT
-            if pd.isna(parsed := pd.to_datetime(pd.Index([value]), errors="coerce")[0])
-            else parsed.date()
-            for value in uniques
-        ],
-        dtype=object,
-    )
-    parsed_values = np.empty(len(codes), dtype=object)
-    valid = codes >= 0
-    parsed_values[valid] = parsed_uniques[codes[valid]]
-    parsed_values[~valid] = pd.NaT
-    return pd.Series(parsed_values, index=values.index, name=values.name)
-
-
-def _coerce_bool(value: Any) -> bool:
-    if pd.isna(value):
-        return False
-    if isinstance(value, str):
-        return value.strip().lower() in {"1", "true", "yes", "y", "on"}
-    return bool(value)
-
-
-def _coerce_bool_series(series: pd.Series) -> pd.Series:
-    result = pd.Series(False, index=series.index, dtype=bool, name=series.name)
-    if series.empty:
-        return result
-
-    non_null = ~series.isna()
-    if not bool(non_null.any()):
-        return result
-
-    values = series.loc[non_null]
-    mapping = {value: _coerce_bool(value) for value in pd.unique(values).tolist()}
-    result.loc[non_null] = values.map(mapping).fillna(False).astype(bool).to_numpy()
-    return result
-
-
-@dataclass(frozen=True)
-class SessionMinuteCoverageScope:
-    """Fetch scope and hard coverage expectation for one session-minute pull."""
-
-    expected_symbols_by_trade_day: dict[date, set[str]]
-    required_symbols_by_trade_day: dict[date, set[str]]
-    universe_symbols: set[str]
-
-
-def build_session_minute_coverage_scope(daily_symbol_features: pd.DataFrame) -> SessionMinuteCoverageScope:
-    """Derive the fetch scope and the coverage expectation from daily features.
-
-    Every symbol-day is FETCHED; only the ones flagged ``has_intraday`` are
-    REQUIRED to come back. An illiquid ticker legitimately has no minute bars on
-    a given day, so requiring the whole universe turns normal thin-book days into
-    a hard failure — export run 29985038127 died on exactly that
-    (``incomplete symbol coverage (5822/6917)``).
-
-    Without a ``has_intraday`` column there is nothing to relax against, so the
-    expectation stays strict.
-    """
-    frame = daily_symbol_features.copy()
-    if frame.empty:
-        return SessionMinuteCoverageScope({}, {}, set())
-
-    frame["trade_date"] = _coerce_trade_date_series(frame["trade_date"])
-    frame["symbol"] = frame.get("symbol", pd.Series(index=frame.index, dtype=object)).astype(str).str.strip().str.upper()
-
-    has_intraday_available = "has_intraday" in frame.columns
-    if has_intraday_available:
-        frame["has_intraday"] = _coerce_bool_series(frame["has_intraday"])
-    else:
-        frame["has_intraday"] = True
-        logger.warning(
-            "daily_symbol_features is missing has_intraday; every symbol-day stays a hard "
-            "coverage expectation for the session-minute fetch."
-        )
-
-    frame = frame.loc[frame["trade_date"].notna() & frame["symbol"].ne("") & frame["symbol"].ne("NAN")]
-
-    expected = {
-        trade_day: set(group["symbol"].tolist())
-        for trade_day, group in frame.groupby("trade_date", sort=False)
-    }
-    if has_intraday_available:
-        required = {trade_day: set() for trade_day in expected}
-        for trade_day, group in frame.loc[frame["has_intraday"]].groupby("trade_date", sort=False):
-            required[trade_day] = set(group["symbol"].tolist())
-        skipped = int((~frame["has_intraday"]).sum())
-        if skipped:
-            logger.warning(
-                "%d symbol-days carry has_intraday=False; they stay in the minute-detail fetch "
-                "scope but are excluded from the hard coverage expectation.",
-                skipped,
-            )
-    else:
-        required = {trade_day: set(symbols) for trade_day, symbols in expected.items()}
-
-    universe = set().union(*expected.values()) if expected else set()
-    return SessionMinuteCoverageScope(expected, required, universe)
 
 
 def collect_full_universe_session_minute_detail(

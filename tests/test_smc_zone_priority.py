@@ -10,7 +10,6 @@ from scripts.smc_zone_priority import (
     _rank_from_score,
     _select_top_family,
     build_zone_priority,
-    compute_family_combination_shadow,
 )
 
 # ── Defaults ────────────────────────────────────────────────────
@@ -248,88 +247,6 @@ def test_multiplicative_preserves_no_bump_baseline() -> None:
         session_context=None, family_score_combination="multiplicative",
     )
     assert add == mul
-
-
-# ── F3 shadow A/B: compute_family_combination_shadow ───────────
-
-# Weights engineered so a single +0.15 EXTREME-vol SWEEP bump diverges:
-#   additive:       0.70 + 0.15 = 0.85  > OB 0.83  -> SWEEP
-#   multiplicative: 0.70 * 1.15 = 0.805 < OB 0.83  -> OB
-_DIVERGENT_WEIGHTS = {"OB": 0.83, "FVG": 0.61, "BOS": 0.81, "SWEEP": 0.70}
-
-
-def test_family_combination_shadow_structure_and_default() -> None:
-    """The shadow reports additive as production, multiplicative as the
-    observed arm, with a self-consistent per-context comparison.
-    """
-    shadow = compute_family_combination_shadow()
-    assert shadow["combination_production"] == "additive"
-    assert shadow["combination_shadow"] == "multiplicative"
-    assert shadow["n_contexts"] == len(shadow["records"]) > 0
-    assert shadow["n_agree"] + shadow["n_disagree"] == shadow["n_contexts"]
-    assert 0.0 <= shadow["agreement_rate"] <= 1.0
-    for rec in shadow["records"]:
-        assert rec["additive_family"] in ("OB", "FVG", "BOS", "SWEEP")
-        assert rec["multiplicative_family"] in ("OB", "FVG", "BOS", "SWEEP")
-        assert rec["agree"] == (
-            rec["additive_family"] == rec["multiplicative_family"]
-        )
-        assert rec["score_delta"] >= 0.0
-
-
-def test_family_combination_shadow_distinguishes_divergent_weights() -> None:
-    """On weights engineered to diverge, the shadow must record a RISK_OFF /
-    EXTREME / no-HTF context where additive picks SWEEP but multiplicative
-    picks OB — proving the A/B actually distinguishes the two modes.
-    """
-    shadow = compute_family_combination_shadow(
-        calibrated_family_weights=_DIVERGENT_WEIGHTS,
-    )
-    assert shadow["n_disagree"] >= 1
-    assert shadow["agreement_rate"] < 1.0
-
-    divergent = [
-        r for r in shadow["disagreements"]
-        if r["regime"] == "RISK_OFF"
-        and r["vol_regime"] == "EXTREME"
-        and r["htf_aligned"] is False
-        and r["session"] is None
-    ]
-    assert divergent, "expected a RISK_OFF/EXTREME/no-HTF divergence record"
-    rec = divergent[0]
-    assert rec["additive_family"] == "SWEEP"
-    assert rec["multiplicative_family"] == "OB"
-    assert rec["agree"] is False
-    assert rec["score_delta"] > 0.0
-
-
-def test_build_zone_priority_live_path_stays_additive_on_divergent_weights() -> None:
-    """Required invariant: the production entrypoint selects the ADDITIVE
-    family even on a context engineered so the multiplicative arm would pick a
-    different one. The shadow must never leak into build_zone_priority.
-    """
-    add_family = _select_top_family(
-        regime="RISK_OFF", vol_regime="EXTREME", htf_aligned=False,
-        session_context=None, calibrated_family_weights=_DIVERGENT_WEIGHTS,
-        family_score_combination="additive",
-    )
-    mul_family = _select_top_family(
-        regime="RISK_OFF", vol_regime="EXTREME", htf_aligned=False,
-        session_context=None, calibrated_family_weights=_DIVERGENT_WEIGHTS,
-        family_score_combination="multiplicative",
-    )
-    assert add_family == "SWEEP"
-    assert mul_family == "OB"
-
-    result = build_zone_priority(
-        regime="RISK_OFF", vol_regime="EXTREME", htf_aligned=False,
-        session_context="", calibrated_family_weights=_DIVERGENT_WEIGHTS,
-    )
-    # build_zone_priority passes no combination mode and no env is set, so the
-    # resolver returns additive — it must match the additive pick, not the
-    # multiplicative one.
-    assert result["ZONE_PRIORITY_TOP_FAMILY"] == add_family == "SWEEP"
-    assert result["ZONE_PRIORITY_TOP_FAMILY"] != mul_family
 
 
 # ── Partial calibrated weights (regression: KeyError on missing family) ──

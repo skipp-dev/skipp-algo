@@ -18,55 +18,33 @@ name: smc-measurement-benchmark-rolling
 
 on:
   # Workflow-Audit HOCH-1 (2026-06): cron offset is NOT an ordering
-  # guarantee. Ein fest gelegter 13:00-Tick raste seinerzeit gegen den noch
-  # laufenden 12:00-Export und scheiterte in ~8/10 Cron-Laeufen an
-  # "Producer artifact missing for <date>". Deshalb ist `workflow_run` der
-  # WEG (Muster F-V4-J3 aus smc-library-refresh.yml) und der Cron nur das
-  # NETZ fuer verlorene oder verzoegerte workflow_run-Ereignisse.
-  #
-  # 2026-08-29 — drei Zahlen in diesem Block waren veraltet und haben die
-  # Kadenz jahrelang falsch begruendet. Am Code nachgezaehlt:
-  #   * Der Producer laeuft NEUN Ticks je Werktag (08,10,12,14,16,18,20,21,22
-  #     UTC), nicht 2x. Der Satz "so this consumer can now fire up to 2x/day
-  #     … safe and intentional" wurde fuer zwei Laeufe geschrieben und trug
-  #     seither acht (gemessen 27.8.: 366 Runner-Minuten).
-  #   * Sein Budget ist 120 min (`timeout-minutes` am producer-Job), nicht 240.
-  #   * Die Begruendung "re-benching the same artifact is idempotent" war
-  #     schlicht falsch: `captured_at` fiel sekundengenau auf `now()` zurueck,
-  #     jeder Lauf schrieb eine eigene Zeile. Seit #5190 stimmt sie wieder
-  #     (--captured-at + --replace-on-duplicate).
-  #
-  # Die Kadenz haengt seit #5191 nicht mehr an der Zahl der Fires, sondern am
-  # `cadence-gate`-Job: Fenster A 11:00-12:30 UTC bedient die Tages-Gates ab
-  # 13:30, Fenster B ab 20:00 UTC traegt die reifsten Labels. Ueberzaehlige
-  # Fires kosten nur diesen Gate-Job.
+  # guarantee. The producer smc-databento-production-export-sharded
+  # (12:00/16:00 UTC Mon-Fri) has a 240-min budget, so the previous
+  # fixed 13:00 tick raced the still-running 12:00 export and failed
+  # ~8/10 schedule runs on "Producer artifact missing for <date>".
+  # Mirror of the proven F-V4-J3 pattern in smc-library-refresh.yml:
+  # workflow_run (fires after producer success, gated by the job-level
+  # `if:` below) is the primary path; the cron below is only a safety
+  # net for lost/delayed workflow_run events.
+  # NOTE: the producer runs 2x/day (12:00 + 16:00 UTC), so this consumer
+  # can now fire up to 2x/day plus the safety-net cron. That is safe and
+  # intentional: the history archive dedupes on (captured_at,
+  # scoring_root) (scripts/plan_2_8_history_archive.py), re-benching the
+  # same artifact is idempotent, and the concurrency group serialises
+  # overlapping fires — same rationale as the library-refresh precedent.
   workflow_run:
     workflows: ["smc-databento-production-export-sharded"]
     types: [completed]
     branches: [main]
   schedule:
-    # Die Netze liegen IN den beiden Fenstern, nicht daneben. Der alte
-    # Einzel-Tick um 16:30 konnte die Tages-Gates (13:30/14:00/15:00 UTC)
-    # grundsaetzlich nicht mehr bedienen — er lag hinter ihnen. Solange
-    # `workflow_run` trug, fiel das nicht auf; genau das ist der Zustand, den
-    # eine Redundanz von acht Fires verdeckt.
-    #
-    # 12:15 = Producer-Tick 10:00 + volles 120-min-Budget + 15 min Puffer.
-    # Bis dahin liegt das Tagesartefakt vor (oder der Producer ist gescheitert),
-    # und ein ~46-Minuten-Lauf ist gegen 13:01 fertig — vor dem ersten
-    # Konsumenten um 13:30.
-    #
-    # 22:15 = Producer-Tick 20:00 + Budget + Puffer, also im Fenster B.
-    # Ohne diesen Tick bliebe an einem Tag mit komplett verlorener
-    # workflow_run-Zustellung der reife Abendlauf aus.
-    #
-    # Beide feuern nur wirksam, wenn der Tag sonst leer bliebe: das
-    # `cadence-gate` ueberspringt sie, sobald ihr Fenster bedient ist. Im
-    # Normalbetrieb kosten sie je einen Gate-Job von wenigen Sekunden.
-    # Mon-Fri wie der Producer (keine Wochenend-Ticks → kein frisches
-    # Artefakt zu konsumieren).
-    - cron: "15 12 * * 1-5"
-    - cron: "15 22 * * 1-5"
+    # Safety-net tick: 16:30 UTC Mon-Fri = producer 12:00 tick + full
+    # 240-min budget + 30 min headroom, so the day's artifact MUST be
+    # uploaded (or the producer has failed) by the time this fires.
+    # Offset from library-refresh's 16:00 safety-net cron to avoid
+    # competing for the same priority self-hosted runner slot.
+    # Restricted to Mon-Fri to match the producer's cadence (no producer
+    # runs on weekends → no fresh artifact to consume).
+    - cron: "30 16 * * 1-5"
   workflow_dispatch:
     inputs:
       symbols:
@@ -115,100 +93,7 @@ defaults:
     shell: bash
 
 jobs:
-  # Entscheidet VOR allem Teuren, ob dieser Fire ueberhaupt laufen muss.
-  # Der Producer hat neun Ticks je Werktag, `workflow_run` feuerte also bis
-  # zu neunmal — obwohl der Kopfkommentar oben von zwei Laeufen ausgeht.
-  # Gemessen 2026-08-29: acht Laeufe, 366 Runner-Minuten an einem Werktag.
-  #
-  # Die Entscheidung liegt bewusst auf JOB-Ebene, nicht als Schritt im
-  # Worker: ein uebersprungener Job fuehrt seine 15 `if: always()`-Schritte
-  # gar nicht erst aus. Eine Schranke im Job muesste jede einzelne davon
-  # mittragen, und jede vergessene waere ein roter Lauf.
-  #
-  # Die Regel selbst (zwei Fenster, Blindheit ⇒ laufen) steht in
-  # scripts/decide_rolling_benchmark_run.py und ist dort tabellengetrieben
-  # geprueft — hier laeuft nur die Abfrage des heutigen Zustands.
-  # Der Name ist NICHT `gate`: so heisst ein required Status-Check aus
-  # smc-fast-pr-gates.yml, und zwei Jobs gleichen Namens melden denselben
-  # Kontext. tests/test_required_checks_reach_the_merge_queue.py hat genau
-  # das gefangen (2026-08-29) — der Waechter loest required Kontexte ueber
-  # Jobnamen auf und sah diesen Workflow ploetzlich als Melder von `gate`.
-  cadence-gate:
-    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
-    timeout-minutes: 5
-    permissions:
-      contents: read
-      actions: read
-    outputs:
-      run: ${{ steps.decide.outputs.run }}
-      window: ${{ steps.decide.outputs.window }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          # Der Gate-Job liest nur und entscheidet; er pusht nichts. Ohne
-          # diese Zeile persistiert die Action den Token in .git/config und
-          # zizmor meldet `artipacked` (medium) — gemessen 2026-08-29.
-          persist-credentials: false
-      - name: Set up pinned Python
-        uses: ./.github/actions/setup-python-pinned
-      - name: Decide whether this fire has to run
-        id: decide
-        env:
-          GH_TOKEN: ${{ github.token }}
-          # Env-Indirektion statt direkter ${{ }}-Interpolation im run-Block:
-          # dieselbe Haertung wie in ci.yml (Audit M-1). Der zizmor-Ratchet
-          # meldet direkte Interpolation als template-injection — gemessen
-          # 2026-08-29 an genau diesem Schritt (high 97->98, medium 52->53).
-          GATE_REPOSITORY: ${{ github.repository }}
-          GATE_WORKFLOW: ${{ github.workflow }}
-          GATE_EVENT_NAME: ${{ github.event_name }}
-          GATE_PRODUCER_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
-          # Der Job, der die Arbeit macht. Muss der Job-Id unten entsprechen —
-          # tests/test_decide_rolling_benchmark_run.py haelt beide zusammen.
-          GATE_WORKER_JOB: rolling-benchmark
-        run: |
-          # Die heutigen Laeufe DIESES Workflows. Schlaegt die Abfrage fehl,
-          # bleibt RUNS leer — und die Entscheidung faellt fail-open auf
-          # LAUFEN (siehe Modul-Docstring: ein Gate, das bei Blindheit
-          # ueberspringt, stoppt den Benchmark still und dauerhaft).
-          RUNS="$(gh run list \
-            --repo "${GATE_REPOSITORY}" \
-            --workflow "${GATE_WORKFLOW}" \
-            --created "$(date -u +%Y-%m-%d)" \
-            --limit 50 \
-            --json databaseId,conclusion,createdAt \
-            --jq '[.[] | {id: .databaseId, conclusion, created_at: .createdAt}]' 2>/dev/null || true)"
-          # Welche davon haben den Worker wirklich gefahren? `conclusion=success`
-          # sagt es NICHT: ein Fire, den dieses Gate ueberspringt, endet ebenfalls
-          # gruen (Gate-Job success, Worker skipped). Gemessen 2026-10-01: die
-          # uebersprungenen 09:xx/10:xx-Fires "bedienten" seit dem 31.8. jeden
-          # Tag Fenster A, das Tagesartefakt entstand erst nach 20:00 UTC und
-          # promotion-gate-daily (14:00 UTC) fand in 17 von 18 Laeufen nichts.
-          # Nur der Job-Befund unterscheidet beide Faelle. Faellt eine Abfrage
-          # aus, fehlt die Id — und ein Lauf ohne Befund bedient kein Fenster.
-          WORKED=""
-          for run_id in $(gh run list \
-            --repo "${GATE_REPOSITORY}" \
-            --workflow "${GATE_WORKFLOW}" \
-            --created "$(date -u +%Y-%m-%d)" \
-            --limit 50 \
-            --json databaseId,conclusion \
-            --jq '.[] | select(.conclusion == "success") | .databaseId' 2>/dev/null || true); do
-            WORKED="${WORKED} $(gh api "repos/${GATE_REPOSITORY}/actions/runs/${run_id}/jobs" \
-              --jq ".jobs[] | select(.name == \"${GATE_WORKER_JOB}\" and .conclusion == \"success\") | .run_id" 2>/dev/null || true)"
-          done
-          python scripts/decide_rolling_benchmark_run.py \
-            --event-name "${GATE_EVENT_NAME}" \
-            --producer-conclusion "${GATE_PRODUCER_CONCLUSION}" \
-            --todays-runs "${RUNS}" \
-            --worked-run-ids "${WORKED}"
-
   select-runner:
-    # Kein Runner wird aufgeloest, wenn ohnehin nichts laeuft. Dieser Job
-    # lief bisher bei JEDEM Producer-Abschluss mit, auch nach Fehllaeufen.
-    needs: cadence-gate
-    if: ${{ needs.cadence-gate.outputs.run == 'true' }}
     runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 5
     permissions:
@@ -223,7 +108,7 @@ jobs:
       matched_runner_name: ${{ steps.resolve.outputs.matched_runner_name }}
     steps:
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           persist-credentials: false
 
@@ -248,11 +133,8 @@ jobs:
     # if the producer succeeded (mirror of F-V4-J3 in
     # smc-library-refresh.yml). Manual workflow_dispatch and the
     # scheduled safety-net cron bypass this guard.
-    # Die Producer-Bedingung bleibt woertlich; das Kadenz-Gate kommt als
-    # zweite Bedingung dazu (`gate` prueft sie ebenfalls, aber diese Zeile
-    # ist der Vertrag dieses Jobs und darf nicht von einem anderen abhaengen).
-    if: ${{ (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success') && needs.cadence-gate.outputs.run == 'true' }}
-    needs: [cadence-gate, select-runner]
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
+    needs: select-runner
     runs-on: ${{ fromJson(needs.select-runner.outputs.runs_on_json) }}
     # 60 -> 120 (frame-fix 2026-07-13): genuine full-session intraday frames
     # carry ~2.3k events/pair instead of ~2 — even after the PIT day-bucket +
@@ -273,7 +155,7 @@ jobs:
           echo "matched_runner_name=${{ needs.select-runner.outputs.matched_runner_name }}"
 
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           persist-credentials: false
 
@@ -312,7 +194,7 @@ jobs:
       # On GitHub-hosted we enable the built-in wheel cache; on self-hosted we
       # rely on the local on-disk uv cache and skip the actions/cache layer.
       - name: Install uv
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
           enable-cache: ${{ needs.select-runner.outputs.runner_environment == 'github-hosted' && 'true' || 'false' }}
           cache-dependency-glob: requirements*.txt
@@ -444,9 +326,6 @@ jobs:
           # A2 (2026-06-10): env-var indirection for user-supplied inputs.
           INPUT_SYMBOLS: ${{ github.event.inputs.symbols }}
           INPUT_TIMEFRAMES: ${{ github.event.inputs.timeframes || '5m,10m,15m,30m,1H,4H,1D' }}
-          # Issue #3872 (ADR-0023 1D track): the long-history 1D fetch below
-          # uses the same guarded Databento loaders as the production export.
-          DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
         run: |
           set -euo pipefail
           SYMBOLS="${INPUT_SYMBOLS}"
@@ -466,47 +345,11 @@ jobs:
           }
           echo "SMC_BENCH_SYMBOLS=${SYMBOLS}" >> "$GITHUB_ENV"
           echo "SMC_BENCH_TIMEFRAMES=${TIMEFRAMES}" >> "$GITHUB_ENV"
-
-          # Issue #3872: the rolling bundle spans only ~21 trading days —
-          # structurally too short for 1D warmup + label horizons (FVG=20
-          # daily bars), so the 1D slice yields zero FamilyEvents and the
-          # governed live-1D magnitude track starves. Fetch a long daily
-          # history (420 trading days, 20 symbols — a few thousand ohlcv-1d
-          # rows) and feed it to BOTH 1D consumers: the structure exporter
-          # (--workbook, sole daily source when no bundle root is passed)
-          # and the measurement harness (SMC_DAILY_BARS_WORKBOOK_OVERRIDE),
-          # so detection and labeling see the SAME long frame. Fail-soft:
-          # without the workbook the 1D slice keeps today's starved-but-
-          # alarmed behaviour (plane_starved heartbeats + gap guard).
-          # The benchmark step references this FIXED path statically via its
-          # env block (no dynamic GITHUB_ENV write — zizmor github-env
-          # ratchet); the harness override falls through cleanly when the
-          # file is absent, so fail-soft needs no env plumbing.
-          DAILY_HISTORY_XLSX="artifacts/ci/benchmark_daily_history.xlsx"
-          rc=0
-          "$SMC_PYTHON_BIN" scripts/fetch_benchmark_daily_history.py \
-            --symbols "${SYMBOLS}" \
-            --output "${DAILY_HISTORY_XLSX}" || rc=$?
-          if [ "${rc}" != "0" ] || [ ! -s "${DAILY_HISTORY_XLSX}" ]; then
-            echo "::warning title=benchmark-daily-history::long-history 1D fetch failed (rc=${rc}); 1D slice falls back to the short bundle daily_bars (zero events, alarmed by plane_starved heartbeats + gap guard)."
-            rm -f "${DAILY_HISTORY_XLSX}"
-          fi
-
           for tf in ${TIMEFRAMES//,/ }; do
-            # 1D with a long-history workbook: pass --workbook WITHOUT
-            # --export-bundle-root — an explicit workbook alone makes it the
-            # sole daily source (write_structure_artifacts_from_workbook
-            # nulls the bundle root), while the 21-day bundle daily_bars
-            # would win over the workbook if both were passed.
-            if [ "${tf}" = "1D" ] && [ -s "${DAILY_HISTORY_XLSX}" ]; then
-              TF_SOURCE_ARGS=(--workbook "${DAILY_HISTORY_XLSX}")
-            else
-              TF_SOURCE_ARGS=(--export-bundle-root artifacts/smc_microstructure_exports)
-            fi
             if "$SMC_PYTHON_BIN" scripts/export_smc_structure_artifacts_from_workbook.py \
                 --timeframe "${tf}" \
                 --symbols "${SYMBOLS}" \
-                "${TF_SOURCE_ARGS[@]}" \
+                --export-bundle-root artifacts/smc_microstructure_exports \
                 > "structure_export_${tf}.json"; then
               "$SMC_PYTHON_BIN" -c "import json; m = json.load(open('structure_export_${tf}.json')); c = m['counts']; print(f\"::notice title=per-tf-structure::tf=${tf} written={c['artifacts_written']} errors={c['errors']}\")"
             else
@@ -528,12 +371,6 @@ jobs:
       - name: Run daily rolling benchmark
         env:
           DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
-          # Issue #3872: long-history daily bars for the 1D pairs, written by
-          # the fetch in the per-TF export step. FIXED literal path (no
-          # dynamic GITHUB_ENV write — zizmor github-env ratchet); when the
-          # fetch failed the file is absent and _load_source_bars falls
-          # through to the default resolution with a logged warning.
-          SMC_DAILY_BARS_WORKBOOK_OVERRIDE: artifacts/ci/benchmark_daily_history.xlsx
           # WS4a shadow-observe: log sweep_trap_* quality into the event ledgers
           # (observe-only; does NOT affect the score — confluence reads the coarse
           # SWEEP_QUALITY_SCORE). Consumed by sweep-trap-shadow-daily.yml. ARMING:
@@ -571,11 +408,6 @@ jobs:
           # real frames (run 29276673623 timed out); older events reach the
           # corpus via the accumulated pool. Disclosed per pair in
           # frame_integrity.skipped_out_of_window_counts.
-          # --scoring-anchor-window-days-daily 40 (issue #3872): the 5-day
-          # intraday window can never admit a COMPLETED 1D event — 1D label
-          # horizons span up to 20 daily bars, so every anchor inside a
-          # 5-day trailing window is still censored. Daily frames are tiny
-          # (420 bars/symbol), so the wider window costs nothing.
           "$SMC_PYTHON_BIN" scripts/run_smc_measurement_benchmark.py \
             --symbols "${SMC_BENCH_SYMBOLS}" \
             --timeframes "${SMC_BENCH_TIMEFRAMES}" \
@@ -583,8 +415,7 @@ jobs:
             --require-evidence \
             --strict-structure-tf \
             --strict-frame-distinctness \
-            --scoring-anchor-window-days 5 \
-            --scoring-anchor-window-days-daily 40
+            --scoring-anchor-window-days 5
 
       - name: Zone priority + testable calibration (rolling)
         if: always()
@@ -622,66 +453,20 @@ jobs:
           fi
           true
 
-      - name: Restore Plan 2.8 rolling history
-        id: restore_history
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          out_history="${{ steps.meta.outputs.out_dir }}/plan_2_8_history.jsonl"
-          remote_ref="refs/heads/bot/live-experiment-snapshot"
-          tracking_ref="refs/remotes/origin/bot/live-experiment-snapshot"
-          remote_path="artifacts/ci/measurement_benchmark_rolling/latest/plan_2_8_history.jsonl"
-          remote_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          fetch_error="$(mktemp)"
-          if git fetch "${remote_url}" "+${remote_ref}:${tracking_ref}" 2>"${fetch_error}"; then
-            :
-          elif grep -Eqi "could(n't| not) find remote ref" "${fetch_error}"; then
-            echo "::notice::no prior experiment snapshot branch — bootstrapping rolling history"
-            rm -f "${fetch_error}"
-            exit 0
-          else
-            echo "::error::failed to restore Plan 2.8 history; refusing to replace rolling history with one run"
-            rm -f "${fetch_error}"
-            exit 1
-          fi
-          rm -f "${fetch_error}"
-          if git cat-file -e "${tracking_ref}:${remote_path}" 2>/dev/null; then
-            mkdir -p "$(dirname "${out_history}")"
-            git show "${tracking_ref}:${remote_path}" > "${out_history}"
-            echo "Restored $(wc -l < "${out_history}") Plan 2.8 history rows."
-          else
-            echo "::notice::experiment snapshot branch has no rolling history yet — bootstrapping"
-          fi
-
       - name: Plan 2.8 history archive (snapshot append)
         # Folds today's rollup into docs/plan_2_8_history.jsonl so the
         # weekly trend digest has a stable, idempotent source of truth.
         # Fail-soft: a missing rollup or a write hiccup must not affect
         # the benchmark run outcome. The snapshot is uploaded as part
         # of the standard rolling-bench artifact bundle.
-        if: always() && steps.restore_history.outcome == 'success'
+        if: always()
         run: |
           set +e
           rollup="${{ steps.meta.outputs.out_dir }}/plan_2_8_tf_family_rollup.json"
           if [ -s "${rollup}" ]; then
-            # --captured-at: ohne diesen Wert faellt captured_at auf
-            # `now()` SEKUNDENGENAU zurueck, und die Dedup-Zusage des
-            # Skripts traegt hier nicht — jeder Lauf schreibt eine Zeile.
-            # Gemessen 2026-08-29: bis zu 9 Fires/Werktag (workflow_run je
-            # Producer-Tick), damit deckte die Rotation auf 366 Zeilen ~40
-            # Tage statt der weiter unten behaupteten ~1 Jahr.
-            # --replace-on-duplicate: der juengste Lauf des Tages gewinnt.
-            # Der Bench scort ein 5-Tage-Ankerfenster; spaetere Laeufe sehen
-            # nachgereifte Labels (derselbe Grund, aus dem der
-            # Accumulate-Schritt auf "laengste forward_closes" dedupliziert).
-            # Ohne die Flagge behielte die Datei den FRUEHESTEN Schnappschuss
-            # und wuerfe die Reifung weg.
             "$SMC_PYTHON_BIN" scripts/plan_2_8_history_archive.py \
               --rollup  "${rollup}" \
               --history "${{ steps.meta.outputs.out_dir }}/plan_2_8_history.jsonl" \
-              --captured-at "${{ steps.meta.outputs.run_date }}T00:00:00Z" \
-              --replace-on-duplicate \
               || true
           fi
           true
@@ -692,7 +477,7 @@ jobs:
         # policy: keep at most 366 snapshots (~1y of daily runs) and drop
         # anything older than 400 days. Fail-soft: rotation errors must
         # never affect the benchmark run outcome.
-        if: always() && steps.restore_history.outcome == 'success'
+        if: always()
         run: |
           set +e
           history="${{ steps.meta.outputs.out_dir }}/plan_2_8_history.jsonl"
@@ -709,7 +494,7 @@ jobs:
         # Non-destructive shape + uniqueness check on the rotated
         # history. Fail-soft: a validation hit only surfaces in the
         # step summary; it must not affect the bench run outcome.
-        if: always() && steps.restore_history.outcome == 'success'
+        if: always()
         run: |
           set +e
           history="${{ steps.meta.outputs.out_dir }}/plan_2_8_history.jsonl"
@@ -740,7 +525,7 @@ jobs:
         # artifact bundle above remains the authoritative archive. The two
         # files are copied to a STABLE `latest/` path so the daemon URL never
         # has to track the dated run directory.
-        if: always() && steps.restore_history.outcome == 'success'
+        if: always()
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -760,15 +545,45 @@ jobs:
           mkdir -p "${stable_dir}"
           [ -s "${rollup}" ]  && cp "${rollup}"  "${stable_dir}/plan_2_8_tf_family_rollup.json"
           [ -s "${history}" ] && cp "${history}" "${stable_dir}/plan_2_8_history.jsonl"
-          # Sole producer on this branch since plan-2-8-evaluation was retired
-          # (2026-08-08); the seed-then-replace shape stays, because dropping it
-          # would silently delete any sibling path a future producer adds. Publish
-          # from the real remote tip so the two workflows preserve each
-          # other's stable paths instead of force-replacing the whole branch.
-          "$SMC_PYTHON_BIN" scripts/publish_bot_snapshot.py \
-            --branch bot/live-experiment-snapshot \
-            --copy-if-present "${stable_dir}/plan_2_8_tf_family_rollup.json=${stable_dir}/plan_2_8_tf_family_rollup.json" \
-            --copy-if-present "${stable_dir}/plan_2_8_history.jsonl=${stable_dir}/plan_2_8_history.jsonl"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Pass the authenticated URL directly to each git command instead of
+          # persisting it via `git remote set-url`, which would leave the token
+          # readable in .git/config for the rest of the job (audit F3).
+          _remote_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          _remote_ref="refs/heads/bot/live-experiment-snapshot"
+          _tracking_ref="refs/remotes/origin/bot/live-experiment-snapshot"
+          # `latest/` lives under the gitignored artifacts/ tree, so `-f` is
+          # required to stage it. Adding the directory tolerates either file
+          # being absent on a partial run.
+          git add -f "${stable_dir}"
+          if git diff --cached --quiet; then
+            echo "No experiment snapshot changes to commit."
+            exit 0
+          fi
+          git commit -m "[skip ci] chore: refresh experiment snapshot"
+          # Fetch the remote tip first so --force-with-lease has a real base
+          # to compare against; tolerate the branch not yet existing.
+          git fetch "${_remote_url}" "+${_remote_ref}:${_tracking_ref}" 2>/dev/null || true
+          _zero_sha="0000000000000000000000000000000000000000"
+          if _expected_sha="$(git rev-parse --verify "${_tracking_ref}" 2>/dev/null)"; then
+            _lease_expected="${_expected_sha}"
+          else
+            _lease_expected="${_zero_sha}"
+          fi
+          # `if git push` form (fail-loud) is what tests/test_workflow_auth_pattern.py
+          # expects; a real push failure surfaces red instead of a swallowed warning.
+          if git push "--force-with-lease=${_remote_ref}:${_lease_expected}" "${_remote_url}" "HEAD:${_remote_ref}"; then
+            echo "Pushed experiment snapshot to bot/live-experiment-snapshot."
+          else
+            echo "::warning::experiment snapshot push failed; the benchmark artifact bundle remains available, but bot/live-experiment-snapshot may be stale and the Grafana experiment panels can lag until the next daily run."
+            {
+              echo "### ⚠ experiment snapshot persistence warning"
+              echo ""
+              echo "The benchmark artifact uploaded, but the rolling bot/live-experiment-snapshot branch push failed. The Grafana experiment panels may show a stale rollup until the next daily run."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
 
       - name: Stage databento export manifest into the bundle dir
         # The manifest (carrying universe_survivorship_bias_risk) is restored to
@@ -826,8 +641,7 @@ jobs:
       # re-uploading, the pool grows across successive days until the walk-
       # forward calibration has enough out-of-sample folds.
       #
-      # Deduplication key: the event_id (id-less events: (family, anchor_ts)).
-      # Tie-break: longest
+      # Deduplication key: (family, anchor_ts).  Tie-break: longest
       # forward_closes (newest daily run extends the outcome window the most).
       # Events older than 30 days are pruned from the pool each run.
       #
@@ -837,20 +651,12 @@ jobs:
       - name: Download previous accumulated family events (ADR-0023 Option B)
         id: dl_accumulated
         if: always()
-        uses: dawidd6/action-download-artifact@d63b86af1b34672e53c440b1b83979861906bad7 # v24
+        uses: dawidd6/action-download-artifact@b6e2e70617bc3265edd6dab6c906732b2f1ae151 # v21
         with:
           workflow: smc-measurement-benchmark-rolling.yml
           name: scored-family-events-accumulated
           path: artifacts/ci/scored_family_events_accumulated_prev
           workflow_conclusion: success
-          # 2026-07-29: without search_artifacts the action checks ONLY the
-          # newest completed run — one run without the artifact broke the
-          # accumulate chain SELF-PERPETUATINGLY (publishable=false => no
-          # upload => next run finds nothing either; zero uploads in the
-          # last 45+ success runs until the reseed dispatch). Walk back to
-          # the most recent run that actually carries it (within 32d
-          # retention). Same idiom as smc-library-refresh.yml.
-          search_artifacts: true
           if_no_artifact_found: warn
 
       - name: Accumulate family events across rolling window (ADR-0023 Option B)
@@ -861,7 +667,7 @@ jobs:
           RESEED: ${{ inputs.reseed_accumulated }}
           RESEED_SEED_FILE: artifacts/ci/scored_family_events_accumulated_reseed.json
         run: |
-          set -euo pipefail
+          set +e
           CURRENT="${OUT_DIR}/scored_family_events.json"
           PREV_DIR="artifacts/ci/scored_family_events_accumulated_prev"
           PREV=""
@@ -875,35 +681,20 @@ jobs:
             PREV="$(find "${PREV_DIR}" -name 'accumulated_family_events.json' -type f 2>/dev/null | head -1)"
           fi
           ACCUMULATED="${OUT_DIR}/accumulated_family_events.json"
-          if [ -z "${PREV}" ] || [ ! -s "${PREV}" ]; then
-            echo "::warning::previous accumulated pool was not restored; preserving the last-good canonical artifact and leaving today's daily artifact as fallback"
-            echo "publishable=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
           ARGS=("--current" "${CURRENT}" "--output" "${ACCUMULATED}" "--max-age-days" "30")
-          ARGS+=("--previous" "${PREV}")
-          # Pool-continuity guard (issue #3872 post-mortem): on 2026-07-13 an
-          # empty-list merge (JSON '[]' passes the -s file check below)
-          # REPLACED the canonical pool and the lineage rebuilt from
-          # single-day snapshots. rc=4 from the guard lands in the same
-          # publishable=false branch as any failure — last-good stays
-          # canonical; a deliberate rebuild goes through reseed_accumulated.
-          ARGS+=("--max-shrink-fraction" "0.5")
-          set +e
+          if [ -n "${PREV}" ] && [ -s "${PREV}" ]; then
+            ARGS+=("--previous" "${PREV}")
+          fi
           "$SMC_PYTHON_BIN" scripts/accumulate_family_events.py "${ARGS[@]}"
-          rc=$?
-          set -e
-          if [ "${rc}" -ne 0 ] || [ ! -s "${ACCUMULATED}" ]; then
-            echo "::warning::accumulate_family_events failed or produced empty output; preserving the last-good canonical artifact"
-            rm -f "${ACCUMULATED}"
-            echo "publishable=false" >> "$GITHUB_OUTPUT"
-            exit 0
+          if [ $? -ne 0 ] || [ ! -s "${ACCUMULATED}" ]; then
+            echo "::warning ::accumulate_family_events failed or produced empty output; falling back to daily events only"
+            cp "${CURRENT}" "${ACCUMULATED}" 2>/dev/null || true
           fi
           echo "accumulated_path=${ACCUMULATED}" >> "$GITHUB_OUTPUT"
-          echo "publishable=true" >> "$GITHUB_OUTPUT"
+          true
 
       - name: Upload accumulated family events (ADR-0023 Option B)
-        if: always() && steps.accumulate_events.outputs.publishable == 'true'
+        if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: scored-family-events-accumulated

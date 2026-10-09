@@ -1,6 +1,6 @@
 """V5.5 FVG / Imbalance Lifecycle Light adapter.
 
-Derives 7 compact user-facing fields from the broad v5.3 imbalance
+Derives 6 compact user-facing fields from the broad v5.3 imbalance
 lifecycle block.  Picks the *primary* (most relevant) FVG and surfaces
 its key attributes.
 
@@ -31,7 +31,6 @@ DEFAULTS: dict[str, Any] = {
     "FVG_MATURITY_LEVEL": 0,           # 0-3 fill-derived maturity proxy
     "FVG_FRESH": False,
     "FVG_INVALIDATED": False,
-    "FVG_NET_IMBALANCE": 0,            # active bull count - active bear count
 }
 
 # Maturity thresholds (fill-based)
@@ -71,7 +70,6 @@ def build_fvg_lifecycle_light(
 
     bull_active = bool(il.get("BULL_FVG_ACTIVE", False))
     bear_active = bool(il.get("BEAR_FVG_ACTIVE", False))
-    result["FVG_NET_IMBALANCE"] = int(il.get("BULL_FVG_COUNT") or 0) - int(il.get("BEAR_FVG_COUNT") or 0)
 
     if not bull_active and not bear_active:
         if overrides:

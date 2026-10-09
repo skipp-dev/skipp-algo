@@ -9,8 +9,8 @@
   "recommended_import_path": "preuss_steffen/smc_micro_profiles_generated/1",
   "library_publish_required": true,
   "deployment_note": "Publish the generated Pine library in TradingView before importing it into SMC_Core_Engine.",
-  "input_path": "/Users/spreuss/Documents/skipp-algo-wt-gate-payload/tests/fixtures/seed_base_snapshot.csv",
-  "schema_path": "/Users/spreuss/Documents/skipp-algo-wt-gate-payload/spec/smc_microstructure_profile.schema.json",
+  "input_path": "/Users/spreuss/Documents/skipp-algo-wt-s4/tests/fixtures/seed_base_snapshot.csv",
+  "schema_path": "/Users/spreuss/Documents/skipp-algo-wt-s4/spec/smc_microstructure_profile.schema.json",
   "features_csv": "data/output/microstructure_features_2026-03-23.csv",
   "lists_csv": "data/output/microstructure_lists_2026-03-23.csv",
   "state_csv": "data/output/microstructure_profile_state.csv",
@@ -59,8 +59,7 @@
     "blocking_reasons": [
       "fixture_input",
       "default_event_risk",
-      "placeholder_symbols",
-      "empty_universe_tickers"
+      "placeholder_symbols"
     ],
     "fixture_input_detected": true,
     "default_event_risk_detected": true,
@@ -68,16 +67,13 @@
       "AAA",
       "BBB",
       "CCC"
-    ],
-    "payload_known": true,
-    "universe_tickers_count": 0,
-    "list_total": 7
+    ]
   },
   "auto_commit_allowed": true,
   "asof_time": "",
   "refresh_count": 0,
-  "generated_at": "2026-07-22T18:25:30.751179+00:00",
-  "source_commit": "cf83af4a4166833e3c554f25242a3ad4e0e7d3fd",
+  "generated_at": "2026-07-13T11:09:05.194389+00:00",
+  "source_commit": "4068b0e20521b3792d0e1e89baeae29bcbb778b3",
   "generator_path": "scripts/generate_smc_micro_profiles.py",
   "input_sha256": "e1886528fc244d2542328611ccaf0f6e678c4ee630eab4302b0a566691b00ba4"
 }

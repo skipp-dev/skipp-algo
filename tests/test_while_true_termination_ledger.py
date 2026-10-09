@@ -26,7 +26,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from tests._guard_corpus import iter_production_py_files, parse_module
+from tests._guard_corpus import parse_module
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -48,7 +48,13 @@ _DIR_EXCLUDE = {
 
 
 def _iter_py_files() -> list[Path]:
-    return iter_production_py_files(_DIR_EXCLUDE)
+    out: list[Path] = []
+    for path in ROOT.rglob("*.py"):
+        rel = path.relative_to(ROOT)
+        if any(part in _DIR_EXCLUDE or part.startswith(".") for part in rel.parts):
+            continue
+        out.append(path)
+    return out
 
 
 def _while_true_sites() -> set[tuple[str, int]]:
@@ -95,10 +101,6 @@ WHILE_TRUE_LEDGER: dict[str, int] = {
     # 2026-06-21: live overlay feed thread uses one deliberate long-lived
     # loop with explicit break paths (stop event + fail-fast breaker).
     "services/live_overlay_daemon/feed.py": 1,
-    # 2026-07-25 (databento-signal-migration): _run_ingest_loop drains the
-    # bar queue on its own consumer thread; exits via explicit break when
-    # stop is set and the queue is empty (mirrors feed.py's pattern above).
-    "open_prep/databento_quote_feed.py": 1,
 }
 
 

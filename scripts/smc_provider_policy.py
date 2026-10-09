@@ -74,7 +74,7 @@ POLICY_REGIME = DomainPolicy("regime", primary="fmp", fallbacks=())
 # newsapi_ai dropped 2026-07-08: subscription cancelled — a dead key in the
 # chain meant every FMP+Benzinga double-failure burned a doomed third
 # attempt and stamped a misleading newsapi_ai stale entry.
-POLICY_NEWS = DomainPolicy("news", primary="benzinga", fallbacks=())  # 2026-10-08: operator stopped every FMP news query
+POLICY_NEWS = DomainPolicy("news", primary="fmp", fallbacks=("benzinga",))
 # calendar Benzinga fallback dropped 2026-07-09: the only Benzinga key we hold
 # is a Massive key, which 401s api.benzinga.com/api/v2.1/calendar (the adapter
 # has no Massive route, unlike news #3318 / quotes-movers #3325), and the old

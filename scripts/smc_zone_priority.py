@@ -6,7 +6,7 @@ Computes a composite zone priority ranking from three dimensions:
     3. News catalyst (news heat, sentiment, event risk)
 
 The output flows into the generated library as ``export const`` fields,
-consumed by SMC_Decision_Board.pine and SMC_Long_Dip_Suite.pine to surface
+consumed by SMC_Long_Dip_Dashboard.pine and SMC_Long_Dip_Suite.pine to surface
 "which zone has the highest probability today" to the user.
 
 Usage::
@@ -125,36 +125,21 @@ def _rank_from_score(score: int) -> str:
 
 # ── F3: vol-regime / context bump combination mode ─────────────
 #
-# ``additive`` is the historical formula and the ONLY mode the production
-# path uses: :func:`build_zone_priority` (and therefore the generated Pine
-# ``zone_priority`` surface) always selects the top family additively — it
-# passes no ``family_score_combination`` and no workflow sets
-# ``SMC_FAMILY_SCORE_COMBINATION``, so the resolver below returns
-# ``"additive"`` on the production entrypoint.
-#
-# In ``multiplicative`` mode every per-context bump ``b`` is applied as
+# ``additive`` is the historical formula (production default).  In
+# ``multiplicative`` mode every per-context bump ``b`` is applied as
 # ``score *= (1 + b)`` instead of ``score += b``.  The two are equivalent
-# for a single bump only when the base score is exactly 1.0; with the real
-# ``_FAMILY_BASE_PRIORITY`` (0.61–0.82) multiplicative scaling preserves the
-# ordering of bumps but amplifies the spread between strongly-favored and
-# disfavored families — the F3 experiment in
-# ``smc_improvement_plan_q3_q4_2026-04-20.md`` (line 397) asks us to A/B this
-# against the additive baseline.
+# for a single bump only when the base score is exactly 1.0; with the
+# real ``_FAMILY_BASE_PRIORITY`` (0.61–0.82) multiplicative scaling
+# preserves the ordering of bumps but amplifies the spread between
+# strongly-favored and disfavored families, which is what the F3
+# experiment in ``smc_improvement_plan_q3_q4_2026-04-20.md`` (line 397)
+# asks us to A/B against the additive baseline.
 #
-# That A/B runs SHADOW-ONLY, off the trade path.  The offline zone-priority
-# calibration script ``scripts/smc_zone_priority_calibration.py`` (invoked by
-# the ``smc-measurement-benchmark`` / ``smc-measurement-benchmark-rolling``
-# workflows) calls :func:`compute_family_combination_shadow` with the
-# freshly-calibrated family weights and records the additive-vs-multiplicative
-# top-family comparison into the calibration report
-# (``zone_priority_calibration.md`` / ``.json``, uploaded as a benchmark
-# artifact).  The comparison is observational: its result is never fed back
-# into :func:`build_zone_priority`, so the live output stays byte-identical.
-#
-# The ``family_score_combination`` keyword and the
-# ``SMC_FAMILY_SCORE_COMBINATION`` env var still switch
-# :func:`_select_top_family` for the shadow computation and for tests, but
-# they are not read on the production entrypoint.
+# Default is ``additive`` so this commit is a no-op for production.  The
+# rolling benchmark and zone-priority calibration scripts can flip the
+# mode via the ``family_score_combination`` keyword (or the
+# ``SMC_FAMILY_SCORE_COMBINATION`` env var) to run a shadow arm without
+# touching any production config.
 FAMILY_SCORE_COMBINATION_ADDITIVE = "additive"
 FAMILY_SCORE_COMBINATION_MULTIPLICATIVE = "multiplicative"
 _VALID_FAMILY_SCORE_COMBINATIONS = (
@@ -187,25 +172,25 @@ def _apply_bump(scores: dict[str, float], family: str, bump: float, mode: str) -
         scores[family] += bump
 
 
-def _compute_family_scores(
+def _select_top_family(
     *,
     regime: str,
     vol_regime: str,
     htf_aligned: bool,
-    mode: str,
     calibrated_family_weights: dict[str, float] | None = None,
     session_context: str | None = None,
-) -> dict[str, float]:
-    """Compute the per-family priority scores under a resolved ``mode``.
+    family_score_combination: str | None = None,
+) -> str:
+    """Select the most favorable event family given current context.
 
-    Extracted from :func:`_select_top_family` so the additive and
-    multiplicative arms can be scored side-by-side by
-    :func:`compute_family_combination_shadow` without duplicating the
-    context-bump ladder.  ``mode`` is an already-resolved value
-    (:data:`FAMILY_SCORE_COMBINATION_ADDITIVE` /
-    :data:`FAMILY_SCORE_COMBINATION_MULTIPLICATIVE`) — no env fallback
-    happens here.
+    ``session_context`` is one of ``"RTH"``, ``"ETH"``, ``"PRE_MARKET"``,
+    ``"AFTER_HOURS"`` or *None* (unknown / no session data).
+
+    ``family_score_combination`` is ``"additive"`` (default, production)
+    or ``"multiplicative"`` (F3 experiment arm).  See module docstring
+    on :data:`DEFAULT_FAMILY_SCORE_COMBINATION` for resolution rules.
     """
+    mode = _resolve_family_score_combination(family_score_combination)
     # Overlay any (possibly partial) calibrated weights onto the full
     # hand-tuned base so every canonical family is always present.  A
     # calibration artifact that drops a family (older schema, truncated or
@@ -213,12 +198,11 @@ def _compute_family_scores(
     # a context bump targets the missing family (e.g. BOS on RISK_ON+HTF or
     # SWEEP on EXTREME vol).
     #
-    # Sanitize each override: a NaN weight makes ``max(scores, key=...)`` in
-    # the caller order-dependent (NaN compares False to everything), so a
-    # single NaN in a calibration artifact would non-deterministically pick
-    # the top family — the same failure class as #3080.  Non-finite
-    # (NaN/±inf) or non-numeric weights therefore fall back to the family's
-    # hand-tuned base priority.
+    # Sanitize each override: a NaN weight makes ``max(scores, key=...)`` below
+    # order-dependent (NaN compares False to everything), so a single NaN in a
+    # calibration artifact would non-deterministically pick the top family —
+    # the same failure class as #3080.  Non-finite (NaN/±inf) or non-numeric
+    # weights therefore fall back to the family's hand-tuned base priority.
     scores = dict(_FAMILY_BASE_PRIORITY)
     for family, weight in (calibrated_family_weights or {}).items():
         fallback = scores.get(family, 0.0)
@@ -256,138 +240,7 @@ def _compute_family_scores(
     if vol_regime == "EXTREME":
         _apply_bump(scores, "SWEEP", 0.15, mode)
 
-    return scores
-
-
-def _select_top_family(
-    *,
-    regime: str,
-    vol_regime: str,
-    htf_aligned: bool,
-    calibrated_family_weights: dict[str, float] | None = None,
-    session_context: str | None = None,
-    family_score_combination: str | None = None,
-) -> str:
-    """Select the most favorable event family given current context.
-
-    ``session_context`` is one of ``"RTH"``, ``"ETH"``, ``"PRE_MARKET"``,
-    ``"AFTER_HOURS"`` or *None* (unknown / no session data).
-
-    ``family_score_combination`` is ``"additive"`` (default, production)
-    or ``"multiplicative"`` (F3 shadow arm).  See module docstring on
-    :data:`DEFAULT_FAMILY_SCORE_COMBINATION` for resolution rules.
-    """
-    mode = _resolve_family_score_combination(family_score_combination)
-    scores = _compute_family_scores(
-        regime=regime,
-        vol_regime=vol_regime,
-        htf_aligned=htf_aligned,
-        mode=mode,
-        calibrated_family_weights=calibrated_family_weights,
-        session_context=session_context,
-    )
     return max(scores, key=lambda k: scores[k])
-
-
-# ── F3 shadow A/B: additive vs multiplicative top-family selection ──
-#
-# Canonical context grid for :func:`compute_family_combination_shadow`.  One
-# representative value per dimension the bump ladder in
-# :func:`_compute_family_scores` actually keys on (regime, vol_regime,
-# session, htf_aligned), plus a ``None`` session (unknown session data).
-# Deterministic and small (4×4×5×2 = 160 contexts) so the shadow comparison
-# is stable across runs and cheap to compute.
-_SHADOW_REGIMES: tuple[str, ...] = ("RISK_ON", "NEUTRAL", "ROTATION", "RISK_OFF")
-_SHADOW_VOL_REGIMES: tuple[str, ...] = ("LOW_VOL", "NORMAL", "HIGH_VOL", "EXTREME")
-_SHADOW_SESSIONS: tuple[str | None, ...] = (
-    "RTH", "ETH", "PRE_MARKET", "AFTER_HOURS", None,
-)
-_SHADOW_HTF: tuple[bool, ...] = (True, False)
-
-
-def compute_family_combination_shadow(
-    *,
-    calibrated_family_weights: dict[str, float] | None = None,
-) -> dict[str, Any]:
-    """Shadow A/B of the family-score-combination knob (F3).
-
-    Scores the top-family selection under BOTH the production ``additive``
-    mode and the experimental ``multiplicative`` mode across the canonical
-    context grid, using ``calibrated_family_weights`` (the same weights
-    :func:`build_zone_priority` would receive) for every context.  Returns a
-    per-context comparison plus an aggregate agreement rate.
-
-    This is OBSERVATIONAL ONLY: the result is never fed back into
-    :func:`build_zone_priority`, so the live/production zone-priority output is
-    unaffected.  The offline calibration script
-    ``scripts/smc_zone_priority_calibration.py`` calls this and records the
-    comparison into the calibration report (``zone_priority_calibration.md`` /
-    ``.json``); a follow-up gate can read the ``agreement_rate`` /
-    ``disagreements`` block to decide whether the multiplicative arm ever
-    changes the surfaced top family enough to be worth promoting.
-
-    Each record carries ``additive_family``, ``multiplicative_family``,
-    ``agree`` and ``score_delta`` — the multiplicative-arm score gap between
-    its own pick and the additive pick (``>= 0``; ``0`` when they agree).
-    """
-    records: list[dict[str, Any]] = []
-    disagreements: list[dict[str, Any]] = []
-    n_agree = 0
-
-    for regime in _SHADOW_REGIMES:
-        for vol_regime in _SHADOW_VOL_REGIMES:
-            for session in _SHADOW_SESSIONS:
-                for htf_aligned in _SHADOW_HTF:
-                    add_scores = _compute_family_scores(
-                        regime=regime,
-                        vol_regime=vol_regime,
-                        htf_aligned=htf_aligned,
-                        mode=FAMILY_SCORE_COMBINATION_ADDITIVE,
-                        calibrated_family_weights=calibrated_family_weights,
-                        session_context=session,
-                    )
-                    mul_scores = _compute_family_scores(
-                        regime=regime,
-                        vol_regime=vol_regime,
-                        htf_aligned=htf_aligned,
-                        mode=FAMILY_SCORE_COMBINATION_MULTIPLICATIVE,
-                        calibrated_family_weights=calibrated_family_weights,
-                        session_context=session,
-                    )
-                    add_top = max(add_scores, key=add_scores.get)
-                    mul_top = max(mul_scores, key=mul_scores.get)
-                    agree = add_top == mul_top
-                    # Gap in the multiplicative arm between its own pick and
-                    # the additive pick — how strongly multiplicative would
-                    # override the production choice for this context.
-                    score_delta = round(mul_scores[mul_top] - mul_scores[add_top], 6)
-                    record = {
-                        "regime": regime,
-                        "vol_regime": vol_regime,
-                        "session": session,
-                        "htf_aligned": htf_aligned,
-                        "additive_family": add_top,
-                        "multiplicative_family": mul_top,
-                        "agree": agree,
-                        "score_delta": score_delta,
-                    }
-                    records.append(record)
-                    if agree:
-                        n_agree += 1
-                    else:
-                        disagreements.append(record)
-
-    n_contexts = len(records)
-    return {
-        "combination_production": FAMILY_SCORE_COMBINATION_ADDITIVE,
-        "combination_shadow": FAMILY_SCORE_COMBINATION_MULTIPLICATIVE,
-        "n_contexts": n_contexts,
-        "n_agree": n_agree,
-        "n_disagree": n_contexts - n_agree,
-        "agreement_rate": round(n_agree / n_contexts, 6) if n_contexts else 1.0,
-        "records": records,
-        "disagreements": disagreements,
-    }
 
 
 def _identify_catalyst(

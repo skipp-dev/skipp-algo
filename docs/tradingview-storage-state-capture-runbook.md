@@ -22,8 +22,8 @@ Related docs: [tradingview-auth-modes.md](tradingview-auth-modes.md)
 
 `npm run tv:storage-state` → `tsx scripts/create_tradingview_storage_state.ts`
 
-1. Launches Chromium. Local captures are headed by default; CI uses
-   `--headless`.
+1. Launches a **headed** Chromium (`headless: false`, slowMo 100) — a visible
+   browser window is required; this does not work on a headless host.
 2. Opens the TradingView sign-in page (or chart page in profile mode).
 3. Lets you log in — manually, or automated if `TV_USERNAME`/`TV_PASSWORD`
    are set (a 2FA auto-submit helper assists with MFA code submission).
@@ -32,16 +32,12 @@ Related docs: [tradingview-auth-modes.md](tradingview-auth-modes.md)
    sign-in signals in the page body, and the captured storage state passes
    the auth heuristics in
    `automation/tradingview/lib/tv_validation_model.ts::inspectTradingViewStorageState`.
-5. Atomically writes the storage state JSON (with `indexedDB: true`) as an
-   owner-only (`0600`) file on POSIX hosts. **Note:** the script
+5. Writes the storage state JSON (with `indexedDB: true`). **Note:** the script
    always stamps a `meta` block (`authValidatedAt`, `validationMode: "standard_session"`)
    on every normal session capture so that
    `scripts/credential_health_check.py::probe_tv_storage_state` can age the
    capture against the 72 h TTL without a separate stamping step.
-   The metadata also records the observed `authMode`, whether TOTP was actually
-   entered/submitted, and the non-secret session-owner label. The
-   persistent-profile fallback (§4) uses
-   `validationMode: "persistent_profile_chart_access"`.
+   The persistent-profile fallback (§4) uses `validationMode: "persistent_profile_chart_access"`.
 
 The script **fails loudly** if the captured session still looks anonymous
 (sign-in overlay visible, missing `sessionid` cookies) — rerun after a full
@@ -55,16 +51,11 @@ login in that case.
 | `--login-url` | `TV_LOGIN_URL` | `https://www.tradingview.com/accounts/signin/` |
 | `--chart-url` | `TV_CHART_URL` | `https://www.tradingview.com/chart/` |
 | `--input-storage-state` | `TV_STORAGE_STATE_INPUT` | unset |
-| `--force-fresh-login` | `TV_FORCE_FRESH_LOGIN` | false; ignores input storage state |
 | `--wait-timeout-ms` | `TV_STORAGE_WAIT_TIMEOUT_MS` | `900000` (15 min) |
 | `--poll-interval-ms` | `TV_STORAGE_POLL_INTERVAL_MS` | `3000` |
 | `--persistent-profile-dir` | `TV_PERSISTENT_PROFILE_DIR` | unset |
 | `--username` | `TV_USERNAME` | unset (manual login) |
 | `--password` | `TV_PASSWORD` | unset (manual login) |
-| `--totp-secret` | `TV_TOTP_SECRET` | unset |
-| `--session-owner` | `TV_STORAGE_SESSION_OWNER` | `<hostname>:<pid>` |
-| `--session-lock-file` | `TV_STORAGE_SESSION_LOCK_FILE` | `<out>.lock` |
-| `--headless` | `TV_HEADLESS` | false locally; true by default in CI |
 
 **Never** put `TV_USERNAME`/`TV_PASSWORD` on the command line in shared
 shells (history leak); export them in the session or just log in manually.
@@ -95,43 +86,6 @@ bootstrap. In the healthy path the existing session is verified against a
 live chart and re-written with a fresh `meta.authValidatedAt`, so
 `TV_USERNAME`/`TV_PASSWORD`/`TV_TOTP_SECRET` are only needed as fallback
 when TradingView no longer accepts the bootstrap session.
-
-### CI fresh-login and dry-run controls
-
-Manual dispatches expose three typed inputs:
-
-- `force_fresh_login=true` ignores the bootstrap state and requires all of
-  `TV_USERNAME`, `TV_PASSWORD`, and `TV_TOTP_SECRET`.
-- `confirm_session_disconnect=true` is mandatory with a forced login because
-  TradingView may terminate another active account session.
-- `dry_run=true` (the manual default) captures and validates a new state but
-  skips both the secret-writer token preflight and `gh secret set`. The existing
-  `TV_STORAGE_STATE` therefore remains unchanged even when the fresh login
-  succeeds.
-
-Safe MFA-path probe:
-
-```bash
-gh workflow run tradingview-storage-refresh.yml \
-  --repo skipp-dev/skipp-algo \
-  --ref main \
-  -f force_fresh_login=true \
-  -f confirm_session_disconnect=true \
-  -f dry_run=true
-```
-
-Only a separate, explicitly reviewed run with `dry_run=false` promotes the
-validated capture into the repository secret. Failed validation always occurs
-before the secret-write step.
-
-The capture script holds an exclusive, owner-labelled lock beside its output
-file (or at `TV_STORAGE_SESSION_LOCK_FILE`) and refuses a second capture on the
-same host/path. GitHub Actions additionally serializes refresh workflow runs
-through the `tradingview-storage-refresh` concurrency group. These mechanisms
-prevent cooperating capture processes from racing. They cannot detect a
-manually opened Chrome/TradingView session or coordinate a local process with a
-GitHub-hosted runner; a fresh CI login can still disconnect that browser
-session.
 
 ## 3. Standard procedure (storage-state mode)
 
@@ -221,9 +175,6 @@ Local consumers then run with
 - The capture contains live `sessionid`/`sessionid_sign` cookies —
   treat the file like a password. Do not attach it to issues, logs or
   artifacts.
-- Captures and capture locks are written with `0600` on POSIX hosts. If a
-  capture crashes, the lock remains fail-closed. Verify no capture process is
-  still running before deleting the stale `.lock` file.
 - Rotate the GitHub secret promptly after capture; delete stray copies
   (`/tmp`, Downloads) afterwards.
 

@@ -46,25 +46,6 @@ def test_compat_stage_step_present() -> None:
     )
 
 
-def test_compat_manifest_declares_full_or_delta_scope_and_coverage() -> None:
-    steps = _publish_compat_steps()
-    stage = next(
-        step for step in steps if step.get("name") == "Stage compat export bundle (legacy artifact name)"
-    )
-    run = str(stage.get("run") or "")
-    assert 'payload["artifact_contract_version"] = 1' in run
-    assert 'payload["artifact_scope"]' in run
-    assert 'payload["coverage_trade_days"]' in run
-
-    data = yaml.safe_load(SHARDED_WORKFLOW.read_text(encoding="utf-8"))
-    plan = data["jobs"]["plan"]
-    assert plan["outputs"]["artifact_scope"] == "${{ steps.compute.outputs.artifact_scope }}"
-    compute = next(step for step in plan["steps"] if step.get("id") == "compute")
-    body = str(compute.get("run") or "")
-    assert 'ARTIFACT_SCOPE="delta"' in body
-    assert 'ARTIFACT_SCOPE="full_window"' in body
-
-
 def test_compat_upload_step_uses_legacy_name_pattern() -> None:
     steps = _publish_compat_steps()
     upload = next(

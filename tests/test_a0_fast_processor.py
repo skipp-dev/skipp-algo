@@ -48,11 +48,6 @@ class _Journal:
         return True
 
 
-class _BrokenHistory:
-    def fetch_before(self, _current: StreamBar) -> HistoricalBootstrapBatch:
-        raise RuntimeError("historical availability lag")
-
-
 class _PreA0:
     def __init__(self, *, fail: bool = False) -> None:
         self.reset_symbols: list[str] = []
@@ -136,32 +131,3 @@ def test_pre_a0_failure_cannot_suppress_confirmed_a0() -> None:
     )
     assert journal.rows[0]["level"] == "A0"
     assert pre_a0.telemetry.snapshot()["inference_errors"] == 1
-
-
-def test_failed_historical_recovery_requests_complete_live_replay() -> None:
-    state = A0StreamState()
-    state.set_reference(StreamReference(
-        symbol="NVDA",
-        previous_close=100.0,
-        average_daily_volume=1_000.0,
-        source="databento:daily",
-        as_of_session="2026-07-16",
-        lookback_sessions=20,
-        reference_version="daily-v1",
-        corporate_action_version="corp-v1",
-    ))
-    telemetry = A0FastTelemetry()
-    processor = _Processor(
-        state=state,
-        thresholds=A0ThresholdContext(3.0, 1.0, 0.6, 2.0, 1.0, 0.5),
-        history=_BrokenHistory(),
-        journal=_Journal(),
-        telemetry=telemetry,
-    )
-
-    assert processor.process(
-        BufferedBar(_bar(30 * 60, volume=100, sequence=2), resync_required=False)
-    ) is False
-    assert processor.consume_source_replay_request() is True
-    assert processor.consume_source_replay_request() is False
-    assert telemetry.snapshot()["resync_required"] == 1

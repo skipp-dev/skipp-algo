@@ -6,7 +6,6 @@ import path from "node:path";
 import {
   addExistingScriptToChartViaIndicators,
   addCurrentScriptToChart,
-  stepTimeoutMs,
   assertNoVisibleCompileError,
   closeModal,
   closeTradingViewSession,
@@ -186,9 +185,9 @@ function fallbackDefaultTargets(): ReleaseTarget[] {
       addToChart: false,
     },
     {
-      file: "SMC_Decision_Board.pine",
+      file: "SMC_Long_Dip_Dashboard.pine",
       scriptName: "SMC Decision Board",
-      savedScriptName: "SMC Decision Board v7",
+      savedScriptName: "SMC Long-Dip Dashboard v7",
       checkInputs: true,
       addToChart: true,
       minInputs: 58,
@@ -471,17 +470,10 @@ function buildInitialTargetResult(
     compile_ok: "not_run",
     script_found_on_chart_ok: target.addToChart || target.checkInputs ? "not_run" : "not_run",
     settings_open_ok: target.checkInputs ? "not_run" : "not_run",
-    // Both ternary branches were identical ("not_run" either way) — a refactor
-    // leftover that read as a decision.
-    inputs_tab_ok: "not_run",
-    bindings_count_ok: "not_run",
-    bindings_names_ok: "not_run",
-    // Starts TRUE: nothing has been verified yet. It was initialised to false
-    // and only ever assigned false, so a target with checkInputs=false reported
-    // "the binding names were verified" while bindings_names_ok said "not_run"
-    // — the field asserted the opposite of its own name. Landed evidence:
-    // smc_r5_htf_session_rebuild_preflight_green_2026-07-31.json.
-    bindings_names_not_verified: true,
+    inputs_tab_ok: target.checkInputs ? "not_run" : "not_run",
+    bindings_count_ok: target.checkInputs ? "not_run" : "not_run",
+    bindings_names_ok: target.checkInputs ? "not_run" : "not_run",
+    bindings_names_not_verified: false,
     binding_contract_key: target.bindingContractKey ?? null,
     binding_contract_name: target.bindingContractName ?? null,
     binding_consumer_role: target.bindingConsumerRole ?? null,
@@ -630,6 +622,8 @@ async function main(): Promise<number> {
     const session = await newTradingViewSession();
 
     try {
+      let usedFreshDraftPath = false;
+
       await gotoChart(session.page);
       const pageAuthState = await collectTradingViewPageAuthState(session.page).catch(() => null);
       targetResult.auth_ok = Boolean(pageAuthState?.authenticated);
@@ -659,12 +653,14 @@ async function main(): Promise<number> {
         if (!openedExisting) {
           if (cli.executionMode === "mutating" && target.allowFreshDraftOnMissingExisting) {
             await openFreshUntitledPineDraft(session.page, inferPineDraftKind(code));
+            usedFreshDraftPath = true;
           } else {
             throw new Error(buildMissingExistingScriptError(target, cli.executionMode, indicatorsFallbackResult));
           }
         }
       } else if (cli.executionMode === "mutating") {
         await openFreshUntitledPineDraft(session.page, inferPineDraftKind(code));
+        usedFreshDraftPath = true;
       }
 
       await ensurePineEditor(session.page);
@@ -679,20 +675,11 @@ async function main(): Promise<number> {
       }
 
       if (target.addToChart || target.checkInputs) {
-        if (cli.executionMode === "mutating" && target.scriptName) {
-          // The mutating path just saved this source, but a chart instance that
-          // predates the save keeps running the previously compiled version —
-          // including its compile-error badge. Without clearing it first,
-          // addCurrentScriptToChart hits its "already present" fast path and
-          // every downstream axis (runtime smoke included) measures the STALE
-          // instance: the 2026-07-31 CE10156 re-run reported the old syntax
-          // error for a source pine-facade had already accepted, which read
-          // exactly like the fix not working. Clear and force a fresh insert
-          // so the measured instance is the saved source.
+        if (usedFreshDraftPath && target.scriptName) {
           await removeVisibleChartScriptInstances(session.page, target.scriptName).catch(() => 0);
-          await addCurrentScriptToChart(session.page, target.scriptName, { forceInsert: true, tolerateFailure: true, stepTimeoutMs: Math.max(stepTimeoutMs(), 90_000) });
+          await addCurrentScriptToChart(session.page, target.scriptName, { forceInsert: true, tolerateFailure: true });
         } else {
-          await addCurrentScriptToChart(session.page, target.scriptName, { tolerateFailure: true, stepTimeoutMs: Math.max(stepTimeoutMs(), 90_000) });
+          await addCurrentScriptToChart(session.page, target.scriptName, { tolerateFailure: true });
         }
         targetResult.script_found_on_chart_ok = await isScriptVisibleOnChartSurface(session.page, target.scriptName);
         if (targetResult.script_found_on_chart_ok !== true) {
@@ -714,15 +701,7 @@ async function main(): Promise<number> {
           allowChartRefresh: cli.executionMode === "mutating",
         });
         if (settingsOpened !== true) {
-          // Gleiche Korrektur wie in tv_shared (2026-08-22): `openSettingsForScript`
-          // liefert bei JEDEM Misserfolg etwas anderes als `true`, auch wenn gar
-          // kein Dialog aufging — die alte Formulierung schickte den Leser auf die
-          // Suche nach einer Namensverwechslung, die es nicht gab. Die
-          // Identitaetspruefung steht eine Zeile tiefer und nennt beide Namen.
-          throw new Error(
-            `Settings dialog never opened for: ${target.scriptName} (no dialog surfaced; ` +
-              `see the script-settings-* trace events of this attempt)`,
-          );
+          throw new Error(`Settings opened for the wrong TradingView script: ${target.scriptName}`);
         }
         await assertOpenedScriptIdentityOrThrow(session.page, target);
         targetResult.settings_open_ok = true;

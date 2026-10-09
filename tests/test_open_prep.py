@@ -2433,7 +2433,7 @@ class TestAtrRobustness(unittest.TestCase):
                 for i in range(1, 20)
             ]
         }
-        symbol, atr, _mom, _vwap, _avg_vol, _pdh, _pdl, _rsi, _technical, err = _fetch_symbol_atr(
+        symbol, atr, _mom, _vwap, _avg_vol, _pdh, _pdl, err = _fetch_symbol_atr(
             client,
             "NVDA",
             date(2026, 1, 1),
@@ -2447,7 +2447,7 @@ class TestAtrRobustness(unittest.TestCase):
     def test_fetch_symbol_atr_reports_zero_as_error(self):
         client = MagicMock()
         client.get_historical_price_eod_full.return_value = {"historical": []}
-        symbol, atr, _mom, _vwap, _avg_vol, _pdh, _pdl, _rsi, _technical, err = _fetch_symbol_atr(
+        symbol, atr, _mom, _vwap, _avg_vol, _pdh, _pdl, err = _fetch_symbol_atr(
             client,
             "NVDA",
             date(2026, 1, 1),
@@ -2477,18 +2477,6 @@ class TestAtrRobustness(unittest.TestCase):
 
 
 class TestOpenPrepRegressions(unittest.TestCase):
-    def setUp(self) -> None:
-        # generate_open_prep_result runs the G3 arm-B shadow, which calls
-        # write_ab_record without out_dir and therefore falls back to the
-        # RELATIVE open_prep.ab_arms.AB_ARMS_DIR — rewriting the tracked
-        # artifacts/open_prep/ab_arms/latest.json in the working tree on every
-        # run. Redirect it for the whole class so the pipeline still executes.
-        ab_arms_dir = tempfile.TemporaryDirectory()
-        self.addCleanup(ab_arms_dir.cleanup)
-        patcher = patch("open_prep.ab_arms.AB_ARMS_DIR", Path(ab_arms_dir.name))
-        patcher.start()
-        self.addCleanup(patcher.stop)
-
     def test_generate_result_mirrors_pmh_into_premarket_context(self):
         with (
             patch("open_prep.run_open_prep._fetch_todays_events", return_value=([], [])),
@@ -3547,7 +3535,7 @@ class TestMacroHelpers(unittest.TestCase):
         }
 
         with patch("open_prep.run_open_prep.apply_gap_mode_to_quotes", side_effect=lambda quotes, **kwargs: quotes), \
-             patch("open_prep.run_open_prep._atr14_by_symbol", return_value=({}, {}, {}, {}, {}, {}, {}, {}, {})), \
+             patch("open_prep.run_open_prep._atr14_by_symbol", return_value=({}, {}, {}, {}, {}, {}, {})), \
              patch("open_prep.run_open_prep._enrich_quote_with_hvb"), \
              patch("open_prep.run_open_prep._add_pdh_pdl_context"):
             quotes, atr_map, mom_map, vwap_map, errors, diagnostics = run_open_prep._fetch_quotes_with_atr(
@@ -4361,13 +4349,3 @@ class ComputeHitRatesPnlFallbackTest(unittest.TestCase):
         bucket = self._single_bucket(rec)
         self.assertEqual(bucket["total"], 1)
         self.assertEqual(bucket["avg_pnl_pct"], 0.0)
-
-
-# 2026-10-08: FMP news is off by default (ENABLE_FMP_NEWS). This module tests the
-# FMP news paths themselves, so it runs them switched on -- the pre-change behaviour.
-import pytest as _pytest_fmp_news
-
-
-@_pytest_fmp_news.fixture(autouse=True)
-def _fmp_news_on(monkeypatch):
-    monkeypatch.setenv("ENABLE_FMP_NEWS", "1")

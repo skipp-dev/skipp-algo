@@ -47,13 +47,11 @@ def _patch_feed(monkeypatch: pytest.MonkeyPatch):
 
 
 @pytest.fixture()
-def client(_patch_env, _patch_feed, monkeypatch: pytest.MonkeyPatch):
+def client(_patch_env, _patch_feed):
     """TestClient with stubbed dependencies."""
     import services.live_overlay_daemon.main as main
-    # Pin startup_ts for predictable uptime; monkeypatch reverts it after the
-    # test so a far-past boot time cannot leak into later test files and flip
-    # /ready from "starting" to "degraded" depending on file ordering.
-    monkeypatch.setattr(main, "_startup_ts", 100.0)
+    # Reset startup_ts for predictable uptime
+    main._startup_ts = 100.0
     return TestClient(main.app)
 
 

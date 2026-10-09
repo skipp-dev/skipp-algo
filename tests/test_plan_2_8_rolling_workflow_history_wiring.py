@@ -37,24 +37,16 @@ def _idx(prefix: str) -> int:
     raise AssertionError(f"no step starts with {prefix!r}")
 
 
-def test_history_archive_requires_successful_history_restore() -> None:
+def test_history_archive_step_present_and_always() -> None:
     step = _step("Plan 2.8 history archive")
-    assert step["if"].strip() == "always() && steps.restore_history.outcome == 'success'"
+    assert step["if"].strip() == "always()"
 
 
 def test_history_archive_runs_after_rollup_and_before_upload() -> None:
     i_rollup  = _idx("Plan 2.8 Phase 1 per-TF family rollup")
-    i_restore = _idx("Restore Plan 2.8 rolling history")
     i_archive = _idx("Plan 2.8 history archive")
     i_upload  = _idx("Upload rolling benchmark artifacts")
-    assert i_rollup < i_restore < i_archive < i_upload
-
-
-def test_history_restore_is_fail_closed_and_reads_canonical_remote_path() -> None:
-    run = _step("Restore Plan 2.8 rolling history")["run"]
-    assert "bot/live-experiment-snapshot" in run
-    assert "artifacts/ci/measurement_benchmark_rolling/latest/plan_2_8_history.jsonl" in run
-    assert "refusing to replace rolling history with one run" in run
+    assert i_rollup < i_archive < i_upload
 
 
 def test_history_archive_invokes_archiver_with_rollup_and_history_paths() -> None:

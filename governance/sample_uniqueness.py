@@ -2,7 +2,7 @@
 
 The EV-24 calibrator (:mod:`governance.family_calibration`) fits its 2-parameter
 Platt model by gradient descent that treats every event as an INDEPENDENT
-observation. That assumption is false here: the horizon-close
+observation. That assumption is false here: the ``touch_then_horizon_close``
 label of an event spans a forward horizon H, so neighbouring events whose label
 windows overlap *share forward bars* and therefore share information. Counting
 them as independent overstates the evidence -- the same bias the senior-quant

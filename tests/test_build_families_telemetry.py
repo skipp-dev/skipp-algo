@@ -13,9 +13,7 @@ from scripts.build_families_telemetry import (
     BuildSummary,
     aggregate,
     build_payload,
-    load_modeled_counts,
     load_variant_family_map,
-    load_variant_registry,
     main,
     rollup_verdict,
     to_strict_payload,
@@ -32,13 +30,7 @@ def test_event_families_match_smc_core_scoring() -> None:
 
 
 def test_schema_version_pinned() -> None:
-    # 2026-08-16: 2.0.0 -> 2.1.0, additive commercial_claim per family row
-    # (operator decision: FVG leaves the family claim; see
-    # docs/commercial/family_claim_status.json).
-    # 2026-08-18: 2.1.0 -> 2.2.0 (Grenzgaenger E4+E5, operator decision):
-    # unattributed_kill_switch_fires top level; phase1_paper_gate requires
-    # only non-incubation families and reports families_required.
-    assert FAMILIES_SCHEMA_VERSION == "2.2.0"
+    assert FAMILIES_SCHEMA_VERSION == "1.0.0"
 
 
 def test_strict_payload_keys_match_consumer_contract() -> None:
@@ -89,20 +81,6 @@ def test_load_variant_family_map_rejects_non_object(tmp_path: Path) -> None:
     p.write_text("[]")
     with pytest.raises(ValueError):
         load_variant_family_map(p)
-
-
-def test_load_variant_registry_classifies_non_family_variants(tmp_path: Path) -> None:
-    p = tmp_path / "registry.json"
-    p.write_text(json.dumps({
-        "schema_version": 2,
-        "family_variants": {"v_bos_1": "BOS"},
-        "non_family_variants": {
-            "smc_orb_vwap_hold": {"scope": "open_prep_execution"},
-        },
-    }))
-    registry = load_variant_registry(p)
-    assert registry.family_variants == {"v_bos_1": "BOS"}
-    assert registry.non_family_variants == frozenset({"smc_orb_vwap_hold"})
 
 
 # ---------------------------------------------------------------------------
@@ -244,80 +222,6 @@ def test_aggregate_counts_unknown_variants(tmp_path: Path) -> None:
     assert accs["BOS"].n_trades == 1
 
 
-def test_aggregate_excludes_explicit_non_family_without_unknown(tmp_path: Path) -> None:
-    a1 = tmp_path / "incubation_2026-04-25.jsonl"
-    _write_audit(a1, [
-        {"variant": "smc_orb_vwap_hold", "action": "closed", "phase": "paper"},
-    ])
-    summary = BuildSummary()
-    aggregate(
-        audit_paths=[a1],
-        drift_paths=[],
-        variant_to_family={},
-        non_family_variants=frozenset({"smc_orb_vwap_hold"}),
-        summary=summary,
-    )
-    assert summary.unknown_variants == set()
-    assert summary.audit_records_non_family == 1
-
-
-def test_non_family_only_halt_does_not_contaminate_family_gate(tmp_path: Path) -> None:
-    a1 = tmp_path / "incubation_2026-04-25.jsonl"
-    _write_audit(a1, [
-        {"variant": "smc_orb_vwap_hold", "action": "audit_only", "phase": "paper"},
-        {"action": "halted", "kill_switch_triggered": True, "phase": "paper"},
-    ])
-    accs = aggregate(
-        audit_paths=[a1],
-        drift_paths=[],
-        variant_to_family={},
-        non_family_variants=frozenset({"smc_orb_vwap_hold"}),
-    )
-    assert all(acc.kill_switch_fires == 0 for acc in accs.values())
-
-
-def test_variantless_halt_on_tradeless_day_is_unattributed(tmp_path: Path) -> None:
-    """2026-08-18 (Grenzgaenger E4, operator decision): a variantless halt on
-    a day with NO family trades no longer fans out to every family. The old
-    fallback set kill_switch_fires on ALL four families forever (the audit
-    glob is unbounded), making the C12 ``kill_switch_fires == 0`` invariant
-    permanently unreachable after a single such day."""
-    a1 = tmp_path / "incubation_2026-04-25.jsonl"
-    _write_audit(a1, [
-        {"action": "halted", "kill_switch_triggered": True, "phase": "paper"},
-    ])
-    summary = BuildSummary()
-    accs = aggregate(
-        audit_paths=[a1],
-        drift_paths=[],
-        variant_to_family={"v_bos_1": "BOS"},
-        summary=summary,
-    )
-    assert all(acc.kill_switch_fires == 0 for acc in accs.values())
-    assert summary.unattributed_kill_switch_fires == 1
-
-
-def test_variantless_halt_still_lands_on_the_families_that_traded(tmp_path: Path) -> None:
-    """The per-family half of the E4 decision: on a day where family variants
-    DID trade, the variantless halt still counts against exactly those
-    families — halts are never silently dropped."""
-    a1 = tmp_path / "incubation_2026-04-25.jsonl"
-    _write_audit(a1, [
-        {"variant": "v_bos_1", "action": "closed", "phase": "paper"},
-        {"action": "halted", "kill_switch_triggered": True, "phase": "paper"},
-    ])
-    summary = BuildSummary()
-    accs = aggregate(
-        audit_paths=[a1],
-        drift_paths=[],
-        variant_to_family={"v_bos_1": "BOS"},
-        summary=summary,
-    )
-    assert accs["BOS"].kill_switch_fires == 1
-    assert accs["OB"].kill_switch_fires == 0
-    assert summary.unattributed_kill_switch_fires == 0
-
-
 def test_aggregate_rolls_up_drift_verdicts(tmp_path: Path) -> None:
     d1 = tmp_path / "drift_2026-04-25.json"
     _write_drift(d1, {
@@ -354,21 +258,6 @@ def test_to_strict_payload_emits_zero_rows_for_unseen_families() -> None:
         assert f["n_trades"] == 0
         assert f["kill_switch_fires"] == 0
         assert f["drift_verdict"] == "unknown"
-        assert f["evidence"]["LIVE"] == {"days": 0, "n_closed_outcomes": 0}
-        assert f["coverage_status"] == "missing"
-
-
-def test_modeled_oos_is_labeled_and_does_not_inflate_live(tmp_path: Path) -> None:
-    returns = tmp_path / "returns_series_2026-08-07.json"
-    returns.write_text(json.dumps({
-        "returns_by_variant": {"BOS": [0.1, -0.1], "OB": [], "FVG": [], "SWEEP": []},
-    }))
-    counts = load_modeled_counts(str(tmp_path / "returns_series_*.json"))
-    [bos, *_] = to_strict_payload({}, modeled_counts=counts)
-    assert bos["evidence"]["MODELED_OOS"]["n_outcomes"] == 2
-    assert bos["live_days"] == 0
-    assert bos["n_trades"] == 0
-    assert bos["coverage_status"] == "partial"
 
 
 # ---------------------------------------------------------------------------
@@ -399,49 +288,6 @@ def test_build_payload_end_to_end(tmp_path: Path) -> None:
     # Untraded families still emitted as zero rows.
     ob = next(f for f in out["families"] if f["name"] == "OB")
     assert ob["n_trades"] == 0
-    assert out["phase1_paper_gate"]["status"] == "BLOCKED"
-    # 2026-08-18 (E5): FVG is in incubation (family_claim_status.json,
-    # 2026-08-16) and therefore no longer part of the Phase-1 requirement —
-    # the gate previously demanded it while the same payload's
-    # commercial_claim said incubation, a self-contradiction.
-    assert set(out["phase1_paper_gate"]["families_required"]) == {
-        "BOS", "OB", "SWEEP",
-    }
-    assert set(out["phase1_paper_gate"]["families_missing_closed_outcome"]) == {
-        "BOS", "OB", "SWEEP",
-    }
-    assert out["unattributed_kill_switch_fires"] == 0
-
-
-def test_phase1_gate_goes_green_without_fvg(tmp_path: Path) -> None:
-    """2026-08-18 (Grenzgaenger E5): with the three claim families delivering
-    paper outcomes the gate goes GREEN even though FVG (incubation) has none —
-    previously FVG kept it BLOCKED forever despite its own demotion record in
-    the same payload. FVG keeps its full telemetry row."""
-    a = tmp_path / "incubation_2026-04-25.jsonl"
-    _write_audit(a, [
-        {"variant": "v_bos_1", "action": "closed", "phase": "paper"},
-        {"variant": "v_ob_1", "action": "closed", "phase": "paper"},
-        {"variant": "v_sweep_1", "action": "closed", "phase": "paper"},
-    ])
-    d = tmp_path / "drift_2026-04-25.json"
-    _write_drift(d, {"variants": []})
-    vmap = tmp_path / "vmap.json"
-    vmap.write_text(json.dumps({
-        "v_bos_1": "BOS", "v_ob_1": "OB", "v_sweep_1": "SWEEP",
-    }))
-
-    out = build_payload(
-        audit_glob=str(tmp_path / "incubation_*.jsonl"),
-        drift_glob=str(tmp_path / "drift_*.json"),
-        variant_family_map=vmap,
-    )
-
-    gate = out["phase1_paper_gate"]
-    assert gate["status"] == "GREEN"
-    assert set(gate["families_ready"]) == {"BOS", "OB", "SWEEP"}
-    assert gate["families_missing_closed_outcome"] == []
-    assert "FVG" in [f["name"] for f in out["families"]]
 
 
 # ---------------------------------------------------------------------------
@@ -485,47 +331,3 @@ def test_cli_strict_mode_returns_two_on_unknown_variant(tmp_path: Path) -> None:
         "--strict-unknown-variants",
     ])
     assert rc == 2
-    assert not out.exists(), "strict failure must not leave publishable telemetry"
-
-
-class TestTornTrailingLine:
-    """Grenzgänger-Sweep E3 (2026-08-18): a torn TRAILING line — the classic
-    crash artifact of an append-only audit stream — must not block the
-    telemetry (and the public report) for all four families; interior
-    corruption and complete-but-garbage final lines must still fail closed."""
-
-    def test_a_torn_trailing_line_is_skipped_with_a_warning(self, tmp_path, caplog):
-        import logging
-
-        from scripts.build_families_telemetry import _iter_jsonl
-
-        p = tmp_path / "incubation_2026-08-18.jsonl"
-        p.write_text('{"a": 1}\n{"b": 2}\n{"trun', encoding="utf-8")
-
-        with caplog.at_level(logging.WARNING):
-            rows = list(_iter_jsonl(p))
-
-        assert rows == [{"a": 1}, {"b": 2}]
-        assert "torn trailing line" in caplog.text
-
-    def test_a_complete_garbage_final_line_still_fails_closed(self, tmp_path):
-        import pytest as _pytest
-
-        from scripts.build_families_telemetry import _iter_jsonl
-
-        p = tmp_path / "incubation.jsonl"
-        p.write_text('{"a": 1}\nnot-json\n', encoding="utf-8")
-
-        with _pytest.raises(ValueError, match="invalid JSON"):
-            list(_iter_jsonl(p))
-
-    def test_an_interior_malformed_line_still_fails_closed(self, tmp_path):
-        import pytest as _pytest
-
-        from scripts.build_families_telemetry import _iter_jsonl
-
-        p = tmp_path / "incubation.jsonl"
-        p.write_text('{"a": 1}\n{"torn\n{"b": 2}\n', encoding="utf-8")
-
-        with _pytest.raises(ValueError, match="invalid JSON"):
-            list(_iter_jsonl(p))

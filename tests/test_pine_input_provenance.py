@@ -159,31 +159,12 @@ def test_removing_an_input_is_detected(probe_root: Path) -> None:
     )
 
 
-"""2026-08-28: the hiding probe moved off SMC_Setup_Check.pine — the sibling
-convention now hides ALL its binding rows (`display = display.none` on every
-`g_bus` input), so that file no longer carries a visible input to hide and
-the probe would inject a no-op duplicate. The Confluence Hub's first
-`g_display` input is visible, so hiding it must move `total_hidden`."""
-
-_HIDE_PROBE = "SMC_Confluence_Hub.pine"
-
-
-@pytest.fixture
-def hide_probe_root(tmp_path: Path) -> Path:
-    (tmp_path / _HIDE_PROBE).write_text(
-        (_REPO_ROOT / _HIDE_PROBE).read_text(encoding="utf-8"), encoding="utf-8"
-    )
-    return tmp_path
-
-
-def test_hiding_an_input_is_detected(hide_probe_root: Path) -> None:
-    before = _provenance_of(hide_probe_root)
-    p = hide_probe_root / _HIDE_PROBE
+def test_hiding_an_input_is_detected(probe_root: Path) -> None:
+    before = _provenance_of(probe_root)
+    p = probe_root / _PROBE
     src = p.read_text(encoding="utf-8")
-    marker = "group = g_display"
-    assert marker in src, f"probe {_HIDE_PROBE} lacks {marker!r} — fix the probe"
-    hidden = f"display = display.none, {marker}"
-    assert hidden not in src, "probe input is already hidden — the probe is vacuous"
-    p.write_text(src.replace(marker, hidden, 1), encoding="utf-8")
-    after = _provenance_of(hide_probe_root)
+    marker = "group = g_bus"
+    assert marker in src, f"probe {_PROBE} lacks {marker!r} — fix the probe"
+    p.write_text(src.replace(marker, f"display = display.none, {marker}", 1), encoding="utf-8")
+    after = _provenance_of(probe_root)
     assert after["total_hidden"] > before["total_hidden"], "Hiding an input went undetected"

@@ -46,16 +46,10 @@ from governance.epnl_after_cost import (
 )
 from governance.family_returns import (
     DEFAULT_COST_BPS,
-    PIVOT_LOOKUP,
-    RETURN_RULE,
     extract_family_calibration_samples,
-    record_grain_events,
 )
 from scripts.run_magnitude_resolution_gate import _load_events
-from scripts.run_magnitude_shadow_ledger import (
-    CANDIDATE_FAMILIES,
-    event_measurement_plane,
-)
+from scripts.run_magnitude_shadow_ledger import CANDIDATE_FAMILIES
 
 
 def build_report(
@@ -98,10 +92,6 @@ def build_report(
     )
 
     return {
-        # The rule the realized returns behind every number here were computed
-        # under; verdicts of different rules must never be pooled (ADR-0031,
-        # Nachtrag 2026-10-02 II).
-        "return_rule": RETURN_RULE,
         "cost_bps": cost_bps,
         "cost_source": "empirical_calibration" if cost_calibration is not None else "flat_default",
         "cost_calibration": cost_calibration,
@@ -168,14 +158,6 @@ def main(argv: list[str] | None = None) -> int:
         default="-",
         help="path to write the JSON report, or '-' for stdout (default: stdout)",
     )
-    parser.add_argument(
-        "--plane",
-        default=None,
-        help=(
-            "governed measurement plane (for example 1D); filters each event "
-            "by its own modal bar cadence before evaluation"
-        ),
-    )
     args = parser.parse_args(argv)
 
     try:
@@ -189,24 +171,6 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     cost_bps = args.cost_bps
-    # One grain (ADR-0031, Nachtrag 2026-10-03 IV): the §5 gate judges the record.
-    grain_total = len(events)
-    events = record_grain_events(events)
-    print(
-        f"grain filter: kept {len(events)}/{grain_total} pool events on pivot_lookup {PIVOT_LOOKUP}",
-        file=sys.stderr,
-    )
-    events_total = len(events)
-    if args.plane:
-        events = [
-            event for event in events if event_measurement_plane(event) == args.plane
-        ]
-        print(
-            f"plane filter: kept {len(events)}/{events_total} pool events "
-            f"on plane {args.plane}",
-            file=sys.stderr,
-        )
-
     calibration: dict[str, Any] | None = None
     if args.cost_calibration is not None:
         try:
@@ -250,9 +214,6 @@ def main(argv: list[str] | None = None) -> int:
         cost_calibration=calibration,
     )
 
-    report["measurement_plane"] = args.plane
-    report["events_total"] = events_total
-    report["events_on_plane"] = len(events)
     rendered = json.dumps(report, indent=2, sort_keys=True)
     if args.out == "-":
         print(rendered)

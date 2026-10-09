@@ -53,17 +53,6 @@ EARNINGS_EVENT_TYPES: frozenset[str] = frozenset({
 DEFAULT_PRE_WINDOW_DAYS = 1
 DEFAULT_POST_WINDOW_DAYS = 1
 
-# What to do when the calendar cannot be consulted at all.
-#
-# ``block`` is the default since 2026-08-19 (operator decision): "I do not
-# know whether this symbol reports today" must not be a reason to trade. The
-# previous fail-open behaviour was invisible in practice — see
-# ``data_available`` — so the gate reported success while never gating.
-# ``pass`` stays available for replays and backfills of periods that were
-# genuinely unfiltered, where blocking would rewrite history.
-MISSING_DATA_POLICIES: frozenset[str] = frozenset({"block", "pass"})
-DEFAULT_MISSING_DATA_POLICY = "block"
-
 
 @dataclass(frozen=True)
 class EarningsFilterDecision:
@@ -138,18 +127,11 @@ class EarningsFilter:
         *,
         pre_window_days: int = DEFAULT_PRE_WINDOW_DAYS,
         post_window_days: int = DEFAULT_POST_WINDOW_DAYS,
-        on_missing_data: str = DEFAULT_MISSING_DATA_POLICY,
     ) -> None:
         if pre_window_days < 0 or post_window_days < 0:
             raise ValueError("guard-window days must be non-negative")
-        if on_missing_data not in MISSING_DATA_POLICIES:
-            raise ValueError(
-                f"on_missing_data must be one of {sorted(MISSING_DATA_POLICIES)}, "
-                f"got {on_missing_data!r}"
-            )
         self._pre = int(pre_window_days)
         self._post = int(post_window_days)
-        self._on_missing_data = on_missing_data
         self._events_path: Path | None = (
             Path(events_jsonl) if events_jsonl is not None else None
         )
@@ -167,23 +149,8 @@ class EarningsFilter:
 
     @property
     def data_available(self) -> bool:
-        """Whether a WSH JSONL with at least one indexable event was read.
-
-        A PRESENT but empty file counts as MISSING (2026-08-19). Until then
-        only ``exists()`` was checked, so the 22 zero-byte snapshots the WSH
-        feed had been writing since 2026-06-11 were accepted as valid data and
-        every symbol got the positive verdict ``NO_EARNINGS_EVENT`` — a claim
-        that the calendar had been consulted. ``WSH_DATA_MISSING``, the state
-        built for exactly this situation, could never fire.
-        """
-        if self._index is None:
-            self._lookup("")
+        """Whether the WSH JSONL was found at construction time."""
         return self._data_available
-
-    @property
-    def on_missing_data(self) -> str:
-        """Policy applied when the calendar is unavailable ('block'|'pass')."""
-        return self._on_missing_data
 
     def reload(self) -> None:
         """Force re-read of the JSONL (e.g. after file rotation)."""
@@ -192,8 +159,6 @@ class EarningsFilter:
             self._index = {}
             self._data_available = False
         else:
-            # Emptiness is only knowable after reading; ``_build_index``
-            # re-decides ``_data_available`` on the next lookup.
             self._data_available = True
 
     def decide(
@@ -213,7 +178,7 @@ class EarningsFilter:
             return EarningsFilterDecision(
                 symbol=symbol_norm,
                 trade_date=td.isoformat(),
-                blocked=self._on_missing_data == "block",
+                blocked=False,
                 reason="WSH_DATA_MISSING",
                 pre_window_days=self._pre,
                 post_window_days=self._post,
@@ -228,7 +193,7 @@ class EarningsFilter:
             return EarningsFilterDecision(
                 symbol=symbol_norm,
                 trade_date=td.isoformat(),
-                blocked=self._on_missing_data == "block",
+                blocked=False,
                 reason="WSH_DATA_MISSING",
                 pre_window_days=self._pre,
                 post_window_days=self._post,
@@ -288,13 +253,10 @@ class EarningsFilter:
             total += 1
             decision = self.decide(symbol=symbol, trade_date=trade_date)
             decisions.append(decision)
-            # ``missing`` is orthogonal to blocked/passed: under the
-            # fail-closed default a missing calendar BLOCKS, so counting it as
-            # passed (the pre-2026-08-19 accounting) would have understated
-            # ``blocked`` and overstated ``passed`` in every audit summary.
             if decision.reason == "WSH_DATA_MISSING":
                 missing += 1
-            if decision.blocked:
+                passed += 1
+            elif decision.blocked:
                 blocked += 1
             else:
                 passed += 1
@@ -341,19 +303,4 @@ class EarningsFilter:
             if not sym:
                 continue
             idx.setdefault(sym, []).append(ev)
-        if not idx:
-            # A readable file that yields NO indexable event is data we do not
-            # have, not a market-wide absence of earnings. The WSH feed writes
-            # a zero-byte snapshot on its rc=2 path ("feed returned ZERO
-            # events"), and every such day was silently answered with the
-            # positive verdict NO_EARNINGS_EVENT until 2026-08-19. Measured
-            # then: 22 snapshots on disk, all 0 bytes, 41/41 feed markers
-            # degraded since 2026-06-11.
-            LOGGER.warning(
-                "earnings_filter: %s yielded no indexable events; treating as "
-                "missing data (policy=%s)",
-                self._events_path,
-                self._on_missing_data,
-            )
-            self._data_available = False
         return idx

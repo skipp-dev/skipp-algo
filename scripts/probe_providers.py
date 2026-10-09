@@ -170,10 +170,6 @@ def probe_fmp_treasury() -> tuple[str, str]:
 def probe_fmp_news() -> tuple[str, str]:
     """FMP /stable/news/stock-latest — newsstack ingestion endpoint."""
     import httpx
-
-    from open_prep.feature_flags import is_fmp_news_enabled
-    if not is_fmp_news_enabled():
-        return ("SKIP", "ENABLE_FMP_NEWS off (2026-10-08) — no FMP news request")
     key = os.getenv("FMP_API_KEY", "")
     if not key:
         return ("SKIP", "FMP_API_KEY missing")
@@ -197,10 +193,6 @@ def probe_fmp_news() -> tuple[str, str]:
 
 def probe_fmp_press() -> tuple[str, str]:
     import httpx
-
-    from open_prep.feature_flags import is_fmp_news_enabled
-    if not is_fmp_news_enabled():
-        return ("SKIP", "ENABLE_FMP_NEWS off (2026-10-08) — no FMP news request")
     key = os.getenv("FMP_API_KEY", "")
     if not key:
         return ("SKIP", "FMP_API_KEY missing")
@@ -466,7 +458,7 @@ def probe_benzinga_news() -> tuple[str, str]:
         return ("OK", f"{len(rows)} items via massive, latest id={row.get('benzinga_id')} ({str(row.get('published') or '?')[:19]})")
     r = httpx.get(
         "https://api.benzinga.com/api/v2/news",
-        params={"token": os.getenv("BENZINGA_DIRECT_API_KEY") or key, "pageSize": 5, "displayOutput": "abstract"},  # direct mode: prefer dedicated direct key, matches BenzingaRestAdapter (ingest_benzinga.py)
+        params={"token": key, "pageSize": 5, "displayOutput": "abstract"},
         headers={"Accept": "application/json"},
         timeout=15.0,
     )
@@ -862,8 +854,8 @@ def probe_openai() -> tuple[str, str]:
         return ("FAIL", f"HTTP {r.status_code}: {r.text[:80]}")
     data = r.json()
     models = [m.get("id") for m in data.get("data", [])]
-    has_default = "gpt-5.6-luna" in models
-    return ("OK", f"{len(models)} models accessible, has gpt-5.6-luna={has_default}")
+    has_4o = any("gpt-4o" in m for m in models if m)
+    return ("OK", f"{len(models)} models accessible, has gpt-4o={has_4o}")
 
 
 def probe_newsapi_ai() -> tuple[str, str]:
@@ -903,17 +895,12 @@ def probe_newsapi_ai() -> tuple[str, str]:
 # Critical = a workflow surface we actually consume in prod.
 # Non-critical = visibility only (entitlement-gated / retired endpoints kept
 # in the table so a future re-grant or restoration is detected immediately).
-from open_prep.feature_flags import is_fmp_news_enabled as _is_fmp_news_enabled
-
-_FMP_NEWS_ON = _is_fmp_news_enabled()
-
 PROBES: list[Probe] = [
     # FMP — universe, fundamentals, news, technicals
     Probe("FMP /stable/quote", probe_fmp_quote, critical=True),
     Probe("FMP /stable/treasury-rates", probe_fmp_treasury, critical=True),
-    # FMP news: critical only while ENABLE_FMP_NEWS=1 (off by default since 2026-10-08)
-    Probe("FMP /stable/news/stock-latest", probe_fmp_news, critical=_FMP_NEWS_ON),
-    Probe("FMP /stable/news/press-releases", probe_fmp_press, critical=_FMP_NEWS_ON),
+    Probe("FMP /stable/news/stock-latest", probe_fmp_news, critical=True),
+    Probe("FMP /stable/news/press-releases", probe_fmp_press, critical=True),
     Probe("FMP /stable/company-screener", probe_fmp_screener, critical=True),
     Probe("FMP /stable/technical-indicators", probe_fmp_technical, critical=True),
     # G2/D3 re-check 2026-05-12: mover seed + incremental ATR feeders.
@@ -961,7 +948,7 @@ PROBES: list[Probe] = [
     Probe("Finnhub /quote", probe_finnhub_quote, critical=True),
     Probe("Finnhub /stock/social-sentiment", probe_finnhub_social, critical=False),
     # TradingView
-    Probe("TradingView headlines (unofficial)", probe_tradingview_news, critical=False),  # 2026-07-25: retired upstream (PR #3777, flags fail-closed); demote like NewsAPI.ai so a WARN/Cloudflare-block can't false-block preflight. Row kept for visibility.
+    Probe("TradingView headlines (unofficial)", probe_tradingview_news, critical=True),
     Probe("TradingView TA library", probe_tradingview_ta, critical=True),
     # Misc
     Probe("NasdaqTrader symbol directory", probe_nasdaq_trader, critical=True),

@@ -3,72 +3,20 @@ name: CI
 
 on:
   push:
-    # 2026-08-25: alle Branches AUSSER data/** — das sind verwaiste
-    # Datenbaeume (stuendliche c13-Snapshots u. ae.) ohne gemeinsame Historie
-    # mit main. Ihr eingefrorener Code-Schnappschuss (Juli-Stand) wurde bei
-    # jedem Datenpush neu validiert; zwei Datumsbomben des alten Stands
-    # (c9-Lock-Anker, Snooze-Expiry) machten ab dem 19.8. JEDEN Lauf rot —
-    # 6-7 nutzlose Rotlaeufe pro Tag ohne Aussage ueber heutigen Code.
-    # (`branches` und `branches-ignore` schliessen sich aus; "alle ausser"
-    # geht nur so.)
-    #
-    # WICHTIG (gemessen 2026-08-26, Nachtrag zu #5077): Diese Zeile allein
-    # stoppt die Rotlaeufe NICHT. Ein `push` loest die Workflow-Datei des
-    # GEPUSHTEN Refs aus, nicht die von main — der Orphan-Branch trug seine
-    # eigene, alte ci.yml und feuerte weiter, bis dieselbe Aenderung dort
-    # gespiegelt wurde (`8697f3216`). Es gibt also ZWEI Kopien dieses
-    # `on:`-Blocks ohne Kopplungswaechter; wird der Datenbranch je aus einem
-    # aelteren Schnappschuss neu aufgesetzt, kehren die 6-7 Rotlaeufe pro Tag
-    # still zurueck. Dauerhafte Loesung waere, `.github/workflows/` auf den
-    # data-Branches ganz zu entfernen — OPERATOR-Entscheid, offen.
-    branches-ignore: ["data/**"]
+    branches: ["**"]
   pull_request:
     branches: ["**"]
     # F-V8-C5-A (2026-05-07): doc-only PRs do not exercise the validate
-    # job's heavy gate; skip CI to save runner minutes. Since 2026-08-27 the
-    # four `validate (N)` shard contexts ARE required on main (ADR-0012
-    # Operator-Punkt 1, `main-governance` ruleset). paths-ignore still cannot
-    # block a doc-only merge: the un-filtered `push:` lane below reports the
-    # same contexts (status-only, run_heavy=false) on every branch head.
-    # `push:` above is intentionally NOT path-filtered, so every branch that
-    # the lane covers still reports a `validate` status. 2026-08-29: "every
-    # branch" is no longer literally true — `data/**` is excluded above, by
-    # design (no code review happens on a data-only branch). Nothing consumes
-    # a `validate` status on those refs. The gate below keeps non-main pushes
+    # job's heavy gate; skip CI to save runner minutes. ci.yml is NOT a
+    # required status check on main (only `fast-gates` is — see
+    # smc-fast-pr-gates.yml), so paths-ignore here cannot block a merge.
+    # `push:` above is intentionally NOT path-filtered so every branch still
+    # reports a `validate` status. The gate below keeps non-main pushes
     # status-only; heavy validation runs on main pushes and manual dispatches.
-    #
-    # 2026-10-03: the push lane does NOT cover a branch pushed with
-    # GITHUB_TOKEN — such a push starts no workflow at all. The one producer
-    # of doc-only bot PRs is `promotion-gate-daily` (gate artifacts under
-    # docs/calibration/gates/). Until 2026-10-02 every one of its PRs happened
-    # to carry a file outside docs/ (cache/live/*) and got its shards from
-    # this trigger; #5647 was the first purely documentary one and sat green
-    # and BLOCKED with auto-merge armed — nothing went red. A manual
-    # `workflow_dispatch` on the branch did not help either: its check runs
-    # land on the commit but are not counted in the PR's required contexts
-    # (measured on #5647, run 37150754425). Hence `paths` with negations
-    # instead of `paths-ignore`: same doc-only skip, minus the gates
-    # directory. Order matters — the last matching pattern wins.
-    paths:
-      - '**'
-      - '!**/*.md'
-      - '!docs/**'
-      - '!CHANGELOG.md'
-      - 'docs/calibration/gates/**'
-  # Die vier `validate (N)` Shards sind seit 2026-08-27 required (ADR-0012
-  # Operator-Punkt 1). Eine Merge Queue validiert ihren Batch auf einem
-  # eigenen Ref (`gh-readonly-queue/main/...`) und mergt erst, wenn dort
-  # ALLE required Kontexte gemeldet haben — ein Workflow ohne diesen Trigger
-  # startet da nie, und der Batch wartet auf einen Check, den niemand mehr
-  # schickt. Der Ausfall ist still: nichts wird rot, die Queue steht.
-  # `smc-fast-pr-gates.yml` trug den Trigger schon (fast-gates + gate),
-  # ci.yml nicht — die Queue war damit strukturell unbenutzbar (gemessen
-  # 2026-08-29). Der Gate unten braucht KEINE neue Verzweigung: sein letzter
-  # Zweig faellt fail-closed auf `run_heavy=true`, der Batch wird also voll
-  # validiert. Gepinnt in tests/test_required_checks_reach_the_merge_queue.py
-  # (Population aus REQUIRED_STATUS_CHECKS abgeleitet) und ausgefuehrt in
-  # test_ci_workflow_contract.py.
-  merge_group:
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - 'CHANGELOG.md'
   workflow_dispatch:
 
 permissions:
@@ -87,72 +35,7 @@ defaults:
     shell: bash
 
 jobs:
-  # 2026-08-29 (Observability-Review zu #5168): `SMC_CI_ARM_RUNNER` unten waehlt
-  # den Runner der vier required `validate (N)`-Shards. Ein Tippfehler in dieser
-  # Repo-Variablen erzeugt KEINEN roten Lauf, sondern GAR KEINEN: GitHub findet
-  # kein passendes Label, der Job wird nie angelegt, und der Lauf steht
-  # UNBEFRISTET in `queued`. (Korrektur 2026-08-29: hier stand "bis zum
-  # 24-h-Limit, dann still cancelled". Die 24-h-Zeile der Actions-Limits gilt
-  # nur self-hosted und nur je JOB; fuer GitHub-hosted ist keine
-  # Warteschlangen-Grenze dokumentiert.) `timeout-minutes` faengt das nicht — es laeuft erst,
-  # wenn ein Runner den Job angenommen HAT (dieselbe Erkenntnis steht seit
-  # laengerem in tests/test_workflow_runner_pinned.py fuer fast-gates). Und der
-  # Fehleralarm `lo-workflow-run-failed` wertet nur "latest run failed" aus
-  # (scripts/check_workflow_failure_alarm_coverage.py), bei `noDataState: OK` —
-  # ein Lauf, der nie endet, erzeugt kein `failure`. Ergebnis waere ein stiller
-  # PR-Stau ohne Alert, ohne Log, ohne Artefakt: der Job hat nie gestartet, es
-  # gibt keine Steps.
-  #
-  # Dieser Vorschalt-Job macht daraus einen lauten Fehlschlag mit dem konkreten
-  # Wert im Log. Er laeuft BEWUSST nicht auf der Variablen, die er prueft.
-  runner-preflight:
-    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
-    timeout-minutes: 5
-    steps:
-      - name: Arm-Runner-Label gegen Allowlist pruefen
-        env:
-          # env-Indirektion statt direkter ${{ }}-Interpolation im run-Block,
-          # konsistent zur M-1-Haertung des gate-Steps weiter unten.
-          ARM_RUNNER: ${{ vars.SMC_CI_ARM_RUNNER }}
-        run: |
-          set -euo pipefail
-          if [[ -z "${ARM_RUNNER}" ]]; then
-            echo "arm_runner=<unset>"
-            echo "resolution_reason=ci_policy_no_arm_override"
-            echo "\`SMC_CI_ARM_RUNNER\` ist nicht gesetzt — validate faehrt die bisherige Wahl." \
-              >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-          # Allowlist bewusst kurz und hier: GitHub hat fuer linux-arm64 nur
-          # VERSIONIERTE Standard-Labels, `ubuntu-latest-arm` existiert nicht.
-          # Ein neues Label einzutragen ist eine Ein-Zeilen-PR — ein unbekanntes
-          # Label durchzulassen kostet einen halben Tag stillen PR-Stau.
-          case "${ARM_RUNNER}" in
-            ubuntu-24.04-arm|ubuntu-22.04-arm) ;;
-            *)
-              echo "::error::SMC_CI_ARM_RUNNER='${ARM_RUNNER}' ist kein bekanntes GitHub-arm64-Label."
-              echo "::error::Erlaubt: ubuntu-24.04-arm, ubuntu-22.04-arm. Zurueckrollen: Repo-Variable loeschen."
-              {
-                echo "## runner-preflight FEHLGESCHLAGEN"
-                echo ""
-                echo "\`SMC_CI_ARM_RUNNER\` = \`${ARM_RUNNER}\` — kein bekanntes GitHub-arm64-Label."
-                echo ""
-                echo "Erlaubt: \`ubuntu-24.04-arm\`, \`ubuntu-22.04-arm\`."
-                echo "Zurueckrollen: Repo-Variable \`SMC_CI_ARM_RUNNER\` loeschen (kein Code-Change)."
-              } >> "$GITHUB_STEP_SUMMARY"
-              exit 1 ;;
-          esac
-          echo "arm_runner=${ARM_RUNNER}"
-          echo "resolution_reason=ci_policy_arm_override"
-          echo "validate faehrt auf \`${ARM_RUNNER}\` (arm64-Standard-Runner)." >> "$GITHUB_STEP_SUMMARY"
-
   validate:
-    # 2026-08-29: die EINZIGE erlaubte `needs`-Kante dieser Lane. Sie routet
-    # NICHT ueber `select-runner` (das bleibt verboten, siehe
-    # tests/test_workflow_runner_pinned.py) — sie stellt nur sicher, dass ein
-    # unbekanntes `SMC_CI_ARM_RUNNER`-Label rot wird, BEVOR vier required
-    # Shards in eine Queue laufen, aus der sie nie zurueckkehren.
-    needs: runner-preflight
     # Duration-balanced matrix sharding (pytest-split): the full test suite is
     # split into 4 groups that run in parallel on standard GitHub-hosted
     # runners, turning the ~40 min single-runner validate into ~10-12 min wall
@@ -169,30 +52,8 @@ jobs:
     # Runner policy (2026-05-20): CI should use the native GitHub-hosted
     # runner by default. Reserve self-hosted routing for workflows that
     # genuinely need local Windows/GPU/cache characteristics.
-    # 2026-08-29: `SMC_CI_ARM_RUNNER` steht VOR der bisherigen Wahl, damit
-    # diese eine Lane auf arm64 laufen kann, ohne die globale Variable
-    # anzufassen — die steuert ~80 Stellen inklusive der Playwright/TV-Lanes.
-    # Linux-arm64 ist bei GitHub ein STANDARD-Runner (nicht "larger"), zaehlt
-    # also gegen das Freikontingent und kostet darueber $0.005 statt $0.006
-    # pro Minute: -17 % auf die groesste Einzel-Lane des Repos (1.459
-    # Runner-Minuten am 2026-08-27, 26 % der Tageslast). Zurueckrollen =
-    # Repo-Variable loeschen, kein Code-Change. Kein `ubuntu-latest-arm`
-    # verwenden: das Label existiert nicht, nur versionierte Formen.
-    # Erlaubte Werte, Wirkung und Rueckrollrezept:
-    # docs/engineering-program/runner_hosted_vs_selfhosted_decision.md
-    # Durchgesetzt vom Job `runner-preflight` oben.
-    runs-on: ${{ vars.SMC_CI_ARM_RUNNER || vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
-    # 2026-08-20: das 45-min-Budget gehoert der MAIN-Lane (volle Suite mit
-    # Coverage) und bleibt dort unangetastet. Die PR-Lane faehrt seit #4927 nur
-    # die slow-Komplementmenge und braucht das nicht: gemessen am ersten Lauf
-    # 4,5-6,3 min fuer die gesunden Shards 1-3. 15 min sind dort mehr als das
-    # Doppelte des Bedarfs — und kappen den am 20.8. beobachteten Hang in
-    # Shard 4 nach 15 statt nach 45 Minuten. Das spart ~30 Runner-Minuten pro
-    # PR-Push, ohne Signal zu verlieren: die abgeschnittene Shard lieferte
-    # ohnehin keines. Der Traceback des haengenden Threads kommt jetzt aus
-    # `faulthandler_timeout` (pyproject.toml) nach 180 s, also lange vor beiden
-    # Grenzen.
-    timeout-minutes: ${{ github.event_name == 'pull_request' && 15 || 45 }}
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 45
     permissions:
       contents: read
       pull-requests: read  # list changed files for the bot/* path allow-list
@@ -213,17 +74,16 @@ jobs:
         env:
           # env-indirection instead of direct ${{ }} interpolation in run: block
           # — hardens against script-injection via branch names (Audit M-1).
+          HEAD_REF: ${{ github.head_ref }}
           EVENT_NAME: ${{ github.event_name }}
           REF_NAME: ${{ github.ref_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           if [[ "$EVENT_NAME" == "pull_request" ]]; then
-            # 2026-08-20, Operator-Entscheidung: `validate` soll ein required
-            # Check werden (ADR-0012, Operator-Punkt 1). Ein Pflicht-Check, der
-            # auf PRs in 12 s mit run_heavy=false gruen meldet, waere vakuum --
-            # Schutz dem Anschein nach, keiner in der Sache. Deshalb faehrt die
-            # Lane hier ZUERST wirklich, und erst danach wird sie required.
-            echo "Pull request runs the slow complement (ADR-0012 partition)."
-            echo "run_heavy=true" >> "$GITHUB_OUTPUT"
+            echo "Pull request CI is status-only; heavy validation runs on main push or workflow_dispatch."
+            echo "run_heavy=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           if [[ "$EVENT_NAME" == "push" && "$REF_NAME" != "main" ]]; then
@@ -241,66 +101,46 @@ jobs:
             echo "run_heavy=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          # Any other event — one this workflow does not declare today, or a
-          # trigger added later — runs the full suite. Fail-safe by
-          # construction: the expensive answer, never the silent skip.
-          #
-          # Until 2026-08-04 this position held a bot/*-branch path allow-list
-          # copied from smc-fast-pr-gates.yml. It was UNREACHABLE: ci.yml
-          # triggers on push, pull_request and workflow_dispatch only, and each
-          # of those exits in one of the four arms above — measured by executing
-          # this block for all three. Two contract tests pinned its presence,
-          # which read as "ci.yml path-checks bot PRs". It never did: here ALL
-          # pull requests are status-only, bot or not. The live protection is
-          # the outcome witnesses in tests/test_fast_gates_silent_skip_coverage.py.
-          echo "run_heavy=true" >> "$GITHUB_OUTPUT"
+          if [[ "$HEAD_REF" != bot/* ]]; then
+            echo "run_heavy=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if ! files=$(gh api "repos/${REPO}/pulls/${PR_NUMBER}/files" --paginate --jq '.[].filename' 2>/dev/null); then
+            echo "Could not list PR files — running heavy validation (fail-closed)."
+            echo "run_heavy=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [[ -z "$files" ]]; then
+            echo "Empty PR file list — running heavy validation (fail-closed)."
+            echo "run_heavy=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          heavy=false
+          while IFS= read -r f; do
+            [[ -z "$f" ]] && continue
+            case "$f" in
+              artifacts/*|docs/*|reports/*|pine/generated/*|*.pine) ;;
+              *)
+                heavy=true
+                echo "non-data path on bot/* PR forces heavy validation: $f"
+                ;;
+            esac
+          done <<< "$files"
+          if [[ "$heavy" == "true" ]]; then
+            echo "Bot PR ($HEAD_REF) touches source paths — running heavy validation."
+          else
+            echo "Bot data-only PR ($HEAD_REF); skipping heavy validation."
+          fi
+          echo "run_heavy=$heavy" >> "$GITHUB_OUTPUT"
       - name: Checkout
         if: steps.gate.outputs.run_heavy == 'true'
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - name: Announce selected runner
         if: steps.gate.outputs.run_heavy == 'true'
-        # 2026-08-29 (Observability-Review zu #5168): `resolution_reason` war
-        # ein KOPIERTER statt gemessener Wert — eine Konstante an genau der
-        # Stelle, an der es seit `SMC_CI_ARM_RUNNER` drei moegliche Aufloesungen
-        # gibt. `runner.arch` fehlte ganz, obwohl die Architektur die einzige
-        # neu variable Dimension ist: faellt ein Shard an einem fehlenden
-        # aarch64-Wheel oder einer C-Extension, stand die Architektur nirgends.
-        # Vorbild ist smc-fast-pr-gates.yml, das die gemessenen Outputs seines
-        # Resolver-Jobs ausgibt statt Literale. (Der Ausdruck selbst steht hier
-        # bewusst nicht ausgeschrieben: ein Guard in
-        # tests/test_workflow_runner_pinned.py sucht ihn per Textsuche in
-        # ci.yml, weil diese Lane nie ueber einen Resolver routen darf.)
-        env:
-          ARM_RUNNER: ${{ vars.SMC_CI_ARM_RUNNER }}
-          HOSTED_RUNNER: ${{ vars.SMC_GH_HOSTED_RUNNER }}
-          RUNNER_NAME: ${{ runner.name }}
-          RUNNER_ARCH: ${{ runner.arch }}
-          SHARD: ${{ matrix.group }}
         run: |
-          set -euo pipefail
-          if [[ -n "${ARM_RUNNER}" ]]; then
-            reason=ci_policy_arm_override
-          elif [[ -n "${HOSTED_RUNNER}" ]]; then
-            reason=ci_policy_hosted_override
-          else
-            reason=ci_policy_github_hosted_default
-          fi
           echo "runner_environment=github-hosted"
-          echo "resolution_reason=${reason}"
-          echo "runner_name=${RUNNER_NAME}"
-          echo "runner_arch=${RUNNER_ARCH}"
-          echo "shard=${SHARD}"
-          # Hebt dieselben Felder aus dem Job-Log in die Run-Uebersicht: um 3
-          # Uhr nachts ist das der Unterschied zwischen "triagierbar" und "erst
-          # vier Job-Logs oeffnen".
-          {
-            echo "| Feld | Wert |"
-            echo "|---|---|"
-            echo "| resolution_reason | ${reason} |"
-            echo "| runner_arch | ${RUNNER_ARCH} |"
-            echo "| runner_name | ${RUNNER_NAME} |"
-            echo "| shard | ${SHARD} |"
-          } >> "$GITHUB_STEP_SUMMARY"
+          echo "resolution_reason=ci_policy_github_hosted"
+          echo "runner_name=${{ runner.name }}"
       - name: Validate Pine scripts
         if: steps.gate.outputs.run_heavy == 'true'
         run: |
@@ -316,7 +156,7 @@ jobs:
           cache-dependency-path: requirements.txt
       - name: Install uv
         if: steps.gate.outputs.run_heavy == 'true'
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
           enable-cache: true
           cache-dependency-glob: |
@@ -336,30 +176,12 @@ jobs:
         # package-download cache (already warm) and saved at job end.
         id: venv-cache
         if: steps.gate.outputs.run_heavy == 'true'
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: .venv
-          # `runner.arch` MUSS im Schluessel stehen: ohne ihn trifft ein
-          # arm64-Job exakt den x86_64-Eintrag (gleiches `runner.os`
-          # "Linux", gleicher Lock-Hash) und stellt ein venv mit
-          # x86_64-Binaries wieder her — Importfehler im besten Fall.
-          key: venv-${{ runner.os }}-${{ runner.arch }}-python3.12-${{ hashFiles('requirements.lock') }}
+          key: venv-${{ runner.os }}-python3.12-${{ hashFiles('requirements.lock') }}
           restore-keys: |
-            venv-${{ runner.os }}-${{ runner.arch }}-python3.12-
-      - name: Announce venv cache outcome
-        # 2026-08-29: MUSS hinter dem Cache-Step stehen — davor ist
-        # `steps.venv-cache.outputs.cache-hit` leer und der Stempel waere ein
-        # geratenes `false` statt einer Messung. Ein Arch-Wechsel invalidiert
-        # den Key (Absicht, siehe oben); ohne diesen Marker wird die Lane dabei
-        # still ~45 s je Shard langsamer und niemand kann es hinterher greppen.
-        if: steps.gate.outputs.run_heavy == 'true'
-        env:
-          VENV_CACHE_HIT: ${{ steps.venv-cache.outputs.cache-hit || 'false' }}
-          RUNNER_ARCH: ${{ runner.arch }}
-        run: |
-          set -euo pipefail
-          echo "venv_cache_hit=${VENV_CACHE_HIT}"
-          echo "| venv_cache_hit | ${VENV_CACHE_HIT} (arch ${RUNNER_ARCH}) |" >> "$GITHUB_STEP_SUMMARY"
+            venv-${{ runner.os }}-python3.12-
       - name: Install test dependencies
         # SC-04 (supply-chain audit 2026-06-14): requirements.lock is now always
         # used instead of being gated behind vars.SMC_USE_REQUIREMENTS_LOCK.
@@ -395,19 +217,10 @@ jobs:
       - name: Run Python tests (PR / non-main push — no coverage)
         if: steps.gate.outputs.run_heavy == 'true' && (github.event_name == 'pull_request' || github.ref != 'refs/heads/main')
         run: |
-          # Duration-balanced shard of the SLOW complement (pytest-split).
-          #
-          # ADR-0012 Option B, jetzt auf dem PR-Pfad angewandt: `fast-gates`
-          # faehrt die kuratierte Nicht-slow-Menge, diese Lane den Rest. Die
-          # Partition ist exakt und lueckenlos -- gemessen 2026-08-20:
-          # 5480 (not slow) + 20428 (slow) = 25908 = die ganze Suite. Ohne das
-          # `-m slow` liefe hier die volle Suite und wiederholte die 5480 der
-          # schnellen Lane auf jedem der ~36 PRs pro Tag.
-          #
-          # Keep this lane serial inside each shard: xdist has produced
-          # validate(4) runner hangs while the same shard passes reliably
-          # without workers.
-          python -m pytest -q --maxfail=1 -m slow --splits 4 --group "${{ matrix.group }}"
+          # Duration-balanced shard of the full suite (pytest-split). Keep this
+          # lane serial inside each shard: xdist has produced validate(4)
+          # runner hangs while the same shard passes reliably without workers.
+          python -m pytest -q --maxfail=1 --splits 4 --group "${{ matrix.group }}"
       - name: Run Python tests (main push — with coverage)
         if: steps.gate.outputs.run_heavy == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:

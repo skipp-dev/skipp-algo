@@ -28,7 +28,7 @@ from pathlib import Path
 
 import pytest
 
-from tests._guard_corpus import iter_production_py_files, parse_module
+from tests._guard_corpus import parse_module
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -52,12 +52,14 @@ _DIR_EXCLUDE = frozenset(
 
 
 def _iter_prod_files() -> list[Path]:
-    files = set(iter_production_py_files(_DIR_EXCLUDE))
-    # Carved back in: excluded by directory, but its HTTP calls are in scope.
-    carve_in = _REPO_ROOT / "scripts" / "publish_overlay_dashboard.py"
-    if carve_in.exists():
-        files.add(carve_in)
-    return sorted(files)
+    out: list[Path] = []
+    for path in _REPO_ROOT.rglob("*.py"):
+        rel = path.relative_to(_REPO_ROOT)
+        rel_posix = rel.as_posix()
+        if any(part in _DIR_EXCLUDE for part in rel.parts) and rel_posix != "scripts/publish_overlay_dashboard.py":
+            continue
+        out.append(path)
+    return sorted(out)
 
 
 # ---------------------------------------------------------------------------
@@ -148,10 +150,6 @@ _FROZEN_URLOPEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # to ``_load_cache_with_drift_check``.
         # 2026-06-10: +5 (1423→1428).
         ("databento_volatility_screener.py", 1454),  # 2026-07-18 catalog alias added above the frozen HTTP call
-        # 2026-07-21 (feat/pre-a0-pilot-sidecar): deliberate pilot egress —
-        # Slack webhook POST in the read-only PRE-A0 pilot alert tailer,
-        # timeout=_POST_TIMEOUT_S. Mirrors the pin_registry.toml entry.
-        ("services/a0_fast_detector/pilot_alert_tailer.py", 54),
         ("open_prep/bea.py", 94),
         # open_prep/macro.py:691 — shifted by ruff RUF046/B904/SIM103 cleanup;
         # was 692 after audit/discipline-pattern-v4 (originally 600).
@@ -166,53 +164,39 @@ _FROZEN_URLOPEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # instrumentation block in macro.py.
         # 2026-06-11 (eval-findings B8): surprise-scale comment +8 (713→721).
         # 2026-06-13: profile-bulk pagination constant shifted +1 (721→722).
-        # 2026-07-24 (macro dedup/dead-branch cleanup): removed a dead _macro_weight
-        # branch (-2 lines above the urlopen call): 741->739.
-        ("open_prep/macro.py", 739),
+        ("open_prep/macro.py", 741),  # 2026-07-19 (provider telemetry helper): 740->741
         ("open_prep/sentiment_fng.py", 100),
         ("terminal_finnhub.py", 245),
-        # 2026-08-08 (throttle persistence): 255->321, 319->385; 2026-08-09
-        # (per-channel throttle isolation and configured-horizon retention):
-        # 321->331, 385->395. Both calls retain explicit ten-second timeouts.
-        ("terminal_notifications.py", 331),
-        ("terminal_notifications.py", 395),
+        ("terminal_notifications.py", 255),
+        ("terminal_notifications.py", 319),
         # 2026-06-21: live-overlay external bridge polling via urllib with
         # explicit timeout discipline.
-        ("services/live_overlay_daemon/github_workflow_bridge.py", 138),
+        ("services/live_overlay_daemon/github_workflow_bridge.py", 126),
         ("services/live_overlay_daemon/uptimerobot_bridge.py", 91),
         # 2026-07-06: evidence-freshness snapshot fetcher, https-only + timeout=.
         # 2026-07-09 (fix/c8-deploy-robust): submit_failed + submitter fields in
         # _empty/_coerce shifted this +8: 137->145.
-        # 2026-08-09: portfolio evidence normalization shifted the existing
-        # request site; HTTPS and explicit timeout semantics are unchanged.
-        ("services/live_overlay_daemon/evidence_freshness_bridge.py", 250),  # 2026-08-20 (Disposition-Ledger: 4 Zeilen ueber der Stelle): 246->250
+        ("services/live_overlay_daemon/evidence_freshness_bridge.py", 147),
         ("services/live_overlay_daemon/provider_usage_bridge.py", 97),  # 2026-07-11 (rate_limit_hits coerce +1 line): 96->97
         # 2026-07-13 (feat/pine-library-version-monitor, #3599/#3603 follow-up):
         # repo↔TradingView Pine-library version snapshot fetcher, https-only +
         # explicit timeout= (mirrors evidence_freshness_bridge).
-        ("services/live_overlay_daemon/pine_library_version_bridge.py", 132),  # 2026-07-22 (ADR-0029 payload volume fields): 125->132
-        # 2026-09-01 (fix/library-context-snapshot-url): generated Pine library
-        # fetcher — the last bridge that still read only the baked image copy.
-        ("services/live_overlay_daemon/library_context_bridge.py", 112),  # 2026-09-01: 86->88->110->112
+        ("services/live_overlay_daemon/pine_library_version_bridge.py", 121),
         # 2026-07-16: actual TradingView dropdown-binding snapshot fetcher;
         # HTTPS-only with an explicit 10-second timeout.
-        ("services/live_overlay_daemon/tradingview_binding_bridge.py", 103),  # 2026-07-23 (binding coverage terms): 84->103
+        ("services/live_overlay_daemon/tradingview_binding_bridge.py", 61),
         # 2026-07-16: controlled Grafana TradingView-alert E2E; explicit 30s
         # timeout, notifications silenced before temporary rules are created.
         ("scripts/grafana_tv_binding_alert_e2e.py", 46),
         # 2026-07-11 (feat/sweep-trap-shadow-grafana): WS4a sweep-trap shadow
         # snapshot fetcher, https-only with explicit timeout=.
         ("services/live_overlay_daemon/sweep_trap_shadow_bridge.py", 105),  # 2026-07-13 (F7 docstring fix): 96->98; 2026-07-16 (ruff format): 98->105
-        # 2026-07-28 (feat/reaction-zone-shadow-bridge): reaction-zone shadow
-        # snapshot fetcher, https-only with explicit timeout= (mirrors sweep-trap).
-        ("services/live_overlay_daemon/reaction_zone_shadow_bridge.py", 157),
         # 2026-06-23: signals-producer consumer hook — _fetch_json_url pulls
         # the open-prep snapshot from OPEN_PREP_SNAPSHOT_URL with explicit
         # timeout discipline (Railway worker without local artifact).
         # Line shifted 792 -> 798 -> 802 -> 811 -> 901 -> 998 -> 1055 after
         # AsyncNewsstackPoller telemetry additions and semantic monitoring.
-        ("open_prep/realtime_signals.py", 1557),  # 2026-08-18 (railway-token guard): 1515->1539 (2026-08-19 FMP-Endpoint-Seed: 1539->1554) (2026-08-21 cisco-probe: 1554->1557)
-
+        ("open_prep/realtime_signals.py", 1451),  # 2026-07-20 private AI endpoint shifted site: 1444->1451
         # 2026-06-22: Grafana dashboard publisher API upsert over urllib.
         # Line shifted 251 -> 287 after ADR-0025 App Platform (/apis
         # dashboard.grafana.app/v1) migration; urlopen now in shared _request_json.
@@ -234,12 +218,12 @@ _FROZEN_URLOPEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # 2026-07-19 (mesh semantic-contract docs): explicit unknown event
         # fields added above the HTTP loaders shifted these sites by +3 lines.
         ("services/live_overlay_daemon/compute.py", 260),  # +4 (2026-07-09): signal/trade-context docstring header
-        ("services/live_overlay_daemon/compute.py", 458),
-        ("services/live_overlay_daemon/compute.py", 650),
+        ("services/live_overlay_daemon/compute.py", 449),
+        ("services/live_overlay_daemon/compute.py", 641),
         # 2026-06-24: Railway GraphQL API bridge for container metrics polling;
         # fixed https endpoint (backboard.railway.com), explicit timeout discipline.
         # 2026-07-07: `import math` for the non-finite guard shifted this 85 -> 86.
-        ("services/live_overlay_daemon/railway_metrics.py", 87),  # 2026-08-13 (volume-backup bridge, +1 import): 86->87
+        ("services/live_overlay_daemon/railway_metrics.py", 86),
     }
 )
 

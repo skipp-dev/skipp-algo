@@ -44,7 +44,6 @@ permissions:
 concurrency:
   group: run-open-prep-daily
   cancel-in-progress: false
-  queue: max  # F-V5-C2: without this the next tick cancels the PENDING run
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
@@ -68,7 +67,7 @@ jobs:
       matched_runner_name: ${{ steps.resolve.outputs.matched_runner_name }}
     steps:
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           persist-credentials: false
 
@@ -98,7 +97,7 @@ jobs:
           echo "matched_runner_name=${{ needs.select-runner.outputs.matched_runner_name }}"
 
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           # GH_PAT is required so the `bot/*` push + `gh pr create` below
           # trigger the `fast-gates` required check. Workflows opened with
@@ -151,75 +150,20 @@ jobs:
         # and the force-pushed snapshot only ever carried ONE run's deltas.
         # The monthly FMP bandwidth-quota check therefore compared a single
         # day's usage against the 150 GB monthly cap and was effectively
-        # inert. Restore the rolling snapshot before the run. A confirmed
-        # missing branch is the only cold-start path; transient fetch errors
-        # fail closed so cumulative usage cannot reset silently.
-        #
-        # 2026-07-24: the checkout uses `persist-credentials: false`, so a bare
-        # `git fetch origin` carries no token and fails auth on this private
-        # repo -- NOT with "could not find remote ref", so it hit the fail-
-        # closed `else` and reddened every run since cad5da216 made this step
-        # hard-fail. Fetch from the tokened URL, mirroring the proven restore
-        # in smc-live-news-refresh.yml.
-        env:
-          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+        # inert. Restore the rolling snapshot before the run (soft-fail,
+        # mirrors the live-news state restore in smc-live-news-refresh.yml).
         run: |
-          set -euo pipefail
+          set +e
           mkdir -p artifacts/monitoring
-          remote_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          fetch_error="$(mktemp)"
-          if git fetch "${remote_url}" "+refs/heads/bot/live-open-prep-snapshot:refs/remotes/origin/bot/live-open-prep-snapshot" 2>"${fetch_error}"; then
-            :
-          elif grep -Eqi "could(n't| not) find remote ref" "${fetch_error}"; then
-            echo "::notice::no prior bot/live-open-prep-snapshot branch — starting a fresh accumulation"
-            rm -f "${fetch_error}"
-            exit 0
-          else
-            echo "::error::failed to restore bot/live-open-prep-snapshot; refusing to reset cumulative provider usage"
-            rm -f "${fetch_error}"
-            exit 1
-          fi
-          rm -f "${fetch_error}"
+          git fetch origin "+refs/heads/bot/live-open-prep-snapshot:refs/remotes/origin/bot/live-open-prep-snapshot" 2>/dev/null
           if git cat-file -e "origin/bot/live-open-prep-snapshot:artifacts/monitoring/provider_usage.json" 2>/dev/null; then
             git show "origin/bot/live-open-prep-snapshot:artifacts/monitoring/provider_usage.json" \
               > artifacts/monitoring/provider_usage.json
             echo "Restored provider-usage snapshot from bot/live-open-prep-snapshot."
           else
-            echo "::error::bot/live-open-prep-snapshot exists but carries no provider-usage snapshot; refusing an implicit counter reset"
-            exit 1
+            echo "::notice::no prior provider-usage snapshot — starting a fresh accumulation"
           fi
-          # 2026-08-18 (Verdrahtungs-Sweep F3): the diff base
-          # artifacts/open_prep/last_result.json is gitignored and the
-          # checkout cleans it, so every daily run believed it was the FIRST
-          # run ever — compute_diff(None, …) marked every candidate a new
-          # entrant and the realtime 🆕 column was permanently lit for all
-          # symbols (proven on the published snapshot: first_run=true daily).
-          # Restore the previous run's result; absence is the one legitimate
-          # cold start (soft notice, unlike the counter above: a lost diff
-          # base self-heals after one run, lost usage counters do not).
-          if git cat-file -e "origin/bot/live-open-prep-snapshot:artifacts/open_prep/last_result.json" 2>/dev/null; then
-            mkdir -p artifacts/open_prep
-            git show "origin/bot/live-open-prep-snapshot:artifacts/open_prep/last_result.json" \
-              > artifacts/open_prep/last_result.json
-            echo "Restored open-prep diff base (last_result.json) from bot/live-open-prep-snapshot."
-          else
-            echo "::notice::no prior last_result.json on the bot branch — diff legitimately starts as first run"
-          fi
-
-      - name: Produce G3 arm-B candidate weight set
-        # STRATEGY_2026_Q3 §G2/§G3: Arm B of the scorer A/B. This must run in the
-        # SAME job and BEFORE the scoring step: `weights_candidate.json` lands in
-        # artifacts/open_prep/outcomes/, which .gitignore excludes (`outcomes/*.json`),
-        # so it cannot persist between runs. Its input — the feature-importance
-        # samples — IS tracked, so the set is reproducible from the checkout.
-        # Never fails the run: the CLI exits 0 for ok / insufficient_data /
-        # drift_blocked, and the `|| echo` below absorbs a genuine error — which
-        # only costs the arm-B observation, recorded as status=arm_b_unavailable.
-        # No `continue-on-error:` needed; the fallback already yields exit 0.
-        run: |
-          set -euo pipefail
-          "$SMC_PYTHON_BIN" -m open_prep.candidate_weights || \
-            echo "::notice::arm-B candidate weights unavailable; run records status=arm_b_unavailable"
+          exit 0
 
       - name: Run open-prep scoring
         env:
@@ -312,17 +256,6 @@ jobs:
         if: success()
         env:
           GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
-          # quote_reference (below) fetches FMP adjusted-EOD for previous_close +
-          # ADV. Without it the step refuses to publish a new snapshot, preserving
-          # the last-good explicit 15-session denominator.
-          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
-          # --adv-source databento (below) replaces the FMP consolidated ADV with
-          # the EQUS.MINI ohlcv-1d subset ADV. Live-verified 2026-07-28 over 29
-          # common sessions for eight liquid symbols: EQUS.MINI carries only
-          # 2.6-4.9% of consolidated volume, so a consolidated ADV denominator
-          # suppresses every databento-path volume gate roughly 20-38x
-          # (permanent HOLIDAY_SUSPECT, dead A0 pace gates).
-          DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
         run: |
           set -euo pipefail
           SNAPSHOT="artifacts/open_prep/latest/latest_open_prep_run.json"
@@ -356,44 +289,58 @@ jobs:
               sys.exit(1)
           print(f"snapshot content OK: ranked_v2={ranked}, enriched_quotes={quotes}")
           PY
-          # Ride the same bot branch with the provider API-usage snapshot.
-          # The shared publisher isolates git state in a temporary tree and
-          # preserves every remote file not explicitly replaced here.
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          # Isolate the snapshot commit on a detached HEAD so the workflow's
+          # checkout is left untouched: the later "Commit fresh outcomes" step
+          # branches from the original SHA and its PR diff must NOT carry this
+          # gitignored snapshot file.
+          START_SHA="$(git rev-parse HEAD)"
+          # actions/checkout is shallow, so the remote-tracking ref does not
+          # exist locally and --force-with-lease would degrade to an empty
+          # lease (unconditional force). Fetch the tip first for a real base.
+          git fetch origin "+refs/heads/bot/live-open-prep-snapshot:refs/remotes/origin/bot/live-open-prep-snapshot" \
+            || echo "::warning::fetch of bot/live-open-prep-snapshot failed; proceeding without base (branch may not exist yet)"
+          git checkout --detach --quiet "$START_SHA"
+          # `-f` overrides .gitignore so the runtime snapshot can be staged.
+          # `--sparse` was previously paired here but is meaningless against
+          # actions/checkout's full (non-sparse) tree and confused readers
+          # (audit PR #2913 F4); removed without behavior change.
+          git add -f "$SNAPSHOT"
+          # Ride the same bot branch with the provider API-usage snapshot
+          # (bytes/calls per provider this month) so the daemon can surface FMP
+          # bandwidth consumption. Best-effort: absent on the first run before
+          # any ingest recorded, and never blocks the open-prep publish.
           USAGE_SNAPSHOT="artifacts/monitoring/provider_usage.json"
-          # Build the daily quote-reference (previous_close + ADV for the
-          # ~900-symbol producer universe) from the just-validated run, so the
-          # RT_QUOTE_SOURCE=databento quote path has the two fields FMP's
-          # batch-quote omits. Rides the SAME bot branch as the watchlist so a
-          # fresh producer container fetches it via QUOTE_REFERENCE_SNAPSHOT_URL.
-          # The Databento overlay stays fail-soft (last-good artifact), but the
-          # FMP 15-session reference is mandatory: publishing a new watchlist
-          # without it would silently reactivate opaque profile averageVolume.
-          QUOTE_REF="artifacts/open_prep/latest/quote_reference.json"
-          FMP_QUOTE_REF="artifacts/open_prep/latest/quote_reference_fmp.json"
-          if "$SMC_PYTHON_BIN" -m open_prep.quote_reference \
-               --open-prep-run "$SNAPSHOT" --output "$QUOTE_REF" \
-               --fmp-output "$FMP_QUOTE_REF" --adv-source databento; then
-            echo "quote_reference built OK -> ${QUOTE_REF}"
-          else
-            echo "::warning::Databento quote_reference build failed; keeping its last-good artifact"
+          if [ -f "$USAGE_SNAPSHOT" ]; then
+            git add -f "$USAGE_SNAPSHOT"
           fi
-          if [ ! -s "$FMP_QUOTE_REF" ]; then
-            echo "::error::FMP 15-session ADV reference missing; refusing an opaque profile-ADV snapshot"
+          if git diff --cached --quiet; then
+            echo "No open-prep snapshot changes to publish."
+            git checkout --quiet "$START_SHA"
+            rm -f "$SNAPSHOT"
+            exit 0
+          fi
+          git commit -m "[skip ci] chore: refresh open-prep snapshot"
+          # `if git push` positive form is what tests/test_workflow_auth_pattern.py
+          # requires (it disallows the `if !` negation). Surface real push
+          # failures as a red job, not a swallowed warning.
+          if git push --force-with-lease=refs/heads/bot/live-open-prep-snapshot origin "HEAD:refs/heads/bot/live-open-prep-snapshot"; then
+            echo "Pushed open-prep snapshot to bot/live-open-prep-snapshot."
+            git checkout --quiet "$START_SHA"
+            rm -f "$SNAPSHOT"
+          else
+            echo "::warning::open-prep snapshot push failed; the per-run artifact remains available, but bot/live-open-prep-snapshot may be stale."
+            {
+              echo "### ⚠ open-prep snapshot persistence warning"
+              echo ""
+              echo "The per-run artifact uploaded, but the rolling bot/live-open-prep-snapshot branch push failed. Consumers reading the stable snapshot path may see stale data until the next daily run."
+            } >> "$GITHUB_STEP_SUMMARY"
+            git checkout --quiet "$START_SHA" || true
+            rm -f "$SNAPSHOT"
             exit 1
           fi
-          "$SMC_PYTHON_BIN" scripts/apply_fmp_adv_reference.py \
-            --snapshot "$SNAPSHOT" --reference "$FMP_QUOTE_REF"
-          # F3 (2026-08-18): the diff base rides the same bot branch so the
-          # restore step above can hand it to the NEXT run — without this
-          # copy the first_run=true treadmill returns immediately.
-          LAST_RESULT="artifacts/open_prep/last_result.json"
-          "$SMC_PYTHON_BIN" scripts/publish_bot_snapshot.py \
-            --branch bot/live-open-prep-snapshot \
-            --copy "${SNAPSHOT}=${SNAPSHOT}" \
-            --copy-if-present "${LAST_RESULT}=${LAST_RESULT}" \
-            --copy-if-present "${USAGE_SNAPSHOT}=${USAGE_SNAPSHOT}" \
-            --copy-if-present "${QUOTE_REF}=${QUOTE_REF}" \
-            --copy-if-present "${FMP_QUOTE_REF}=${FMP_QUOTE_REF}"
 
       - name: Commit fresh outcomes via auto-merge PR
         # The repo's `main-governance` ruleset targets only ~DEFAULT_BRANCH,
@@ -413,10 +360,6 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git add artifacts/open_prep/outcomes/ || true
-          # G3 arm-B paired observations — this is the sample the §G3 decision
-          # gate consumes, so it has to accumulate in the repo rather than being
-          # discarded with the runner.
-          git add artifacts/open_prep/ab_arms/ || true
           if git diff --staged --quiet; then
             echo "No new outcomes to commit."
             exit 0

@@ -90,14 +90,9 @@ def test_prune_bad_timestamp_treated_as_undated() -> None:
 
 
 def test_atomic_write_and_cli(tmp_path: Path) -> None:
-    # Relative to today because `main()` prunes against the wall clock: fixed
-    # dates would age past --keep-days and take the kept entry with them.
-    today = _dt.datetime.now(_dt.UTC).date()
-    stale = (today - _dt.timedelta(days=800)).isoformat()
-    fresh = (today - _dt.timedelta(days=10)).isoformat()
     hist = tmp_path / "history.jsonl"
     hist.write_text(
-        "\n".join([_line(stale), _line(fresh)]) + "\n",
+        "\n".join([_line("2025-01-01"), _line("2026-04-01")]) + "\n",
         encoding="utf-8",
     )
     rc = hp.main([
@@ -106,7 +101,7 @@ def test_atomic_write_and_cli(tmp_path: Path) -> None:
     assert rc == 0
     kept = hist.read_text(encoding="utf-8").splitlines()
     assert len(kept) == 1
-    assert fresh in kept[0]
+    assert "2026-04-01" in kept[0]
 
 
 def test_cli_dry_run_does_not_rewrite(tmp_path: Path) -> None:

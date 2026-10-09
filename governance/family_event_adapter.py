@@ -20,13 +20,9 @@ Two event geometries map to two entry rules (see ``family_returns``):
 
   * **Zone families** OB / FVG -> ``entry_mode="retest_touch"`` using the
     detected ``low``/``high`` zone.
-  * **Level families** BOS / SWEEP -> ``entry_mode="immediate"``; the
-    detected break / sweep ``price`` is recorded as ``entry_price`` (the
-    event level, NOT the price a trade enters at). SWEEP direction is
+  * **Level families** BOS / SWEEP -> ``entry_mode="immediate"`` using the
+    detected break / sweep ``price`` as the entry level. SWEEP direction is
     the *reversal* of the swept side, matching the live scorer.
-
-Every event also carries ``forward_opens``, the opens of its forward bars:
-the return rule enters at the open of the bar after the decision bar.
 
 **Anchor requirement (honest limitation).** Every event needs a formation
 timestamp (``anchor_ts``, or legacy ``time``) to locate its anchor bar; an
@@ -162,27 +158,14 @@ def _containing_bar_index(timestamps: Sequence[float], anchor_ts: float) -> int 
 
 def _forward_window(
     bars: Sequence[Mapping[str, Any]], *, anchor_idx: int, lookahead_bars: int
-) -> tuple[list[float], list[float], list[float], list[float], list[float] | None]:
-    """Bars strictly AFTER ``anchor_idx`` (mirror of ``_future_price_lists``).
-
-    The last element is the opens of the same bars — the prices the return
-    rule enters at. ``None`` when any bar of the window carries no open: a
-    partial list would shift every entry by a bar, and an open is never
-    substituted from another field.
-    """
+) -> tuple[list[float], list[float], list[float], list[float]]:
+    """Bars strictly AFTER ``anchor_idx`` (mirror of ``_future_price_lists``)."""
     window = bars[anchor_idx + 1 : anchor_idx + 1 + int(lookahead_bars)]
     highs = [float(b["high"]) for b in window]
     lows = [float(b["low"]) for b in window]
     closes = [float(b["close"]) for b in window]
     timestamps = [float(b["timestamp"]) for b in window]
-    opens: list[float] | None = []
-    for b in window:
-        raw = b.get("open")
-        if raw is None:
-            opens = None
-            break
-        opens.append(float(raw))
-    return highs, lows, closes, timestamps, opens
+    return highs, lows, closes, timestamps
 
 
 def _anchor_ts(event: Mapping[str, Any]) -> float:
@@ -225,7 +208,7 @@ def _zone_event_to_family(
     if anchor_idx is None or anchor_idx >= len(bars) - 1:
         return None
 
-    highs, lows, closes, fwd_ts, opens = _forward_window(
+    highs, lows, closes, fwd_ts = _forward_window(
         bars, anchor_idx=anchor_idx, lookahead_bars=lookahead_bars
     )
     if len(closes) < int(lookahead_bars):
@@ -243,8 +226,6 @@ def _zone_event_to_family(
         forward_closes=closes,
         forward_timestamps=fwd_ts,
     )
-    if opens is not None:
-        mapped["forward_opens"] = opens
     event_id = str(event.get("id", "")).strip()
     if event_id:
         mapped["event_id"] = event_id  # join key back to the measurement ledger's event_id
@@ -317,7 +298,7 @@ def _level_event_to_family(
     if anchor_idx is None or anchor_idx >= len(bars) - 1:
         return None
 
-    highs, lows, closes, fwd_ts, opens = _forward_window(
+    highs, lows, closes, fwd_ts = _forward_window(
         bars, anchor_idx=anchor_idx, lookahead_bars=lookahead_bars
     )
     if len(closes) < int(lookahead_bars):
@@ -334,8 +315,6 @@ def _level_event_to_family(
         forward_closes=closes,
         forward_timestamps=fwd_ts,
     )
-    if opens is not None:
-        mapped["forward_opens"] = opens
     event_id = str(event.get("id", "")).strip()
     if event_id:
         mapped["event_id"] = event_id  # join key back to the measurement ledger's event_id

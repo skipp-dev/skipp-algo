@@ -3,8 +3,8 @@
 
 //@version=6
 
-import preuss_steffen/smc_micro_profiles_generated/569 as mp
-import preuss_steffen/smc_utils/4 as u
+import preuss_steffen/smc_micro_profiles_generated/158 as mp
+import preuss_steffen/smc_utils/3 as u
 
 // Product role: pro execution surface on the frozen 8-channel executable contract.
 // Product scope: this strategy executes long-only setups from the linked SMC Core long-dip specialist.
@@ -16,8 +16,8 @@ strategy("SMC Long-Dip Strategy", overlay = true, pyramiding = 0, process_orders
 
 var string g_setup = "1. Execution Setup"
 var string g_trade_plan = "2. Trade Plan"
-var string g_bus_entry = "3. Chart Link - Entry States"
-var string g_bus_plan = "4. Chart Link - Trade Plan"
+var string g_bus_entry = "3. Expert Mapping - Entry States"
+var string g_bus_plan = "4. Expert Mapping - Trade Plan"
 
 entry_mode = input.string("Strict", "Execution Stage", options = ["Armed", "Confirmed", "Ready", "Best", "Strict"], group = g_setup, tooltip = "Choose which linked core stage is allowed to stage the execution trigger.")
 min_quality_score = input.float(0.0, "Minimum Quality Score", step = 0.25, group = g_setup, tooltip = "Minimum quality score required before the linked core setup can stage an execution plan.")
@@ -25,7 +25,7 @@ use_regime_gate = input.bool(true, "Respect Regime Gate", group = g_setup, toolt
 backtest_mode = input.bool(false, "Backtest Mode (Ignore Library)", group = g_setup, tooltip = "When ON, all library-based filters are bypassed. Use this for honest historical backtests showing pure price-structure signal performance.\n\nWhen OFF (default), the strategy uses live library data for entry gating (regime, earnings, macro events).")
 strict_universe_entries = input.bool(false, "Strict Universe Mode", group = g_setup, tooltip = "When enabled, live entries are disabled unless the chart symbol is inside the latest scanned universe. Backtest Mode bypasses this gate with the other library filters. Status text: Strategy entries are disabled because this symbol is outside the scanned universe. Strategy entries are disabled because universe data is not available.")
 use_take_profit = input.bool(true, "Use Take Profit", group = g_trade_plan, tooltip = "Stage a take-profit target on top of the linked core execution trigger and invalidation plan.")
-take_profit_r = input.float(2.0, "Take Profit (R)", minval = 0.0, step = 0.25, group = g_trade_plan, tooltip = "Take-profit distance in R measured from execution trigger to invalidation.", active = use_take_profit)
+take_profit_r = input.float(2.0, "Take Profit (R)", minval = 0.0, step = 0.25, group = g_trade_plan, tooltip = "Take-profit distance in R measured from execution trigger to invalidation.")
 
 // Rows are declared in the Suite's BUS plot() order. TradingView lists a source
 // study's outputs as one flat list in that plot order (it knows nothing about
@@ -33,7 +33,7 @@ take_profit_r = input.float(2.0, "Take Profit (R)", minval = 0.0, step = 0.25, g
 // dropdown pick moves strictly downwards — bind top to bottom without scrolling
 // back up. QualityScore therefore sits with the plan rows (plot 9, after
 // Trigger 7 / Invalidation 8) rather than with the entry states.
-src_armed = input.source(close, "BUS Armed", group = g_bus_entry, tooltip = "Bind these chart-link inputs top-to-bottom to the matching linked core outputs from SMC Long-Dip Suite. The rows follow the Suite's output order in the dropdown.")
+src_armed = input.source(close, "BUS Armed", group = g_bus_entry, tooltip = "Bind these expert-mapping inputs top-to-bottom to the matching linked core outputs from SMC Long-Dip Suite. The rows follow the Suite's output order in the dropdown.")
 src_confirmed = input.source(close, "BUS Confirmed", group = g_bus_entry)
 src_ready = input.source(close, "BUS Ready", group = g_bus_entry)
 src_entry_best = input.source(close, "BUS EntryBest", group = g_bus_entry)
@@ -69,7 +69,7 @@ bool quality_ok = na(src_quality_score) ? false : src_quality_score >= min_quali
 // Regime gate — mirrors the live product behavior
 bool regime_allows_entry = mp.TRADE_STATE != "BLOCKED"
 bool no_macro_event_block = not mp.HIGH_IMPACT_MACRO_TODAY or mp.MARKET_REGIME != "RISK_OFF"
-bool not_earnings_ticker = not u.csv_has_symbol_token(mp.EARNINGS_TODAY_TICKERS, syminfo.ticker, syminfo.tickerid)
+bool not_earnings_ticker = not str.contains(mp.EARNINGS_TODAY_TICKERS, syminfo.ticker)
 // Snapshot-gates apply LIVE only: mp.* is a single-day snapshot that Pine
 // broadcasts as a constant onto ALL historical bars (look-ahead in backtest).
 bool snapshot_gates_live = barstate.isrealtime and not backtest_mode

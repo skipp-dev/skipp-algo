@@ -28,12 +28,10 @@
 # only (probe workflow); the cron block was added when the monolithic
 # producer was deprecated and this sharded workflow became canonical. The
 # 240-min handoff window to library-refresh (16:00/20:00 UTC) is preserved.
-# Post-market-close safety-net: Databento finalises same-day data ~1h after
-# the US close, which is 20:00 UTC in EDT but 21:00 UTC in EST (2026-08-18
-# A5 — the close is ET, not a UTC constant). Daytime runs cover historical
-# bars + FMP intraday bridge for today; the first post-finalization tick
-# (21:00Z in summer, 22:00Z year-round) fetches the complete, authoritative
-# Databento record for the just-closed session.
+# The 21:00 UTC cron is a post-market-close safety-net: Databento finalises
+# same-day data only after market close (~20:00 UTC), so the 12:00/16:00 runs
+# cover historical bars + FMP intraday bridge for today; the 21:00 run fetches
+# the complete, authoritative Databento record for the just-closed session.
 #
 # Caveat on "FMP intraday bridge for today" (#3649): the bridge only yields rows
 # once the intraday window has opened at 09:20 ET. 12:00 UTC is 08:00 ET in
@@ -73,8 +71,8 @@ on:
     - cron: "0 16 * * 1-5"   # 16:00 UTC – incremental tick
     - cron: "0 18 * * 1-5"   # 18:00 UTC – incremental tick
     - cron: "0 20 * * 1-5"   # 20:00 UTC – incremental tick (Databento finalizing)
-    - cron: "0 21 * * 1-5"   # 21:00 UTC – post-finalization in EDT only (close 20:00Z); in EST this IS the close
-    - cron: "0 22 * * 1-5"   # 22:00 UTC – post-finalization in BOTH halves of the year (A5: the year-round safety net)
+    - cron: "0 21 * * 1-5"   # 21:00 UTC – post-market-close safety net (Databento same-day data finalized after 20:00 UTC)
+    - cron: "0 22 * * 1-5"   # 22:00 UTC – incremental tick (post-close confirmation)
   workflow_dispatch:
     inputs:
       lookback_days:
@@ -123,10 +121,9 @@ jobs:
     outputs:
       matrix: ${{ steps.compute.outputs.matrix }}
       shard_count: ${{ steps.compute.outputs.shard_count }}
-      artifact_scope: ${{ steps.compute.outputs.artifact_scope }}
     steps:
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           persist-credentials: false
 
@@ -230,7 +227,6 @@ jobs:
           # forward.
           if [ -n "${INCREMENTAL}" ] && [ -n "${ASOF}" ]; then
             echo "::notice::incremental_from_manifest ON — narrowing production matrix to the tail since ${ASOF}."
-            ARTIFACT_SCOPE="delta"
             python scripts/databento_plan_shards.py \
               --lookback-days "${LOOKBACK}" \
               --num-shards "${NUM}" \
@@ -239,7 +235,6 @@ jobs:
               --defer-current-day-until-intraday-window \
               > shards.json
           else
-            ARTIFACT_SCOPE="full_window"
             if [ -n "${INCREMENTAL}" ]; then
               echo "::warning::incremental_from_manifest ON but no manifest asof_date found; falling back to full lookback."
             fi
@@ -263,7 +258,6 @@ jobs:
           MATRIX=$(jq -c '{include: .}' shards.json)
           echo "matrix=${MATRIX}" >> "$GITHUB_OUTPUT"
           echo "shard_count=$(jq 'length' shards.json)" >> "$GITHUB_OUTPUT"
-          echo "artifact_scope=${ARTIFACT_SCOPE}" >> "$GITHUB_OUTPUT"
 
       - name: Upload shard plan
         if: always()
@@ -302,7 +296,7 @@ jobs:
           echo "::notice::Shard ${{ matrix.shard_id }}/${{ matrix.shard_of }} window=${{ matrix.start_date }}..${{ matrix.end_date }} runner='${{ runner.name }}'"
 
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           # 2026-06-08: dropped the explicit GH_PAT token override. The
           # producer does a plain same-repo checkout with
@@ -319,7 +313,7 @@ jobs:
 
       # F-V8-perf (2026-05-18): uv installer (mirrors ci.yml + #2285/#2286).
       - name: Install uv
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
           enable-cache: true
           cache-dependency-glob: requirements*.txt
@@ -337,7 +331,7 @@ jobs:
       # prior day's parquets and the post-#2338 coverage-validation path
       # delta-fetches only the new tail.
       - name: Restore databento volatility cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: artifacts/databento_volatility_cache
           key: dbnv-cache-${{ runner.os }}-shard-${{ matrix.shard_id }}-of-${{ matrix.shard_of }}-${{ matrix.end_date }}-${{ github.run_id }}
@@ -445,7 +439,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           persist-credentials: false
 
@@ -457,7 +451,7 @@ jobs:
       # requirements.txt, but reduce only set up bare Python and failed with
       # ``No module named 'pandas'`` after downloading every shard artifact.
       - name: Install uv
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
           enable-cache: true
           cache-dependency-glob: requirements*.txt
@@ -472,7 +466,7 @@ jobs:
         # overwrites shard-K-1 in the workspace. Pattern matches every
         # producer-emitted artifact regardless of how many shards the
         # plan dispatched.
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           pattern: a9b-2b-shard-*-of-*
           path: shard-artifacts/
@@ -480,28 +474,9 @@ jobs:
 
       - name: List downloaded shard artifacts
         # Diagnostic — surfaces which shards actually completed before
-        # we hand the directory list to the reducer. download-artifact@v7
-        # flattens a single pattern match directly into `path`, even with
-        # merge-multiple:false; normalize that case back to the same outer
-        # artifact-directory contract used when two or more shards match.
-        env:
-          EXPECTED: ${{ needs.plan.outputs.shard_count }}
+        # we hand the directory list to the reducer. Cheap, always-on.
         run: |
           set -euo pipefail
-          mapfile -t artifact_dirs < <(
-            find shard-artifacts -mindepth 1 -maxdepth 1 -type d -name 'a9b-2b-shard-*' | sort
-          )
-          if [ "${#artifact_dirs[@]}" -eq 0 ]; then
-            first_manifest="$(find shard-artifacts -name '*_manifest.json' -print -quit)"
-            if [ "${EXPECTED}" != "1" ] || [ -z "${first_manifest}" ]; then
-              echo "::error::downloaded shard layout is flat but expected ${EXPECTED} artifacts; refusing ambiguous normalization"
-              exit 1
-            fi
-            mv shard-artifacts shard-artifact-flat
-            mkdir -p shard-artifacts
-            mv shard-artifact-flat shard-artifacts/a9b-2b-shard-1-of-1
-            echo "::notice::normalized flattened single-shard download to a9b-2b-shard-1-of-1"
-          fi
           echo '----- shard-artifacts/ tree -----'
           ls -la shard-artifacts/ || true
           for d in shard-artifacts/a9b-2b-shard-*; do
@@ -713,7 +688,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           persist-credentials: false
 
@@ -721,7 +696,7 @@ jobs:
         uses: ./.github/actions/setup-python-pinned
 
       - name: Download merged manifest artifact
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: a9b-2b-merged-manifest
           path: artifacts/merged/
@@ -786,26 +761,6 @@ jobs:
           # heartbeat (WF-026); they belong with `a9b-2b-merged-manifest`,
           # not in the legacy compat bundle consumers glob on.
           rm -f "${COMPAT_DIR}/_merge.log" "${COMPAT_DIR}/_heartbeat.log"
-
-          # Explicit producer/consumer contract: the legacy artifact prefix is
-          # shared by full-window seeds and intraday deltas. Persist scope and
-          # observed coverage in the manifest so future consumers never have
-          # to infer "full" from an artifact name or timestamp.
-          ARTIFACT_SCOPE="${{ needs.plan.outputs.artifact_scope }}" \
-          python - "${COMPAT_DIR}/databento_volatility_production_merged_manifest.json" <<'PY'
-          import json
-          import os
-          import sys
-          from pathlib import Path
-
-          path = Path(sys.argv[1])
-          payload = json.loads(path.read_text(encoding="utf-8"))
-          dates = payload.get("trade_dates_covered") or []
-          payload["artifact_contract_version"] = 1
-          payload["artifact_scope"] = os.environ["ARTIFACT_SCOPE"]
-          payload["coverage_trade_days"] = len({str(value) for value in dates if str(value).strip()})
-          path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-          PY
 
           # Hard-fail when no parquet payload made it into the compat dir.
           # The reducer's payload concat is best-effort per-frame and could

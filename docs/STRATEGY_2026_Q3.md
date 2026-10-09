@@ -266,10 +266,7 @@ und Distanz zum aktuellen Preis sollten die Erwartung beeinflussen.
 - [x] Rolling 30-Tage-Benchmark mit täglichem Append statt Single-Run
 - [x] CI-Workflow anpassen: `smc-measurement-benchmark.yml` → Incremental Mode
 
-> Umgesetzt als `smc-measurement-benchmark-rolling.yml` (Stand 2026-07-27:
-> Trigger ist `workflow_run` nach dem Databento-Export (2×/Tag) plus
-> Safety-Net-Cron `30 16 * * 1-5` — nicht mehr `30 7 * * *`; TF-Set
-> inzwischen `5m,10m,15m,30m,1H,4H,1D`).
+> Umgesetzt als `smc-measurement-benchmark-rolling.yml` (cron `30 7 * * *`).
 > Pin-Test: `tests/test_plan_2_8_rolling_workflow_rollup_wiring.py`.
 
 #### E4: Outcome Backfill Pipeline — Produktionshärtung ✅ DONE (2026-04-22)
@@ -344,11 +341,6 @@ und Distanz zum aktuellen Preis sollten die Erwartung beeinflussen.
       Weight-Change. Promotion entscheidet sich erst nach G3-Sample-
       Akkumulation und F1-Re-Kalibrierung; ASIA bleibt bis dahin
       stärkster Promotion-Kandidat (kohärenter Lift über alle 4 Familien).
-      **Hinweis 2026-07-27:** Gate (3) war bis dahin *nicht* erfüllbar — das
-      G3-A/B war nicht verdrahtet, es akkumulierte kein Sample. Seit dem
-      Arm-Routing (§G3) läuft das Sample an, Gate (3) ist damit erreichbar
-      geworden. Gates (1) und (2) blockieren die Promotion unabhängig davon
-      und bleiben die belastbaren Gründe.
 
       **v4 corpus 2026-04-23 Re-Check (n=10 064, identisches 20×4 Universum):**
       Gate-Status unverändert — globale OB-Drift −0.3508 (vs −0.3534), F1 smECE
@@ -400,21 +392,7 @@ und Distanz zum aktuellen Preis sollten die Erwartung beeinflussen.
       Ranking-Drift zwischen aufeinanderfolgenden `ok`-Runs als
       Advisory-Signal für G2.
 
-#### G2: Scorer Weight Auto-Tuning ✅ DONE (Producer) — seit 2026-07-27 auch geplant
-
-> **Korrektur 2026-07-27 (Verdrahtungs-Audit).** Die drei Haken unten waren
-> wörtlich korrekt — der Code existierte und war getestet. Zwei Dinge, die man
-> aus „DONE" fälschlich geschlossen hätte, galten aber **nicht**:
->
-> - Das CLI `open_prep/candidate_weights.py` lief in **keinem** Workflow. Ohne
->   Aufruf entsteht nie ein `weights_candidate.json`. **Behoben:** läuft jetzt
->   als eigener Schritt in `run-open-prep-daily.yml`, vor dem Scoring.
-> - Das erzeugte Weight-Set wurde **von keinem Lauf gelesen**. **Teilweise
->   behoben:** es speist jetzt Arm B des G3-Experiments (shadow, siehe unten).
->
-> **Unverändert gilt:** gelernte Gewichte erreichen die *ausgelieferte* Rangfolge
-> weiterhin auf keinem Weg — Live-Gewichte = `DEFAULT_WEIGHTS`-Konstante +
-> Markt-Regime-Tilt. Das ist Absicht: die Promotion entscheidet erst G3.
+#### G2: Scorer Weight Auto-Tuning ✅ DONE
 
 - [x] Feature-Importance-Rankings → `scorer.py` Gewichtsanpassungen via
       `open_prep.outcomes.compute_weight_adjustments` +
@@ -425,112 +403,19 @@ und Distanz zum aktuellen Preis sollten die Erwartung beeinflussen.
       `weights_candidate.json` versioniert; Statuswerte `ok` /
       `insufficient_data` / `drift_blocked`.
 
-#### G3: A/B Experiment — Calibrated vs. Uncalibrated Scorer ✅ VERDRAHTET (Sample läuft an)
+#### G3: A/B Experiment — Calibrated vs. Uncalibrated Scorer ✅ DONE
 
-> **Korrektur + Umsetzung 2026-07-27 (Verdrahtungs-Audit).** Der ursprünglich
-> hier vermerkte Blocker („G3-Decision-Gate blockiert auf ausreichendem Sample")
-> war **falsch**. Die Bausteine existierten und waren getestet, aber an keiner
-> Stelle an die Pipeline angeschlossen — es konnte **kein** Sample entstehen,
-> weil kein Produktionslauf die Arme je zuwies. Das Gate wartete auf Daten, die
-> nie anfallen konnten. Befund gegen `origin/main`:
->
-> - `scripts/smc_ab_experiment.py` hatte **null** Produktions-Importer;
->   `Experiment.resolve_weight_set()` wurde ausschließlich aus `tests/`
->   aufgerufen.
-> - `open_prep/candidate_weights.py` (Arm-B-Producer) lief in **keinem**
->   Workflow — ohne Aufruf entsteht nie ein `weights_candidate.json`.
-> - Der Konfig-Knopf, der Arm A/B gewählt hätte, war tot: `"weight_label"` stand
->   in `_CONFIG_SCHEMA`, aber `validate_config()` hat selbst keinen
->   Produktions-Aufrufer und nichts las den Schlüssel (Eintrag entfernt;
->   2026-07-29 wurden `validate_config` + `_CONFIG_SCHEMA` komplett entfernt —
->   null Caller repo-weit, auch keine Tests mehr).
-> - Arm A verwies auf `weights.json` — **diese Datei existiert nicht** und hat
->   nie existiert. Die Konvention ist `weights_<label>.json`, und Label
->   `"default"` liest gar keine Datei: `load_weight_set("default")` gibt sofort
->   die `DEFAULT_WEIGHTS`-Konstante zurück.
->
-> **Umgesetzt: lauf-granulare, gepaarte Arme** (`open_prep/ab_arms.py`).
-> Bewusst *nicht* über `resolve_weight_set`: das weist ein Label **pro Symbol**
-> zu, und Symbole mit unterschiedlichen Gewichtsvektoren gegeneinander zu ranken
-> ist kein gültiges Experiment — der Composite-Score ist nur unter einem
-> *festen* Vektor vergleichbar, ein Per-Symbol-Split erzeugt also ein Top-N aus
-> zwei inkompatiblen Skalen (Ranking ist relativ, die Treatment-Gruppe
-> kontaminiert das Kontroll-Ergebnis).
->
-> Stattdessen wird pro Lauf **das gesamte Universum zweimal gescort** und die
-> beiden Rankings verglichen. Beide Arme sehen denselben Tag, dasselbe Universum
-> und **denselben Regime-Tilt** — der einzige Unterschied sind die Basis-
-> Gewichte. Das ist ein *gepaarter* Vergleich und damit deutlich trennschärfer,
-> als ganze Tage zufällig in einen Arm zu losen.
->
-> Arm B ist **shadow-only**: das ausgelieferte Ranking bleibt unberührt,
-> geschrieben wird nur der Vergleichs-Record nach `artifacts/open_prep/ab_arms/`
-> (Spearman-ρ, Top-N-Overlap, Rang-Deltas, Ein-/Austritte). Fehlt Arm B, wird
-> ehrlich `status="arm_b_unavailable"` protokolliert statt einer
-> Null-Differenz-Zeile, die das Sample verwässern würde.
->
-> **Konsum-Brücke (nachgezogen 2026-07-27, zweiter PR):** Die erste Fassung
-> dieses Abschnitts behauptete, die Records seien „das Sample, das die
-> SPRT-Stop-Rule konsumiert" — das war Stand damals **unverdrahtet** (die
-> `docs/ab/g23_history.jsonl` des Watchdogs war leer, der im Workflow-Header
-> genannte Feeder existierte nie, und Rank-Agreement allein trägt keine
-> Outcome-Information für ein SPRT). Die echte Kette seither:
-> `open-prep-outcome-backfill --ab-arm-labels` löst 30-Minuten-Labels für
-> BEIDE Arme nach `labels_<day>.json` auf (separater Store — Arm-B-Schatten-
-> zeilen dürfen `outcomes_<day>.json` nicht kontaminieren, das speist
-> `compute_hit_rates`/FI), und `scripts/g3_bridge_ab_arms.py` faltet alle
-> gelabelten Tage in EIN kumulatives `ab_comparison.json` (W3-2: das SPRT
-> liest den jüngsten History-Eintrag allein, Einträge tragen kumulative n/k),
-> das der Watchdog via `--input` an die History anhängt.
->
-> **Anlauf-Caveat (Arm-B-Starvation, korrigiert 2026-07-28):**
-> `candidate_weights` verlangt weiterhin `min_samples=200` gelabelte
-> Current-Era-FI-**Trainingssamples** plus ein zeitlich späteres 20-%-Holdout.
-> Der frühere 30-Sample-Tage-Default machte dieses Gate bei der dokumentierten
-> Nettorate unerreichbar und teilte
-> außerdem die rohen Dateitage vor den Era-Gates; dadurch landeten am 28.7. alle
-> 42 kompatiblen Samples im Holdout und der Workflow meldete fälschlich
-> `labeled=0`. Behoben: Train/Holdout werden nur noch aus den vom FI-Reader
-> bestätigten Current-Era-Tagen gebildet, und das Sammelfenster umfasst bis zu
-> 250 Sample-Tage. Die 200er Statistikschwelle wurde **nicht** abgesenkt.
-> Der korrigierte Lauf sieht aktuell 32 Trainings- und 10 Holdout-Samples.
-> Bis 200 Trainingssamples erreicht sind, liefern die Runs weiterhin ehrlich
-> `arm_b_unavailable`; jede weitere Scorer-Formel-Änderung resettet die
-> Era-Uhr.
->
-> Der Producer läuft jetzt im selben Job **vor** dem Scoring
-> (`run-open-prep-daily.yml`), weil `weights_candidate.json` unter
-> `artifacts/open_prep/outcomes/` liegt und dort von `.gitignore` erfasst wird —
-> es kann also nicht zwischen Läufen persistieren. Sein Input (die
-> Feature-Importance-Samples) **ist** versioniert, das Set ist damit aus dem
-> Checkout reproduzierbar. Die Vergleichs-Records selbst werden committet und
-> akkumulieren.
-
-- [x] ~~`scripts/smc_ab_experiment.py` als OV7-Framework-Wrapper~~ —
-      **2026-07-29 entfernt** (Verdrahtungs-Sweep): blieb nach dem
-      Verdrahtungs-Audit vom 2026-07-27 weiterhin ohne jeden
-      Produktions-Importer; das Per-Symbol-Design ist für Ranking-Vergleiche
-      methodisch ungültig (siehe Korrektur oben), G3 läuft lauf-granular über
-      `open_prep/ab_arms.py`.
-- [x] Arm A: bisherige statische Scorer-Gewichte (`DEFAULT_WEIGHTS`-Konstante;
-      das ursprünglich hier genannte `weights.json` existiert nicht).
+- [x] `scripts/smc_ab_experiment.py` als OV7-Framework-Wrapper.
+- [x] Arm A: bisherige statische Scorer-Gewichte (`weights.json`).
 - [x] Arm B: Auto-tuned Scorer-Gewichte (`weights_candidate.json`).
 - [x] KPI-Vergleich + Recommendation in
       `tests/test_ab_comparison_recommendation.py` und
       `scripts/run_ab_comparison.py`.
 - [x] Stop-Rule: `scripts/smc_sprt_stop_rule.py` (SPRT) +
       `scripts/f2_experiment_spec.py` Decision-Memo-Pfad.
-- [x] Arm-Routing verdrahtet: `open_prep/ab_arms.py`, lauf-granular + gepaart,
-      shadow-only; Records in `artifacts/open_prep/ab_arms/`.
-- [x] Konsum-Brücke verdrahtet (2026-07-27, zweiter PR): Labels via
-      `outcome_backfill --ab-arm-labels`, Faltung via
-      `scripts/g3_bridge_ab_arms.py`, Anhang an `docs/ab/g23_history.jsonl`
-      im `g23-ab-watchdog`-Workflow.
-- ⏳ Current-Era-Run: Sample akkumuliert, sobald Arm B verfügbar wird (siehe
-      Anlauf-Caveat oben — `candidate_weights` braucht 200 gelabelte
-      Trainingssamples plus zeitlich späteres Holdout). Fortschritt ablesbar an
-      `docs/ab/g23_status.md` („Window entries") und der Anzahl
-      `status="ok"`-Records in `artifacts/open_prep/ab_arms/`.
+- ⚠ Folge-Lauf offen: tatsächlicher 30-Tage-Run auf Live-Telemetrie
+      noch nicht abgeschlossen (G3-Decision-Gate blockiert auf
+      ausreichendem Sample).
 
 ### Phase H — Pine Consumer Maturity (Wochen 6–9)
 
@@ -577,32 +462,19 @@ und Distanz zum aktuellen Preis sollten die Erwartung beeinflussen.
       `scripts/generate_smc_micro_base_from_databento.py` füttert
       `family_stats` + `total_events` + `smooth_ece` (aus
       `zone_priority_per_bucket_calibration.json` größtes OK-Bucket).
-- ⚠ **RE-OPENED 2026-07-27 (Verdrahtungs-Sweep)** — das „✅ CLOSED
-      2026-04-22" unten war zu früh: die MECHANIK existiert
-      (`append_history_entry`/`load_history_entries`), aber kein
-      Produktionspfad füllt je eine History ≥2 Einträge, die der Producer
-      liest. Die CI-Läufe schreiben in EPHEMERE Verzeichnisse
-      (`measurement_benchmark_rolling/<RUN_DATE>` startet täglich frisch;
-      weekly wird nicht committet), es gibt — anders als für
-      `plan_2_8_history.jsonl` — keinen Restore/Persist-Step, und die
-      committete `artifacts/reports/zone_priority_calibration_history.jsonl`
-      hat exakt 1 Eintrag (2026-04-23). `compute_calibration_trend`
-      (`_TREND_MIN_RUNS=3`) liefert damit konstant `STABLE`:
-      `ZONE_CAL_TREND` auf der Pine-Surface ist eine Konstante, kein
-      Signal. Da die Kalibrierung ohnehin bewusst frozen ist (PR #43),
-      ist das dokumentierter Ist-Zustand — ein History-Persist-Step wäre
-      erst bei einem Unfreeze sinnvoll.
-      ~~✅ CLOSED 2026-04-22 — rolling JSONL via
-      `scripts/smc_zone_priority_calibration.py::append_history_entry`
+- ⚠ ~~Hinweis: Eine echte History-Quelle (`zone_priority_calibration_history`)
+      ist noch nicht produziert; bis dahin fällt der Trend deterministisch
+      auf `STABLE` zurück (per `DEFAULTS`).~~ ✅ CLOSED 2026-04-22 — rolling
+      JSONL via `scripts/smc_zone_priority_calibration.py::append_history_entry`
       (Retention 50). Producer (`generate_smc_micro_base_from_databento.py`)
       lädt die letzten 10 Einträge via `load_history_entries` in
       `enr["zone_priority_calibration_history"]`. CLI smoke v3:
-      `weighted_hit_rate=0.607`, `smooth_ece=0.137`.~~
+      `weighted_hit_rate=0.607`, `smooth_ece=0.137`.
 
 #### H4: FVG Health Warning ✅ DONE (2026-04-22)
 
 - [x] Wenn FVG Hit Rate < 65%: explizite Dashboard-Warnung
-      (`SMC_Decision_Board.pine::fvg_calibration_warning_text`).
+      (`SMC_Long_Dip_Dashboard.pine::fvg_calibration_warning_text`).
 - [x] "⚠ FVG zones underperforming (XX% HR) — prefer OB/BOS setups" —
       Setup-Check Row 12 + Audit-View Row 33 nutzen
       `fvg_combined_warning_text` (Calibration-Warning hat Vorrang vor
@@ -636,9 +508,7 @@ und Distanz zum aktuellen Preis sollten die Erwartung beeinflussen.
 **Lesart der Restlücken:** der Q3-A-Grade hängt jetzt nicht mehr an Sample-
 Größe oder TF-Coverage (beides ✅), sondern allein am ECE-Korridor — F2-Memo
 empfiehlt vor weiterer Bucket-Promotion eine F1-Re-Kalibrierung auf ECE ≤ 0.03
-und das 30-Tage-G3-A/B (siehe Q3 §G3). **Stand 2026-07-27:** das G3-A/B war
-nicht verdrahtet und daher nicht startbar — das Arm-Routing ist nachgezogen,
-das Sample läuft ab dem nächsten Daily-Lauf an.
+und das 30-Tage-G3-A/B (siehe Q3 §G3 ⚠).
 
 ---
 
@@ -705,7 +575,7 @@ können sofort starten.
 | Feature Importance | ✅ Pipeline gebaut | → G1/G2: Baseline + Auto-Tuning |
 | Calibration Script | ✅ + Drift Gate | → D1-D4: FVG-spezifische Analyse |
 | Pine Consumer | ✅ ZONE_CAL_* Exports | → H1-H4: Confidence + Win Rates |
-| A/B Framework (OV7) | ❌ Entfernt 2026-07-29 (nie verdrahtet) | → G3 läuft lauf-granular über `open_prep/ab_arms.py` |
+| A/B Framework (OV7) | ✅ Gebaut | → G3: Erster produktiver A/B Test |
 | Performance Report | ✅ Grade B | → Ziel: Grade A |
 
 ---

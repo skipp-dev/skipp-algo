@@ -1,12 +1,10 @@
 package main
 
 import (
-	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -41,88 +39,10 @@ func TestHealthIsTheOnlyPublicSuccess(t *testing.T) {
 	if got := performRequest(t, proxy, http.MethodGet, "/health", "").Code; got != http.StatusOK {
 		t.Fatalf("health status = %d", got)
 	}
-	for _, path := range []string{"/", "/ready", "/metrics", "/_stcore/health", "/ai", "/api/v1/news-candidates"} {
+	for _, path := range []string{"/", "/ready", "/metrics", "/_stcore/health", "/ai"} {
 		if got := performRequest(t, proxy, http.MethodGet, path, "").Code; got != http.StatusUnauthorized {
 			t.Errorf("%s without auth status = %d", path, got)
 		}
-	}
-}
-
-func TestNewsCandidatesExportsDynamicActiveSymbols(t *testing.T) {
-	now := time.Unix(1_750_000_000, 0).UTC()
-	feed := t.TempDir() + "/terminal.jsonl"
-	active := true
-	rows := []map[string]any{
-		{
-			"ticker": "TSLA", "headline": "Tesla expands energy storage production", "snippet": "New production line.",
-			"url": "https://example.test/tsla", "source": "Example Wire", "provider": "fmp_stock_latest",
-			"published_ts": now.Unix() - 30, "updated_ts": now.Unix() - 20, "category": "company_news",
-			"relevance": 0.81, "materiality": "HIGH", "story_key": "story-tsla", "story_expires_at": now.Unix() + 1800,
-			"attention_state": "ALERT", "attention_score": 0.92, "attention_confidence": 0.88, "attention_active": active,
-		},
-		{
-			"ticker": "TSLA", "headline": "Older lower-ranked story", "snippet": "Old.",
-			"url": "https://example.test/old", "source": "Example Wire", "provider": "benzinga_rest",
-			"published_ts": now.Unix() - 60, "updated_ts": now.Unix() - 60, "category": "company_news",
-			"relevance": 0.6, "materiality": "MEDIUM", "story_key": "story-old", "story_expires_at": now.Unix() + 1200,
-			"attention_state": "MONITOR", "attention_score": 0.7, "attention_confidence": 0.7, "attention_active": active,
-		},
-		{
-			"ticker": "AAPL", "headline": "Inactive background item", "snippet": "Background.",
-			"url": "https://example.test/aapl", "source": "Example Wire", "provider": "fmp_stock_latest",
-			"published_ts": now.Unix() - 20, "updated_ts": now.Unix() - 20, "category": "company_news",
-			"relevance": 0.3, "materiality": "LOW", "story_key": "story-aapl", "story_expires_at": now.Unix() + 1200,
-			"attention_state": "BACKGROUND", "attention_score": 0.3, "attention_confidence": 0.4, "attention_active": false,
-		},
-		{
-			"ticker": "NVDA", "headline": "Expired active item", "snippet": "Old.",
-			"url": "https://example.test/nvda", "source": "Example Wire", "provider": "benzinga_rest",
-			"published_ts": now.Add(-5 * time.Hour).Unix(), "updated_ts": now.Add(-5 * time.Hour).Unix(), "category": "company_news",
-			"relevance": 0.9, "materiality": "HIGH", "story_key": "story-nvda", "story_expires_at": now.Unix() + 1200,
-			"attention_state": "ALERT", "attention_score": 0.95, "attention_confidence": 0.9, "attention_active": active,
-		},
-	}
-	file, err := os.Create(feed)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, row := range rows {
-		if err := json.NewEncoder(file).Encode(row); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if err := file.Close(); err != nil {
-		t.Fatal(err)
-	}
-	proxy, _ := testProxy(t, http.NotFoundHandler())
-	proxy.candidates = candidateConfig{feedPath: feed, maxAge: 4 * time.Hour, limit: 100, now: func() time.Time { return now }}
-	recorder := performRequest(t, proxy, http.MethodGet, "/api/v1/news-candidates", testToken)
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("status = %d, body = %q", recorder.Code, recorder.Body.String())
-	}
-	var envelope candidateEnvelope
-	if err := json.Unmarshal(recorder.Body.Bytes(), &envelope); err != nil {
-		t.Fatal(err)
-	}
-	if envelope.Schema != candidateSchema || len(envelope.Candidates) != 1 {
-		t.Fatalf("unexpected envelope: %#v", envelope)
-	}
-	if got := envelope.Candidates[0]; got.Ticker != "TSLA" || got.AttentionState != "ALERT" || got.AttentionScore != 0.92 {
-		t.Fatalf("unexpected candidate: %#v", got)
-	}
-	if envelope.Diagnostics["rows_stale"] != 1 || envelope.Diagnostics["rows_rejected"] != 1 {
-		t.Fatalf("unexpected diagnostics: %#v", envelope.Diagnostics)
-	}
-	if got := recorder.Header().Get("Cache-Control"); got != "no-store" {
-		t.Fatalf("Cache-Control = %q", got)
-	}
-}
-
-func TestNewsCandidatesFailsClosedWhenFeedIsMissing(t *testing.T) {
-	proxy, _ := testProxy(t, http.NotFoundHandler())
-	proxy.candidates.feedPath = t.TempDir() + "/missing.jsonl"
-	if got := performRequest(t, proxy, http.MethodGet, "/api/v1/news-candidates", testToken).Code; got != http.StatusServiceUnavailable {
-		t.Fatalf("missing feed status = %d", got)
 	}
 }
 

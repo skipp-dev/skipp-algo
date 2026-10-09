@@ -1,12 +1,6 @@
 """Persistent watchlist: file-based storage for pinned symbols and notes.
 
 Watchlist entries are stored in ``artifacts/open_prep/watchlist.json``.
-
-Persistence caveat (2026-07-27): "persistent" holds only where the
-process outlives the file's directory. On the CI daily runner the
-artifacts path is ephemeral and this JSON is neither committed nor
-uploaded, so auto_add_high_conviction entries die with the runner —
-the watchlist is effectively per-run on CI, cross-run only locally.
 """
 from __future__ import annotations
 

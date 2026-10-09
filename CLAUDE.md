@@ -16,29 +16,6 @@ risk — and then say so explicitly ("not verifiable because …"), never as a c
 This applies especially to post-merge ops dependencies (env vars, deploy pickup, secrets) and
 to regression/behavior claims.
 
-**Forward promises need a mechanism.** The rule above covers claims about the present;
-this extends it to the future tense, where the same failure hid (added 2026-08-16 after
-operator escalation). A sentence of the form "when X happens, Y must be done" — in an
-issue, a PR body, a memory note, a report, or a doc — is a **forward promise**. Prose does
-not fire at X: nothing in any flow re-reads it at the right moment, and this repo's
-history shows such promises rot silently (#4756 before #4762 mechanised it; the vacuity
-sweeps dug out a row of dead ones; every stale "verified YYYY-MM-DD"). Before writing a
-forward promise, resolve it into exactly one of:
-
-1. **Mechanism in the same change** — a tripwire on the required path that goes red at X
-   (template: `tests/test_presence_age_series_deadline_tripwire.py`, one test file — the
-   previous templates retired as designed: `test_pine_const_getter_migration_tripwire.py`
-   with #5105, `test_smc_strategy_mirror_deadline_tripwire.py` with the operator's
-   2026-10-01 delete decision), a
-   scheduled check, or a gate. The prose then *summarises* the mechanism.
-2. **Live ownership** — Y is happening now: a PR in flight, a cron that does Y itself.
-3. **Explicitly unsecured** — write "UNGESICHERT — verlässt sich auf menschliches
-   Gedächtnis" next to the promise. Allowed, but the label is mandatory, so no reader
-   mistakes prose for protection.
-
-A follow-up **issue alone is not a resolution** — an issue is prose with a number. This
-binds every agent session working in this repo, parallel sessions included.
-
 ## Pine Library Maintenance
 
 **Ownership:** @preuss_steffen  
@@ -50,7 +27,7 @@ There is **no** TradingView→repo sync, by design. The old `sync-tradingview-pi
 
 - **Wrong direction.** With the repo as SSOT it would fetch back exactly what the repo→TV publishers just pushed, and any TV-side edit would clobber the repo's authored/generated source. It fought the publishers over the same files.
 - **Never ran green.** The Playwright fetch scraped source from the Pine Editor DOM and exited 1 on `smc_overlay_generated` (null `script_url`).
-- **Its freshness gate was a structural false-red.** The removed `pine-library-freshness` **job** in `smc-fast-pr-gates.yml` failed any PR whose `pine/LIBRARY_VERSIONS.toml` `local_synced` date exceeded a 7-day SLA — but nothing ever stamped `local_synced` (the sync never wrote it), so from 2026-07-11 it breached on **every** PR. It was non-required (only `fast-gates` gated merges then; since 2026-08-27 the four `validate (N)` shards are also required — ADR-0012).
+- **Its freshness gate was a structural false-red.** The removed `pine-library-freshness` **job** in `smc-fast-pr-gates.yml` failed any PR whose `pine/LIBRARY_VERSIONS.toml` `local_synced` date exceeded a 7-day SLA — but nothing ever stamped `local_synced` (the sync never wrote it), so from 2026-07-11 it breached on **every** PR. It was non-required (only `fast-gates` gates merges).
 
 Removed 2026-07-11: `.github/workflows/sync-tradingview-pine-libraries.yml`, `scripts/tv_fetch_smc_libraries.ts`, `scripts/check_pine_library_age.py`, and the `pine-library-freshness` job in `smc-fast-pr-gates.yml`. The unread `pine/LIBRARY_VERSIONS.toml` metadata artifact was removed separately on 2026-07-15.
 

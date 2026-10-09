@@ -146,11 +146,7 @@ def _fetch_bars_5m(
     import databento as db  # local import keeps the module importable offline
 
     client = db.Historical(api_key)
-    from databento_client import _databento_get_range_with_retry
-
-    store = _databento_get_range_with_retry(
-        client,
-        context="fvg_asia_real_sample",
+    store = client.timeseries.get_range(
         dataset=dataset,
         symbols=symbols,
         schema="ohlcv-1m",
@@ -219,8 +215,7 @@ def _process_symbol_tf(
         return []
 
     if timeframe != "5m":
-        # The 5m base is this resampler's own output, stamped at each bar's END.
-        sym_bars = resample_bars_to_timeframe(sym_bars, timeframe, source_stamp="end")
+        sym_bars = resample_bars_to_timeframe(sym_bars, timeframe)
         if sym_bars.empty:
             return []
 

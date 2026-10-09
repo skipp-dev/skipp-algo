@@ -28,24 +28,8 @@ _APPROVED_EMAILS: frozenset[str] = frozenset(
         "preuss.steffen@yahoo.com",
         "github-actions[bot]@users.noreply.github.com",
         "41898282+github-actions[bot]@users.noreply.github.com",
-        # Dependabot, added 2026-08-04. Without it the whole feature is inert:
-        # .github/dependabot.yml (#4407/#4421) opens PRs this gate rejects at
-        # step 4 of fast-gates, before any real gate runs -- measured on #4424,
-        # #4425 and #4426, each red in 9-13s on this identity alone. Security
-        # update PRs carry the SAME identity, so the alert-to-PR path the
-        # config exists for was closed too.
-        "49699333+dependabot[bot]@users.noreply.github.com",
-        "dependabot[bot]@users.noreply.github.com",
     }
 )
-
-# Committer-only. GitHub stamps its own identity when a merge is performed
-# through the web UI. ``--no-merges`` below exempts a real merge commit, but a
-# SQUASH-merge has a single parent and slips past that filter — so stacking a
-# PR onto another PR's branch and squashing it in used to fail this gate.
-# Approved as committer only: the author check stays closed against it, so the
-# human who wrote the code must still be an approved identity.
-_APPROVED_COMMITTER_ONLY_EMAILS: frozenset[str] = frozenset({"noreply@github.com"})
 
 
 def _run(args: list[str]) -> str:
@@ -71,14 +55,11 @@ def _commit_identities(rev_range: str) -> list[tuple[str, str, str]]:
 
 def _offenders(rows: list[tuple[str, str, str]]) -> list[str]:
     approved = {e.lower() for e in _APPROVED_EMAILS}
-    approved_committers = approved | {
-        e.lower() for e in _APPROVED_COMMITTER_ONLY_EMAILS
-    }
     bad: list[str] = []
     for sha, author, committer in rows:
         if author not in approved:
             bad.append(f"{sha[:12]} author={author}")
-        if committer not in approved_committers:
+        if committer not in approved:
             bad.append(f"{sha[:12]} committer={committer}")
     return bad
 

@@ -44,7 +44,6 @@ _INGEST_STOP_SENTINEL = object()
 
 # VIX index level — polled from FMP's ^VIX quote (the CBOE index does not trade
 _VIX_FMP_SYMBOL = "^VIX"  # on EQUS.MINI; only ETFs like VIXY resolve there, so bars can't supply it
-_VIX_LOADER_RETRY_SECS = 3600.0  # F-3: bounded retry of a failed FMP loader construction (was: permanent disable)
 
 _feed_thread: threading.Thread | None = None
 _refresh_thread: threading.Thread | None = None
@@ -71,10 +70,6 @@ _metrics: dict[str, int] = {
     "circuit_breakers": 0,
     "partial_restarts": 0,
     "supervisor_heals": 0,
-    # Truth-audit F-2: seeded at 0 so the hermetic exporter render and
-    # rate()/increase() see both drop classes from boot (cf. #3863 seeding).
-    "sym_none_drops_total": 0,
-    "bar_none_drops_total": 0,
 }
 _backpressure_lock = threading.Lock()
 _backpressure: dict[str, float] = {
@@ -98,39 +93,6 @@ _fatal_config_error = threading.Event()
 _SUPERVISOR_INTERVAL_SECS = 30.0
 _STALL_MAX_BAR_AGE_SECS = 180.0   # 3 min without a bar during RTH = stall
 _SELF_HEAL_MAX_ATTEMPTS = 3
-# After a heal the feed CANNOT clear the stall for _RECONNECT_DELAY_SECS (to
-# reconnect) plus up to one full ohlcv-1m interval (Databento emits at minute
-# close), because `stalled` is derived from bar recency. Re-breaking inside
-# that window destroys the very recovery the heal started — measured
-# 2026-08-05: a single transient stall escalated to os._exit(1) whenever the
-# first bar landed >20 s after the reconnect, i.e. ~2 times in 3.
-_POST_HEAL_GRACE_SECS = _RECONNECT_DELAY_SECS + 60.0 + 15.0
-
-
-def _grace_deadline(last_heal_at: float, reconnect_wait_until: float) -> float:
-    """Monotonic time until which a persisting stall must NOT be re-broken.
-
-    The constant above is built from ``_RECONNECT_DELAY_SECS`` (10 s). The feed
-    loop does not always wait that long: from ``_MAX_RECONNECT_ATTEMPTS``
-    consecutive failures onward it waits ``_RECONNECT_BACKOFF_SECS`` (120 s), so
-    a reconnect really costs up to 120 + 60 = 180 s. #4476 closed the 10 s path
-    and left that one open, and inside it the supervisor cannot even act — there
-    is no active client to break while the feed sleeps — yet it counted the
-    attempt, and three counted no-ops call ``_escalate_to_platform_restart()``.
-    With ``restartPolicyMaxRetries = 3`` in railway.toml that budget is spent in
-    about four process lives and the daemon stays down after the upstream
-    recovers.
-
-    Deliberately a deadline derived from what the feed announced rather than a
-    wider constant: raising ``_POST_HEAL_GRACE_SECS`` to the worst case would
-    delay every legitimate escalation by ~110 s, including the common fast path.
-    ``reconnect_wait_until <= 0`` means no reconnect is pending and the measured
-    85 s window applies unchanged.
-    """
-    deadline = last_heal_at + _POST_HEAL_GRACE_SECS
-    if reconnect_wait_until > 0.0:
-        deadline = max(deadline, reconnect_wait_until + 60.0 + 15.0)
-    return deadline
 
 
 # ---------------------------------------------------------------------------
@@ -185,12 +147,8 @@ def _poll_vix_from_fmp() -> None:
     VIXY resolve there), so it is polled from FMP on the overlay refresh cadence
     instead. Fail-soft: a missing FMP key, HTTP error, or non-finite price leaves
     the last cached value untouched. The loader is built once and cached in
-    ``_runtime`` to avoid adding a module-level ``global``. Truth-audit F-3: a
-    construction failure stamps ``vix_loader_failed_at`` and is retried after
-    ``_VIX_LOADER_RETRY_SECS`` (bounded — one attempt per interval, no retry
-    storm), so a transient boot error (e.g. DNS hiccup) no longer disables VIX
-    for the whole process lifetime. A bare ``None`` sentinel WITHOUT the stamp
-    (the pre-F-3 state, also used by hermetic tests) stays permanently off.
+    ``_runtime`` (``None`` sentinel = construction failed, do not retry) to avoid
+    adding a module-level ``global``.
     """
     if "vix_loader" not in _runtime:
         try:
@@ -199,24 +157,10 @@ def _poll_vix_from_fmp() -> None:
             _runtime["vix_loader"] = FMPDataLoader()
         except Exception as exc:
             _runtime["vix_loader"] = None
-            _runtime["vix_loader_failed_at"] = time.monotonic()  # arms the bounded retry
             logger.warning("VIX poll disabled — FMP loader unavailable: %s", exc)
     loader = _runtime.get("vix_loader")
     if loader is None:
-        failed_at = _runtime.get("vix_loader_failed_at")
-        if failed_at is None or (time.monotonic() - failed_at) < _VIX_LOADER_RETRY_SECS:
-            return
-        try:
-            from .fmp_data_loader import FMPDataLoader
-
-            loader = FMPDataLoader()
-        except Exception as exc:
-            _runtime["vix_loader_failed_at"] = time.monotonic()
-            logger.warning("VIX poll still disabled — FMP loader retry failed: %s", exc)
-            return
-        _runtime["vix_loader"] = loader
-        _runtime.pop("vix_loader_failed_at", None)
-        logger.info("VIX poll re-enabled — FMP loader constructed on bounded retry")
+        return
     level = loader.get_quote(_VIX_FMP_SYMBOL)
     if level is not None:
         cache.set_vix(level)
@@ -293,9 +237,7 @@ def _run_feed_loop(stop: threading.Event) -> None:
         consecutive_failures = 0
         max_failures = config.max_feed_failures()
         rolling = config.rolling_bars()
-        cache.init_bar_cache(
-            rolling, max_symbols=config.max_symbols(), preserve_expanded=True
-        )
+        cache.init_bar_cache(rolling, max_symbols=config.max_symbols())
 
         while not stop.is_set():
             client: db.Live | None = None
@@ -329,6 +271,7 @@ def _run_feed_loop(stop: threading.Event) -> None:
                 )
                 _feed_connected_at = time.monotonic()
                 logger.info("db.Live() connected — subscribing EQUS.MINI ohlcv-1m ALL_SYMBOLS")
+                consecutive_failures = 0
 
                 # Build symbology map from SymbolMappingMsg records
                 # yielded by the iterator (no private-attr access).
@@ -383,7 +326,6 @@ def _run_feed_loop(stop: threading.Event) -> None:
                     sym = _symbol_from_record(record, symmap)
                     if sym is None:
                         _sym_none_count += 1
-                        _inc_metric("sym_none_drops_total")  # F-2: unmapped instrument -> bar silently lost
                         if _sym_none_count <= 3:
                             logger.warning(
                                 "sym=None for instrument_id=%s symmap_size=%d",
@@ -395,7 +337,6 @@ def _run_feed_loop(stop: threading.Event) -> None:
                     bar = _record_to_bar(record)
                     if bar is None:
                         _bar_none_count += 1
-                        _inc_metric("bar_none_drops_total")  # F-2: unparseable OHLCV -> bar silently lost
                         if _bar_none_count <= 3:
                             logger.warning("bar=None for sym=%s rec_type=%s", sym, rec_type)
                         continue
@@ -405,10 +346,6 @@ def _run_feed_loop(stop: threading.Event) -> None:
                         continue
                     try:
                         ingest_queue.put_nowait((sym, bar, time.monotonic()))
-                        # Only a validated, enqueued bar proves that the data
-                        # feed recovered; metadata records alone are not
-                        # sufficient evidence of a usable data session.
-                        consecutive_failures = 0
                         _record_enqueue_backpressure()
                         _bars_pushed_count += 1
                         if not stop.is_set() and not _feed_ready.is_set():
@@ -505,10 +442,6 @@ def _run_feed_loop(stop: threading.Event) -> None:
                 consumer="live-overlay-daemon",
                 reconnects=1,
             )
-            # Tell the supervisor how long this wait really is; its fixed
-            # 85 s grace was built for the 10 s path only.
-            with _active_client_lock:
-                _runtime["reconnect_wait_until"] = time.monotonic() + delay
             logger.info("Feed reconnecting in %ds …", delay)
             stop.wait(delay)
 
@@ -611,25 +544,17 @@ def _escalate_to_platform_restart(code: int = 1) -> None:
     os._exit(code)
 
 
-def _supervisor_break_stalled_client() -> bool:
+def _supervisor_break_stalled_client() -> None:
     """Break a blocked ``for record in client:`` loop so the feed thread runs
-    into its reconnect path.
-
-    Returns whether a client was actually broken. The caller counts heal
-    attempts against a budget that escalates to a process restart, so a no-op —
-    which is exactly what happens while the feed sleeps out a reconnect, because
-    the active client is cleared for the duration — must not be counted as an
-    attempt.
-    """
+    into its reconnect path. Safe no-op when no client is currently active."""
     with _active_client_lock:
         client = _runtime.get("active_client")
     if client is None:
-        return False
+        return
     try:
         client.stop()
     except Exception:
         logger.debug("supervisor client.stop() failed", exc_info=True)
-    return True
 
 
 def _run_supervisor_loop(stop: threading.Event) -> None:
@@ -648,7 +573,6 @@ def _run_supervisor_loop(stop: threading.Event) -> None:
         escalates to a process restart.
     """
     heal_attempts = 0
-    last_heal_at = 0.0
     while not stop.wait(_SUPERVISOR_INTERVAL_SECS):
         if _fatal_config_error.is_set():
             logger.critical(
@@ -660,12 +584,7 @@ def _run_supervisor_loop(stop: threading.Event) -> None:
 
         workers = worker_liveness()
         stalled = False
-        # ERKENNUNG laeuft auf dem Produktfenster (04:00-20:00 ET), weil dort
-        # Bars fliessen: die Subscription ist ALL_SYMBOLS ohne Sitzungsfilter,
-        # und OPS.md haelt einen Neustart um 05:13 ET fest, nach dem
-        # "premarket repopulated". Vorher endete die Aufmerksamkeit um 16:00 —
-        # eine Leitung, die Freitag 16:10 verstummte, heilte erst Montag 09:30.
-        if market_hours.is_us_extended_session_open():
+        if market_hours.is_us_regular_session_open():
             age = last_bar_age_secs()
             if age is not None:
                 stalled = age > _STALL_MAX_BAR_AGE_SECS
@@ -676,27 +595,6 @@ def _run_supervisor_loop(stop: threading.Event) -> None:
 
         if all(workers.values()) and not stalled:
             heal_attempts = 0
-            last_heal_at = 0.0
-            continue
-
-        # Wait out a recovery we started ourselves. The heal counter is NOT
-        # reset here: a feed that stays stalled past the grace window still
-        # walks up to _SELF_HEAL_MAX_ATTEMPTS and escalates, just later.
-        with _active_client_lock:
-            reconnect_wait_until = float(_runtime.get("reconnect_wait_until") or 0.0)
-        now_monotonic = time.monotonic()
-        if (
-            stalled
-            and all(workers.values())
-            and (last_heal_at > 0.0 or reconnect_wait_until > 0.0)
-            and now_monotonic < _grace_deadline(last_heal_at, reconnect_wait_until)
-        ):
-            logger.info(
-                "Supervisor: stall persists %.0fs into the grace window "
-                "(ends in %.0fs) — the feed is still reconnecting, not re-breaking.",
-                now_monotonic - last_heal_at if last_heal_at > 0.0 else 0.0,
-                _grace_deadline(last_heal_at, reconnect_wait_until) - now_monotonic,
-            )
             continue
 
         heal_attempts += 1
@@ -706,25 +604,6 @@ def _run_supervisor_loop(stop: threading.Event) -> None:
             workers, stalled, heal_attempts, _SELF_HEAL_MAX_ATTEMPTS,
         )
         if heal_attempts > _SELF_HEAL_MAX_ATTEMPTS:
-            # Die ERKENNUNG ist breiter geworden, der TOTMANNSCHALTER nicht.
-            # _escalate_to_platform_restart ruft os._exit, und railway.toml
-            # gibt nach restartPolicyMaxRetries = 3 auf: ein falsches "Markt
-            # offen" ausserhalb RTH wuerde den Dienst nicht heilen, sondern
-            # dauerhaft abschalten. Ein toter Worker-Thread ist dagegen ein
-            # echter Zombie, den ein Neustart repariert — der eskaliert zu
-            # jeder Stunde.
-            workers_dead = not all(workers.values())
-            if not (workers_dead or market_hours.is_us_regular_session_open()):
-                logger.critical(
-                    "Supervisor: self-heal exhausted (%d/%d) on a STALL outside the "
-                    "regular session — withholding the process restart and keeping "
-                    "the reconnect loop. lo-feed-down-market-open is the operator's "
-                    "signal here.",
-                    _SELF_HEAL_MAX_ATTEMPTS, _SELF_HEAL_MAX_ATTEMPTS,
-                )
-                _inc_metric("supervisor_escalations_withheld")
-                heal_attempts = _SELF_HEAL_MAX_ATTEMPTS
-                continue
             logger.critical(
                 "Supervisor: self-heal exhausted (%d/%d) — escalating; "
                 "platform ON_FAILURE policy restarts the process.",
@@ -735,16 +614,7 @@ def _run_supervisor_loop(stop: threading.Event) -> None:
 
         if stalled:
             # Break the blocked iterator → feed loop enters its reconnect path.
-            # A break with no active client changes nothing; counting it would
-            # spend the escalation budget on no remediation at all.
-            if _supervisor_break_stalled_client():
-                last_heal_at = time.monotonic()
-            else:
-                heal_attempts -= 1
-                logger.info(
-                    "Supervisor: no active client to break (feed is between "
-                    "connections) — not counting this as a heal attempt."
-                )
+            _supervisor_break_stalled_client()
         if not all(workers.values()):
             if stop.is_set():
                 return

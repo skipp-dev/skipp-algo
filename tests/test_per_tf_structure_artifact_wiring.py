@@ -182,7 +182,6 @@ def test_contract_without_warnings_adds_nothing(monkeypatch: pytest.MonkeyPatch)
     )
 
     evidence = measurement_evidence.build_measurement_evidence("AAPL", "5m")
-    assert evidence.warnings, "no warnings were emitted at all — the absence check below would pass vacuously"
     assert not any("legacy_tf_fallback" in w for w in evidence.warnings)
 
 

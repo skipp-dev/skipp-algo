@@ -50,45 +50,7 @@ class TestApiKeyStatus:
         )
 
         assert result[0]["configured"] is True
-        assert result[0]["message"] == "signals producer only (no direct fallback configured)"
-
-    def test_news_row_is_labelled_as_an_ingest_route_not_a_vendor(self) -> None:
-        """Truth-audit 2026-07-23: the row covers producer + direct providers.
-
-        The old "News API" label read as the (decommissioned) newsapi.ai
-        vendor.  Pin the neutral route name so it does not drift back.
-        """
-        result = api_key_status(
-            benzinga_key="", databento_available=False, openai_key=""
-        )
-
-        assert result[0]["name"] == "News Ingest"
-        assert "News API" not in result[0]["name"]
-
-    def test_message_names_the_configured_direct_providers(self) -> None:
-        result = api_key_status(
-            benzinga_key="bz",
-            databento_available=False,
-            openai_key="",
-            producer_feed_configured=True,
-            direct_news_configured=True,
-            direct_provider_names=("Benzinga", "FMP"),
-        )
-
-        assert result[0]["message"] == (
-            "signals producer primary, Benzinga, FMP as direct fallback"
-        )
-
-    def test_direct_only_message_names_providers_without_producer(self) -> None:
-        result = api_key_status(
-            benzinga_key="",
-            databento_available=False,
-            openai_key="",
-            direct_news_configured=True,
-            direct_provider_names=("FMP",),
-        )
-
-        assert result[0]["message"] == "FMP direct only (no signals producer configured)"
+        assert result[0]["message"] == "configured via signals producer"
 
     def test_producer_ai_counts_as_configured_without_terminal_openai_key(self) -> None:
         result = api_key_status(

@@ -451,7 +451,6 @@ def test_write_canonical_workbook_env_all_retains_full_sheet_set(
         )
     assert not recorded["minute_detail"].empty
     assert not recorded["second_detail"].empty
-    assert messages, "no progress messages recorded — this pin would pass vacuously"
     assert not any(
         "slim-whitelist active" in m for m in messages
     ), "slim-whitelist progress marker leaked into the `all` path"

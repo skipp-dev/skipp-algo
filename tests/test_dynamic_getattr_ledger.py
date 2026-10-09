@@ -37,7 +37,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from tests._guard_corpus import iter_production_py_files, parse_module
+from tests._guard_corpus import parse_module
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -59,7 +59,13 @@ _DIR_EXCLUDE = {
 
 
 def _iter_py_files() -> list[Path]:
-    return iter_production_py_files(_DIR_EXCLUDE)
+    out: list[Path] = []
+    for path in ROOT.rglob("*.py"):
+        rel = path.relative_to(ROOT)
+        if any(part in _DIR_EXCLUDE or part.startswith(".") for part in rel.parts):
+            continue
+        out.append(path)
+    return out
 
 
 def _module_constants(tree: ast.Module) -> set[str]:
@@ -179,17 +185,11 @@ DYNAMIC_GETATTR_LEDGER: set[tuple[str, int, str]] = {
     # module-level constant _FEATURE_FIELDS tuple — the valid name set is statically
     # visible there, and it must accept both dataclass and SimpleNamespace signals.
     ("open_prep/signal_events.py", 66, "const-loop"),  # 2026-07-10 truth-audit docstring: 63->66
-    # 2026-08-04 OPRA definition-sink fix: state._mapping's object fallback
-    # iterates the literal `keys` tuple defined directly above and includes an
-    # attribute only when the record actually has it — the valid name set is
-    # statically visible, and the hasattr guard is the fix (the previous
-    # fixed-dict getattr(..., None) fabricated presence for every DBN object).
-    ("services/opra_live_daemon/state.py", 43, "loop"),
     # 2026-06-22 (ingest-stop sentinel wakeup): helper block growth shifted
     # _record_to_bar dynamic getattr site 81 -> 82.
     # 2026-07-03 correctness lane: _feed_connected_at global shifted
     # _record_to_bar dynamic getattr site 101 -> 102.
-    ("services/live_overlay_daemon/feed.py", 142, "param"),  # 2026-08-06 (heal grace follows the backoff): 116->142  # 2026-07-22 (F-2): 104->108; (F-3 VIX retry const): 108->109; 2026-08-05 (post-heal grace const): 109->116
+    ("services/live_overlay_daemon/feed.py", 104, "param"),
     ("smc_core/event_ledger.py", 100, "param"),  # 2026-07-13 schema-v1.1: label relocation + record docstring/field shifted (84->94); schema-v1.2 rename+calibrated_prob (94->100)
     ("smc_core/scoring.py", 339, "param"),  # 2026-07-13 (normalize_sweep_side + calibration-honesty docstrings): 308->339
     ("streamlit_terminal_alerts.py", 41, "param"),

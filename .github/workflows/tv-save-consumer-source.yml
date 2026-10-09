@@ -1,31 +1,17 @@
 name: tv-save-consumer-source
-# live-window: off-hours-only  # Daily cron verifies saved-source hashes + bindings read-only; TradingView is mutated by manual dispatch AND by the post-refresh chain (workflow_run) below.
-# Manual dispatch can push fresh repo source and explicitly refresh the producer chart instance.
-#
-# workflow_run chain (2026-07-22): a SUCCESSFUL smc-library-refresh triggers a
-# WRITING save with TV_REFRESH_PRODUCER + TV_FORCE_REBIND. Without this the
-# applied Suite chart instance stays frozen on the old library version until an
-# operator re-adds it by hand — Pine imports are mandatorily version-pinned and
-# TradingView never re-resolves applied instances ('Library 9d alt' incident,
-# 2026-07-22). Trade-off (accepted): refreshChartScriptInstance re-adds the
-# Suite with DEFAULT inputs, so custom inputs edited directly on the applied
-# instance do not survive the refresh; persistent tweaks belong in the saved
-# script source. The refresh normally completes pre-market (~09-13Z), so the
-# chained save stays inside the off-hours posture on normal days.
+# live-window: off-hours-only  # Daily cron is read-only; only manual dispatch mutates TradingView.
+# Manual dispatch can push fresh repo source into the operator's saved TradingView scripts.
 
 # Pushes the CURRENT repo source of the hand-authored CONSUMER scripts (indicators/
-# strategies — SMC_Decision_Board, SMC_Long_Dip_Strategy, …) into their EXISTING TradingView
+# strategies — SMC_Dashboard, SMC_Core_Engine, …) into their EXISTING TradingView
 # saved scripts, via one shared-browser batch (open → paste → save →
 # compile-verify → verify chart bindings). Unlike the library publishers, consumers are not "published";
 # they are the operator's saved chart scripts, which froze months ago on old
 # imports (Core Engine pinned every lib at /1 → CE10271/CE10272). The repo is
 # SSOT; this recompiles the saved copies against the current library surface.
 #
-# Scheduled runs invoke the explicit --verify-only execution plan, which
-# structurally disables source saves, producer refresh, binding repair, and
-# layout save before the browser opens. Writing paths: manual dispatch, and the
-# workflow_run chain after a successful library refresh (which also refreshes
-# the applied producer chart instance).
+# Scheduled runs force an empty save mapping and therefore only inspect dropdown
+# assignments. Manual dispatch remains the only path that writes PERSONAL saved scripts.
 #
 # Safety:
 #   * Requires a real authenticated TV session — fails fast if TV_STORAGE_STATE
@@ -33,9 +19,9 @@ name: tv-save-consumer-source
 #   * The batch opens each script by EXACT saved name; a wrong/
 #     unknown name simply fails to open (no wrong-script paste) and is reported
 #     as a per-entry miss — the run continues and summarizes hits vs misses.
-#   * Each save compile-verifies before reporting ok; the chart bindings of
-#     every consumer-rollout.json verifyTarget (Decision Board through the R1
-#     companions) are checked afterwards in that same browser session.
+#   * Each save compile-verifies before reporting ok; existing Dashboard,
+#     Strategy, Alerts, Setup Check, Breakout, and Confluence chart bindings are
+#     checked afterwards in that same browser session.
 #
 # The `mapping` input is a JSON array of {"source": "<repo .pine>", "scriptName":
 # "<exact saved TV name>"}. Default covers the saved names known from the repo /
@@ -44,36 +30,12 @@ name: tv-save-consumer-source
 on:
   schedule:
     - cron: "17 5 * * *"
-    # Evening read-only look. Operator-caused drift on a day with no CI run was
-    # otherwise invisible until the next morning. 05:17Z and 21:17Z split the day
-    # into a 16h gap and an 8h one, so the worst case drops from ~24h to 16h --
-    # a third, not a half. After the US close, so the off-hours posture holds.
-    - cron: "17 21 * * *"
-  # zizmor: ignore[dangerous-triggers] -- workflow_run source is the same-repo
-  # smc-library-refresh on the default branch (no fork/PR-controlled context);
-  # this consumer only re-saves repo-owned sources with repo secrets it
-  # already holds for schedule/dispatch runs (#3893 cadence fix).
-  workflow_run: # zizmor: ignore[dangerous-triggers]
-    workflows:
-      - smc-library-refresh
-    types:
-      - completed
   workflow_dispatch:
     inputs:
       mapping:
         description: 'JSON array of {"source","scriptName"} pairs (empty = built-in default)'
         required: false
         default: ""
-      verify_only:
-        description: "Read sources and bindings without any TradingView mutation"
-        type: boolean
-        required: false
-        default: false
-      repair_only:
-        description: "Nur Bindungen reparieren und Layout speichern — kein Quellen-Save, kein Producer-Refresh. Umgeht das Manifest-Fenster."
-        type: boolean
-        required: false
-        default: false
       repair_e2e:
         description: "Temporarily drift one Dashboard binding, repair it, and reverify"
         type: boolean
@@ -84,89 +46,13 @@ on:
         type: boolean
         required: false
         default: false
-      hold_manager_readback:
-        description: "Read the Hold Manager shadow alert panel back (read-only) and upload the evidence; combine with verify_only=true for a no-write run"
-        type: boolean
-        required: false
-        default: false
-      refresh_producer:
-        description: "Remove and re-add SMC Long-Dip Suite; requires force_rebind=true"
-        type: boolean
-        required: false
-        default: false
-      r1_rollback_drill:
-        description: "Remove BOTH R1 companions from the managed layout, prove the removal survives a reload, then restore and rebind them"
-        type: boolean
-        required: false
-        default: false
-      r1_restore_companions:
-        description: "Repair only: put both R1 companions back, rebind them to the attested count, and prove it across a reload (no removal)"
-        type: boolean
-        required: false
-        default: false
-      reattest:
-        description: "Automated R1 re-attestation (dispatched by smc-r1-reattest on a bot/r1-reattest branch): write pass, independent verify-only pass, mechanical evidence generation, seeded commit, PR"
-        type: boolean
-        required: false
-        default: false
-      source_change_attestation:
-        description: "Repo-relative path to a checked-in R1-SOURCE-CHANGE-ATTESTATION artifact. Required only when an attested companion changes beyond its import-pin line: the generator refuses such a change without one, and refuses the artifact itself unless its SHA-256 values match the sources this run reads. Leave empty for a pin bump."
-        type: string
-        required: false
-        default: ""
 
 permissions:
   contents: read
-  # Read-only, and only for the workflow_run path: the chain has to find the
-  # bot/library-refresh-* PR that carries the refresh commit before it can
-  # check that commit out. See "Await the refresh commit on main" below.
-  pull-requests: read
-  # Read-only, for the supersession gate: it lists this workflow's own queued
-  # runs to decide whether a newer automated run makes this one redundant.
-  actions: read
 
 concurrency:
-  # 2026-08-01: one AUTOMATED browser session at a time — CI against CI only.
-  # This group does NOT serialise the account: the operator's own browser is
-  # a second, unserialised writer on the same layouts, and TradingView
-  # autosaves from it (operator-confirmed 2026-08-01: autosave active, and a
-  # chart tab on this account was open all day while runs mutated layouts —
-  # nothing here knew). Since 2026-08-03 that is no longer true FOR THIS FILE:
-  # the operator can exclude a mutating run by declaring a window
-  # (TV_OPERATOR_ACTIVE, see the gate step below), and a mutating run measures
-  # whether anyone wrote since the last CI run before it writes anything. What
-  # still holds is the harder half -- an UNDECLARED operator session remains
-  # invisible while it is open; only what it wrote is detectable, afterwards.
-  # The identical paragraph in the other workflows sharing this group is still
-  # true of them.
-  # Every workflow below drives the SAME external account, and until now each
-  # one only serialised against itself — two of these blocks already said
-  # "TradingView is a single shared external target" while keeping a private
-  # group, so the guarantee was stated but never implemented. Measured trigger:
-  # a manual tv-save-consumer-source dispatch ran while an R4 readback was
-  # being prepared; nothing in CI would have stopped them overlapping.
-  # cancel-in-progress stays false everywhere: these runs save layouts and
-  # publish scripts, so a queued run must wait, never pre-empt.
-  group: tradingview-session
+  group: tv-save-consumer-source
   cancel-in-progress: false
-  # 2026-08-06: cancel-in-progress governs only the RUNNING run, so `false`
-  # never protected the waiter. Under the default `queue: single` a group holds
-  # exactly one pending run and the next entrant CANCELS it -- that is what
-  # dropped dispatches here. `queue: max` queues up to 100 runs FIFO instead.
-  # 2026-08-22: `queue: max` alone starves this workflow — every automated
-  # trigger lines up behind every ~2h publish sharing the group (measured:
-  # 14 pending saves, no verdict for 19h, both TV drift alerts burning; the
-  # first save to reach the slot then refused on a manifest that TV had long
-  # outrun). The supersession-gate job below drains that backlog: a stale run
-  # frees the slot in seconds when a newer run of the SAME event kind is
-  # queued — a workflow_run save is repeated by the next workflow_run save
-  # (it rebuilds on current main), a schedule verify by the next verify.
-  # Cross-kind supersession is deliberately impossible (a verify never saves)
-  # and workflow_dispatch runs take part in neither direction (their mode
-  # hangs on inputs). Known bounded gap: the superseding chain save can
-  # itself skip on the failed-refresh guard below; the next chain trigger
-  # then heals, and the drift alert stays the watchdog meanwhile.
-  queue: max
 
 defaults:
   run:
@@ -176,355 +62,18 @@ env:
   PYTHONUNBUFFERED: "1"
 
 jobs:
-  supersession-gate:
-    # Runs INSIDE the tradingview-session slot (concurrency is workflow-level),
-    # deliberately: the whole point is that a stale run occupies the slot for
-    # seconds instead of a full save. Decision logic lives import-testable in
-    # scripts/tv_save_supersession_gate.py; this job only fetches the run list
-    # and publishes the verdict. Fail-open: an API or parse error answers
-    # "not superseded" and the save proceeds.
-    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
-    timeout-minutes: 5
-    env:
-      # The gate script is stdlib-only, but every scripts/ invocation in this
-      # repo declares PYTHONPATH (tests/test_workflow_pythonpath_for_direct_invoke.py).
-      PYTHONPATH: ${{ github.workspace }}
-    outputs:
-      superseded: ${{ steps.gate.outputs.superseded }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false
-      - name: Decide supersession against the queued automated runs
-        id: gate
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GATE_RUN_NUMBER: ${{ github.run_number }}
-          GATE_EVENT_NAME: ${{ github.event_name }}
-        run: |
-          set -uo pipefail
-          verdict="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/tv-save-consumer-source.yml/runs?per_page=50&exclude_pull_requests=true" \
-            | python3 scripts/tv_save_supersession_gate.py)" || verdict="superseded=false
-          reason=gate_fetch_error"
-          echo "${verdict}"
-          echo "${verdict}" >> "$GITHUB_OUTPUT"
-          echo "supersession-gate: ${verdict}" >> "$GITHUB_STEP_SUMMARY"
-
   save:
-    needs: supersession-gate
-    # Only a SUCCESSFUL library refresh may trigger the writing chain: after a
-    # failed refresh the repo pin/library state is unknown, and saving then
-    # could roll consumers onto a half-published state. A superseded automated
-    # run skips entirely — the newer queued run repeats everything this one
-    # would have done, on fresher state (see the supersession-gate job).
-    if: >-
-      needs.supersession-gate.outputs.superseded != 'true'
-      && (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')
     runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 30
     steps:
-      # The workflow_run event fires when smc-library-refresh COMPLETES, but the
-      # refresh does not push its output: it opens bot/library-refresh-<run id>-*
-      # and auto-merges it, which settles SECONDS LATER. Measured 2026-08-01:
-      # this chain started 02:55:28Z and the refresh PR (#4284) merged 02:55:48Z,
-      # so at checkout time both the event's head_sha (the parent) AND main's tip
-      # were still the pre-refresh tree. The run then re-saved the OLD consumer
-      # sources to TradingView and verified them against the OLD repo — reporting
-      # sources.drifted=0 while every consumer on the operator chart stayed one
-      # library version behind, until someone dispatched by hand.
-      #
-      # Nothing inside the run could catch it. The rollout's provenance compares
-      # library.expectedVersion against library.publishedVersion, and BOTH are
-      # fields of the same manifest file in the checked-out tree, so a stale tree
-      # agrees with itself: that run reported matches=true at version 180 while
-      # main was already on 182.
-      #
-      # So wait for the COMMIT instead of for the workflow. The PR is opened by
-      # smc-library-publish, which names its branch
-      # bot/library-refresh-<refresh run id>-<publish run id>-<attempt>; the
-      # refresh run id is exactly what this event carries, so the PR is
-      # identifiable rather than guessed at.
-      #
-      # 2026-10-01: that sentence used to read "the refresh names its branch
-      # after its own run id" and had been false since 2026-08-13, when the
-      # commit phase moved into smc-library-publish and the branch carried the
-      # PUBLISH run id. This lookup then matched nothing and the "no PR"
-      # branch below let every chained save start on the pre-refresh tree
-      # (14 of 14 failed chained saves, 2026-09-24..10-01). Both steps are now
-      # run against each other in tests/test_refresh_closes_superseded_bot_prs.py.
-      - name: Await the refresh commit on main
-        id: refresh_commit
-        if: github.event_name == 'workflow_run'
-        env:
-          # Canonical binding required by tests/test_workflow_gh_pat_discipline.py
-          # for every `gh pr` call. This step only READS, so github.token alone
-          # would function — but the discipline is uniform on purpose: the rule
-          # cannot tell a read from a write without parsing the subcommand, and
-          # an exception here would be one more thing that has to stay true.
-          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
-          REPO: ${{ github.repository }}
-          REFRESH_RUN_ID: ${{ github.event.workflow_run.id }}
-          # The outer bound before we would rather fail loudly than write a
-          # tree we cannot vouch for. "Lands in seconds" stopped being true
-          # when the validate shards became required (2026-08-27): measured
-          # over the 60 refresh PRs merged in September 2026, open -> merged
-          # took a median of 297 s and 324 s at p90. 600 s covers that; a PR
-          # that needs longer is stuck, and stuck must be loud.
-          AWAIT_TIMEOUT_SECONDS: "600"
-        run: |
-          set -euo pipefail
-          prefix="bot/library-refresh-${REFRESH_RUN_ID}-"
-          deadline=$(( SECONDS + AWAIT_TIMEOUT_SECONDS ))
-          while :; do
-            # Sorted newest-first; the PR we want was created minutes ago.
-            pr=$(gh pr list --repo "$REPO" --state all --limit 100 \
-                   --json number,headRefName,state,mergeCommit \
-                   --jq "[.[] | select(.headRefName | startswith(\"${prefix}\"))] | first // empty")
-
-            if [ -z "$pr" ]; then
-              # The refresh only opens a PR when the regeneration actually
-              # changed something ("No post-publish changes to commit."), so an
-              # absent PR is a legitimate no-op, not a lost commit.
-              echo "::notice::No ${prefix}* PR exists — the refresh reported no post-publish changes, so main already carries its output."
-              exit 0
-            fi
-
-            number=$(jq -r '.number' <<<"$pr")
-            state=$(jq -r '.state' <<<"$pr")
-            sha=$(jq -r '.mergeCommit.oid // ""' <<<"$pr")
-
-            if [ "$state" = "MERGED" ] && [ -n "$sha" ]; then
-              echo "::notice::Refresh commit ${sha} (PR #${number}) is on main; checking that out."
-              echo "sha=${sha}" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-
-            if [ "$state" = "CLOSED" ]; then
-              echo "::error::PR #${number} for refresh run ${REFRESH_RUN_ID} was closed without merging. Refusing to save a tree that is not the refresh output."
-              exit 1
-            fi
-
-            if [ "$SECONDS" -ge "$deadline" ]; then
-              # Deliberately fatal. Continuing would reproduce exactly the defect
-              # this step exists to close, and would report it as green.
-              echo "::error::PR #${number} for refresh run ${REFRESH_RUN_ID} did not merge within ${AWAIT_TIMEOUT_SECONDS}s (state ${state}). Merge it and re-dispatch this workflow."
-              exit 1
-            fi
-
-            echo "PR #${number} is ${state}; waiting for the auto-merge to land."
-            sleep 15
-          done
-
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
-          # Prefer the exact refresh commit resolved above. It is empty when the
-          # refresh changed nothing, and for schedule/dispatch the whole step is
-          # skipped — both fall through to main's tip, which is correct there.
-          ref: ${{ steps.refresh_commit.outputs.sha || (github.event_name == 'workflow_run' && github.event.workflow_run.head_branch) || '' }}
           fetch-depth: 1
           persist-credentials: false
 
-      # Every checkout of this workflow is a SNAPSHOT, not just the proposal
-      # branch below. GitHub resolves the ref when the run is CREATED, but the
-      # run only reaches the front of the one-slot TradingView queue much
-      # later, and the library moves several times a day. The rollout tool then
-      # compares this stale manifest against live TradingView and refuses:
-      # "Library publish drift: the manifest says smc_micro_profiles_generated
-      # is published at version 227, but TradingView lists 230."
-      #
-      # That refusal is a QUEUE ARTIFACT, not a real drift — and it is
-      # self-sustaining: a refused save uploads no binding snapshot, so
-      # tv-post-mutation-verify reads executionMode "unknown", waits 15
-      # minutes and dispatches another save, which waits even longer and is
-      # therefore even staler. Measured 2026-08-13: 22 runs deep, no
-      # successful save since 02:59Z, ten dispatches inside twelve seconds.
-      #
-      # The reattest path already solved exactly this on 2026-08-06 (see the
-      # rebuild step below) — it was simply never generalised to the ordinary
-      # saves that hit the identical staleness. Fast-forwarding is only safe
-      # when this checkout is on main's line, so that is what decides it:
-      # an ancestor of current main fast-forwards, anything else (a proposal
-      # branch, a PR branch) is left exactly as checked out.
-      - name: Fast-forward to current main before measuring
-        if: ${{ github.event.inputs.reattest != 'true' }}
-        env:
-          # persist-credentials:false above leaves `origin` without
-          # credentials, so the fetch goes through an explicit token URL —
-          # the same seam the rebuild step below already uses.
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          # FF_REMOTE is the same test seam REATTEST_REMOTE is below: unset in
-          # CI, set by the contract test so the fragment can run end to end
-          # against a real local repository instead of being only read.
-          remote_url="${FF_REMOTE:-https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git}"
-          # NOT --depth=1. The checkout above is shallow, and a shallow fetch
-          # leaves `merge-base --is-ancestor` with no history to answer from:
-          # it then reports "not on main's line" for a plain main checkout and
-          # the fast-forward silently never happens — the exact defect this
-          # step exists to close, reported as green. Caught by executing the
-          # fragment, not by reading it.
-          git fetch --unshallow "${remote_url}" main 2>/dev/null \
-            || git fetch "${remote_url}" main
-          before="$(git rev-parse HEAD)"
-          target="$(git rev-parse FETCH_HEAD)"
-          if [ "${before}" = "${target}" ]; then
-            echo "::notice::checkout is already current main (${before})"
-            exit 0
-          fi
-          if ! git merge-base --is-ancestor "${before}" "${target}" 2>/dev/null; then
-            echo "::notice::checkout ${before} is not on main's line — leaving it untouched"
-            exit 0
-          fi
-          git reset --hard "${target}"
-          echo "::notice::fast-forwarded ${before} -> ${target} so the manifest matches what TradingView lists now"
-
-      # The proposal branch is a SNAPSHOT. The proposer builds it at 12:07Z
-      # from main's manifest, but this measuring run may only reach the front
-      # of the one-slot TradingView queue hours later, and the library moves
-      # several times a day. Measured 2026-08-06: a branch proposed at 19:31Z
-      # on 08-05 carried manifest 190 while TradingView already listed 192, so
-      # the rollout tool refused every save ("the manifest says ... 190, but
-      # TradingView lists 192"). The run therefore rebuilds its own proposal
-      # from CURRENT main before it measures anything, and force-pushes it so
-      # the later evidence commit still fast-forwards onto the same branch.
-      # The library publish releases the tradingview-session lock the moment it
-      # has published, but its manifest PR (bot/library-refresh-*) merges only
-      # minutes later (median 297 s, see "Await the refresh commit on main").
-      # A queued re-attest run takes the lock in that window, rebuilds on the
-      # pre-refresh main and the rollout refuses on library drift -- 3 of 3
-      # re-attest runs since 18:00Z on 2026-10-06 (37486040838, 37508171373,
-      # 37508426550: manifest 564/566, TradingView 566/567). The workflow_run
-      # path already waits for its own refresh PR; the dispatch path waits for
-      # every open one before it rebuilds.
-      - name: Await open library-refresh PRs before rebuilding
-        id: reattest_refresh_wait
-        if: ${{ github.event.inputs.reattest == 'true' }}
-        env:
-          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
-          REPO: ${{ github.repository }}
-          AWAIT_TIMEOUT_SECONDS: "600"
-        run: |
-          set -euo pipefail
-          deadline=$(( SECONDS + AWAIT_TIMEOUT_SECONDS ))
-          while :; do
-            open=$(gh pr list --repo "$REPO" --state open --limit 100 \
-                     --json number,headRefName \
-                     --jq '[.[] | select(.headRefName | startswith("bot/library-refresh-")) | .number] | join(" ")')
-            if [ -z "$open" ]; then
-              echo "::notice::No library-refresh PR is open; main carries the published manifest."
-              exit 0
-            fi
-            if [ "$SECONDS" -ge "$deadline" ]; then
-              # Fatal on purpose: rebuilding now reproduces the drift refusal.
-              echo "::error::Library-refresh PR(s) ${open} still open after ${AWAIT_TIMEOUT_SECONDS}s. Merge them and re-dispatch the re-attestation."
-              exit 1
-            fi
-            echo "Library-refresh PR(s) ${open} open; waiting for the merge."
-            sleep 15
-          done
-
-      - name: Rebuild the proposal on current main
-        id: rebuild
-        if: ${{ github.event.inputs.reattest == 'true' }}
-        env:
-          # PAT, not github.token: the rebuilt proposal must re-trigger the
-          # branch's own gates, same rationale as the proposer's push.
-          GH_TOKEN: ${{ secrets.GH_PAT }}
-        run: |
-          set -euo pipefail
-          case "${GITHUB_REF_NAME}" in
-            bot/r1-reattest*) ;;
-            *)
-              echo "::error::reattest mode is only valid on a bot/r1-reattest* proposal branch (got ${GITHUB_REF_NAME})"
-              exit 1
-              ;;
-          esac
-          test -n "${GH_TOKEN}"
-          # Bound to the ref the case-guard above just proved is a proposal
-          # branch, so the writes below can never address main.
-          BRANCH="${GITHUB_REF_NAME}"
-          # The checkout runs with persist-credentials:false, so the `origin`
-          # remote carries NO credentials: a bare `git fetch origin` dies with
-          # "could not read Username for https://github.com" (run 31086697823,
-          # the first run of this step). Both directions therefore go through
-          # the same explicit token URL, exactly as the evidence commit below
-          # already does. The override exists so the tests can execute this
-          # fragment end to end -- fetch, reset, bump, commit, push -- against
-          # a real local repository instead of proving only half of it.
-          remote_url="${REATTEST_REMOTE:-https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git}"
-          git fetch --depth=1 "${remote_url}" main
-          git reset --hard FETCH_HEAD
-          attested="$(python3 <<'PY'
-          import pathlib, re
-          text = pathlib.Path("SMC_Event_Overlay.pine").read_text(encoding="utf-8")
-          match = re.search(r"import preuss_steffen/smc_micro_profiles_generated/(\d+) as mp", text)
-          if match is None:
-              raise SystemExit("Event Overlay carries no micro-profile import pin")
-          print(match.group(1))
-          PY
-          )"
-          published="$(python3 <<'PY'
-          import json
-          manifest = json.load(open("artifacts/tradingview/library_release_manifest.json"))
-          print(int(manifest["library"]["publishedVersion"]))
-          PY
-          )"
-          echo "attested=/${attested} published=/${published}"
-          if [ "${attested}" -eq "${published}" ]; then
-            # Main moved between the proposal and this run (another
-            # re-attestation landed). Nothing to re-attest; the save below
-            # then behaves exactly like the nightly one.
-            echo "::notice::current main already carries the published pin; nothing to re-attest"
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          if [ "${attested}" -gt "${published}" ]; then
-            echo "::error::attested pin /${attested} is AHEAD of the manifest /${published} -- refusing to propose a downgrade"
-            exit 1
-          fi
-          # Same heredoc discipline as the proposer: an inner single quote
-          # inside `python3 -c '...'` closes the shell string (run
-          # 31007122044 died on exactly that), so the value arrives only
-          # through the environment and the body stays unexpanded.
-          TARGET="${published}" python3 <<'PY'
-          import os, pathlib, re
-          target = int(os.environ["TARGET"])
-          path = pathlib.Path("SMC_Event_Overlay.pine")
-          text = path.read_text(encoding="utf-8")
-          new = re.sub(
-              r"(import preuss_steffen/smc_micro_profiles_generated/)\d+( as mp)",
-              rf"\g<1>{target}\g<2>",
-              text,
-              count=1,
-          )
-          assert new != text, "pin substitution was a no-op"
-          path.write_text(new, encoding="utf-8")
-          PY
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git config user.name "github-actions[bot]"
-          git commit -qam "chore(pine): move the R1 Event Overlay pin to /${published} for re-attestation"
-          git push -f "${remote_url}" "HEAD:${BRANCH}"
-
-      # The operator's browser is the normal production writer on this account
-      # and automation is the guest; the tradingview-session group serialises
-      # CI against CI only. This is the one direction that can be excluded
-      # honestly: CI starting while the operator is working. The variable holds
-      # an EXPIRY, so a forgotten claim cannot block this workflow past its own
-      # timestamp -- see scripts/check_tv_operator_window.py.
-      #
-      # Read-only runs are exempt on purpose: they write nothing, and gating
-      # them would let an open window suppress the evening verification.
-      - name: Refuse to mutate inside the operator's TradingView window
-        if: ${{ github.event_name != 'schedule' && github.event.inputs.verify_only != 'true' }}
-        env:
-          TV_OPERATOR_ACTIVE: ${{ vars.TV_OPERATOR_ACTIVE }}
-        run: python3 -m scripts.check_tv_operator_window
-
       - name: Set up Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: "20"
           cache: "npm"
@@ -544,7 +93,7 @@ jobs:
 
       - name: Restore Playwright browsers cache
         id: pw_cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-browsers-${{ steps.pw_version.outputs.version }}
@@ -577,171 +126,24 @@ jobs:
           out.write_text(payload if payload.endswith('\n') else payload + '\n', encoding='utf-8')
           PY
 
-      # The comparison baseline is the observation the LAST run published to
-      # bot/live-tradingview-bindings. Fetched over the API rather than with
-      # git: the checkout above sets persist-credentials: false, so no
-      # credential is available to git here.
-      #
-      # A missing baseline is not an error. It is the "unknown" verdict, and the
-      # rollout decides that -- a first run, or a pruned branch, must not fail a
-      # step that has measured nothing.
-      #
-      # Unconditional as of 2026-08-03 (Finding 3). This used to share the
-      # operator-window gate's condition exactly, because only a mutating run
-      # compared against a baseline. It no longer does: a read-only run now
-      # compares its own normal verification reading against the baseline too
-      # (report-only -- report.ok stays ungated on a read-only run, see
-      # tv_batch_consumer_rollout.ts). Without a widened fetch, every read-only
-      # trigger -- both crons and every post-mutation verify dispatch -- would
-      # advance the baseline on publish (that publish step is always()) while
-      # never having fetched one to compare against, silently absorbing an
-      # operator write hours before the next mutating run's own comparison ran.
-      # See test_the_three_trigger_classifying_conditions_are_pinned_and_may_now_differ
-      # for why this condition, the gate's, and TV_VERIFY_ONLY are no longer
-      # the same expression on purpose.
-      - name: Fetch the published binding baseline
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-        run: |
-          set -euo pipefail
-          mkdir -p artifacts/monitoring/previous
-          out="artifacts/monitoring/previous/tradingview_consumer_bindings.json"
-          path="artifacts/monitoring/latest/tradingview_consumer_bindings.json"
-          if gh api "repos/${GH_REPO}/contents/${path}?ref=bot/live-tradingview-bindings" \
-               --jq '.content' 2>/dev/null | base64 -d > "${out}"; then
-            echo "Baseline fetched: $(wc -c < "${out}") bytes"
-          else
-            rm -f "${out}"
-            echo "::warning::No published binding baseline — out-of-band drift will report as unknown."
-          fi
-
-      # Runs on EVERY trigger, before the browser opens. The 2026-08-01
-      # un-attestation arrived through the workflow_run chain, not a dispatch,
-      # so watching only the manual path would leave the door that was used.
-      # It does not block the save: skipping the drifted targets would freeze
-      # them on an old pinned library while the producer moves on.
-      # A step OUTPUT, not $GITHUB_ENV: writing the environment file is a
-      # zizmor `github-env` high finding, and an output is what this actually
-      # is -- one value, consumed by two named steps.
-      - name: Detect R1-attested sources this save would un-attest
-        id: attestation
-        run: |
-          set -euo pipefail
-          unattested="$(python3 -m scripts.check_tv_unattested_sources \
-            --config automation/tradingview/config/consumer-rollout.json)"
-          echo "unattested=${unattested}" >> "$GITHUB_OUTPUT"
-
       - name: Save or read-only verify consumers in one browser session
         id: save
         env:
           TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
-          # Sources the registered R1 evidence no longer attests. They are
-          # saved like every other consumer; the rollout records them so the
-          # report cannot come back green while the evidence goes stale.
-          TV_UNATTESTED_SOURCES: ${{ steps.attestation.outputs.unattested }}
-          TV_VERIFY_ONLY: ${{ github.event_name == 'schedule' && 'true' || github.event_name == 'workflow_dispatch' && github.event.inputs.verify_only || 'false' }}
-          # repair-only is a workflow_dispatch-only mode (schedule and the
-          # workflow_run refresh chain never set it): it repairs bindings and
-          # saves the layout, but writes no source and refreshes no producer,
-          # so it makes sense only as an explicit operator choice.
-          TV_REPAIR_ONLY: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.repair_only || 'false' }}
-          # [] remains a legacy-compatible belt-and-suspenders guard. The
-          # actual no-write contract is --verify-only below.
-          TV_CONSUMER_MAPPING_JSON: ${{ github.event_name == 'schedule' && '[]' || github.event_name == 'workflow_dispatch' && github.event.inputs.verify_only == 'true' && '[]' || github.event.inputs.mapping }}
-          # workflow_run (post-refresh chain) writes with producer refresh +
-          # rebind; the rollout script hard-fails on refresh-without-rebind,
-          # so both flags flip together here.
-          # reattest saves a re-pinned companion source, which needs the same
-          # refresh+rebind pair as the post-refresh chain (the rollout script
-          # hard-fails on refresh-without-rebind).
-          TV_FORCE_REBIND: ${{ (github.event_name == 'workflow_run' || github.event.inputs.reattest == 'true') && 'true' || github.event_name == 'workflow_dispatch' && github.event.inputs.force_rebind || 'false' }}
-          TV_REFRESH_PRODUCER: ${{ (github.event_name == 'workflow_run' || github.event.inputs.reattest == 'true') && 'true' || github.event_name == 'workflow_dispatch' && github.event.inputs.refresh_producer || 'false' }}
+          # Cron is fail-safe read-only: [] skips every saved-script write.
+          TV_CONSUMER_MAPPING_JSON: ${{ github.event_name == 'schedule' && '[]' || github.event.inputs.mapping }}
+          TV_FORCE_REBIND: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.force_rebind || 'false' }}
         run: |
-          args=()
-          if [ "${TV_VERIFY_ONLY}" = "true" ]; then
-            args+=(--verify-only)
-          elif [ "${TV_REPAIR_ONLY}" = "true" ]; then
-            args+=(--repair-only)
-          fi
-          npx tsx scripts/tv_batch_consumer_rollout.ts "${args[@]}"
-
-      # Read-only by construction (the probe never opens an alert's edit
-      # dialog) and runs in its own browser session with the same storage
-      # state. Gated on steps.save.conclusion like the snapshot upload below:
-      # a gate-refused run never wrote the storage state, so there is no
-      # session to read with.
-      - name: Hold Manager shadow alert readback
-        id: hm_readback
-        if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' && github.event.inputs.hold_manager_readback == 'true' && (steps.save.conclusion == 'success' || steps.save.conclusion == 'failure') }}
-        env:
-          TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
-        run: |
-          npx tsx scripts/tv_readback_hold_manager_alerts.ts --shape build \
-            --out tradingview_hold_manager_alert_readback.json
-
-      - name: Upload Hold Manager readback evidence
-        if: ${{ always() && (steps.hm_readback.conclusion == 'success' || steps.hm_readback.conclusion == 'failure') }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: tradingview-hold-manager-alert-readback
-          path: tradingview_hold_manager_alert_readback.json
-          if-no-files-found: warn
-          retention-days: 30
+          npx tsx scripts/tv_batch_consumer_rollout.ts
 
       - name: Controlled repair E2E
-        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.repair_e2e == 'true' && github.event.inputs.verify_only != 'true' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.repair_e2e == 'true' }}
         env:
           TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
         run: npx tsx scripts/tv_repair_binding_e2e.ts
 
-      # Between its two saves the managed layout genuinely carries no
-      # companions, so nothing is evaluating there. Opt-in only, and never
-      # alongside a read-only run.
-      #
-      # Repair must run even when the step above went red, and run 30701657039
-      # is why: with the companions missing, that step reports "Existing chart
-      # instance not found" for both and fails -- so the repair for exactly that
-      # damage was skipped and the layout stayed broken. The rollback drill
-      # keeps the opposite rule: a red verification means the layout is not in
-      # the state its baseline assumes, and removing things then proves nothing.
-      #
-      # Both arms read steps.save.conclusion rather than always(): if an earlier
-      # step failed, save never ran, there is no authenticated browser session,
-      # and running the drill would only produce a second, misleading failure.
-      - name: R1 companion rollback drill
-        if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' && github.event.inputs.verify_only != 'true' && (
-          (github.event.inputs.r1_restore_companions == 'true' && (steps.save.conclusion == 'success' || steps.save.conclusion == 'failure')) ||
-          (github.event.inputs.r1_rollback_drill == 'true' && steps.save.conclusion == 'success')) }}
-        env:
-          TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
-          # Repair mode. The removal half is skipped entirely, so this is the
-          # only way to put the companions back after a drill that removed them
-          # and could not restore them (run 30700389375) -- re-running the full
-          # drill dies in its baseline precondition before its recovery block
-          # is armed.
-          TV_DRILL_RESTORE_ONLY: ${{ github.event.inputs.r1_restore_companions }}
-        run: npx tsx scripts/tv_r1_companion_rollback_drill.ts
-
-      # Gated on the rollout step (id: save) having actually EXECUTED, not on
-      # always(). 2026-08-03: a run the operator-window gate refused (exit 1,
-      # before Node/Playwright/the browser ever started) still ran both of
-      # these steps under the old always(), found the checked-in
-      # 2026-07-25 snapshot at artifacts/monitoring/tradingview_consumer_bindings.json
-      # (it is tracked in git, so a fresh checkout always has SOME copy on
-      # disk), and force-pushed that stale ok:true/7-of-7-clean report to
-      # bot/live-tradingview-bindings -- which the live overlay daemon polls.
-      # A run that never opened a browser has nothing fresh to publish.
-      #
-      # `success() || failure()` on steps.save.conclusion, wrapped in
-      # always() so a later optional step failing (Controlled repair E2E, the
-      # R1 rollback drill) still lets the snapshot through -- that is the
-      # behaviour always() existed for, and it stays for everything AFTER
-      # save. 'skipped' (gate refused, or any earlier step failed) and
-      # 'cancelled' are deliberately excluded: neither ran a browser, so
-      # neither has a fresh snapshot to publish.
       - name: Upload binding snapshot
-        if: ${{ always() && (steps.save.conclusion == 'success' || steps.save.conclusion == 'failure') }}
+        if: ${{ always() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: tradingview-consumer-bindings
@@ -749,49 +151,8 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      # Screenshot + Legendengeometrie je Ziel, das ENDGUELTIG nicht zu oeffnen
-      # war. Gleiche Torbedingung wie oben: nur ein Lauf, der einen Browser
-      # geoeffnet hat, kann Beweise haben.
-      #
-      # 'ignore' und nicht 'error': ein gruener Lauf schreibt hier nichts, und
-      # das ist der Normalfall -- 'error' oder 'warn' wuerde jeden gesunden Lauf
-      # mit einer Meldung versehen, die niemand mehr liest.
-      - name: Upload failure evidence
-        if: ${{ always() && (steps.save.conclusion == 'success' || steps.save.conclusion == 'failure') }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: tradingview-failure-evidence
-          path: automation/tradingview/reports/screenshots/
-          if-no-files-found: ignore
-          retention-days: 30
-
-      # Same gate as the upload above, same reason: run 30700389375 is why
-      # 'failure' stays in the OR -- a rollout that opened a browser and then
-      # failed still has a real, fresh snapshot worth publishing.
-      #
-      # 2026-08-03 (Fix wave 1b): this directory is SHARED. A parallel change
-      # gave smc-r4-context-readback.yml its own publisher onto this exact
-      # branch, at a DISTINCT path (tradingview_r4_context_bindings.json)
-      # under this same artifacts/monitoring/latest/. The old body here built
-      # its commit on top of `actions/checkout` (main, which does not carry
-      # this bot-branch-only directory at all), staged ONLY its own file, and
-      # force-pushed -- so every run of THIS workflow replaced the branch tip
-      # and silently deleted the R4 file, leaving R4's fetch permanently
-      # "unknown". ADR-0024 §5 names this exact shape: a directory with more
-      # than one producer must seed from the fetched remote tip before
-      # committing, and replace only its own owned path.
-      #
-      # Mechanics mirrored from smc-r4-context-readback.yml's "Publish latest
-      # R4 binding snapshot" (which already carries the symmetric protection
-      # for THIS file): fetch the remote ref FIRST, resolve its tip sha, and
-      # -- if one exists -- check the shared directory out of that tip BEFORE
-      # copying this run's own snapshot into it. Staging the whole directory
-      # afterwards means the commit carries both the file this run refreshed
-      # and any sibling file already on the branch. If a THIRD producer ever
-      # joins this directory, it must do the same seed-then-replace-only-
-      # your-own-path dance, or it silently deletes the other two.
       - name: Publish latest binding snapshot
-        if: ${{ always() && (steps.save.conclusion == 'success' || steps.save.conclusion == 'failure') }}
+        if: ${{ always() }}
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
@@ -801,321 +162,21 @@ jobs:
             echo "::warning::Cannot publish TradingView binding snapshot (missing GH_PAT or snapshot)."
             exit 0
           fi
-          # A report that observed nothing must not become the baseline.
-          # steps.save.conclusion above answers "did the rollout step run",
-          # which is NOT the same question: run 31823203037 ran, threw on
-          # library publish drift after ONE second -- before the pre-mutation
-          # observation -- and published its empty reading ("bindings": [],
-          # outOfBandDrift "the pre-mutation observation has not run yet")
-          # over a full one. The next run loaded that baseline, covered zero
-          # verify targets, and reported out-of-band drift as "unknown";
-          # scripts/smc_r1_generate_attestation accepts only "clean", so the
-          # R1 re-attestation (run 31824430346) saved all 11 sources to
-          # TradingView and then could not attest SMC Event Overlay. An empty
-          # reading has nothing to contribute: leave the last real one alone.
-          # Counted, not tested with `if ! jq ...`: that form cannot tell "this
-          # run observed nothing" from "jq is missing or the report is
-          # malformed", and would answer BOTH by silently declining to publish
-          # -- freezing the baseline with no red anywhere. Under set -e a
-          # broken jq or an unparseable report fails this step loudly instead.
-          observed_bindings="$(jq '(.tradingViewObserved.bindings // error("report carries no tradingViewObserved.bindings -- absence is schema drift, the honest empty is [] present")) | if type == "array" then length else error("tradingViewObserved.bindings is not an array") end' "${snapshot}")"
-          if [ "${observed_bindings}" -eq 0 ]; then
-            echo "::notice::This run observed no TradingView bindings — the published baseline is left untouched."
-            exit 0
-          fi
-          # Operator decision 2026-08-15: only a COMPLETE observation becomes
-          # the baseline. A partial one (a session that died mid-read) passes
-          # the non-empty check above and would re-create the 2026-08-14
-          # failure class one notch less likely: the next run finds a baseline
-          # covering less than every verify target and reports out-of-band
-          # drift "unknown", which the R1 attestation refuses. The report's
-          # expectedConsumers is stamped from config.verifyTargets by the SAME
-          # run (before anything can die), so the comparison stays
-          # self-consistent when the target set changes.
-          expected_bindings="$(jq '.bindings.expectedConsumers // error("report carries no bindings.expectedConsumers -- the coverage gate cannot tell partial from broken")' "${snapshot}")"
-          if [ "${observed_bindings}" -ne "${expected_bindings}" ]; then
-            echo "::notice::This run observed only ${observed_bindings} of ${expected_bindings} TradingView bindings — a partial reading must not become the baseline; the published one is left untouched."
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          # This step borrows the job's checkout to build ONE commit for a
-          # foreign branch; everything after it still expects the checkout it
-          # was handed. Remembered here, restored below.
-          head_before="$(git rev-parse HEAD)"
-          # TV_SNAPSHOT_REMOTE is unset in Actions and exists so the contract
-          # test can execute this fragment WHOLE -- push included -- against a
-          # local repository, the same seam the reattest rebuild step uses.
-          remote_url="${TV_SNAPSHOT_REMOTE:-https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git}"
-          remote_ref="refs/heads/bot/live-tradingview-bindings"
-          tracking_ref="refs/remotes/origin/bot/live-tradingview-bindings"
-          zero_sha="0000000000000000000000000000000000000000"
-          git fetch "${remote_url}" "+${remote_ref}:${tracking_ref}" 2>/dev/null || true
-          expected_sha="$(git rev-parse --verify "${tracking_ref}" 2>/dev/null || echo "${zero_sha}")"
           stable_dir="artifacts/monitoring/latest"
           mkdir -p "${stable_dir}"
-          if [ "${expected_sha}" != "${zero_sha}" ]; then
-            # The || true swallow used to cover BOTH "the directory is not in
-            # the tip yet" (legitimate, first publish of a sibling) and "the
-            # restore itself failed" -- and the second case then pushed a
-            # commit MISSING the sibling's baseline, silently (2026-08-15
-            # sweep finding; the #4711 poisoning class one level down).
-            # cat-file separates them: absent path skips quietly, a real
-            # restore failure fails the step loudly under set -e.
-            if git cat-file -e "${expected_sha}:${stable_dir}" 2>/dev/null; then
-              git checkout "${expected_sha}" -- "${stable_dir}"
-            fi
-          fi
           cp "${snapshot}" "${stable_dir}/tradingview_consumer_bindings.json"
-          git add -f "${stable_dir}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          remote_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          remote_ref="refs/heads/bot/live-tradingview-bindings"
+          tracking_ref="refs/remotes/origin/bot/live-tradingview-bindings"
+          git add -f "${stable_dir}/tradingview_consumer_bindings.json"
           git commit -m "[skip ci] chore: refresh TradingView binding snapshot"
+          git fetch "${remote_url}" "+${remote_ref}:${tracking_ref}" 2>/dev/null || true
+          zero_sha="0000000000000000000000000000000000000000"
+          expected_sha="$(git rev-parse --verify "${tracking_ref}" 2>/dev/null || echo "${zero_sha}")"
           if git push "--force-with-lease=${remote_ref}:${expected_sha}" "${remote_url}" "HEAD:${remote_ref}"; then
             echo "Published TradingView binding snapshot to bot/live-tradingview-bindings."
           else
             echo "::warning::TradingView binding snapshot push failed; uploaded artifact remains available."
           fi
-          # Give the checkout back. The snapshot commit belongs to
-          # bot/live-tradingview-bindings and to nothing else: the reattest
-          # chain compares its write and verify passes BY COMMIT, and its
-          # evidence step pushes HEAD to the proposal branch. Leaving this
-          # commit on HEAD refused the 2026-08-06 re-attestation ("write and
-          # verify passes ran on different commits", run 31088757063) and
-          # would have dragged artifacts/monitoring/latest into the PR.
-          # Mixed, not hard: the working tree still holds this run's freshly
-          # measured reports, which the attestation reads next.
-          git reset -q "${head_before}"
-
-      # ---- Automated R1 re-attestation (smc-r1-reattest proposal chain) ----
-      # Only for reattest dispatches on the bot/r1-reattest proposal branch.
-      # The write pass above saved the re-pinned sources; here an INDEPENDENT
-      # verify-only pass re-reads them, scripts/smc_r1_generate_attestation
-      # turns both reports into a new dated evidence artifact (fail-closed
-      # outside the pin-only diff class -- anything else still needs a human),
-      # the in-run chain self-check re-proves the invariants, and only then
-      # is anything committed. The guard step below then re-MEASURES against
-      # the extended chain instead of trusting any of this succeeded.
-      - name: Preserve the write-pass report for the attestation
-        id: preserve_report
-        if: ${{ !cancelled() && github.event.inputs.reattest == 'true' && (steps.save.conclusion == 'success' || steps.save.conclusion == 'failure') }}
-        run: |
-          set -euo pipefail
-          case "${GITHUB_REF_NAME}" in
-            bot/r1-reattest*) ;;
-            *)
-              echo "::error::reattest mode is only valid on a bot/r1-reattest* proposal branch (got ${GITHUB_REF_NAME})"
-              exit 1
-              ;;
-          esac
-          mv artifacts/monitoring/tradingview_consumer_bindings.json "${RUNNER_TEMP}/report-write.json"
-
-      - name: Independent verify-only pass in a fresh browser session
-        id: reverify
-        if: ${{ !cancelled() && steps.preserve_report.conclusion == 'success' }}
-        env:
-          TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
-          TV_CONSUMER_MAPPING_JSON: "[]"
-        run: npx tsx scripts/tv_batch_consumer_rollout.ts --verify-only
-
-      - name: Generate the supersession evidence and extend the chain
-        id: attest
-        if: ${{ !cancelled() && steps.reverify.conclusion == 'success' }}
-        env:
-          WRITE_CONCLUSION: ${{ steps.save.conclusion }}
-          SOURCE_CHANGE_ATTESTATION: ${{ github.event.inputs.source_change_attestation }}
-        run: |
-          set -euo pipefail
-          attestation_args=()
-          if [ -n "${SOURCE_CHANGE_ATTESTATION}" ]; then
-            # Fail before the generator runs if the operator named a path that
-            # is not in the tree: an empty --source-change-attestation would
-            # silently fall back to the pin-only path and refuse for the wrong
-            # reason.
-            test -f "${SOURCE_CHANGE_ATTESTATION}"
-            attestation_args=(--source-change-attestation "${SOURCE_CHANGE_ATTESTATION}")
-          fi
-          evidence="$(python3 -m scripts.smc_r1_generate_attestation \
-            --write-report "${RUNNER_TEMP}/report-write.json" \
-            --verify-report artifacts/monitoring/tradingview_consumer_bindings.json \
-            --run-id "${GITHUB_RUN_ID}" \
-            "${attestation_args[@]}" \
-            --write-conclusion "${WRITE_CONCLUSION} - at the un-attested-save guard, after the saves completed")"
-          python3 -m scripts.smc_r1_rollout_contract
-          echo "evidence=${evidence}" >> "$GITHUB_OUTPUT"
-
-      - name: Commit the evidence to the proposal branch and open the PR
-        id: attest_commit
-        if: ${{ !cancelled() && steps.attest.conclusion == 'success' }}
-        env:
-          # PAT, not github.token: the evidence push must re-trigger the
-          # proposal PR's fast-gates (same rationale as the refresh's bot/*
-          # pushes), and gh pr create/merge need it for auto-merge.
-          GH_TOKEN: ${{ secrets.GH_PAT }}
-          EVIDENCE_PATH: ${{ steps.attest.outputs.evidence }}
-        run: |
-          set -euo pipefail
-          test -n "${GH_TOKEN}"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git config user.name "github-actions[bot]"
-          remote_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          # ADR-0024 §5: seed from the remote tip before committing. Only this
-          # run works the proposal branch (workflow-level concurrency on the
-          # proposer + a fixed branch name), but the rule holds regardless: a
-          # moved tip fails the push fast-forward check below instead of being
-          # clobbered.
-          BRANCH="${GITHUB_REF_NAME}"
-          git fetch "${remote_url}" "${BRANCH}"
-          git add "${EVIDENCE_PATH}" \
-            artifacts/governance/smc_r1_evidence_chain.json \
-            artifacts/governance/smc_r1_live_rollout_contract.json
-          target="$(EVIDENCE_PATH="${EVIDENCE_PATH}" python3 -c 'import json, os; print(json.load(open(os.environ["EVIDENCE_PATH"]))["libraryReleaseVersion"])')"
-          git commit -m "chore(governance): automated R1 re-attestation to /${target} (run ${GITHUB_RUN_ID})"
-          # Non-main proposal ref; `set -euo pipefail` fails the step loudly on
-          # a rejected push (a moved tip means something else wrote the branch).
-          git push "${remote_url}" "HEAD:${BRANCH}"
-          {
-            echo "Automated R1 re-attestation to micro-profile release /${target}."
-            echo
-            echo "Evidence: \`${EVIDENCE_PATH}\` (write + independent verify pass of run ${GITHUB_RUN_ID});"
-            echo "chain extended and self-checked in-run; contract regenerated."
-            echo "Generated by the smc-r1-reattest chain (operator-authorized 2026-08-04)."
-          } > "${RUNNER_TEMP}/reattest-pr-body.md"
-          # F-V5-F1 pattern: exempt ONLY the literal already-exists answer;
-          # every other create failure (auth, ruleset, rate limit) stays a
-          # hard error instead of a green run with no PR.
-          TITLE="chore(governance): automated R1 re-attestation to /${target}"
-          if ! pr_err="$(gh pr create --repo "${GITHUB_REPOSITORY}" --base main --head "${BRANCH}" \
-            --title "${TITLE}" \
-            --body-file "${RUNNER_TEMP}/reattest-pr-body.md" 2>&1)"; then
-            if printf '%s' "${pr_err}" | grep -qi "already exists"; then
-              # An EARLIER cycle left this PR open: the required checks are
-              # strict, so the PR goes BEHIND the moment main moves and
-              # auto-merge stalls there. This cycle force-pushed a DIFFERENT
-              # release onto the same fixed branch, so the open PR still
-              # carries the previous release in its title and body -- and this
-              # repo squashes with squash_merge_commit_title=PR_TITLE /
-              # ...message=PR_BODY, i.e. GitHub composes the merge commit from
-              # exactly those two fields when it fires. #4894 landed on main as
-              # "re-attestation to /282" over a tree carrying /283 and a
-              # different evidence file for that reason. Repoint, do not merge
-              # a release under its predecessor's name.
-              echo "::notice::proposal PR already exists; repointing it at /${target}."
-              repoint=1
-            else
-              printf '%s\n' "${pr_err}"
-              echo "::error::gh pr create failed for the re-attestation PR — see step log"
-              exit 1
-            fi
-          fi
-          # Resolve the OPEN PR explicitly. `gh pr <cmd> <branch>` on a FIXED
-          # branch answers with a CLOSED/MERGED PR when no open one exists
-          # (measured 2026-08-20: `gh pr view bot/r1-reattest` -> #4894,
-          # MERGED), which would put a foreign PR number into the headline
-          # below -- silently, where the old branch-selector form failed loudly.
-          pr_number="$(gh pr list --repo "${GITHUB_REPOSITORY}" --head "${BRANCH}" \
-            --state open --json number --jq '.[0].number // empty')"
-          case "${pr_number}" in
-            ''|*[!0-9]*)
-              echo "::error::no OPEN proposal PR for ${BRANCH} — refusing to arm auto-merge with an unknown back-reference"
-              exit 1
-              ;;
-          esac
-          if [ "${repoint:-0}" = "1" ]; then
-            gh pr edit --repo "${GITHUB_REPOSITORY}" "${pr_number}" \
-              --title "${TITLE}" \
-              --body-file "${RUNNER_TEMP}/reattest-pr-body.md"
-          fi
-          # Belt and braces on top of the repoint: pass the message explicitly
-          # so the merge commit is what THIS cycle measured even if the repo's
-          # squash defaults change. GitHub stores it when auto-merge is ARMED
-          # (#4432), so a stale arming has to be dropped first.
-          {
-            cat "${RUNNER_TEMP}/reattest-pr-body.md"
-            echo
-            echo "Co-authored-by: github-actions[bot] <github-actions[bot]@users.noreply.github.com>"
-          } > "${RUNNER_TEMP}/reattest-merge-body.md"
-          armed="$(gh pr view --repo "${GITHUB_REPOSITORY}" "${pr_number}" --json autoMergeRequest --jq '.autoMergeRequest != null')"
-          if [ "${armed}" = "true" ]; then
-            gh pr merge --repo "${GITHUB_REPOSITORY}" "${pr_number}" --disable-auto
-          fi
-          gh pr merge --repo "${GITHUB_REPOSITORY}" "${pr_number}" --squash --auto \
-            --subject "${TITLE} (#${pr_number})" \
-            --body-file "${RUNNER_TEMP}/reattest-merge-body.md"
-
-      # Last, so the snapshot is uploaded and published first: this run pushed
-      # content the registered evidence does not attest, which needs a human,
-      # and a silent run would say the opposite.
-      #
-      # Reattest carve-out, by re-measurement rather than trust: when the
-      # reattest path above committed new evidence, the SAME module that found
-      # the un-attestation is asked again against the extended chain. An empty
-      # answer means the save is attested now; anything else is a hard failure.
-      #
-      # `!cancelled()`, added 2026-08-06: a condition naming no status function
-      # is ANDed with an implicit success(), and the un-attested list this step
-      # fires on is the SAME list tv_batch_consumer_rollout.ts fails the save
-      # on -- so the step was skipped in exactly the runs it was written for.
-      # Measured over the last 20 runs of this workflow: present 12 times,
-      # skipped 12 times, executed never. Run 31106318082 was the first
-      # re-attestation to reach it, and it skipped there too.
-      #
-      # It is NOT always(): a cancelled run measured nothing worth reporting.
-      # It still needs a non-empty list below, so a clean run never pays for
-      # it, and it can only ADD a failure -- the failing save step above
-      # already fails the job on its own, both before and after this change.
-      - name: Fail the run when an R1-attested source was saved un-attested
-        if: ${{ !cancelled() && steps.attestation.outputs.unattested != '' && steps.attestation.outputs.unattested != '[]' }}
-        env:
-          TV_UNATTESTED_SOURCES: ${{ steps.attestation.outputs.unattested }}
-          REATTEST_COMMITTED: ${{ steps.attest_commit.conclusion }}
-        run: |
-          set -euo pipefail
-          if [ "${REATTEST_COMMITTED}" = "success" ]; then
-            remaining="$(python3 -m scripts.check_tv_unattested_sources \
-              --config automation/tradingview/config/consumer-rollout.json)"
-            if [ -z "${remaining}" ] || [ "${remaining}" = "[]" ]; then
-              echo "R1 sources re-attested in-run: the generated evidence now attests every saved source." >> "$GITHUB_STEP_SUMMARY"
-              exit 0
-            fi
-            echo "::error::re-attestation committed but sources remain un-attested: ${remaining}"
-          fi
-          # The remedy is RENDERED from
-          # scripts/check_tv_unattested_sources.RESOLUTION, never hand-typed.
-          # THIS run already prints that same module's stderr from the
-          # "Detect R1-attested sources this save would un-attest" step, so a
-          # hand-copy here means one run stating one remedy twice, in two
-          # wordings — which is exactly what happened: this block still carried
-          # the pre-extraction text after RESOLUTION was corrected, telling
-          # operators to "re-run to push the attested content back" while the
-          # stderr named the workflow. The stderr goes to the step LOG, not to
-          # the job summary, which is why this block exists at all and is
-          # rendered rather than deleted.
-          # tests/test_workflow_tv_save_consumer_source_contract.py pins the
-          # agreement.
-          # `|| resolution=…` and not a bare assignment: under `set -euo
-          # pipefail` a failing command substitution aborts the step HERE, and
-          # everything that makes this step useful comes after it — the job
-          # summary naming the un-attested sources, and the `::error::` line.
-          # The run would still be red, so the gate holds, but the report a
-          # reviewer needs would be gone precisely when rendering the remedy is
-          # what broke. Losing the prose is acceptable; losing the finding is
-          # not.
-          resolution="$(python3 -c 'from scripts.check_tv_unattested_sources import RESOLUTION; from scripts.smc_r1_rollout_contract import EXECUTION_EVIDENCE, ROOT; print(RESOLUTION.format(evidence=EXECUTION_EVIDENCE.relative_to(ROOT).as_posix()), end="")')" \
-            || resolution="(the shared remedy could not be rendered — see this run's log; it lives in scripts/check_tv_unattested_sources.RESOLUTION)"
-          {
-            echo "## R1-attested sources were saved un-attested"
-            echo
-            echo "This run pushed these saved scripts to TradingView, as intended --"
-            echo "the deployment stays consistent with the repository. What it also"
-            echo "did is end the registered R1 evidence's claim about them: it"
-            echo "attests different content, so it no longer describes what is live."
-            echo
-            echo '```'
-            echo "${TV_UNATTESTED_SOURCES}"
-            echo '```'
-            echo
-            echo '```'
-            echo "${resolution}"
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-          echo "::error::R1-attested sources saved un-attested: ${TV_UNATTESTED_SOURCES}"
-          exit 1

@@ -83,8 +83,6 @@ def build_killzones(df: pd.DataFrame, tz: str = DEFAULT_TZ) -> list[dict]:
                     "end_ts": int(group["timestamp"].max()),
                     "high": high,
                     "low": low,
-                    # BAR-CLOSE-EXEMPT: the session settle drives a directional bias only (current close-in-range is the intended signal, no future look-ahead); `mid` stays the geometric midpoint for the payload. 2026-07-25.
-                    "close": float(group.sort_values("timestamp")["close"].iloc[-1]),
                     "mid": (high + low) / 2.0,
                     "range": high - low,
                 }

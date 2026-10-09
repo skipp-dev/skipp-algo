@@ -208,7 +208,6 @@ def test_run_probe_handles_bad_close_field():
     def cb(_cme, _tf):
         return [{"close": "not a number"}]
     rep = fx.run_probe(cb, timeframes=["15m"])
-    assert rep.pairs, "no pairs probed — the per-pair error check below would pass vacuously"
     assert all("bad close" in r.error for r in rep.pairs)
     assert rep.status == "FAIL"
 

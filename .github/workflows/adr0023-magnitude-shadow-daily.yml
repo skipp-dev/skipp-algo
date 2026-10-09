@@ -20,14 +20,6 @@ name: adr0023-magnitude-shadow-daily
 # on) lives in magnitude_resolution_shadow_15m_seed.jsonl and is read
 # only by the promotion gate — the two planes are never pooled (a k-of-n
 # across planes is invalid; see the weekly evaluator's plane guard).
-# Since #2667 the accumulated pool is genuinely multi-TF (5m..1D), so the
-# append step passes --plane 1D: only events whose own bar cadence is 1D
-# are graded. 2026-07-16..21 this filter was missing — the pool went
-# 5m-dominated, three mixed-pool gradings were stamped "5m", and the
-# weekly plane guard wedged (issue #3872); those rows now live in
-# magnitude_resolution_shadow_5m_mixed_quarantine.jsonl. Zero 1D events
-# in the pool appends plane_starved heartbeats (rc 3) — an ongoing
-# starvation surfaces via rc 5 + the gap guard, not via silent 5m rows.
 #
 # Thin-day heartbeat: when the 1D pool is too thin for any family to
 # reach MIN_OOS, the runner appends one INCONCLUSIVE heartbeat row per
@@ -71,7 +63,6 @@ permissions:
 concurrency:
   group: adr0023-magnitude-shadow-daily
   cancel-in-progress: false
-  queue: max  # F-V5-C2: without this the next tick cancels the PENDING run
 
 env:
   PYTHONUNBUFFERED: "1"
@@ -86,12 +77,12 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           persist-credentials: false
 
       - name: Setup Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
         with:
           python-version: "3.12"
           cache: "pip"
@@ -109,21 +100,12 @@ jobs:
 
       # ADR-0023 §4.1: download the scored FamilyEvent records of the
       # CURRENT UTC day from the rolling benchmark workflow.  The
-      # benchmark uploads scored_family_events.json as
+      # benchmark (cron 13:00 UTC) uploads scored_family_events.json as
       # scored-family-events-<YYYY-MM-DD>; this workflow (cron 13:30
       # UTC) pins the artifact name to today's date so a delayed or
       # failed benchmark can never smuggle stale events from an older
       # run into today's ledger row.  A miss falls through to the
       # existing no_data path (fail-soft contract).
-      #
-      # 2026-08-29: hier stand "benchmark (cron 13:00 UTC)" — die Zahl war
-      # falsch und die Kette ging rechnerisch nicht auf. Der Bench-Cron lag
-      # auf 16:30, also HINTER diesem Konsumenten; bedient wurde er in
-      # Wahrheit von einem frueheren `workflow_run`-Fire, was acht taegliche
-      # Fires verdeckten. Seit #5191 entscheidet dort ein `cadence-gate`
-      # (Fenster A 11:00-12:30 UTC), und das Netz liegt jetzt auf 12:15 —
-      # ein ~46-Minuten-Lauf ist damit gegen 13:01 fertig, vor diesem
-      # Workflow. Wer die Zeiten hier aendert, muss Fenster A mitziehen.
       - name: Resolve benchmark artifact date
         id: bench_date
         run: |
@@ -132,7 +114,7 @@ jobs:
 
       - name: Download scored family events from benchmark
         id: download_events
-        uses: dawidd6/action-download-artifact@d63b86af1b34672e53c440b1b83979861906bad7 # v24
+        uses: dawidd6/action-download-artifact@b6e2e70617bc3265edd6dab6c906732b2f1ae151 # v21
         with:
           workflow: smc-measurement-benchmark-rolling.yml
           name: scored-family-events-${{ steps.bench_date.outputs.date }}
@@ -147,16 +129,12 @@ jobs:
       # Fail-soft: a miss here leaves the per-day artifact as the fallback.
       - name: Download accumulated family events (ADR-0023 Option B)
         id: download_accumulated
-        uses: dawidd6/action-download-artifact@d63b86af1b34672e53c440b1b83979861906bad7 # v24
+        uses: dawidd6/action-download-artifact@b6e2e70617bc3265edd6dab6c906732b2f1ae151 # v21
         with:
           workflow: smc-measurement-benchmark-rolling.yml
           name: scored-family-events-accumulated
           path: artifacts/ci/scored_family_events_accumulated
           workflow_conclusion: success
-          # 2026-07-29: search back for the newest run that carries the pool
-          # (see promotion-gate-daily.yml — one chain gap otherwise starves
-          # this consumer silently via its daily-artifact fallback).
-          search_artifacts: true
           if_no_artifact_found: warn
 
       - name: Resolve events file
@@ -301,7 +279,6 @@ jobs:
           python scripts/run_magnitude_shadow_ledger.py "${EVENTS_PATH}" \
             --ledger artifacts/governance/magnitude_resolution_shadow.jsonl \
             --seed "${SEED}" \
-            --plane 1D \
             2>&1 | tee ledger.log || rc=$?
           # Exit codes 0 (>=1 family resolves), 2 (none resolve), 3
           # (all thin) and 5 (stale feed: same events_hash already graded

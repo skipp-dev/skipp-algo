@@ -41,9 +41,7 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
 
     import services.live_overlay_daemon.main as main
 
-    # Pinned via monkeypatch so the far-past boot time reverts after the test
-    # instead of leaking into later test files (would flip /ready to "degraded").
-    monkeypatch.setattr(main, "_startup_ts", 100.0)
+    main._startup_ts = 100.0
     return TestClient(main.app)
 
 

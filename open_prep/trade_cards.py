@@ -7,14 +7,8 @@ from .technical_analysis import calculate_support_resistance_targets
 from .utils import to_float as _to_float
 
 
-def _trail_stop_profiles_from_atr(row: dict[str, Any], direction: str = "long") -> dict[str, Any]:
-    """Return ATR-based trailing-stop distances for multiple aggressiveness profiles.
-
-    ``direction`` selects the stop side: a ``"long"`` stop trails *below* the
-    reference, a ``"short"`` stop trails *above* it (a short is stopped out on a
-    rally). open_prep is long-biased; ``"short"`` is used only for a gap-up
-    GAP_FADE, where a long-side stop below entry would give no upside protection.
-    """
+def _trail_stop_profiles_from_atr(row: dict[str, Any]) -> dict[str, Any]:
+    """Return ATR-based trailing-stop distances for multiple aggressiveness profiles."""
     atr = _to_float(
         row.get("atr") or row.get("atr_14") or row.get("atr14") or row.get("average_true_range"),
         default=0.0,
@@ -37,18 +31,11 @@ def _trail_stop_profiles_from_atr(row: dict[str, Any], direction: str = "long") 
 
     stop_prices: dict[str, float | None]
     if stop_reference_price > 0.0 and atr > 0.0:
-        if direction == "short":
-            # Short side: stop trails ABOVE the reference (stopped out on a rally).
-            stop_prices = {
-                name: round(stop_reference_price + dist, 4)
-                for name, dist in distances.items()
-            }
-        else:
-            # Long side: stop trails below the chosen reference level.
-            stop_prices = {
-                name: round(max(stop_reference_price - dist, 0.0), 4)
-                for name, dist in distances.items()
-            }
+        # Long-side defaults: stop trails below the chosen reference level.
+        stop_prices = {
+            name: round(max(stop_reference_price - dist, 0.0), 4)
+            for name, dist in distances.items()
+        }
     else:
         stop_prices = {name: None for name in multipliers}
 
@@ -59,7 +46,6 @@ def _trail_stop_profiles_from_atr(row: dict[str, Any], direction: str = "long") 
 
     return {
         "atr": round(atr, 4),
-        "direction": direction,
         "unit": "price_distance",
         "multipliers": multipliers,
         "distances": distances,
@@ -124,7 +110,6 @@ def _build_key_levels(
     row: dict[str, Any],
     symbol: str,
     daily_bars: dict[str, list[dict[str, Any]]] | None,
-    direction: str = "long",
 ) -> dict[str, Any]:
     """Build key_levels dict including S/R targets when daily bars are available."""
     levels: dict[str, Any] = {
@@ -141,7 +126,7 @@ def _build_key_levels(
         bars = daily_bars[symbol]
         price = _to_float(row.get("price"), default=0.0)
         if price > 0 and bars:
-            # direction is the card's actual side (short only for a gap-up GAP_FADE)
+            direction = "long"  # open_prep is long-biased
             sr = calculate_support_resistance_targets(bars, price, direction)
             levels["sr_targets"] = sr
         else:
@@ -150,21 +135,6 @@ def _build_key_levels(
         levels["sr_targets"] = None
 
     return levels
-
-
-def _card_direction(playbook: dict[str, Any] | None, gap_pct: float) -> str:
-    """Return the card's trade side: ``"long"`` or ``"short"``.
-
-    open_prep is long-biased. The only short setup the playbook engine emits is a
-    GAP_FADE on a gap-UP (short the failed break / VWAP rejection). A gap-DOWN
-    GAP_FADE is a LONG reclaim, and GAP_AND_GO / POST_NEWS_DRIFT / NO_TRADE (and
-    the bias/gap default with no playbook) all stay long-side — POST_NEWS_DRIFT is
-    bidirectional but the pipeline has always treated it long, so this preserves
-    that behavior while fixing the clearly-short case.
-    """
-    if playbook and playbook.get("playbook") == "GAP_FADE" and gap_pct > 0:
-        return "short"
-    return "long"
 
 
 def build_trade_cards(
@@ -198,7 +168,6 @@ def build_trade_cards(
         bias_note = _risk_note_from_bias(bias, allowed_setups, playbook)
 
         gap_pct = _to_float(row.get("gap_pct"), default=0.0)
-        direction = _card_direction(playbook, gap_pct)
         gap_available = bool(row.get("gap_available", False))
         earnings_bmo = bool(row.get("earnings_bmo", False))
         is_premarket_mover = bool(row.get("is_premarket_mover", False))
@@ -221,11 +190,8 @@ def build_trade_cards(
             entry_trigger = "Break and hold above opening range high OR first pullback reclaim above VWAP."
             invalidation = "Loss of VWAP after entry or close below opening range low."
 
-        # Override with playbook-specific instructions when available — INCLUDING
-        # NO_TRADE, whose engine text is "No trade: ..." / "N/A — no trade selected."
-        # Excluding it left the gap-based default, printing a live entry trigger on
-        # a card whose setup_type/note already say "No Trade" (self-contradictory).
-        if playbook:
+        # Override with playbook-specific instructions when available
+        if playbook and playbook.get("playbook") != "NO_TRADE":
             entry_trigger = playbook.get("entry_trigger", entry_trigger)
             invalidation = playbook.get("invalidation", invalidation)
 
@@ -253,12 +219,11 @@ def build_trade_cards(
             {
                 "symbol": symbol,
                 "setup_type": setup_type,
-                "direction": direction,
                 "entry_trigger": entry_trigger,
                 "invalidation": invalidation,
                 "risk_management": "Move stop to break-even at +1R; scale partial at +1.5R.",
-                "trail_stop_atr": _trail_stop_profiles_from_atr(row, direction),
-                "key_levels": _build_key_levels(row, symbol, daily_bars, direction),
+                "trail_stop_atr": _trail_stop_profiles_from_atr(row),
+                "key_levels": _build_key_levels(row, symbol, daily_bars),
                 "context": {
                     "macro_bias": round(bias, 4),
                     "candidate_score": row.get("score"),

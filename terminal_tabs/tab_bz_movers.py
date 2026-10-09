@@ -15,10 +15,7 @@ from terminal_tabs._shared import (
     render_event_clusters_expander,
     render_forecast_expander,
     render_technicals_expander,
-    tv_symbol_column,
 )
-from terminal_tabs.style import style_table
-from terminal_ui_helpers import tv_linkify_rows
 
 
 def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
@@ -30,7 +27,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
         st.info("Set `BENZINGA_API_KEY` in `.env` for Benzinga movers.")
         return
 
-    st.subheader("Benzinga Market Movers")
+    st.subheader("📈 Benzinga Market Movers")
     st.caption("Most active gainers & losers from Benzinga with delayed quotes.")
 
     movers = cached_bz_movers(bz_key)
@@ -58,33 +55,27 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
         }
 
     # Gainers table (shared builder — item 11)
-    st.markdown("### Top Gainers")
+    st.markdown("### 🟢 Top Gainers")
     if gainers:
-        g_rows = tv_linkify_rows(build_bz_mover_rows(gainers, quote_map))
+        g_rows = build_bz_mover_rows(gainers, quote_map)
         st.dataframe(
-            style_table(
-                pd.DataFrame(g_rows), directional=["Change", "Change %"]
-            ),
+            pd.DataFrame(g_rows),
             width="stretch",
             hide_index=True,
             height=min(500, 40 + 35 * len(g_rows)),
-            column_config={"Symbol": tv_symbol_column()},
         )
     else:
         st.caption("—")
 
     # Losers table (shared builder — item 11)
-    st.markdown("### Top Losers")
+    st.markdown("### 🔴 Top Losers")
     if losers:
-        l_rows = tv_linkify_rows(build_bz_mover_rows(losers, quote_map))
+        l_rows = build_bz_mover_rows(losers, quote_map)
         st.dataframe(
-            style_table(
-                pd.DataFrame(l_rows), directional=["Change", "Change %"]
-            ),
+            pd.DataFrame(l_rows),
             width="stretch",
             hide_index=True,
             height=min(500, 40 + 35 * len(l_rows)),
-            column_config={"Symbol": tv_symbol_column()},
         )
     else:
         st.caption("—")

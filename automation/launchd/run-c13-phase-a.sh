@@ -42,8 +42,6 @@ SETUPS="${REPO}/cache/live/setups_${DATE}.jsonl"
 GATES="${REPO}/cache/live/gate_status.json"
 AUDIT="${REPO}/cache/live/incubation_${DATE}.jsonl"
 WSH="${REPO}/cache/wsh/${DATE}.jsonl"
-PORTFOLIO_BEFORE="${REPO}/cache/live/portfolio_before_${DATE}.json"
-PORTFOLIO_LIMITS="${REPO}/configs/portfolio_risk_limits.json"
 
 # B2 (audit pass-4, 2026-06-10): every exit path must write a status
 # marker so degraded runs are detectable without reading launchd stderr.
@@ -137,57 +135,6 @@ else
     echo "phase-a cron: no WSH snapshot found under cache/wsh/; earnings filter SKIPPED (no data)" >&2
 fi
 
-# --- smoke-sentinel guard ---
-# 2026-08-02: until today this submit ignored cache/live/smoke_HALT, and it
-# had to. The 08:00-ET smoke raised the sentinel on EVERY non-zero exit —
-# including a merely unreachable TWS — and never auto-clears it. Across the
-# 19 recorded smoke days 10 were DEGRADED, all of them EXIT=1
-# (ConnectionRefused on 7497), so an honoured sentinel would have stood
-# permanently: the 2 fills of 2026-07-14 landed on a DEGRADED day with the
-# sentinel already standing since 07-10, and blocking them would have cost
-# most of the 23-fill track record.
-#
-# The smoke now raises it ONLY for danger that carries state a human must
-# inspect — EXIT=2 (risk violation) and EXIT=3 (leftover non-terminal
-# orders). An unreachable TWS writes the day marker alone: this submit then
-# fails on its own if TWS is still down, and runs if it came back. Because
-# the sentinel finally means danger, honouring it is now correct.
-SMOKE_HALT_PATH="${REPO}/cache/live/smoke_HALT"
-if [[ -f "${SMOKE_HALT_PATH}" ]]; then
-    echo "phase-a cron: smoke_HALT sentinel present" \
-         "($(head -c 200 "${SMOKE_HALT_PATH}" | tr -d '\n')) — refusing to submit" \
-         "paper orders until the operator clears ${SMOKE_HALT_PATH}" >&2
-    _write_marker "DEGRADED" "smoke-halt-sentinel"
-    exit 1
-fi
-# --- end smoke-sentinel guard ---
-
-# Capture broker state immediately before the real paper submit. The runner
-# refuses --place-paper-orders without this file; a stale/incomplete snapshot
-# is recorded as a portfolio rejection in shadow mode rather than silently
-# bypassing the evaluation. C13_IBKR_ACCOUNT is optional because the collector
-# already fails closed when TWS exposes multiple managed accounts.
-_capture_portfolio_before() {
-    if [[ -n "${C13_IBKR_ACCOUNT:-}" ]]; then
-        "${PY}" -m scripts.ibkr_portfolio_snapshot \
-            --account "${C13_IBKR_ACCOUNT}" \
-            --output "${PORTFOLIO_BEFORE}"
-    else
-        "${PY}" -m scripts.ibkr_portfolio_snapshot \
-            --output "${PORTFOLIO_BEFORE}"
-    fi
-}
-if ! _capture_portfolio_before; then
-    echo "phase-a cron: portfolio snapshot FAILED — refusing paper submit" >&2
-    _write_marker "DEGRADED" "portfolio-snapshot-failed:path=${PORTFOLIO_BEFORE}"
-    exit 1
-fi
-if [[ ! -s "${PORTFOLIO_BEFORE}" ]]; then
-    echo "phase-a cron: portfolio snapshot missing/empty — refusing paper submit" >&2
-    _write_marker "DEGRADED" "portfolio-snapshot-empty:path=${PORTFOLIO_BEFORE}"
-    exit 1
-fi
-
 # 3. Run the orchestrator. --place-paper-orders (C13b T1.2, 2026-07-06)
 #    swaps the no-op audit stub for the paper submitter: surviving intents
 #    are transmitted as bracket sets to the IBKR *paper* TWS on 127.0.0.1.
@@ -212,8 +159,6 @@ _run_exit=0
     --setups "${SETUPS}" \
     --gate-statuses "${GATES}" \
     --audit-output "${AUDIT}" \
-    --portfolio-snapshot-json "${PORTFOLIO_BEFORE}" \
-    --portfolio-risk-limits-json "${PORTFOLIO_LIMITS}" \
     ${WSH_FLAG} || _run_exit=$?
 if [ "${_run_exit}" -ne 0 ]; then
     echo "phase-a cron: run_smc_live_incubation FAILED (exit ${_run_exit}) — see above for details" >&2
@@ -234,21 +179,13 @@ fi
 _publish_checkout_freshness() {
     local out="${REPO}/cache/live/checkout_freshness.json"
     # Only the order-path files matter — unrelated main churn must not page.
-    # DERIVED, not hand-listed (2026-08-18, Doppelgaenger-Sweep E1): the old
-    # five-file list was blind to the import closure — a fix landing in e.g.
-    # scripts/live_risk_limits.py or the sourced ET gate kept behind=0 and the
-    # stale-checkout alert silent. scripts/c13_order_path_inventory.py walks
-    # the closure of the submit entry points (80+ files) and refuses to emit a
-    # collapsed list; tests/test_c13_order_path_inventory.py pins it.
-    local -a paths=()
-    while IFS= read -r _inv_line; do
-        [[ -n "${_inv_line}" ]] && paths+=("${_inv_line}")
-    done < <("${PY}" -m scripts.c13_order_path_inventory 2>/dev/null)
-    if [[ ${#paths[@]} -eq 0 ]]; then
-        echo "phase-a cron: WARNING — order-path inventory derivation failed;" \
-             "skipping the freshness measurement rather than publishing a blind one." >&2
-        return 0
-    fi
+    local -a paths=(
+        scripts/execute_ibkr_watchlist.py
+        scripts/smc_to_ibkr_adapter.py
+        scripts/run_smc_live_incubation.py
+        scripts/build_phase_a_inputs.py
+        automation/launchd/run-c13-phase-a.sh
+    )
     # Bounded fetch so a dead network cannot hang the launchd slot indefinitely.
     git -C "${REPO}" -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=20 \
         fetch --quiet origin main 2>/dev/null || return 0

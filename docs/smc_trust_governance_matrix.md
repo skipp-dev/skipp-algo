@@ -28,26 +28,16 @@ Trust is resolved from three inputs:
 | **High**       | High               | normal          | ✅ allowed         | ✅ allowed      | —                    |
 | **Guarded**    | Usable             | normal          | ✅ allowed         | ✅ allowed      | —                    |
 | **Degraded**   | Thin               | normal + suffix | ✅ allowed         | ✅ allowed      | `Trust Degraded`     |
-| **Insufficient** | Caution          | normal          | ✅ allowed¹        | ✅ allowed¹     | `Trust Insufficient` |
-
-¹ Since 2026-10-04 the tier no longer gates entries. Entry Best/Strict are
-suppressed only on live bars whose event provider is not `ok` (see below).
+| **Insufficient** | Caution          | normal          | ❌ suppressed      | ❌ suppressed   | `Trust Insufficient` |
 
 ### Runtime Effects (active since WP-3C)
 
-1. **Entry suppression on a bad feed (since 2026-10-04)** — `long_entry_best_state` and
-   `long_entry_strict_state` are forced `false` when
-   `not (not barstate.isrealtime or lib_erl_provider_status == 'ok')`, i.e. on a live bar
-   whose event provider is not `ok`. Until 2026-10-04 the condition was trust
-   `Insufficient`; that tier rests on `SIGNAL_QUALITY_TIER`, one universe-wide value
-   without structure/OB/FVG input, which was `low` in all 243 library refreshes since
-   2026-08-14 — Entry Best/Strict never fired, live or in history
-   (`docs/governance/long_dip_strategy_report_2026-10-04.md`). The `mp.*` values are a
-   one-day snapshot broadcast onto history, so the gate applies to live bars only, as the
-   Strategy's snapshot gates do.
+1. **Entry suppression at Insufficient** — `long_entry_best_state` and `long_entry_strict_state`
+   are forced `false` when trust is `Insufficient`. This propagates through BUS plots to
+   Strategy, so no new Strategy inputs are required.
 
-2. **Blocker text override** — when that gate suppresses, `long_strict_blocker_text` is set to
-   `'Blocked: Trust Insufficient'` so the hero card and alerts show the reason.
+2. **Blocker text override** — `long_strict_blocker_text` is set to `'Blocked: Trust Insufficient'`
+   so the hero card and alerts show the actual reason.
 
 3. **Confidence display fix** — `compose_trade_threshold_text()` now maps the actual trust tier
    values (`High`/`Guarded`/`Degraded`/`Insufficient`) instead of stale tier names
@@ -76,8 +66,8 @@ suppressed only on live bars whose event provider is not `ok` (see below).
    entry lifecycle. Now gates entry best/strict at `Insufficient`.
 
 4. **Dashboard/Core casing difference** — Dashboard: lowercase (`high`, `guarded`). Core: Title
-   Case (`High`, `Guarded`). Both resolvers consume the generated library's canonical
-   `EVENT_PROVIDER_STATUS`; only their output casing differs.
+   Case (`High`, `Guarded`). Semantically equivalent, separate resolvers. Not a functional bug;
+   documented for awareness.
 
 ## Design Principles
 

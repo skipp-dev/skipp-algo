@@ -31,7 +31,7 @@ from pathlib import Path
 
 import pytest
 
-from tests._guard_corpus import iter_production_py_files, parse_module
+from tests._guard_corpus import parse_module
 
 _ROOT = Path(__file__).resolve().parents[1]
 
@@ -60,11 +60,11 @@ _DIR_EXCLUDE = {
 #     added to all read_text/write_text sites); entry removed from _FROZEN_SITES.
 _FROZEN_SITES: dict[str, frozenset[int]] = {
     # 2026-06-28 (semantic monitoring): shifted +20 lines by readiness metrics.
-    "open_prep/realtime_signals.py": frozenset({209}),  # 2026-07-25 (databento-signal-migration): 208->209
+    "open_prep/realtime_signals.py": frozenset({208}),  # 2026-07-16 market-session import shifted site: 207->208
     "pine_apply_surface_reduction.py": frozenset({53, 87, 397, 471, 502, 555}),
     "pine_input_surface.py": frozenset({129, 156, 187, 260, 270, 344}),
     "scripts/investigate_universe_delta.py": frozenset({28}),
-    "streamlit_terminal.py": frozenset({1712}),  # 2026-07-23 (A1 horizons: outcomes import block above): 1706->1712
+    "streamlit_terminal.py": frozenset({1604}),  # 2026-07-20: remove retired TradingView UI surfaces
     # 2026-07-11: scripts/check_pine_library_age.py removed with the dead
     # TV→repo Pine-sync gate (repo is SSOT; see pine/PINE_LIBRARIES_AUDIT.md).
 }
@@ -72,11 +72,15 @@ _FROZEN_TOTAL = sum(len(v) for v in _FROZEN_SITES.values())
 
 
 def _iter_python_files() -> list[Path]:
-    return [
-        path
-        for path in iter_production_py_files(_DIR_EXCLUDE)
-        if not path.name.startswith("mutation_")
-    ]
+    out: list[Path] = []
+    for path in _ROOT.rglob("*.py"):
+        rel_parts = path.relative_to(_ROOT).parts
+        if any(part in _DIR_EXCLUDE for part in rel_parts):
+            continue
+        if path.name.startswith("mutation_"):
+            continue
+        out.append(path)
+    return out
 
 
 @functools.cache

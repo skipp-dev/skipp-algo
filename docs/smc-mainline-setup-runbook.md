@@ -17,7 +17,7 @@ Nothing else is needed for the standard mainline experience.
 - A TradingView account with Pine Script v6 support.
 - Access to the published or local copies of:
   - [../SMC_Long_Dip_Suite.pine](../SMC_Long_Dip_Suite.pine) (SMC Core)
-  - [../SMC_Decision_Board.pine](../SMC_Decision_Board.pine) (SMC Decision Board)
+  - [../SMC_Long_Dip_Dashboard.pine](../SMC_Long_Dip_Dashboard.pine) (SMC Decision Board)
   - [../SMC_Long_Dip_Strategy.pine](../SMC_Long_Dip_Strategy.pine) (SMC Execution)
 - A chart open on the intended symbol and timeframe.
 
@@ -43,7 +43,7 @@ SMC Core is the only producer. The remaining two scripts are consumers.
 1. In TradingView, add a second indicator to the same chart.
 2. Select `SMC Dashboard` from the published scripts or the editor.
 3. After adding, open the indicator settings.
-4. Navigate to the eight **Chart Link** source-binding groups (2-9).
+4. Navigate to the six **Operator Only** source-binding groups.
 
 ### Binding order
 
@@ -52,14 +52,12 @@ matching Core BUS exports. The groups appear in this order:
 
 | # | Group | Channels |
 | --- | --- | --- |
-| 1 | Decision State | 14 |
-| 2 | Context Signals | 3 |
-| 3 | Trade Plan | 3 |
-| 4 | Context Rows | 20 |
-| 5 | Blocker Codes | 4 |
-| 6 | Detail Surface | 13 |
-| 7 | Lean Surface | 2 |
-| 8 | Preset Contract | 5 |
+| 1 | Lifecycle BUS | 14 |
+| 2 | Diagnostic Rows | 20 |
+| 3 | Diagnostic Support | 7 |
+| 4 | Trade Plan | 3 |
+| 5 | Detail Surface | 13 |
+| 6 | Lean Surface | 2 |
 
 Every channel maps to exactly one Core BUS export with the same label name.
 Bind them strictly in the order they appear — top-to-bottom, group by group.
@@ -79,7 +77,7 @@ Bind them strictly in the order they appear — top-to-bottom, group by group.
 1. Add a third script to the same chart.
 2. Select `SMC Long Strategy` from the published scripts or the editor.
 3. Open the strategy settings.
-4. Navigate to the two **Chart Link** source-binding groups.
+4. Navigate to the two **Expert Mapping** source-binding groups.
 
 ### Binding order
 

@@ -45,7 +45,7 @@ from pathlib import Path
 
 import pytest
 
-from tests._guard_corpus import iter_production_py_files, parse_module
+from tests._guard_corpus import parse_module
 from tests._pin_registry import (
     field_preference_chain_file_counts,
     field_preference_chain_file_keys,
@@ -80,7 +80,16 @@ _FROZEN_TOTAL = sum(_FROZEN_FILE_COUNTS.values())
 
 
 def _iter_first_party_py_files() -> list[Path]:
-    return iter_production_py_files(_DIR_EXCLUDE)
+    out: list[Path] = []
+    for path in ROOT.rglob("*.py"):
+        try:
+            rel_parts = path.relative_to(ROOT).parts
+        except ValueError:
+            continue
+        if any(part in _DIR_EXCLUDE for part in rel_parts):
+            continue
+        out.append(path)
+    return sorted(out)
 
 
 def _get_literal_key(node: ast.AST) -> str | None:

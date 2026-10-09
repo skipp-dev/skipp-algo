@@ -61,7 +61,7 @@ _FROZEN_PRINT_COUNTS: dict[str, int] = {
     "pine_input_surface.py": 16,
     "test_usi_lint.py": 3,
     "smc_integration/provider_health.py": 1,
-    "open_prep/outcome_backfill.py": 5,  # 2026-07-27 (G3 ab-arm-labels summary print in main): 4->5
+    "open_prep/outcome_backfill.py": 4,
     "open_prep/candidate_weights.py": 4,
     "open_prep/feature_importance_report.py": 4,
     # 2026-05-12 (#2171 audit-L-1 PR-D R12+R3): consistency check CLI tools
@@ -76,11 +76,6 @@ _FROZEN_PRINT_COUNTS: dict[str, int] = {
     "governance/family_verdict.py": 1,
     # fmp_data_loader has a print-based main() demo block.
     "services/live_overlay_daemon/fmp_data_loader.py": 8,
-    # 2026-07-25 (databento-signal-migration): quote_reference CLI main() prints
-    # JSON output to stdout for the daily reference-build tool (error payloads +
-    # final summary), invoked as ``python -m open_prep.quote_reference`` — same
-    # documented-CLI-output pattern as the other tools in this ledger.
-    "open_prep/quote_reference.py": 4,  # 2026-07-28 (databento-native ADV): +1 DATABENTO_API_KEY-missing error payload, 3->4
 }
 _FROZEN_PRINT_TOTAL = sum(_FROZEN_PRINT_COUNTS.values())
 

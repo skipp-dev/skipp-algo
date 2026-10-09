@@ -42,7 +42,6 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from scripts.smc_atomic_write import atomic_write_text
-from scripts.smc_zone_priority import compute_family_combination_shadow
 
 # S-3 (TEMPORAL_NUMERICAL_AUDIT_2026-04-24): defense-in-depth seed for the
 # calibration pipeline. Currently no stochastic ops in this module, but a
@@ -416,20 +415,8 @@ def calibrate_from_benchmark(
     )
 
 
-def render_calibration_report(
-    cal: CalibrationResult,
-    *,
-    family_combination_shadow: dict[str, Any] | None = None,
-) -> str:
-    """Render a Markdown calibration report.
-
-    When ``family_combination_shadow`` (the output of
-    :func:`smc_zone_priority.compute_family_combination_shadow`) is supplied,
-    an observational "Family Score-Combination Shadow (A/B)" section is
-    appended so a reviewer reading the uploaded ``zone_priority_calibration.md``
-    can see whether the multiplicative arm would ever change the surfaced top
-    family. It never changes the production (additive) weights above.
-    """
+def render_calibration_report(cal: CalibrationResult) -> str:
+    """Render a Markdown calibration report."""
     lines: list[str] = [
         "# Zone Priority Calibration Report",
         "",
@@ -483,47 +470,6 @@ def render_calibration_report(
         lines.append(f"| {rank} | {cal.rank_thresholds[rank]} |")
     lines.append("| D | 0 |")
     lines.append("")
-
-    if family_combination_shadow is not None:
-        fcs = family_combination_shadow
-        prod = fcs.get("combination_production", "additive")
-        shadow = fcs.get("combination_shadow", "multiplicative")
-        lines.extend([
-            "## Family Score-Combination Shadow (A/B)",
-            "",
-            f"Observational only — the production top-family selection stays "
-            f"`{prod}`; the `{shadow}` arm is never fed back into "
-            "`build_zone_priority`.",
-            "",
-            f"- Contexts compared: {fcs.get('n_contexts', 0)}",
-            f"- Agree: {fcs.get('n_agree', 0)} "
-            f"({fcs.get('agreement_rate', 1.0):.2%})",
-            f"- Would change top family under `{shadow}`: "
-            f"{fcs.get('n_disagree', 0)}",
-            "",
-        ])
-        disagreements = fcs.get("disagreements") or []
-        if disagreements:
-            lines.extend([
-                "| Regime | Vol | Session | HTF | Additive | Multiplicative | Δscore |",
-                "|--------|-----|---------|-----|----------|----------------|-------:|",
-            ])
-            for d in disagreements:
-                session = d.get("session")
-                lines.append(
-                    f"| {d.get('regime', '')} | {d.get('vol_regime', '')} | "
-                    f"{session if session is not None else '—'} | "
-                    f"{'Y' if d.get('htf_aligned') else 'N'} | "
-                    f"{d.get('additive_family', '')} | "
-                    f"{d.get('multiplicative_family', '')} | "
-                    f"{d.get('score_delta', 0.0):.4f} |"
-                )
-        else:
-            lines.append(
-                "No context in the canonical grid changes its top family "
-                f"under `{shadow}` scaling."
-            )
-        lines.append("")
 
     return "\n".join(lines)
 
@@ -1347,16 +1293,6 @@ def main(argv: list[str] | None = None) -> None:
 
     cal = calibrate_from_benchmark(args.benchmark_dir, smoothing=args.smoothing)
 
-    # F3 shadow A/B (observational): score the top-family selection under both
-    # the production `additive` mode and the experimental `multiplicative`
-    # mode across the canonical context grid, using the freshly-calibrated
-    # family weights. Recorded into the report + JSON below so additive-vs-
-    # multiplicative evidence accumulates; NEVER fed back into
-    # build_zone_priority, so the live/Pine output stays additive.
-    family_combination_shadow = compute_family_combination_shadow(
-        calibrated_family_weights=cal.family_weights,
-    )
-
     # Frame-integrity audit 2026-07-13: a family with zero scored events gets
     # its PRIOR as "calibrated" weight — loud, never silent. (FVG hit this for
     # weeks: label horizon 20 bars > the 19-bar rolling frames.)
@@ -1396,10 +1332,6 @@ def main(argv: list[str] | None = None) -> None:
     payload = to_json(cal, frozen_provenance=frozen_provenance)
     if testable:
         payload["testable_calibration"] = testable
-    # F3 shadow A/B block (additive is production; multiplicative is the
-    # observed-only arm). Additive metadata — a follow-up gate reads
-    # `agreement_rate` / `disagreements`; no existing consumer depends on it.
-    payload["family_combination_shadow"] = family_combination_shadow
     atomic_write_text(json.dumps(payload, indent=2) + "\n", args.output_path)
 
     # H3 history feed — append a compact history entry alongside the
@@ -1409,12 +1341,7 @@ def main(argv: list[str] | None = None) -> None:
 
     # Write Markdown report alongside
     md_path = args.output_path.with_suffix(".md")
-    atomic_write_text(
-        render_calibration_report(
-            cal, family_combination_shadow=family_combination_shadow
-        ),
-        md_path,
-    )
+    atomic_write_text(render_calibration_report(cal), md_path)
 
     print(f"Calibration written to {args.output_path}")
     print(f"Report written to {md_path}")
@@ -1425,16 +1352,6 @@ def main(argv: list[str] | None = None) -> None:
         delta = w - prior
         sign = "+" if delta >= 0 else ""
         print(f"  {fam}: {prior:.2f} → {w:.4f} ({sign}{delta:.4f})")
-
-    print()
-    print(
-        "Family score-combination shadow (A/B): "
-        f"{family_combination_shadow['n_agree']}/"
-        f"{family_combination_shadow['n_contexts']} contexts agree "
-        f"({family_combination_shadow['agreement_rate']:.2%}); "
-        f"{family_combination_shadow['n_disagree']} would change top family "
-        "under multiplicative (shadow-only, production stays additive)."
-    )
 
     if testable:
         print()

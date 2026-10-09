@@ -12,7 +12,7 @@ import subprocess
 from datetime import UTC, datetime
 
 CUTOFF = datetime(2026, 4, 30, 21, 2, 1, tzinfo=UTC)
-REPO = "skipp-dev/skipp-algo"
+REPO = "skippALGO/skipp-algo"
 WORKFLOWS = [
     "c13-daily-cron",
     "phase-b-promotion-readiness",
