@@ -1,0 +1,89 @@
+{
+  "audit_branch": {
+    "last_commit_date": "2026-10-09"
+  },
+  "fills": {
+    "closed_cumulative": 2,
+    "filled_cumulative": 40,
+    "newest_incubation_date": "2026-08-18",
+    "submit_failed_cumulative": 45,
+    "target": 40
+  },
+  "generated_at_unix": 1791608953.844109,
+  "ledger": {
+    "candidate_pass": 0,
+    "newest_date": "2026-10-09",
+    "plane": "1D",
+    "rows": 172,
+    "usable_samples": {
+      "BOS": 46,
+      "FVG": 6,
+      "OB": 19,
+      "SWEEP": 99
+    }
+  },
+  "portfolio_shadow": {
+    "decision_count": 3,
+    "evidence_complete": false,
+    "incomplete_decisions": 0,
+    "latest_decision_at": "2026-08-18T13:28:22.896751+00:00",
+    "latest_reconciliation_at": "2026-08-17T21:05:11.926665+00:00",
+    "latest_reconciliation_max_abs_quantity_delta": 0.0,
+    "latest_reconciliation_reconciled": true,
+    "latest_snapshot_age_seconds": 14.185449,
+    "latest_snapshot_max_age_seconds": 120.0,
+    "max_projected_gross_pct": 1.6351862634750451,
+    "min_correlation_coverage_pct": 0.0,
+    "min_shadow_sessions_for_review": 20,
+    "newest_risk_relevant_session": "2026-08-18",
+    "promotion": "manual_only",
+    "reason_counts": {
+      "projected_open_positions": 3,
+      "risk_at_stop_coverage": 3
+    },
+    "reconciliation_dispositions_unused": 0,
+    "reconciliation_failures": 0,
+    "reconciliation_sessions": 2,
+    "risk_relevant_decision_count": 3,
+    "risk_relevant_sessions_dispositioned": 1,
+    "risk_relevant_sessions_missing_reconciliation": 0,
+    "risk_relevant_sessions_observed": 3,
+    "schema_version": "1.1",
+    "sessions_observed": 3,
+    "status": "observing",
+    "submission_attempt_count": 3,
+    "submission_attempts_without_prior_evaluation": 0,
+    "verdict_counts": {
+      "reject": 3
+    }
+  },
+  "samples": {
+    "per_family": {
+      "BOS": {
+        "classification": "operational",
+        "usable": 40
+      },
+      "FVG": {
+        "classification": "control",
+        "usable": 6
+      },
+      "OB": {
+        "classification": "control",
+        "usable": 19
+      },
+      "SWEEP": {
+        "classification": "proof_of_concept_15m",
+        "usable": 40
+      }
+    },
+    "target": 40
+  },
+  "submitter": {
+    "known": 1,
+    "submit_code_behind_commits": 0
+  },
+  "wsh": {
+    "newest_date": "2026-09-04",
+    "status": "degraded:no-events"
+  }
+}
