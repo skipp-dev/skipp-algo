@@ -1,0 +1,410 @@
+{
+  "generatedAt": "2026-10-10T05:40:57.000Z",
+  "generated_at_unix": 1791610857,
+  "libraries": [
+    {
+      "name": "smc_bus_private",
+      "tvVersion": 3,
+      "tvVersionKnown": true,
+      "dataAsOf": "",
+      "dataAsOfUnix": null,
+      "dataAsOfKnown": false,
+      "consumers": [
+        {
+          "file": "SMC_Long_Dip_Suite.pine",
+          "pinnedVersion": 3,
+          "drift": false
+        },
+        {
+          "file": "SMC++/smc_context_resolvers.pine",
+          "pinnedVersion": 3,
+          "drift": false
+        }
+      ],
+      "anyConsumerDrift": false,
+      "payloadKnown": false,
+      "payloadUniverseSize": null,
+      "payloadUniverseSymbols": 0,
+      "payloadListSymbols": 0
+    },
+    {
+      "name": "smc_context_engine_private",
+      "tvVersion": 5,
+      "tvVersionKnown": true,
+      "dataAsOf": "",
+      "dataAsOfUnix": null,
+      "dataAsOfKnown": false,
+      "consumers": [
+        {
+          "file": "SMC_Context_Bus.pine",
+          "pinnedVersion": 5,
+          "drift": false
+        }
+      ],
+      "anyConsumerDrift": false,
+      "payloadKnown": false,
+      "payloadUniverseSize": null,
+      "payloadUniverseSymbols": 0,
+      "payloadListSymbols": 0
+    },
+    {
+      "name": "smc_context_resolvers",
+      "tvVersion": 3,
+      "tvVersionKnown": true,
+      "dataAsOf": "",
+      "dataAsOfUnix": null,
+      "dataAsOfKnown": false,
+      "consumers": [
+        {
+          "file": "SMC_Long_Dip_Suite.pine",
+          "pinnedVersion": 3,
+          "drift": false
+        }
+      ],
+      "anyConsumerDrift": false,
+      "payloadKnown": false,
+      "payloadUniverseSize": null,
+      "payloadUniverseSymbols": 0,
+      "payloadListSymbols": 0
+    },
+    {
+      "name": "smc_core_types",
+      "tvVersion": 5,
+      "tvVersionKnown": true,
+      "dataAsOf": "",
+      "dataAsOfUnix": null,
+      "dataAsOfKnown": false,
+      "consumers": [
+        {
+          "file": "SMC_Long_Dip_Suite.pine",
+          "pinnedVersion": 5,
+          "drift": false
+        },
+        {
+          "file": "SMC++/smc_context_engine_private.pine",
+          "pinnedVersion": 5,
+          "drift": false
+        },
+        {
+          "file": "SMC++/smc_engine_private.pine",
+          "pinnedVersion": 5,
+          "drift": false
+        },
+        {
+          "file": "SMC++/smc_utils.pine",
+          "pinnedVersion": 5,
+          "drift": false
+        }
+      ],
+      "anyConsumerDrift": false,
+      "payloadKnown": false,
+      "payloadUniverseSize": null,
+      "payloadUniverseSymbols": 0,
+      "payloadListSymbols": 0
+    },
+    {
+      "name": "smc_draw",
+      "tvVersion": 3,
+      "tvVersionKnown": true,
+      "dataAsOf": "",
+      "dataAsOfUnix": null,
+      "dataAsOfKnown": false,
+      "consumers": [
+        {
+          "file": "SMC_Long_Dip_Suite.pine",
+          "pinnedVersion": 3,
+          "drift": false
+        },
+        {
+          "file": "SMC++/smc_context_engine_private.pine",
+          "pinnedVersion": 3,
+          "drift": false
+        },
+        {
+          "file": "SMC++/smc_engine_private.pine",
+          "pinnedVersion": 3,
+          "drift": false
+        },
+        {
+          "file": "SMC++/smc_profile_engine.pine",
+          "pinnedVersion": 3,
+          "drift": false
+        }
+      ],
+      "anyConsumerDrift": false,
+      "payloadKnown": false,
+      "payloadUniverseSize": null,
+      "payloadUniverseSymbols": 0,
+      "payloadListSymbols": 0
+    },
+    {
+      "name": "smc_engine_private",
+      "tvVersion": 3,
+      "tvVersionKnown": true,
+      "dataAsOf": "",
+      "dataAsOfUnix": null,
+      "dataAsOfKnown": false,
+      "consumers": [
+        {
+          "file": "SMC_Breakout_Overlay.pine",
+          "pinnedVersion": 3,
+          "drift": false
+        },
+        {
+          "file": "SMC_Long_Dip_Alerts.pine",
+          "pinnedVersion": 3,
+          "drift": false
+        },
+        {
+          "file": "SMC_Long_Dip_Suite.pine",
+          "pinnedVersion": 3,
+          "drift": false
+        },
+        {
+          "file": "SMC++/smc_context_engine_private.pine",
+          "pinnedVersion": 3,
+          "drift": false
+        }
+      ],
+      "anyConsumerDrift": false,
+      "payloadKnown": false,
+      "payloadUniverseSize": null,
+      "payloadUniverseSymbols": 0,
+      "payloadListSymbols": 0
+    },
+    {
+      "name": "smc_lifecycle_private",
+      "tvVersion": 3,
+      "tvVersionKnown": true,
+      "dataAsOf": "",
+      "dataAsOfUnix": null,
+      "dataAsOfKnown": false,
+      "consumers": [
+        {
+          "file": "SMC_Long_Dip_Suite.pine",
+          "pinnedVersion": 3,
+          "drift": false
+        },
+        {
+          "file": "SMC++/smc_engine_private.pine",
+          "pinnedVersion": 3,
+          "drift": false
+        }
+      ],
+      "anyConsumerDrift": false,
+      "payloadKnown": false,
+      "payloadUniverseSize": null,
+      "payloadUniverseSymbols": 0,
+      "payloadListSymbols": 0
+    },
+    {
+      "name": "smc_micro_profiles_generated",
+      "tvVersion": 578,
+      "tvVersionKnown": true,
+      "dataAsOf": "2026-10-05",
+      "dataAsOfUnix": 1791158400,
+      "dataAsOfKnown": true,
+      "consumers": [
+        {
+          "file": "SMC_Confluence_Hub.pine",
+          "pinnedVersion": 569,
+          "drift": true
+        },
+        {
+          "file": "SMC_Decision_Board.pine",
+          "pinnedVersion": 569,
+          "drift": true
+        },
+        {
+          "file": "SMC_Event_Overlay.pine",
+          "pinnedVersion": 569,
+          "drift": true
+        },
+        {
+          "file": "SMC_Hold_Manager.pine",
+          "pinnedVersion": 569,
+          "drift": true
+        },
+        {
+          "file": "SMC_Imbalance_Context.pine",
+          "pinnedVersion": 569,
+          "drift": true
+        },
+        {
+          "file": "SMC_Liquidity_Context.pine",
+          "pinnedVersion": 569,
+          "drift": true
+        },
+        {
+          "file": "SMC_Liquidity_Structure.pine",
+          "pinnedVersion": 569,
+          "drift": true
+        },
+        {
+          "file": "SMC_Long_Dip_Alerts.pine",
+          "pinnedVersion": 569,
+          "drift": true
+        },
+        {
+          "file": "SMC_Long_Dip_Mobile.pine",
+          "pinnedVersion": 569,
+          "drift": true
+        },
+        {
+          "file": "SMC_Long_Dip_Strategy.pine",
+          "pinnedVersion": 569,
+          "drift": true
+        },
+        {
+          "file": "SMC_Long_Dip_Suite.pine",
+          "pinnedVersion": 569,
+          "drift": true
+        },
+        {
+          "file": "SMC_Orderflow_Overlay.pine",
+          "pinnedVersion": 569,
+          "drift": true
+        },
+        {
+          "file": "SMC_Profile_Context.pine",
+          "pinnedVersion": 569,
+          "drift": true
+        },
+        {
+          "file": "SMC_Structure_Context.pine",
+          "pinnedVersion": 569,
+          "drift": true
+        }
+      ],
+      "anyConsumerDrift": true,
+      "payloadKnown": true,
+      "payloadUniverseSize": 6952,
+      "payloadUniverseSymbols": 6952,
+      "payloadListSymbols": 902
+    },
+    {
+      "name": "smc_observability_private",
+      "tvVersion": 4,
+      "tvVersionKnown": true,
+      "dataAsOf": "",
+      "dataAsOfUnix": null,
+      "dataAsOfKnown": false,
+      "consumers": [
+        {
+          "file": "SMC_Long_Dip_Suite.pine",
+          "pinnedVersion": 4,
+          "drift": false
+        }
+      ],
+      "anyConsumerDrift": false,
+      "payloadKnown": false,
+      "payloadUniverseSize": null,
+      "payloadUniverseSymbols": 0,
+      "payloadListSymbols": 0
+    },
+    {
+      "name": "smc_profile_engine",
+      "tvVersion": 3,
+      "tvVersionKnown": true,
+      "dataAsOf": "",
+      "dataAsOfUnix": null,
+      "dataAsOfKnown": false,
+      "consumers": [
+        {
+          "file": "SMC_Long_Dip_Suite.pine",
+          "pinnedVersion": 3,
+          "drift": false
+        },
+        {
+          "file": "SMC++/smc_context_engine_private.pine",
+          "pinnedVersion": 3,
+          "drift": false
+        },
+        {
+          "file": "SMC++/smc_engine_private.pine",
+          "pinnedVersion": 3,
+          "drift": false
+        }
+      ],
+      "anyConsumerDrift": false,
+      "payloadKnown": false,
+      "payloadUniverseSize": null,
+      "payloadUniverseSymbols": 0,
+      "payloadListSymbols": 0
+    },
+    {
+      "name": "smc_utils",
+      "tvVersion": 4,
+      "tvVersionKnown": true,
+      "dataAsOf": "",
+      "dataAsOfUnix": null,
+      "dataAsOfKnown": false,
+      "consumers": [
+        {
+          "file": "SMC_Decision_Board.pine",
+          "pinnedVersion": 4,
+          "drift": false
+        },
+        {
+          "file": "SMC_Event_Overlay.pine",
+          "pinnedVersion": 4,
+          "drift": false
+        },
+        {
+          "file": "SMC_Hold_Manager.pine",
+          "pinnedVersion": 4,
+          "drift": false
+        },
+        {
+          "file": "SMC_Long_Dip_Alerts.pine",
+          "pinnedVersion": 4,
+          "drift": false
+        },
+        {
+          "file": "SMC_Long_Dip_Strategy.pine",
+          "pinnedVersion": 4,
+          "drift": false
+        },
+        {
+          "file": "SMC_Long_Dip_Suite.pine",
+          "pinnedVersion": 4,
+          "drift": false
+        },
+        {
+          "file": "SMC++/smc_context_engine_private.pine",
+          "pinnedVersion": 4,
+          "drift": false
+        },
+        {
+          "file": "SMC++/smc_context_resolvers.pine",
+          "pinnedVersion": 4,
+          "drift": false
+        },
+        {
+          "file": "SMC++/smc_engine_private.pine",
+          "pinnedVersion": 4,
+          "drift": false
+        },
+        {
+          "file": "SMC++/smc_observability_private.pine",
+          "pinnedVersion": 4,
+          "drift": false
+        },
+        {
+          "file": "SMC++/smc_profile_engine.pine",
+          "pinnedVersion": 4,
+          "drift": false
+        }
+      ],
+      "anyConsumerDrift": false,
+      "payloadKnown": false,
+      "payloadUniverseSize": null,
+      "payloadUniverseSymbols": 0,
+      "payloadListSymbols": 0
+    }
+  ],
+  "anyDrift": true,
+  "librariesProbed": 11,
+  "librariesDrifted": 1,
+  "facadeError": ""
+}
