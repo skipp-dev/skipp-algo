@@ -271,7 +271,7 @@ def test_all_export_declarations_are_accounted_for() -> None:
 def test_core_engine_imports_profile_engine_as_pe() -> None:
     source = _read_core_source()
 
-    assert 'import preuss_steffen/smc_profile_engine/3 as pe' in source
+    assert 'import preuss_steffen/smc_profile_engine/4 as pe' in source
 
 
 def test_core_engine_uses_pe_profile_type() -> None:

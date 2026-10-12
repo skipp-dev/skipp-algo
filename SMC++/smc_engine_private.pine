@@ -9,7 +9,7 @@ import preuss_steffen/smc_core_types/5 as ct
 import preuss_steffen/smc_utils/4 as u
 import preuss_steffen/smc_draw/3 as d
 import preuss_steffen/smc_lifecycle_private/3 as ll
-import preuss_steffen/smc_profile_engine/3 as pe
+import preuss_steffen/smc_profile_engine/4 as pe
 
 /////////////////////////////////////////////////////////////////////////////////
 
@@ -242,6 +242,7 @@ export method reset_tracking(OrderBlock this) =>
     this.touched_break_price_before_confirmation := false
     this.soft_confirmed := false
     this.has_fvg_out := false
+    this.has_big_candle := false   // v4 (Review #8): klebte bisher an allen späteren Kästen
     this.broken := false
     this.broken_time := na
     this.broken_index := na
@@ -307,7 +308,9 @@ export method remove_insignificant(OrderBlock[] blocks, float min_size, float ma
             block = blocks.get(i)
             size = block.left_top.price - block.right_bottom.price
             bool is_protected = not na(protected_id) and block.id == protected_id
-            if not is_protected and (size < min_size or max_size < size)
+            // v4 (Review #2): Bestätigung erlaubt max_size * Kastenlänge, die Bereinigung prüfte nur max_size
+            float max_size_for_block = max_size * math.max(block.right_bottom.index - block.left_top.index + 1, 1)
+            if not is_protected and (size < min_size or max_size_for_block < size)
                 log.info("clearing out old OB to free memory (top: {0} | bottom: {1}) with size ({2}) outside range (min: {3} | max: {4})", block.left_top.price, block.right_bottom.price, size, min_size, max_size)
 
                 if not na(removed_buffer)
@@ -477,7 +480,8 @@ export track_obs(
             _check_ext = bear_ob.extending
 
             if bear_ob.left_top.price < high
-                if barstate.isconfirmed and use_retracements_with_FVG_out and is_fvg_up
+                // v4 (Review #5): gleiche Schutzbedingung wie auf der bullischen Seite
+                if barstate.isconfirmed and _check_start_i < bar_index - 1 and use_retracements_with_FVG_out and is_fvg_up
                     if not _check_ext[2] and not tracking_blocks_bull.any_overlaps(_check_top[2], _check_btm[2]) and not bull_ob.overlaps_range(_check_top[2], _check_btm[2])
                         next_id += 1
                         bull_ob_confirmed := create_ob(next_id, 1, _check_start_t[2], _check_start_i[2], _check_top[2], _check_end_t[2], _check_end_i[2], _check_btm[2], _check_break[2], broken_by)
@@ -548,6 +552,13 @@ export track_obs(
                     bull_ob.id := next_id
                     bull_ob_confirmed := bull_ob.copy()
                     bull_ob_confirmed.id := bull_ob.id
+                    // v4 (Review #1): eigene Arrays, sonst teilen alle bestätigten OB die Profildaten des Trackers;
+                    // reset_tracking() und Profile.delete() leerten sie für alle
+                    bull_ob_confirmed.ltf_open := bull_ob.ltf_open.copy()
+                    bull_ob_confirmed.ltf_high := bull_ob.ltf_high.copy()
+                    bull_ob_confirmed.ltf_low := bull_ob.ltf_low.copy()
+                    bull_ob_confirmed.ltf_close := bull_ob.ltf_close.copy()
+                    bull_ob_confirmed.ltf_volume := bull_ob.ltf_volume.copy()
                     bull_ob_confirmed.left_top := bull_ob.left_top.copy()
                     bull_ob_confirmed.right_bottom := bull_ob.right_bottom.copy()
 
@@ -582,6 +593,13 @@ export track_obs(
                     bear_ob.id := next_id
                     bear_ob_confirmed := bear_ob.copy()
                     bear_ob_confirmed.id := bear_ob.id
+                    // v4 (Review #1): eigene Arrays, sonst teilen alle bestätigten OB die Profildaten des Trackers;
+                    // reset_tracking() und Profile.delete() leerten sie für alle
+                    bear_ob_confirmed.ltf_open := bear_ob.ltf_open.copy()
+                    bear_ob_confirmed.ltf_high := bear_ob.ltf_high.copy()
+                    bear_ob_confirmed.ltf_low := bear_ob.ltf_low.copy()
+                    bear_ob_confirmed.ltf_close := bear_ob.ltf_close.copy()
+                    bear_ob_confirmed.ltf_volume := bear_ob.ltf_volume.copy()
                     bear_ob_confirmed.left_top := bear_ob.left_top.copy()
                     bear_ob_confirmed.right_bottom := bear_ob.right_bottom.copy()
 
@@ -592,7 +610,8 @@ export track_obs(
                     bear_ob_confirmed.break_price := resolve_confirmed_ob_break_price(align_edge_to_value_area, align_break_price_to_poc, bear_ob.left_top.price, bear_ob.right_bottom.price, bear_ob_confirmed.left_top.price, bear_ob_confirmed.right_bottom.price, bear_ob_confirmed.break_price)
                     bear_ob.profile := na
 
-                    if is_fvg_down and low[2] < bear_ob_confirmed.right_bottom.price and bear_ob_confirmed.right_bottom.price < high
+                    // v4 (Review #7): Spiegel der bullischen Zeile; vorher low[2] < Unterkante < high, mit is_fvg_down unerfüllbar
+                    if is_fvg_down and high < bear_ob_confirmed.right_bottom.price and bear_ob_confirmed.right_bottom.price < low[2]
                         bear_ob_confirmed.has_fvg_out := true
 
                     tracking_blocks_bear.push(bear_ob_confirmed)
@@ -744,7 +763,6 @@ detect_pivot(simple int mode, int trend, int hhll_x, float hhll, float super_hhl
         => false
 
     if structure_detected and lvl_cross and y != sy
-        lvl_cross := false
         trend_concordant := true
 
         if filter_insignificant_internal_breaks
@@ -762,6 +780,7 @@ detect_pivot(simple int mode, int trend, int hhll_x, float hhll, float super_hhl
             trend_concordant := big_candle or impulse_wick
 
         if trend_concordant
+            lvl_cross := false   // v4 (Review #4): erst bei gültigem Bruch verbrauchen
             _trend = (trend != 1 and trend != -1 ? 1 : trend)
             choch_alert := mode == _trend * -1
             bos_alert := mode == _trend
@@ -874,6 +893,7 @@ export type FVG
     d.SmcLine plot_fill_target_level = na
     d.SmcLabel plot_fill_target_label = na
     bool hidden = false
+    float size_threshold_at_creation = na   // v4 (Review #6)
 
 export method rendered_right_time(FVG this, bool extend_until_filled = true) =>
     int rendered_right_time_value = na
@@ -1520,7 +1540,8 @@ _detect_fvg_object(int mode, bool enabled, float size_threshold = 0, ct.LevelBre
          fill_target_level = mode == 1 ? top - fill_target_ratio * size : btm + fill_target_ratio * size,
          fill_current_ratio = 0,
          fill_current_level = mode == 1 ? top : btm,
-         total_volume = volume[2] + volume[1] + volume)
+         total_volume = volume[2] + volume[1] + volume,
+         size_threshold_at_creation = size_threshold)
         new_fvg.quality_score := math.max(0.0, math.min(1.0, 0.15 + math.min(size / math.max(size_threshold * 3.0, syminfo.mintick), 1.0) * 0.35 + (new_fvg.total_volume > 0 ? 0.10 : 0.0) + 0.15))
         [true, new_fvg]
     else
@@ -1640,7 +1661,9 @@ export method remove_insignificant(FVG[] fvgs, float size_threshold, FVG[] remov
             fvg = fvgs.get(i)
             size = fvg.left_top.price - fvg.right_bottom.price
             bool is_protected = not na(protected_id) and fvg.id == protected_id
-            if not is_protected and size < size_threshold
+            // v5 (Review #3): gegen die Schwelle beim Entstehen messen statt gegen das heutige ATR; sonst verschwanden noch
+            // offene FVG, sobald das ATR stieg, und das Ergebnis hing an der geladenen Historie (bar_index % gc_cycle)
+            if not is_protected and size < nz(fvg.size_threshold_at_creation, size_threshold)
                 log.info("clearing out old FVG to free memory (top: {0} | bottom: {1}) with size ({2}) below threshold ({3})", fvg.left_top.price, fvg.right_bottom.price, size, size_threshold)
                 if not na(removed_buffer)
                     removed_buffer.push(fvg)
@@ -1717,7 +1740,8 @@ export method draw(FVG this, FVGConfig config, bool extend_only = true, simple b
     else
 
         if barstate.islast and not na(this) and (config.show_box or config.show_target)
-            float fvg_quality = config.show_quality_score ? fvg_quality_score(this, this.left_top.price - this.right_bottom.price) : 0.0
+            // v4 (Review #6): vorher wurde die Lückengröße als ihre eigene Schwelle übergeben (Größenanteil immer 1/3)
+            float fvg_quality = config.show_quality_score ? fvg_quality_score(this, nz(this.size_threshold_at_creation, 0.0)) : 0.0
             txt_quality = config.show_quality_score and fvg_quality > 0 ? str.format('(Q {0,number,percent})', fvg_quality) : ''
             txt = str.format('{0}{1}', config.show_text ? config.txt + ' ' : '', config.show_target_label ? '' : txt_quality)
 
