@@ -7,43 +7,43 @@
     "used": "cpu"
   },
   "directional_era_samples_dropped": 0,
-  "duplicate_samples_dropped": 896,
+  "duplicate_samples_dropped": 883,
   "era_gated_samples_dropped": 0,
   "ewma_recalibration": {
     "activation_allowed": false,
     "fdr_significant": false,
     "feature": "ewma_score_shadow",
     "live_weight_unchanged": true,
-    "mean_separation": 0.2948,
-    "measured_labeled_samples": 284,
+    "mean_separation": 0.2571,
+    "measured_labeled_samples": 282,
     "min_samples_threshold": 200,
-    "p_value": 0.013813,
-    "pearson_r": 0.1457,
+    "p_value": 0.032517,
+    "pearson_r": 0.1272,
     "recommended_weight": null,
     "shortfall": 0,
     "status": "not_fdr_significant"
   },
   "formula_era_samples_dropped": 0,
-  "generated_at_et": "2026-10-09T18:26:42.686093-04:00",
-  "labeled_samples": 309,
+  "generated_at_et": "2026-10-12T18:26:32.179263-04:00",
+  "labeled_samples": 307,
   "lookback_days": 30,
   "min_samples_threshold": 200,
   "ranking_drift": {
     "drifted_features": [
       {
-        "current": 11,
-        "delta": 8,
+        "current": 5,
+        "delta": -6,
         "feature": "days_since_last_earnings",
-        "previous": 3
+        "previous": 11
       },
       {
-        "current": 11,
-        "delta": 6,
-        "feature": "days_to_next_earnings",
-        "previous": 5
+        "current": 10,
+        "delta": 4,
+        "feature": "ewma_score_shadow",
+        "previous": 6
       }
     ],
-    "max_position_delta": 8,
+    "max_position_delta": 6,
     "position_threshold": 3,
     "status": "warn",
     "top_n": 10
@@ -57,68 +57,68 @@
       "used": "cpu"
     },
     "directional_era_samples_dropped": 0,
-    "duplicate_samples_dropped": 896,
+    "duplicate_samples_dropped": 883,
     "era_gated_samples_dropped": 0,
     "features": {
       "analyst_catalyst_component": {
         "fdr_significant": false,
-        "importance_normalized": 0.0102,
-        "mean_loss": 0.1629,
-        "mean_separation": 0.0047,
-        "mean_win": 0.1613,
-        "measured_samples": 309,
-        "p_value": 0.967511,
-        "pearson_r": -0.0023
+        "importance_normalized": 0.0226,
+        "mean_loss": 0.1616,
+        "mean_separation": 0.0091,
+        "mean_win": 0.1647,
+        "measured_samples": 307,
+        "p_value": 0.937028,
+        "pearson_r": 0.0045
       },
       "avg_pair_correlation": {
         "fdr_significant": false,
-        "importance_normalized": 0.007,
-        "mean_loss": 0.0773,
-        "mean_separation": 0.0032,
-        "mean_win": 0.0774,
-        "measured_samples": 309,
-        "p_value": 0.977236,
-        "pearson_r": 0.0016
+        "importance_normalized": 0.0216,
+        "mean_loss": 0.078,
+        "mean_separation": 0.0087,
+        "mean_win": 0.0779,
+        "measured_samples": 307,
+        "p_value": 0.939361,
+        "pearson_r": -0.0043
       },
       "cs_dispersion": {
-        "fdr_significant": false,
-        "importance_normalized": 0.7238,
-        "mean_loss": 2.3008,
-        "mean_separation": 0.3326,
-        "mean_win": 2.4679,
-        "measured_samples": 309,
-        "p_value": 0.003844,
-        "pearson_r": 0.164
+        "fdr_significant": true,
+        "importance_normalized": 0.8897,
+        "mean_loss": 2.2595,
+        "mean_separation": 0.3581,
+        "mean_win": 2.4323,
+        "measured_samples": 307,
+        "p_value": 0.002035,
+        "pearson_r": 0.176
       },
       "days_since_last_earnings": {
         "fdr_significant": false,
-        "importance_normalized": 0.4033,
-        "mean_loss": 37.0303,
-        "mean_separation": 0.1853,
+        "importance_normalized": 0.7702,
+        "mean_loss": 40.3333,
+        "mean_separation": 0.31,
         "mean_win": 31.8519,
         "measured_samples": 60,
-        "p_value": 0.477984,
-        "pearson_r": -0.0934
+        "p_value": 0.237299,
+        "pearson_r": -0.1549
       },
       "days_to_next_earnings": {
         "fdr_significant": false,
-        "importance_normalized": 0.2812,
-        "mean_loss": 55.7879,
-        "mean_separation": 0.1292,
+        "importance_normalized": 0.6701,
+        "mean_loss": 51.8788,
+        "mean_separation": 0.2697,
         "mean_win": 59.5185,
         "measured_samples": 60,
-        "p_value": 0.618918,
-        "pearson_r": 0.0652
+        "p_value": 0.30093,
+        "pearson_r": 0.1352
       },
       "dist_to_ema20_pct": {
         "fdr_significant": false,
-        "importance_normalized": 0.0736,
-        "mean_loss": 16.1586,
-        "mean_separation": 0.0338,
-        "mean_win": 17.0425,
-        "measured_samples": 305,
-        "p_value": 0.762151,
-        "pearson_r": 0.0169
+        "importance_normalized": 0.1078,
+        "mean_loss": 15.9284,
+        "mean_separation": 0.0434,
+        "mean_win": 17.0651,
+        "measured_samples": 303,
+        "p_value": 0.697799,
+        "pearson_r": 0.0217
       },
       "earnings_bmo_component": {
         "fdr_significant": false,
@@ -126,19 +126,19 @@
         "mean_loss": 0.0,
         "mean_separation": 0.0,
         "mean_win": 0.0,
-        "measured_samples": 309,
+        "measured_samples": 307,
         "p_value": 1.0,
         "pearson_r": 0.0
       },
       "ema50_slope_pct": {
         "fdr_significant": false,
-        "importance_normalized": 0.355,
-        "mean_loss": 0.9697,
-        "mean_separation": 0.1631,
-        "mean_win": 0.4971,
-        "measured_samples": 294,
-        "p_value": 0.155293,
-        "pearson_r": -0.0813
+        "importance_normalized": 0.3637,
+        "mean_loss": 0.9645,
+        "mean_separation": 0.1464,
+        "mean_win": 0.5379,
+        "measured_samples": 292,
+        "p_value": 0.202514,
+        "pearson_r": -0.0729
       },
       "estimate_revision_component": {
         "fdr_significant": false,
@@ -146,79 +146,79 @@
         "mean_loss": 0.0,
         "mean_separation": 0.0,
         "mean_win": 0.0,
-        "measured_samples": 309,
+        "measured_samples": 307,
         "p_value": 1.0,
         "pearson_r": 0.0
       },
       "ewma_score_shadow": {
         "fdr_significant": false,
-        "importance_normalized": 0.6416,
-        "mean_loss": 0.3197,
-        "mean_separation": 0.2948,
-        "mean_win": 0.3897,
-        "measured_samples": 284,
-        "p_value": 0.013813,
-        "pearson_r": 0.1457
+        "importance_normalized": 0.6388,
+        "mean_loss": 0.3251,
+        "mean_separation": 0.2571,
+        "mean_win": 0.3868,
+        "measured_samples": 282,
+        "p_value": 0.032517,
+        "pearson_r": 0.1272
       },
       "ext_hours_component": {
         "fdr_significant": false,
-        "importance_normalized": 0.5049,
-        "mean_loss": 0.73,
-        "mean_separation": 0.232,
-        "mean_win": 0.7999,
-        "measured_samples": 309,
-        "p_value": 0.04178,
-        "pearson_r": 0.1152
+        "importance_normalized": 0.5324,
+        "mean_loss": 0.7144,
+        "mean_separation": 0.2143,
+        "mean_win": 0.7812,
+        "measured_samples": 307,
+        "p_value": 0.061971,
+        "pearson_r": 0.1064
       },
       "freshness_component": {
         "fdr_significant": false,
-        "importance_normalized": 0.1852,
-        "mean_loss": 0.2882,
-        "mean_separation": 0.0851,
-        "mean_win": 0.2828,
-        "measured_samples": 309,
-        "p_value": 0.451841,
-        "pearson_r": -0.0425
+        "importance_normalized": 0.1657,
+        "mean_loss": 0.2867,
+        "mean_separation": 0.0667,
+        "mean_win": 0.2824,
+        "measured_samples": 307,
+        "p_value": 0.555949,
+        "pearson_r": -0.0333
       },
       "gap_component": {
         "fdr_significant": false,
-        "importance_normalized": 0.5412,
-        "mean_loss": 1.8082,
-        "mean_separation": 0.2487,
-        "mean_win": 2.563,
-        "measured_samples": 309,
-        "p_value": 0.030877,
-        "pearson_r": 0.1234
+        "importance_normalized": 0.6693,
+        "mean_loss": 1.5597,
+        "mean_separation": 0.2694,
+        "mean_win": 2.3317,
+        "measured_samples": 307,
+        "p_value": 0.020531,
+        "pearson_r": 0.1333
       },
       "gap_range_pos": {
         "fdr_significant": false,
-        "importance_normalized": 0.1767,
-        "mean_loss": 7.0985,
-        "mean_separation": 0.0812,
-        "mean_win": 0.9821,
-        "measured_samples": 298,
-        "p_value": 0.445944,
-        "pearson_r": -0.0406
+        "importance_normalized": 0.2266,
+        "mean_loss": 7.8082,
+        "mean_separation": 0.0912,
+        "mean_win": 0.9308,
+        "measured_samples": 295,
+        "p_value": 0.392415,
+        "pearson_r": -0.0455
       },
       "gap_sector_rel_component": {
         "fdr_significant": false,
-        "importance_normalized": 0.3872,
-        "mean_loss": 2.1386,
-        "mean_separation": 0.1779,
-        "mean_win": 2.7298,
-        "measured_samples": 309,
-        "p_value": 0.120129,
-        "pearson_r": 0.0886
+        "importance_normalized": 0.4624,
+        "mean_loss": 1.9534,
+        "mean_separation": 0.1861,
+        "mean_win": 2.5655,
+        "measured_samples": 307,
+        "p_value": 0.106335,
+        "pearson_r": 0.0925
       },
       "hvb_component": {
         "fdr_significant": false,
-        "importance_normalized": 0.0694,
-        "mean_loss": 0.1527,
-        "mean_separation": 0.0319,
-        "mean_win": 0.1479,
-        "measured_samples": 309,
-        "p_value": 0.779576,
-        "pearson_r": -0.016
+        "importance_normalized": 0.0288,
+        "mean_loss": 0.1571,
+        "mean_separation": 0.0116,
+        "mean_win": 0.1554,
+        "measured_samples": 307,
+        "p_value": 0.919283,
+        "pearson_r": -0.0058
       },
       "institutional_component": {
         "fdr_significant": false,
@@ -226,144 +226,143 @@
         "mean_loss": 0.0,
         "mean_separation": 0.0,
         "mean_win": 0.0,
-        "measured_samples": 309,
+        "measured_samples": 307,
         "p_value": 1.0,
         "pearson_r": 0.0
       },
       "intraday_efficiency_ratio": {
         "fdr_significant": false,
-        "importance_normalized": 0.1171,
-        "mean_loss": 0.1836,
-        "mean_separation": 0.0538,
-        "mean_win": 0.1861,
-        "measured_samples": 309,
-        "p_value": 0.644083,
-        "pearson_r": 0.0269
+        "importance_normalized": 0.124,
+        "mean_loss": 0.1848,
+        "mean_separation": 0.0499,
+        "mean_win": 0.1871,
+        "measured_samples": 307,
+        "p_value": 0.670744,
+        "pearson_r": 0.0249
       },
       "macro_component": {
         "fdr_significant": false,
-        "importance_normalized": 0.1232,
-        "mean_loss": 0.0399,
-        "mean_separation": 0.0566,
-        "mean_win": 0.0465,
-        "measured_samples": 309,
-        "p_value": 0.623655,
-        "pearson_r": 0.0283
+        "importance_normalized": 0.167,
+        "mean_loss": 0.0397,
+        "mean_separation": 0.0672,
+        "mean_win": 0.0475,
+        "measured_samples": 307,
+        "p_value": 0.563276,
+        "pearson_r": 0.0335
       },
       "market_efficiency_ratio": {
         "fdr_significant": false,
-        "importance_normalized": 0.1615,
-        "mean_loss": 0.2868,
-        "mean_separation": 0.0742,
-        "mean_win": 0.2908,
-        "measured_samples": 309,
-        "p_value": 0.518798,
-        "pearson_r": 0.0371
+        "importance_normalized": 0.2191,
+        "mean_loss": 0.2879,
+        "mean_separation": 0.0882,
+        "mean_win": 0.2926,
+        "measured_samples": 307,
+        "p_value": 0.445839,
+        "pearson_r": 0.044
       },
       "momentum_component": {
         "fdr_significant": false,
-        "importance_normalized": 0.5247,
-        "mean_loss": 1.3369,
-        "mean_separation": 0.2411,
-        "mean_win": 1.5481,
-        "measured_samples": 309,
-        "p_value": 0.035988,
-        "pearson_r": 0.1197
+        "importance_normalized": 0.605,
+        "mean_loss": 1.3245,
+        "mean_separation": 0.2435,
+        "mean_win": 1.5393,
+        "measured_samples": 307,
+        "p_value": 0.035288,
+        "pearson_r": 0.1207
       },
       "news_component": {
         "fdr_significant": false,
-        "importance_normalized": 0.4596,
-        "mean_loss": 0.0305,
-        "mean_separation": 0.2112,
-        "mean_win": 0.0533,
-        "measured_samples": 309,
-        "p_value": 0.069229,
-        "pearson_r": 0.105
+        "importance_normalized": 0.5995,
+        "mean_loss": 0.0286,
+        "mean_separation": 0.2413,
+        "mean_win": 0.0545,
+        "measured_samples": 307,
+        "p_value": 0.039919,
+        "pearson_r": 0.1196
       },
       "news_directional_score": {
         "fdr_significant": false,
-        "importance_normalized": 0.3654,
-        "mean_loss": 0.0156,
-        "mean_separation": 0.1679,
-        "mean_win": 0.025,
-        "measured_samples": 309,
-        "p_value": 0.146671,
-        "pearson_r": 0.0837
+        "importance_normalized": 0.488,
+        "mean_loss": 0.0146,
+        "mean_separation": 0.1964,
+        "mean_win": 0.0256,
+        "measured_samples": 307,
+        "p_value": 0.092681,
+        "pearson_r": 0.0976
       },
       "recent_eps_surprise_pct": {
         "fdr_significant": false,
-        "importance_normalized": 0.8255,
-        "mean_loss": 9.7633,
-        "mean_separation": 0.3793,
+        "importance_normalized": 0.9329,
+        "mean_loss": 9.8781,
+        "mean_separation": 0.3755,
         "mean_win": 22.1371,
         "measured_samples": 60,
-        "p_value": 0.176823,
-        "pearson_r": 0.1885
+        "p_value": 0.181133,
+        "pearson_r": 0.1866
       },
       "revenue_surprise_pct": {
         "fdr_significant": false,
         "importance_normalized": 1.0,
-        "mean_loss": 6.4496,
-        "mean_separation": 0.4595,
-        "mean_win": 9.5498,
-        "measured_samples": 20,
-        "p_value": 0.255839,
-        "pearson_r": 0.2167
+        "mean_loss": 6.5627,
+        "mean_separation": 0.4025,
+        "mean_win": 9.4381,
+        "measured_samples": 18,
+        "p_value": 0.358972,
+        "pearson_r": 0.1878
       },
       "rvol_component": {
         "fdr_significant": false,
-        "importance_normalized": 0.2091,
-        "mean_loss": 0.4893,
-        "mean_separation": 0.0961,
-        "mean_win": 0.4611,
-        "measured_samples": 309,
-        "p_value": 0.399411,
-        "pearson_r": -0.048
+        "importance_normalized": 0.2412,
+        "mean_loss": 0.4987,
+        "mean_separation": 0.0971,
+        "mean_win": 0.4703,
+        "measured_samples": 307,
+        "p_value": 0.396531,
+        "pearson_r": -0.0485
       },
       "trend_alignment": {
         "fdr_significant": true,
-        "importance_normalized": 0.8209,
-        "mean_loss": 0.2468,
-        "mean_separation": 0.3772,
-        "mean_win": -0.0534,
-        "measured_samples": 285,
-        "p_value": 0.001451,
-        "pearson_r": -0.1854
+        "importance_normalized": 0.9602,
+        "mean_loss": 0.2532,
+        "mean_separation": 0.3865,
+        "mean_win": -0.0547,
+        "measured_samples": 282,
+        "p_value": 0.001174,
+        "pearson_r": -0.1896
       },
       "vix9d_vix_ratio": {
         "fdr_significant": false,
-        "importance_normalized": 0.5188,
-        "mean_loss": 0.8299,
-        "mean_separation": 0.2384,
-        "mean_win": 0.8428,
-        "measured_samples": 309,
-        "p_value": 0.037634,
-        "pearson_r": 0.1184
+        "importance_normalized": 0.6745,
+        "mean_loss": 0.8236,
+        "mean_separation": 0.2715,
+        "mean_win": 0.8383,
+        "measured_samples": 307,
+        "p_value": 0.018453,
+        "pearson_r": 0.1344
       },
       "vwap_distance_component": {
         "fdr_significant": false,
-        "importance_normalized": 0.4283,
-        "mean_loss": 1.603,
-        "mean_separation": 0.1968,
-        "mean_win": 1.7169,
-        "measured_samples": 309,
-        "p_value": 0.085267,
-        "pearson_r": 0.0979
+        "importance_normalized": 0.5016,
+        "mean_loss": 1.5937,
+        "mean_separation": 0.2019,
+        "mean_win": 1.7108,
+        "measured_samples": 307,
+        "p_value": 0.079169,
+        "pearson_r": 0.1003
       },
       "zone_priority_score": {
         "fdr_significant": false,
-        "importance_normalized": 0.6496,
-        "mean_loss": 44.8982,
-        "mean_separation": 0.2985,
-        "mean_win": 45.9789,
-        "measured_samples": 309,
-        "p_value": 0.008254,
-        "pearson_r": 0.1476
+        "importance_normalized": 0.7605,
+        "mean_loss": 44.8274,
+        "mean_separation": 0.3061,
+        "mean_win": 45.9353,
+        "measured_samples": 307,
+        "p_value": 0.00699,
+        "pearson_r": 0.1511
       }
     },
     "formula_era_samples_dropped": 0,
     "labeled_sample_dates": [
-      "2026-07-30",
       "2026-07-31",
       "2026-08-03",
       "2026-08-04",
@@ -398,28 +397,27 @@
       "2026-10-01",
       "2026-10-05",
       "2026-10-06",
-      "2026-10-09"
+      "2026-10-09",
+      "2026-10-12"
     ],
-    "labeled_samples": 309,
+    "labeled_samples": 307,
     "recommendations": [
-      "\ud83d\udd34 macro_component: weak predictor (importance=0.12). Consider reducing weight.",
-      "\ud83d\udd34 hvb_component: weak predictor (importance=0.07). Consider reducing weight.",
+      "\ud83d\udd34 macro_component: weak predictor (importance=0.17). Consider reducing weight.",
+      "\ud83d\udd34 hvb_component: weak predictor (importance=0.03). Consider reducing weight.",
       "\ud83d\udd34 earnings_bmo_component: weak predictor (importance=0.00). Consider reducing weight.",
-      "\ud83d\udd34 analyst_catalyst_component: weak predictor (importance=0.01). Consider reducing weight.",
-      "\ud83d\udd34 freshness_component: weak predictor (importance=0.19). Consider reducing weight.",
+      "\ud83d\udd34 analyst_catalyst_component: weak predictor (importance=0.02). Consider reducing weight.",
+      "\ud83d\udd34 freshness_component: weak predictor (importance=0.17). Consider reducing weight.",
       "\ud83d\udd34 institutional_component: weak predictor (importance=0.00). Consider reducing weight.",
       "\ud83d\udd34 estimate_revision_component: weak predictor (importance=0.00). Consider reducing weight.",
-      "\ud83d\udd34 dist_to_ema20_pct: weak predictor (importance=0.07). Consider reducing weight.",
-      "\ud83d\udd34 gap_range_pos: weak predictor (importance=0.18). Consider reducing weight.",
-      "\ud83d\udd34 market_efficiency_ratio: weak predictor (importance=0.16). Consider reducing weight.",
+      "\ud83d\udd34 dist_to_ema20_pct: weak predictor (importance=0.11). Consider reducing weight.",
       "\ud83d\udd34 intraday_efficiency_ratio: weak predictor (importance=0.12). Consider reducing weight.",
-      "\ud83d\udd34 avg_pair_correlation: weak predictor (importance=0.01). Consider reducing weight."
+      "\ud83d\udd34 avg_pair_correlation: weak predictor (importance=0.02). Consider reducing weight."
     ],
     "sample_dates_filter": null,
-    "total_samples": 309
+    "total_samples": 307
   },
-  "run_id": "20261009T182642",
+  "run_id": "20261012T182632",
   "shortfall": 0,
   "status": "ok",
-  "total_samples": 309
+  "total_samples": 307
 }

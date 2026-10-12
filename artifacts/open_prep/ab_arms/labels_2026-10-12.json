@@ -1,0 +1,60 @@
+{
+  "day": "2026-10-12",
+  "labels": {
+    "AMT": {
+      "pnl_30m_pct": -0.2979,
+      "profitable_30m": false,
+      "source": "outcomes"
+    },
+    "CCI": {
+      "pnl_30m_pct": 1.348,
+      "profitable_30m": true,
+      "source": "outcomes"
+    },
+    "KLRA": {
+      "pnl_30m_pct": -0.6146,
+      "profitable_30m": false,
+      "source": "outcomes"
+    },
+    "NVAX": {
+      "pnl_30m_pct": 1.2306,
+      "profitable_30m": true,
+      "source": "outcomes"
+    },
+    "PANW": {
+      "pnl_30m_pct": -2.2365,
+      "profitable_30m": false,
+      "source": "outcomes"
+    },
+    "PLTR": {
+      "pnl_30m_pct": -0.1435,
+      "profitable_30m": false,
+      "source": "outcomes"
+    },
+    "QETA": {
+      "pnl_30m_pct": null,
+      "profitable_30m": null,
+      "source": "pending"
+    },
+    "SNOW": {
+      "pnl_30m_pct": -1.4256,
+      "profitable_30m": false,
+      "source": "outcomes"
+    },
+    "SVC": {
+      "pnl_30m_pct": -10.1971,
+      "profitable_30m": false,
+      "source": "outcomes"
+    },
+    "TDOT": {
+      "pnl_30m_pct": null,
+      "profitable_30m": null,
+      "source": "pending"
+    }
+  },
+  "pending": [
+    "QETA",
+    "TDOT"
+  ],
+  "schema_version": 1
+}
