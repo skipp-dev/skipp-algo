@@ -790,6 +790,23 @@ _DYNAMIC_EMITTED_FAMILIES: tuple[tuple[str, str], ...] = (
 )
 
 
+def _disable_remote_snapshots(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Set every ``config._snapshot_url`` key present-but-empty, which disables it.
+
+    ``delenv`` is not enough: an ABSENT key makes ``_snapshot_url`` fall back to the
+    repo's ``bot/live-*`` branch on GitHub, and a successful fetch is persisted into
+    ``artifacts/live_overlay/`` of the checkout the tests run in. Keys are derived
+    from the config source so a new remote snapshot cannot silently go live in tests.
+    """
+    from services.live_overlay_daemon import config as overlay_config
+
+    source = Path(overlay_config.__file__).read_text(encoding="utf-8")
+    keys = set(re.findall(r'_snapshot_url\(\s*"([A-Z0-9_]+)"', source))
+    assert len(keys) >= 10, sorted(keys)
+    for key in keys:
+        monkeypatch.setenv(key, "")
+
+
 def _hermetic_daemon_render(monkeypatch: pytest.MonkeyPatch) -> str:
     """Render the daemon exposition with every optional upstream disabled."""
     for var in (
@@ -811,6 +828,7 @@ def _hermetic_daemon_render(monkeypatch: pytest.MonkeyPatch) -> str:
         "RAILWAY_METRICS_ENABLED",
     ):
         monkeypatch.delenv(var, raising=False)
+    _disable_remote_snapshots(monkeypatch)
     import services.live_overlay_daemon.metrics as metrics_mod
 
     return metrics_mod.render_metrics(100.0, 1_700_000_000.0)
