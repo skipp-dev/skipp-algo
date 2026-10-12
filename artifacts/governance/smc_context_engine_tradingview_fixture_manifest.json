@@ -1,7 +1,7 @@
 {
   "canonicalSource": {
     "path": "SMC++/smc_context_engine_private.pine",
-    "sha256": "e5b8359bbef94ee000bfee9de6dedd92685ac0471bcbc583855d8920f3e66f16"
+    "sha256": "b8d8018bc1d9376ebe073368b3be0f2c7298178c90c1492d5ce4aaac003661f8"
   },
   "caseCount": 15,
   "cases": [
@@ -210,7 +210,7 @@
     "derivation": "canonical_source_with_library_exports_removed",
     "path": "tests/fixtures/pine/smc_context_engine_r3_fixture.pine",
     "scriptName": "SMC Context Engine R3 Fixture TEST ONLY",
-    "sha256": "245bdff5ea1bc6535f24e1364a67c486ef08632030918fd79701d08b0d3f962b"
+    "sha256": "bd80f888cfca46811b53a6d3ad014dfdcfdc72e88849b35c5b7450adaf50d24e"
   },
   "gate": "R3-REMAINING-FRAMES",
   "gateStatus": "partial",
