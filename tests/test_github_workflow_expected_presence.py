@@ -11,6 +11,9 @@ disappearance, and the alert leg that reads it.
 
 from __future__ import annotations
 
+import re
+from pathlib import Path
+
 import pytest
 
 from services.live_overlay_daemon import config, github_workflow_bridge, metrics
@@ -138,6 +141,23 @@ def _fetch_with_runs(
     return github_workflow_bridge._fetch_snapshot("token")
 
 
+def _disable_remote_snapshots(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Set every ``config._snapshot_url`` key present-but-empty, which disables it.
+
+    ``delenv`` is not enough: an ABSENT key makes ``_snapshot_url`` fall back to the
+    repo's ``bot/live-*`` branch on GitHub, and a successful fetch is persisted into
+    ``artifacts/live_overlay/`` of the checkout the tests run in. Keys are derived
+    from the config source so a new remote snapshot cannot silently go live in tests.
+    """
+    from services.live_overlay_daemon import config as overlay_config
+
+    source = Path(overlay_config.__file__).read_text(encoding="utf-8")
+    keys = set(re.findall(r'_snapshot_url\(\s*"([A-Z0-9_]+)"', source))
+    assert len(keys) >= 10, sorted(keys)
+    for key in keys:
+        monkeypatch.setenv(key, "")
+
+
 def _render(monkeypatch: pytest.MonkeyPatch, workflow_snapshot: dict[str, object]) -> str:
     """Run the REAL exporter over a given github-workflow bridge snapshot.
 
@@ -146,6 +166,7 @@ def _render(monkeypatch: pytest.MonkeyPatch, workflow_snapshot: dict[str, object
     the failure this file is here to catch.
     """
     monkeypatch.setattr(github_workflow_bridge, "snapshot", lambda: workflow_snapshot)
+    _disable_remote_snapshots(monkeypatch)
     return metrics.render_metrics(100.0, 1_700_000_000.0)
 
 

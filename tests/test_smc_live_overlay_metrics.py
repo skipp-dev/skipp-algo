@@ -19,6 +19,23 @@ import pytest
 import yaml
 
 
+def _disable_remote_snapshots(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Set every ``config._snapshot_url`` key present-but-empty, which disables it.
+
+    ``delenv`` is not enough: an ABSENT key makes ``_snapshot_url`` fall back to the
+    repo's ``bot/live-*`` branch on GitHub, and a successful fetch is persisted into
+    ``artifacts/live_overlay/`` of the checkout the tests run in. Keys are derived
+    from the config source so a new remote snapshot cannot silently go live in tests.
+    """
+    from services.live_overlay_daemon import config as overlay_config
+
+    source = Path(overlay_config.__file__).read_text(encoding="utf-8")
+    keys = set(re.findall(r'_snapshot_url\(\s*"([A-Z0-9_]+)"', source))
+    assert len(keys) >= 10, sorted(keys)
+    for key in keys:
+        monkeypatch.setenv(key, "")
+
+
 @pytest.fixture(autouse=True)
 def _reset_compute_news_loader_cache(monkeypatch: pytest.MonkeyPatch) -> None:
     """Avoid cross-test bleed from compute._load_news_snapshot() TTL globals."""
@@ -28,6 +45,7 @@ def _reset_compute_news_loader_cache(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(compute_mod, "_news_loaded_at", 0.0)
     monkeypatch.setattr(compute_mod, "_news_checked_at", 0.0)
     monkeypatch.setattr(compute_mod, "_news_cache", {})
+    _disable_remote_snapshots(monkeypatch)
 
 
 def test_sanitize_name_rejects_invalid_prometheus_characters() -> None:
