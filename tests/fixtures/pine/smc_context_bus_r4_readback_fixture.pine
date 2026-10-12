@@ -1,5 +1,5 @@
 //@version=6
-// GENERATED FROM SMC_Context_Bus.pine SHA256 f73c00a2467a27bd2570e355ff2830dd887a997d71e4d080f96a134bed28be80
+// GENERATED FROM SMC_Context_Bus.pine SHA256 223bb3753c702a21e24f3323174e166076997e0ab64f5bd1cab4401e4fd7e6e7
 // TEST ONLY — DO NOT PUBLISH, DO NOT ADD TO THE MANAGED ROLLOUT
 // Regenerate with scripts/generate_smc_context_bus_r4_readback_fixture.py.
 // Readback for the R4-OVERLAY parity gate: channels are re-flagged to
@@ -16,7 +16,7 @@
 // This producer is observational and cannot gate Suite trades.
 indicator("SMC Context Bus R4 Readback TEST ONLY", overlay = false)
 
-import preuss_steffen/smc_context_engine_private/5 as ctx
+import preuss_steffen/smc_context_engine_private/6 as ctx
 
 const int SCHEMA_VERSION = 8001
 
