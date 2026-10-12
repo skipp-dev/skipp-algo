@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import importlib
 import json
+import re
 from contextlib import ExitStack
+from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
@@ -339,8 +341,27 @@ def test_snapshot_graphql_errors_treated_as_failure() -> None:
     assert result["error"] == "fetch_error"
 
 
-def test_render_metrics_includes_railway_gauges() -> None:
+def _disable_remote_snapshots(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Set every ``config._snapshot_url`` key present-but-empty, which disables it.
+
+    ``delenv`` is not enough: an ABSENT key makes ``_snapshot_url`` fall back to the
+    repo's ``bot/live-*`` branch on GitHub, and a successful fetch is persisted into
+    ``artifacts/live_overlay/`` of the checkout the tests run in. Keys are derived
+    from the config source so a new remote snapshot cannot silently go live in tests.
+    """
+    from services.live_overlay_daemon import config as overlay_config
+
+    source = Path(overlay_config.__file__).read_text(encoding="utf-8")
+    keys = set(re.findall(r'_snapshot_url\(\s*"([A-Z0-9_]+)"', source))
+    assert len(keys) >= 10, sorted(keys)
+    for key in keys:
+        monkeypatch.setenv(key, "")
+
+
+def test_render_metrics_includes_railway_gauges(monkeypatch: pytest.MonkeyPatch) -> None:
     from services.live_overlay_daemon import metrics
+
+    _disable_remote_snapshots(monkeypatch)
 
     snapshot = {
         "enabled": True,
