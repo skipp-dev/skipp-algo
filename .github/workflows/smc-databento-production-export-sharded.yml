@@ -267,7 +267,7 @@ jobs:
 
       - name: Upload shard plan
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: a9b-2a-shard-plan
           path: shards.json
@@ -319,7 +319,7 @@ jobs:
 
       # F-V8-perf (2026-05-18): uv installer (mirrors ci.yml + #2285/#2286).
       - name: Install uv
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           enable-cache: true
           cache-dependency-glob: requirements*.txt
@@ -407,7 +407,7 @@ jobs:
 
       - name: Upload shard artifact (always)
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: a9b-2b-shard-${{ matrix.shard_id }}-of-${{ matrix.shard_of }}
           path: |
@@ -423,7 +423,7 @@ jobs:
         # the shard. The dedicated test pin lives in
         # tests/test_smc_databento_production_export_sharded_workflow.py.
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: cache-probe-shard-${{ matrix.shard_id }}-of-${{ matrix.shard_of }}
           path: artifacts/ci/cache_probe_shard_${{ matrix.shard_id }}.jsonl
@@ -457,7 +457,7 @@ jobs:
       # requirements.txt, but reduce only set up bare Python and failed with
       # ``No module named 'pandas'`` after downloading every shard artifact.
       - name: Install uv
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           enable-cache: true
           cache-dependency-glob: requirements*.txt
@@ -472,7 +472,7 @@ jobs:
         # overwrites shard-K-1 in the workspace. Pattern matches every
         # producer-emitted artifact regardless of how many shards the
         # plan dispatched.
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: a9b-2b-shard-*-of-*
           path: shard-artifacts/
@@ -656,7 +656,7 @@ jobs:
 
       - name: Upload merged manifest
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: a9b-2b-merged-manifest
           path: artifacts/merged/
@@ -721,7 +721,7 @@ jobs:
         uses: ./.github/actions/setup-python-pinned
 
       - name: Download merged manifest artifact
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: a9b-2b-merged-manifest
           path: artifacts/merged/
@@ -830,7 +830,7 @@ jobs:
 
       - name: Upload compat export bundle (legacy artifact name)
         if: success() && steps.compat_stage.outputs.skip_compat == 'false'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: smc-databento-production-export-${{ steps.compat_stage.outputs.export_date }}-${{ github.run_id }}
           path: artifacts/export-compat/
