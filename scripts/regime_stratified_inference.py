@@ -18,18 +18,6 @@ shuffles. ``regime_stratified_permutation`` wraps it with a
 within-bucket shuffle so any aggregate p-value still respects the
 regime concentration test from
 ``scripts.regime_stratification.detect_regime_concentration``.
-
-Wiring status (2026-07-29, ADR-0031 — supersedes the "shadow/unwired"
-note from earlier the same day)
-----------------------------------------------------------------------
-Production caller: ``scripts/build_regime_stratified_report.py`` (daily in
-``promotion-gate-daily.yml``) feeds :func:`regime_stratified_bootstrap`
-with the Variant-A per-trade series (regime-tagged, see
-``scripts/build_returns_series.py``) and commits
-``docs/calibration/gates/regime_stratified_<date>.json``, which
-``emit_public_calibration_report`` embeds into the public report.
-:func:`regime_stratified_permutation` remains two-sample-only and has no
-single-series caller (by design — it needs a second arm).
 """
 
 from __future__ import annotations

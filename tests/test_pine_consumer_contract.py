@@ -204,12 +204,11 @@ V5_FIELD_INVENTORY: set[str] = {
 # Fields the Engine actually reads via ``mp.FIELD``
 ENGINE_CONSUMED_FIELDS: set[str] = {
     "ASOF_DATE", "ASOF_TIME", "BREAKING_NEWS_TICKERS",
-    "CLEAN_RECLAIM_TICKERS", "EARNINGS_SOON_TICKERS", "EARNINGS_TODAY_TICKERS",
+    "CLEAN_RECLAIM_TICKERS", "EARNINGS_TODAY_TICKERS",
     "EARNINGS_TOMORROW_TICKERS", "ENSEMBLE_QUALITY_SCORE",
     "ENSEMBLE_QUALITY_TIER", "EVENT_PROVIDER_STATUS", "EVENT_RISK_LEVEL",
     "EVENT_WINDOW_STATE", "FAST_DECAY_TICKERS", "FVG_FRESH",
     "FVG_INVALIDATED", "GLOBAL_HEAT", "HIGH_IMPACT_MACRO_TODAY",
-    "HIGH_RISK_EVENT_TICKERS",
     "HIGH_IMPACT_NEWS_COUNT", "INSTITUTIONAL_ACCUMULATION_TICKERS",
     "INSTITUTIONAL_DISTRIBUTION_TICKERS", "IN_KILLZONE",
     "MACRO_BIAS_PE_ADJUSTMENT", "MACRO_BIAS_RAW", "MACRO_EVENT_NAME",
@@ -464,7 +463,7 @@ class TestBusChannelContract:
     def test_dashboard_channels_subset_of_engine(self):
         engine_text = _read_pine("SMC_Long_Dip_Suite.pine")
         published = _extract_bus_plots(engine_text)
-        dash_text = _read_pine("SMC_Decision_Board.pine")
+        dash_text = _read_pine("SMC_Long_Dip_Dashboard.pine")
         consumed = _extract_bus_inputs(dash_text)
         assert consumed == DASHBOARD_BUS_CHANNELS, (
             f"Dashboard BUS input mismatch.\n"
@@ -657,17 +656,9 @@ class TestV55LeanContract:
         assert not missing, f"v5.5 lean fields missing from inventory: {missing}"
 
     def test_all_lean_fields_consumed_by_engine(self):
-        """Every v5.5 lean field is consumed somewhere or explicitly classified.
-
-        2026-07-30 (R5-REBUILD): accept PYTHON_ONLY_EXPORTS alongside
-        RESERVED_PINE_EXPORTS. The rebuilt Session Context computes its
-        direction from confirmed chart data, so SESSION_DIRECTION_BIAS lost its
-        Pine consumer by design. It is a deliberate Python-only demotion, not
-        reserved debt awaiting a Pine consumer, and the audit module records it
-        as such. An unclassified lean field still fails here.
-        """
+        """Every v5.5 lean field is consumed somewhere or explicitly reserved."""
         from tests.test_library_field_audit import (
-            _INFRA_ONLY,
+            RESERVED_PINE_EXPORTS,
             _collect_pine_mp_refs,
         )
 
@@ -676,10 +667,10 @@ class TestV55LeanContract:
             all_lean |= fields
         missing = all_lean - ENGINE_CONSUMED_FIELDS
         pine_consumed = set().union(*_collect_pine_mp_refs().values())
-        unclassified = missing - _INFRA_ONLY - pine_consumed
+        unclassified = missing - RESERVED_PINE_EXPORTS - pine_consumed
         assert not unclassified, (
-            "v5.5 lean fields are neither consumed nor explicitly classified "
-            f"as Python-only/reserved: {unclassified}"
+            "v5.5 lean fields are neither consumed nor reserved: "
+            f"{unclassified}"
         )
 
     def test_lean_field_count(self):
@@ -770,18 +761,11 @@ class TestV55DriftGuard:
             'string lib_next_event_time    = mp.NEXT_EVENT_TIME',
             'string lib_next_event_impact  = mp.NEXT_EVENT_IMPACT',
             'bool   lib_market_event_blocked = mp.MARKET_EVENT_BLOCKED',
+            'bool   lib_symbol_event_blocked = mp.SYMBOL_EVENT_BLOCKED and str.contains(mp.EARNINGS_SOON_TICKERS, syminfo.ticker)',
             'bool   lib_event_cooldown       = mp.EVENT_COOLDOWN_ACTIVE',
             'bool   event_risk_light_hard_block = not event_risk_gate_ok',
         ):
             assert fragment not in text, f'Legacy event-risk alias should stay removed: {fragment}'
-        assert (
-            "u.csv_has_symbol_token(mp.HIGH_RISK_EVENT_TICKERS, "
-            "current_symbol_key, current_symbol_key_qualified)"
-        ) in text, "Aggregate symbol-event risk must be scoped to the exact chart symbol"
-        assert (
-            "u.csv_has_symbol_token(mp.EARNINGS_SOON_TICKERS, "
-            "current_symbol_key, current_symbol_key_qualified)"
-        ) in text, "Aggregate earnings risk must be scoped to the exact chart symbol"
 
     def test_lean_pack_a_carries_event_risk_light_fields(self):
         """LeanPackA must continue to transport the lean event-risk light inputs."""
@@ -1074,7 +1058,6 @@ class TestV80aContractSync:
         assert isinstance(fvg["PRIMARY_FVG_DISTANCE"], (int, float))
         assert 0.0 <= fvg["FVG_FILL_PCT"] <= 1.0
         assert fvg["FVG_MATURITY_LEVEL"] in (0, 1, 2, 3)
-        assert isinstance(fvg["FVG_NET_IMBALANCE"], int)
         assert isinstance(fvg["FVG_FRESH"], bool)
         assert isinstance(fvg["FVG_INVALIDATED"], bool)
 

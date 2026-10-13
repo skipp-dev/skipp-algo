@@ -266,8 +266,8 @@ def _dedupe_events_internal(events: list[dict[str, Any]]) -> tuple[list[dict[str
             continue
 
         existing = kept[key]
-        existing_score = (_event_impact_rank(existing), _to_float(existing.get("actual")) is not None)  # M4/#3987 parity: parseable numeric actual wins the tie-break, not a placeholder
-        new_score = (_event_impact_rank(cloned), _to_float(cloned.get("actual")) is not None)  # M4/#3987 parity: as above
+        existing_score = (_event_impact_rank(existing), existing.get("actual") is not None)
+        new_score = (_event_impact_rank(cloned), cloned.get("actual") is not None)
         if new_score > existing_score:
             dropped[key].append(existing)
             kept[key] = cloned
@@ -341,7 +341,7 @@ def _summarize_macro_event_audit(event_audit: list[dict[str, Any]]) -> dict[str,
 
 
 def _macro_orientation(canonical_event: str) -> float:
-    if canonical_event.startswith(("cpi", "core_cpi", "ppi", "core_ppi", "pce", "core_pce", "jobless_claims", "unemployment_rate")):  # unemployment_rate = labor weakness (higher=worse) => risk-off; mirrors open_prep/macro.py
+    if canonical_event.startswith(("cpi", "core_cpi", "ppi", "core_ppi", "pce", "core_pce", "jobless_claims")):
         return -1.0
     return 1.0
 

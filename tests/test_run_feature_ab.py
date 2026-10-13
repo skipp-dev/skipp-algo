@@ -31,7 +31,6 @@ def _bars_with_volume(n: int, anchor_bar: int) -> list[dict[str, float]]:
     return [
         {
             "timestamp": _T0 + i * _STEP,
-            "open": closes[i] - 0.5,
             "high": closes[i] + 1.0,
             "low": closes[i] - 1.0,
             "close": closes[i],

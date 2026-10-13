@@ -37,7 +37,7 @@ import tempfile
 from pathlib import Path
 
 DEFAULT_BRANCH = "bot/live-universe-snapshot"
-DEFAULT_REPO = "skipp-dev/skipp-algo"
+DEFAULT_REPO = "skippALGO/skipp-algo"
 # Directory the per-day snapshots live in, identical inside the bot branch and
 # on-host so the layout mirrors 1:1.
 STORE_DIR = "artifacts/universe"

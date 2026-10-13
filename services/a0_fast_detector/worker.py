@@ -114,12 +114,6 @@ class _Processor:
     telemetry: A0FastTelemetry
     pre_a0: PreA0Runtime | None = None
     recovery_retry_after: dict[str, float] = field(default_factory=dict)
-    source_replay_requested: bool = False
-
-    def consume_source_replay_request(self) -> bool:
-        requested = self.source_replay_requested
-        self.source_replay_requested = False
-        return requested
 
     def process(self, item: BufferedBar) -> bool:
         """Process one bar; return True when a required resync is complete."""
@@ -141,7 +135,6 @@ class _Processor:
             StreamApplyStatus.BOOTSTRAP_REQUIRED,
             StreamApplyStatus.GAP_DETECTED,
         ):
-            self.telemetry.require_resync(symbol)
             if self.pre_a0 is not None:
                 self.pre_a0.reset(symbol)
             retry_at = self.recovery_retry_after.get(symbol, 0.0)
@@ -153,7 +146,6 @@ class _Processor:
             )
             if recovery.status is not RecoveryStatus.RECOVERED:
                 self.recovery_retry_after[symbol] = time.monotonic() + 30.0
-                self.source_replay_requested = True
                 logger.warning(
                     "A0-Fast recovery failed for %s: status=%s error=%s",
                     symbol,
@@ -175,7 +167,6 @@ class _Processor:
                 return recovered
         if result.status is not StreamApplyStatus.ACCEPTED or result.snapshot is None:
             return recovered
-        self.telemetry.acknowledge_resync(symbol)
         if self.pre_a0 is not None:
             try:
                 pre_result = self.pre_a0.process(result.snapshot)
@@ -261,22 +252,16 @@ def run() -> None:
             telemetry.set_buffer(buffer.snapshot())
             reason = "connection_failed"
             try:
-                replay_start = _live_replay_start()
-                state.begin_source_replay(replay_start.timestamp())
-                processor.recovery_retry_after.clear()
                 reader = start_live_reader(
                     lambda: db.Live(key=api_key),
                     symbols=symbols,
                     buffer=buffer,
                     telemetry=telemetry,
-                    replay_start=replay_start,
                 )
                 logger.info(
-                    "A0-Fast shadow reader started for %d symbols "
-                    "(buffer=%d replay_start=%s)",
+                    "A0-Fast shadow reader started for %d symbols (buffer=%d)",
                     len(symbols),
                     capacity,
-                    replay_start.isoformat(),
                 )
                 snapshot = buffer.snapshot()
                 while not snapshot.closed:
@@ -293,8 +278,6 @@ def run() -> None:
                         if processor.process(item) and item.resync_required:
                             buffer.acknowledge_resync(item.bar.symbol)
                             telemetry.set_buffer(buffer.snapshot())
-                        if processor.consume_source_replay_request():
-                            buffer.close("source_replay_required")
                     snapshot = buffer.snapshot()
                 discarded = buffer.discard_all()
                 telemetry.record_queue_drop(discarded)
@@ -305,7 +288,6 @@ def run() -> None:
                 reason = f"{type(exc).__name__}: {exc}"
                 logger.warning("A0-Fast connection cycle failed: %s", reason)
             telemetry.record_disconnect(reason)
-            state.clear_source_coverage()
             for symbol in symbols:
                 state.invalidate(symbol)
                 telemetry.require_resync(symbol)
@@ -344,21 +326,6 @@ def _configure_logging() -> None:
 def main() -> None:
     _configure_logging()
     run()
-
-
-def _live_replay_start(now=None):
-    """Return an accepted replay start, preserving session coverage when available."""
-    from datetime import UTC, datetime
-    from zoneinfo import ZoneInfo
-
-    now = datetime.now(UTC) if now is None else now.astimezone(UTC)
-    now_et = now.astimezone(ZoneInfo("America/New_York"))
-    session_open = now_et.replace(hour=9, minute=30, second=0, microsecond=0)
-    requested_start = min(now, session_open.astimezone(UTC))
-    # EQUS live replay rolls forward at UTC midnight.  After the US session
-    # closes, its 09:30 ET open can therefore precede the gateway's minimum.
-    replay_floor = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    return max(replay_floor, requested_start)
 
 
 if __name__ == "__main__":

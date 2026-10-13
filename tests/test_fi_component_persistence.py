@@ -308,7 +308,6 @@ class TestReaderEraGate:
         assert report.get("error") == "insufficient labeled samples"
         assert report["era_gated_samples_dropped"] == 20
         assert report["labeled_samples"] == 0
-        assert report["labeled_sample_dates"] == []
 
     def test_genuine_zero_in_some_components_survives(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,

@@ -241,20 +241,6 @@ def build_policy_body(policy: dict[str, Any]) -> dict[str, Any]:
             "object_matchers": [list(m) for m in route.get("object_matchers", [])],
             "continue": bool(route.get("continue", False)),
         }
-        # 2026-08-30: pro Route durchgereicht, vorher STILL VERWORFEN.
-        #
-        # Bis hierher baute diese Funktion jede Route aus genau drei Feldern.
-        # `group_by`, `group_wait`, `group_interval` und `repeat_interval`
-        # standen in der YAML, wurden von den Tests gepinnt — und kamen bei
-        # Grafana nie an. Aufgefallen ist es erst beim Nachlesen des LIVE-
-        # Zustands nach dem Merge von #5202: Route vorhanden, Matcher richtig,
-        # `group_by=None repeat=None`. Die Datei sagte das eine, die Instanz das
-        # andere, und kein Test konnte den Unterschied sehen, weil alle die Datei
-        # lesen.
-        for feld in ("group_by", "group_wait", "group_interval", "repeat_interval"):
-            wert = route.get(feld)
-            if wert is not None:
-                out[feld] = list(wert) if feld == "group_by" else wert
         routes.append(out)
     if routes:
         body["routes"] = routes
@@ -290,64 +276,14 @@ def upsert_contact_point(cp_body: dict[str, Any], key: str) -> str:
     return "create"
 
 
-def policy_drift(gesendet: dict[str, Any], gelesen: Any) -> list[str]:
-    """Welche Routen-Felder kamen NICHT so an, wie sie gesendet wurden?
-
-    Reine Funktion, damit die Zusicherung testbar ist, ohne Grafana zu
-    brauchen. Verglichen wird Route fuer Route in derselben Reihenfolge — die
-    Reihenfolge IST Teil der Zusicherung, weil `continue: false` die erste
-    passende Route gewinnen laesst.
-    """
-    if not isinstance(gelesen, dict):
-        return [f"Ruecklese lieferte {type(gelesen).__name__}, kein Objekt"]
-    a = gesendet.get("routes") or []
-    b = gelesen.get("routes") or []
-    if len(a) != len(b):
-        return [f"Routenzahl: gesendet {len(a)}, gelesen {len(b)}"]
-    abweichungen = []
-    for i, (soll, ist) in enumerate(zip(a, b)):
-        for feld in ("receiver", "object_matchers", "group_by", "group_wait",
-                     "group_interval", "repeat_interval"):
-            s, g = soll.get(feld), ist.get(feld)
-            if s is None and g is None:
-                continue
-            if feld == "object_matchers":
-                s = [list(m) for m in (s or [])]
-                g = [list(m) for m in (g or [])]
-            if s != g:
-                abweichungen.append(f"routes[{i}].{feld}: gesendet {s!r}, gelesen {g!r}")
-    return abweichungen
-
-
 def put_policy(policy_body: dict[str, Any], key: str) -> None:
-    """Replace the notification policy tree — und lies zurueck, was ankam.
-
-    Die Ruecklese ist kein Luxus. Bis 2026-08-30 verwarf `build_policy_body`
-    vier Routen-Felder still; die YAML, die Tests und die Absicht sagten das
-    eine, die Instanz das andere. Ein Upsert, der nur sendet, kann diese Klasse
-    strukturell nicht sehen — er hat ja alles getan, was er kennt.
-    """
+    """Replace the notification policy tree."""
     _request(
         "PUT",
         "/api/v1/provisioning/policies",
         key,
         payload=policy_body,
         extra_headers=PROVENANCE_HEADER,
-    )
-    gelesen = _request("GET", "/api/v1/provisioning/policies", key)
-    drift = policy_drift(policy_body, gelesen)
-    if drift:
-        raise RuntimeError(
-            "Die Policy kam anders an, als sie gesendet wurde — deklariert ist "
-            "nicht ausgeliefert:\n  " + "\n  ".join(drift)
-        )
-    # Die geglueckte Ruecklese wird AUSGESPROCHEN, nicht stillschweigend
-    # vorausgesetzt. Ohne diese Zeile ist "Ruecklese hat stattgefunden" von
-    # "Ruecklese wurde wegoptimiert" im Lauf nicht zu unterscheiden — und der
-    # Beweis-Eintrag haette keine Versionsprobe.
-    print(
-        f"policy-readback: {len(policy_body.get('routes') or [])} Route(n) "
-        "unveraendert angekommen"
     )
 
 

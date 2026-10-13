@@ -15,6 +15,7 @@ _PURE_MODULES = [
     "databento_client",
     "databento_provider",
     "databento_reference",
+    "databento_session",
     "databento_universe",
     "databento_utils",
     "strategy_config",

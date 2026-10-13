@@ -6,28 +6,17 @@ name: g23-ab-watchdog
 # publishes the resulting decision under docs/ab/ so reviewers can see the
 # current promotion / rollback posture at a glance.
 #
-# This workflow does NOT execute the A/B itself; it folds the accumulated
-# arm records into the history and evaluates them. Corrected 2026-07-27:
-# the header used to claim "the measurement-benchmark pipeline feeds
-# entries via --input" — no such feeder ever existed and the history sat
-# empty ("awaiting_first_run") while paired arm records accumulated unread.
-# The real chain since 2026-07-27: run-open-prep-daily writes
-# artifacts/open_prep/ab_arms/ab_arms_<day>.json (paired arms, #4108),
-# open-prep-outcome-backfill resolves labels_<day>.json next to them, and
-# the bridge step below (scripts/g3_bridge_ab_arms.py) folds every labeled
-# day into ONE cumulative ab_comparison.json for `--input` (W3-2: SPRT
-# reads the latest entry alone, so entries must carry cumulative n/k).
-# With nothing to compare yet the bridge writes no file and the watchdog
-# runs without --input, truthfully reporting awaiting_first_run.
+# This workflow does NOT execute the comparison benchmark itself; it only
+# evaluates whatever history has accumulated. The comparison job (run by
+# the existing measurement-benchmark pipeline) feeds entries into the
+# history JSONL via `--input ab_comparison.json`. When called without
+# --input the watchdog re-evaluates the existing window and refreshes the
+# Markdown surface, which is what we want on a daily cadence.
 
 on:
   schedule:
-    # 05:30 UTC weekdays — the latest comparison artifact (if any) has
-    # long since landed: the public calibration report is committed by
-    # c13-daily-cron the previous evening (22:00 UTC). This slot used to
-    # sit 1 h after public-calibration-dashboard (04:30), which was
-    # removed 2026-07-31 (issue #298); the input is now strictly older,
-    # never fresher, so the ordering still holds.
+    # 05:30 UTC weekdays — 1 h after the public-calibration-dashboard run
+    # so the latest comparison artifact (if any) has already landed.
     - cron: "30 5 * * 1-5"
   workflow_dispatch: {}
 
@@ -42,7 +31,6 @@ permissions:
 concurrency:
   group: g23-ab-watchdog
   cancel-in-progress: false
-  queue: max  # F-V5-C2: without this the next tick cancels the PENDING run
 
 env:
   PYTHONUNBUFFERED: "1"  # F-V5-A2 (2026-05-01)
@@ -57,7 +45,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           persist-credentials: false
 
@@ -84,7 +72,7 @@ jobs:
           echo "No unmerged predecessor watchdog PR — history baseline is current."
 
       - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
         with:
           python-version: "3.12"
           cache: pip
@@ -98,14 +86,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Bridge ab_arms records into the cumulative comparison
-        # §G3 (2026-07-27): fold every labeled arm-record day into one
-        # cumulative ab_comparison.json. No labeled treatment observation
-        # yet -> no file, and the watchdog below runs input-less (honest
-        # awaiting_first_run) instead of appending a zero row.
-        run: |
-          python -m scripts.g3_bridge_ab_arms --out /tmp/ab_comparison.json
-
       - name: Run G2/G3 watchdog
         id: watchdog
         env:
@@ -113,11 +93,7 @@ jobs:
           GITHUB_RUN_ID: ${{ github.run_id }}
         run: |
           set +e
-          INPUT_ARGS=()
-          if [ -f /tmp/ab_comparison.json ]; then
-            INPUT_ARGS=(--input /tmp/ab_comparison.json)
-          fi
-          python -m scripts.g23_ab_watchdog "${INPUT_ARGS[@]}" \
+          python -m scripts.g23_ab_watchdog \
             --history docs/ab/g23_history.jsonl \
             --status-md docs/ab/g23_status.md
           rc=$?
@@ -177,7 +153,7 @@ jobs:
 
       - name: Open issue on §G2 rollback signal
         if: steps.watchdog.outputs.exit_code == '2'
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
           script: |
             const fs = require('fs');
@@ -194,7 +170,7 @@ jobs:
 
       - name: Open issue on §G3 promotion-ready signal
         if: steps.watchdog.outputs.exit_code == '3'
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
           script: |
             const fs = require('fs');
@@ -211,7 +187,7 @@ jobs:
 
       - name: Open issue on §G3 futility signal
         if: steps.watchdog.outputs.exit_code == '4'
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
           script: |
             const fs = require('fs');

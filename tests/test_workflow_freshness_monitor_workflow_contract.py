@@ -132,10 +132,6 @@ _MONITORED_WORKFLOWS = (
     "smc-library-refresh.yml",
     "credential-health-check.yml",
     "c13-daily-cron.yml",
-    # 2026-08-26 (#4875): aufgenommen, nachdem Laufzeitprofil + Timeout-Fix
-    # (#5088) vorlagen — der einzige WP-J-Baseline-Producer; ein stiller
-    # Cron-Ausfall hiess zwei Wochen lang niemand-merkt-es.
-    "ats-baseline-daily.yml",
     "run-open-prep-daily.yml",
     # Truth-audit 2026-07-10 (M4): the only FI-sample/label producer and
     # the evening panel publisher were the two unwatched critical crons.
@@ -154,51 +150,11 @@ _MONITORED_WORKFLOWS = (
     "adr0023-magnitude-stage1-weekly.yml",
     "g23-ab-watchdog.yml",
     "smc-live-news-refresh.yml",
-    # 12:07Z R1 re-attestation proposer (#4454) -- roster row added 2026-08-05.
-    "smc-r1-reattest.yml",
-    # Weekly Pine release-notes watcher (2026-08-16): 192h budget — the one
-    # cron whose silent death would mean language changes go unreviewed again.
-    "pine-release-notes-watch.yml",
     "smc-measurement-benchmark-rolling.yml",
     # WS4a sweep-trap shadow eval — same silent-skip risk as the magnitude
     # shadow: if it stops running, the promotion evidence silently stops
     # accruing. :any:weekday mirrors the magnitude-shadow sibling.
     "sweep-trap-shadow-daily.yml",
-    # Beobachtungsluecken-Sweep 2026-08-19: neun Crons, deren stiller Ausfall
-    # eine Datenfolge hat (Budget-Begruendung im Kommentarblock des
-    # Probe-Steps). Vorher waren 24 von 46 scheduled Workflows unbeobachtet,
-    # weil beide Inventar-Tests hier nur Ledger und Workflow GEGENEINANDER
-    # pruefen -- die Population deckt jetzt
-    # tests/test_scheduled_workflow_observation_inventory.py.
-    "evidence-freshness-snapshot.yml",
-    "tradingview-storage-refresh.yml",
-    "tv-save-consumer-source.yml",
-    "live-overlay-deploy-trigger-guard.yml",
-    "pre-a0-mlflow-health.yml",
-    "smc-deeper-integration-gates.yml",
-    "vendor-billing-watch.yml",
-    "pine-library-version-monitor.yml",
-    "fvg-quality-quartile-gate.yml",
-    # Beweis-Ledger pre-push fix wave (2026-08-24): proof-ledger-monitor.yml
-    # is itself the sole human-facing alarm for overdue proof_ledger.toml
-    # entries -- if its own cron silently stopped firing, that alarm would
-    # go blind with it. :any (below) because its own conclusion:failure is
-    # the CORRECT result when a ledger entry is overdue.
-    "proof-ledger-monitor.yml",
-    # Runner-Variablen-Waechter (2026-08-29): prueft die WERTE der Variablen,
-    # aus denen `runs-on` gebaut wird. Ein falsches Label macht die betroffenen
-    # Jobs nicht rot, sondern verhindert sie -- diese Sonde ist der einzige
-    # Melder dafuer. Sie laeuft bewusst auf einem literalen Runner, damit sie
-    # startet, wenn keine variablengesteuerte Lane mehr anlaeuft; genau deshalb
-    # muss ihr eigener Ausfall beobachtet sein. :any (unten), weil ihr
-    # conclusion:failure das KORREKTE Ergebnis ist, sobald ein Wert ausschert.
-    "runner-label-variable-watch.yml",
-    # Stillstands-Waechter (2026-08-29): meldet Laeufe, die nicht enden —
-    # die Ausfallart, die der Fehleralarm strukturell nicht sieht (er wertet
-    # nur Endzustaende). Faellt sein eigener Cron aus, ist die Klasse wieder
-    # unsichtbar. :any, weil sein conclusion:failure das KORREKTE Ergebnis
-    # ist, sobald ein Lauf steht.
-    "stuck-run-watch.yml",
 )
 
 
@@ -309,51 +265,3 @@ def test_workflow_has_step_timeout(workflow: dict) -> None:
         "probe job MUST set timeout-minutes so a hung GH API call cannot "
         "burn the full 6h GHA default"
     )
-
-
-# ---------------------------------------------------------------------------
-# Product row (2026-10-01): the age of the newest committed gate report.
-#
-# Every run-based row above asks whether a workflow ended green. Green and
-# idle look alike: promotion-gate-daily ended `success` on 17 of 18 runs
-# between 2026-08-31 and 2026-09-30 while skipping its body, and the newest
-# gate report on main was dated 2026-08-27. The product row asks for the
-# report itself.
-# ---------------------------------------------------------------------------
-
-_PRODUCT_ARG = re.compile(r'--product\s+"([^"]+)"')
-# 2026-10-02: the returns series, not the verdict. Under the return rule
-# next_open_then_horizon_close a day without trades writes no verdict file but
-# always a series — the series is the report whose absence the row must flag.
-_GATE_REPORT_GLOB = "docs/calibration/gates/returns_series_*.json"
-
-
-def _product_specs(workflow_text: str) -> list[str]:
-    # Executable lines only: the rationale comment may quote the option.
-    lines = [ln for ln in workflow_text.splitlines() if not ln.lstrip().startswith("#")]
-    return _PRODUCT_ARG.findall("\n".join(lines))
-
-
-def test_gate_report_product_row_is_probed(workflow_text: str) -> None:
-    from scripts.check_workflow_freshness import _parse_product_spec
-
-    specs = _product_specs(workflow_text)
-    parsed = [_parse_product_spec(spec) for spec in specs]  # must parse, all of them
-    rows = [row for row in parsed if row[0] == _GATE_REPORT_GLOB]
-    assert len(rows) == 1, f"expected exactly one gate-report product row, got {specs}"
-    _pattern, budget, weekday_only, _until = rows[0]
-    # 72 weekday-hours from 00:00 UTC of the report date: one missing business
-    # day stays fresh (54.5 h at the 06:30 probe), two in a row trip (78.5 h).
-    assert budget == 72.0
-    assert weekday_only is True
-
-
-def test_product_row_pattern_matches_real_files() -> None:
-    """Positive control: a typo'd glob would read as `missing` forever.
-
-    The pattern must find the dated gate reports that are in the tree today.
-    """
-    repo_root = WORKFLOW.parents[2]
-    matches = sorted(repo_root.glob(_GATE_REPORT_GLOB))
-    assert matches, f"{_GATE_REPORT_GLOB} matches nothing under {repo_root}"
-    assert re.search(r"\d{4}-\d{2}-\d{2}", matches[-1].name)

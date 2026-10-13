@@ -1,7 +1,7 @@
 """Hero Surface input map invariant test (PR 3 of 2026-04-20 deep-review).
 
 Validates that ``spec/hero_surface_input_map.json`` matches the actual input
-surface in ``SMC_Decision_Board.pine`` and ``SMC_Long_Dip_Mobile.pine``:
+surface in ``SMC_Long_Dip_Dashboard.pine`` and ``SMC_Long_Dip_Mobile.pine``:
 
 * Every input declared as a "Surface" / "Mobile Surface" assignment in the map
   is present in the file with the documented group and is visible
@@ -31,7 +31,7 @@ def hero_map() -> dict:
     return json.loads(MAP_PATH.read_text())
 
 
-@pytest.mark.parametrize("pine_file", ["SMC_Decision_Board.pine", "SMC_Long_Dip_Mobile.pine"])
+@pytest.mark.parametrize("pine_file", ["SMC_Long_Dip_Dashboard.pine", "SMC_Long_Dip_Mobile.pine"])
 def test_surface_assignments_visible_and_in_documented_group(hero_map, pine_file):
     spec = hero_map["files"][pine_file]
     assignments = spec["assignments"]
@@ -48,7 +48,7 @@ def test_surface_assignments_visible_and_in_documented_group(hero_map, pine_file
         )
 
 
-@pytest.mark.parametrize("pine_file", ["SMC_Decision_Board.pine", "SMC_Long_Dip_Mobile.pine"])
+@pytest.mark.parametrize("pine_file", ["SMC_Long_Dip_Dashboard.pine", "SMC_Long_Dip_Mobile.pine"])
 def test_operator_only_groups_are_display_none(hero_map, pine_file):
     spec = hero_map["files"][pine_file]
     if not spec.get("operator_only_must_be_display_none"):
@@ -68,6 +68,6 @@ def test_operator_only_groups_are_display_none(hero_map, pine_file):
 
 def test_hero_state_consumers_are_referenced_in_dashboard(hero_map):
     """Every advertised mp.HERO_* consumer must actually be read by the dashboard."""
-    dash = (REPO_ROOT / "SMC_Decision_Board.pine").read_text(encoding="utf-8")
+    dash = (REPO_ROOT / "SMC_Long_Dip_Dashboard.pine").read_text(encoding="utf-8")
     missing = [name for name in hero_map["hero_state_consumers"] if name not in dash]
-    assert not missing, f"SMC_Decision_Board.pine does not reference advertised hero consumers: {missing}"
+    assert not missing, f"SMC_Long_Dip_Dashboard.pine does not reference advertised hero consumers: {missing}"

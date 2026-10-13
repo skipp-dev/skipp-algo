@@ -538,10 +538,9 @@ class TestRealtimeFailOpen:
     """RealtimeEngine.poll_once must return [] when client is disabled,
     never crash."""
 
-    def test_poll_once_disabled_returns_empty(self, monkeypatch):
+    def test_poll_once_disabled_returns_empty(self):
         """Arrange: engine with _client_disabled_reason set.
         Assert: poll_once returns [], no crash."""
-        monkeypatch.setenv("RT_QUOTE_SOURCE", "fmp")
         from open_prep.realtime_signals import RealtimeEngine
 
         engine = RealtimeEngine.__new__(RealtimeEngine)

@@ -76,7 +76,7 @@ def test_premium_gate_admits_large_block():
     assert rec["ticker"] == "AAPL"
     assert rec["option_activity_type"] == "CALL"
     assert rec["cost_basis"] == pytest.approx(500_000.0)
-    assert rec["sentiment"] == "BEARISH"  # call sold (side A = sell aggressor) = economically bearish
+    assert rec["sentiment"] == "BEARISH"  # side="A" (Ask) = sell aggressor per Databento
     assert rec["aggressor_ind"] == "A"
 
 
@@ -173,88 +173,23 @@ def test_no_multileg_when_only_calls():
 
 
 @pytest.mark.parametrize(
-    "side,opt_type,expect_aggr,expect_sentiment",
+    "side,expect_aggr,expect_sentiment",
     [
-        # aggressor_ind is the raw pressure label; sentiment is ECONOMIC
-        # (pressure x contract direction, 2026-08-04 — UW-compat semantics).
-        ("A", "C", "A", "BEARISH"),  # call sold  = bearish
-        ("B", "C", "B", "BULLISH"),  # call bought = bullish
-        ("A", "P", "A", "BULLISH"),  # put sold   = bullish
-        ("B", "P", "B", "BEARISH"),  # put BOUGHT = bearish (the fixed blind spot)
-        ("N", "C", "N", "NEUTRAL"),
-        ("", "C", "N", "NEUTRAL"),
-        ("?", "P", "N", "NEUTRAL"),
-        (None, "C", "N", "NEUTRAL"),
+        ("A", "A", "BEARISH"),  # Ask = sell aggressor (Databento)
+        ("B", "B", "BULLISH"),  # Bid = buy aggressor (Databento)
+        ("N", "N", "NEUTRAL"),
+        ("", "N", "NEUTRAL"),
+        ("?", "N", "NEUTRAL"),
+        (None, "N", "NEUTRAL"),
     ],
 )
-def test_aggressor_classification(side, opt_type, expect_aggr, expect_sentiment):
-    defs = [_defn(instrument_id=1, underlying="AAPL", strike=200, expiration="2026-06-21", option_type=opt_type)]
+def test_aggressor_classification(side, expect_aggr, expect_sentiment):
+    defs = [_defn(instrument_id=1, underlying="AAPL", strike=200, expiration="2026-06-21", option_type="C")]
     trades = [_trade(instrument_id=1, ts_ms=1_700_000_000_000, price=5.0, size=1000, side=side or "")]
     out = detect_unusual_options_activity(trades, defs)
     assert len(out) == 1
     assert out[0]["aggressor_ind"] == expect_aggr
     assert out[0]["sentiment"] == expect_sentiment
-
-
-def test_unknown_option_type_yields_neutral_sentiment():
-    """A definition without a C/P type must not guess a direction: the
-    aggressor pressure stays visible in ``aggressor_ind``, but ``sentiment``
-    degrades to NEUTRAL rather than assuming call semantics."""
-    defs = [_defn(instrument_id=1, underlying="AAPL", strike=200, expiration="2026-06-21", option_type="")]
-    trades = [_trade(instrument_id=1, ts_ms=1_700_000_000_000, price=5.0, size=1000, side="B")]
-    out = detect_unusual_options_activity(trades, defs)
-    assert len(out) == 1
-    assert out[0]["aggressor_ind"] == "B"
-    assert out[0]["sentiment"] == "NEUTRAL"
-
-
-def test_directly_constructed_definition_normalises_its_option_type():
-    """``option_type`` is load-bearing for ``sentiment``, so the invariant
-    must hold however the record is built — not only via ``from_row``.
-
-    ``detect_unusual_options_activity`` and ``OpraShadowState.add_definition``
-    both accept a pre-built ``OpraDefinitionRecord`` and pass it through
-    unnormalised. Before 2026-08-04 a caller writing the raw OPRA
-    ``instrument_class`` ('C'/'P') straight into the dataclass only got a
-    cosmetically wrong ``option_activity_type``; once sentiment folded in the
-    contract direction, the same mistake silently blanked the direction to
-    NEUTRAL — indistinguishable from the documented 'no directional flow'
-    normal state. Normalising at the dataclass boundary closes that.
-    """
-    rec = OpraDefinitionRecord(
-        instrument_id=1,
-        underlying="aapl",
-        strike=200.0,
-        expiration="2026-06-21",
-        option_type="p",  # raw OPRA letter, lower case, direct construction
-    )
-    assert rec.option_type == "PUT"
-    assert rec.underlying == "AAPL"
-
-    trades = [_trade(instrument_id=1, ts_ms=1_700_000_000_000, price=5.0, size=1000, side="B")]
-    out = detect_unusual_options_activity(trades, [rec])
-    assert len(out) == 1
-    # Put BOUGHT is bearish — the quadrant that would silently read NEUTRAL
-    # if the directly-constructed record kept its raw 'p'.
-    assert out[0]["sentiment"] == "BEARISH"
-    assert out[0]["option_activity_type"] == "PUT"
-
-
-def test_definition_with_a_genuinely_unknown_type_stays_empty():
-    """Normalisation must not invent a direction for a non-option class.
-
-    OPRA carries complex/spread instruments whose ``instrument_class`` is
-    neither C nor P. Those must keep an empty type so sentiment degrades to
-    NEUTRAL — the correct failure mode, not a guessed one.
-    """
-    rec = OpraDefinitionRecord(
-        instrument_id=1,
-        underlying="AAPL",
-        strike=200.0,
-        expiration="2026-06-21",
-        option_type="T",  # complex/spread instrument class
-    )
-    assert rec.option_type == ""
 
 
 # ── Ticker filter ──────────────────────────────────────────────────────

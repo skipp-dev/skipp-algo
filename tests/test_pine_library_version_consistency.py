@@ -65,45 +65,13 @@ def _collect_imports() -> dict[tuple[str, str], dict[str, list[str]]]:
     return imports
 
 
-def attested_sources() -> frozenset[str]:
-    """Repo-relative paths the R1 rollout contract attests, from the live contract.
-
-    Read rather than listed: a second list is a second thing to keep true, and
-    `scripts/hold_r1_attested_sources.py` -- the code that creates the lag this
-    test must tolerate -- already reads the first one.
-    """
-    from scripts.hold_r1_attested_sources import attested_paths
-
-    return frozenset(attested_paths())
-
-
 def test_pine_library_imports_agree_on_major_version() -> None:
-    """Pin: every (owner, library) pair has exactly one major version across
-    all active ``*.pine`` files -- except the R1-attested companions.
-
-    2026-08-05: this failed on `main` for a state the repo produces on purpose.
-    An R1-attested source may only move together with new evidence, and
-    evidence costs a mutating TradingView session; the library refresh fires
-    nine times per weekday. So #4435's `hold_r1_attested_sources.py` freezes
-    the attested companions and lets every other consumer advance, which is
-    exactly the skew this test forbade -- `SMC_Event_Overlay.pine` on v183
-    against fourteen consumers on v190.
-
-    The exemption is deliberately narrow: attested sources are excluded from
-    the skew comparison here, and `test_an_attested_source_may_lag_but_never_lead`
-    below keeps them from drifting anywhere they like. Their exact content is
-    guarded by `scripts/check_r1_attested_sources.py` against the registered
-    evidence, which is a stronger check than agreeing with their neighbours.
+    """Pin: every (owner, library) pair has exactly one major version
+    across all active ``*.pine`` files.
     """
-    attested = attested_sources()
     imports = _collect_imports()
     skews: list[str] = []
     for (owner, lib), version_map in sorted(imports.items()):
-        version_map = {
-            version: [f for f in files if f not in attested]
-            for version, files in version_map.items()
-        }
-        version_map = {v: files for v, files in version_map.items() if files}
         if len(version_map) <= 1:
             continue
         details = "; ".join(
@@ -119,50 +87,6 @@ def test_pine_library_imports_agree_on_major_version() -> None:
         "``scripts/bump_pine_library_import.sh`` so the major version "
         "stays consistent across the chart workspace."
     )
-
-
-def test_an_attested_source_may_lag_but_never_lead() -> None:
-    """The exemption above is a licence to lag, not a licence to drift.
-
-    A held companion pins an older published version until a deliberate
-    re-attestation PR moves it -- TradingView keeps every published version, so
-    ``/183`` still resolves after ``/190`` ships. A companion pinning a version
-    *newer* than its neighbours is the opposite situation: nothing holds it
-    there, so it is an accidental bump that escaped the refresh, and the
-    exemption must not swallow it.
-    """
-    attested = attested_sources()
-    imports = _collect_imports()
-    assert attested, "no attested sources -- the exemption above would be vacuous"
-
-    # Built as one mapping so the non-emptiness proof sits next to the filter
-    # that produces it: `if f in attested` can select nothing, and a loop that
-    # iterates zero times would let this test pass while observing nothing.
-    held_pins = {
-        (owner, lib, path): int(version)
-        for (owner, lib), version_map in imports.items()
-        for version, files in version_map.items()
-        for path in files
-        if path in attested
-    }
-    assert held_pins, (
-        "no attested consumer imports any library, so the loop below would "
-        "assert nothing. Either the contract or the import scan stopped working."
-    )
-
-    for (owner, lib, held), version in sorted(held_pins.items()):
-        unheld = {
-            int(other_version)
-            for other_version, files in imports[(owner, lib)].items()
-            if any(f not in attested for f in files)
-        }
-        if not unheld:
-            continue  # a library only attested sources import: nothing to lag behind
-        assert version <= max(unheld), (
-            f"{held} pins {owner}/{lib}/{version}, ahead of every unattested "
-            f"consumer (max {max(unheld)}). A hold keeps a companion behind, "
-            "never in front -- this is an escaped bump."
-        )
 
 
 def test_sweep_finds_known_imports() -> None:

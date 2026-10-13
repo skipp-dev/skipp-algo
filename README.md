@@ -2,17 +2,10 @@
 
 Pine Script v6 Signal Engine · Real-Time News Intelligence Dashboard · Pre-Open Briefing Pipeline
 
-The repository contains a modular trading-intelligence system. ADR-0033 sets a
-new goal: develop the SMC surfaces into a commercial decision-support product
-with external users, while keeping the hosted Operator Terminal internal.
-
-The three existing system groups are:
+SkippALGO is a modular trading intelligence platform combining three core systems:
 
 1. **SkippALGO Pine Script** — non-repainting signal engine with a decision-first HUD plus Lite Outlook and Forecast panels for TradingView.
-2. **Real-Time News Intelligence Dashboard** — the internal AI-supported
-   **Operator Terminal** for news intelligence, alerting and operational market
-   monitoring. Its single-operator boundary remains governed by
-   [ADR-0030](docs/adr/0030-terminal-purpose-and-audience.md).
+2. **Real-Time News Intelligence Dashboard** — an AI-supported **Research & Monitoring Terminal** with 11 tabs for **News Intelligence + Alerting** and operational market monitoring.
 3. **Open-Prep Pipeline** — automated pre-open briefing system with ranked candidates, macro context, and structured trade cards.
 
 > New to the codebase? See the [Glossary](docs/GLOSSARY.md) for the sprint
@@ -22,15 +15,9 @@ The three existing system groups are:
 
 ## Product Positioning & Compliance Notes
 
-- The commercial target is the **Skipp SMC** product family described in
-  [ADR-0033](docs/adr/0033-commercial-product-and-customer-plane.md) and the
-  [Phase-0 product brief](docs/commercial/PRODUCT_BRIEF.md).
-- The hosted Operator Terminal remains internal research and operations
-  infrastructure; it is not the customer product.
-- The primary use case remains **workflow and decision support**, not direct
-  personalized “Buy/Sell” instructions.
-- Commercial readiness and customer-facing claims remain gated by the
-  [commercial programme](docs/commercial/README.md).
+- SkippALGO is positioned as a **Research & Monitoring Terminal**.
+- Core value proposition: **News Intelligence + Alerting**.
+- Primary use case: **Workflow/Decision Support** — not direct “Buy/Sell” instructions.
 
 ### Important Disclaimer
 
@@ -174,7 +161,7 @@ npm run tv:publish-micro-library
 
 The canonical SMC TradingView gate is `npm run tv:preflight:smc-mainline`.
 It validates the active mainline path `SMC_Long_Dip_Suite.pine` +
-`SMC_Decision_Board.pine` + `SMC_Long_Dip_Strategy.pine` against the product-cut
+`SMC_Long_Dip_Dashboard.pine` + `SMC_Long_Dip_Strategy.pine` against the product-cut
 manifest.
 The latest fully green SMC mainline evidence is `automation/tradingview/reports/preflight-2026-04-08T12-37-12-028Z.json`.
 
@@ -410,13 +397,10 @@ cd skipp-algo
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
-# 2. Configure a news source
+# 2. Configure API keys
 cp .env.example .env   # or create .env manually
-# Direct local polling:
+# Required:
 #   BENZINGA_API_KEY=your_key
-# Or consume the prepared feed from a private signals producer:
-#   TERMINAL_PRODUCER_FEED_URL=http://producer.railway.internal:8080/news-feed.json
-#   TERMINAL_PRODUCER_FEED_TOKEN=shared_internal_token
 # Optional (enables more tabs / surfaces):
 #   FMP_API_KEY=your_key
 #   NEWSAPI_KEY=your_key   # legacy research only; production lane retired 2026-07-08
@@ -436,48 +420,23 @@ The dashboard opens at `http://localhost:8501` with a dark theme.
 
 | Variable | Required | Description |
 | -------- | -------- | ----------- |
-| `BENZINGA_API_KEY` | One news source required | Benzinga/Massive key for direct RSS/optional news and delayed movers/quotes; not needed when the producer feed is configured |
+| `BENZINGA_API_KEY` | Yes | Benzinga/Massive key for RSS/optional news and delayed movers/quotes |
 | `BENZINGA_DIRECT_API_KEY` | No | Direct Benzinga key for quantified news or direct REST transport |
 | `FMP_API_KEY` | No | FMP key for quotes, calendar, sector data, crypto, insider transactions |
 | `UNUSUAL_WHALES_API_KEY` | No | **DEPRECATED 2026-05-12** — Unusual Whales Bearer token. UOA flow replaced by self-hosted Databento OPRA UOA detector (PRs #2155/#2157/#2163); remaining adapters dormant. Sunset target: 2026-Q3 (deadline 2026-08-31, owner: ops). Safe to leave unset; see `docs/OPEN_PREP_OPS_QUICK_REFERENCE.md` §13. |
 | `NEWSAPI_KEY` | No | Legacy NewsAPI.ai key; production lane retired 2026-07-08 |
 | `DATABENTO_API_KEY` | No | Databento API key for historical OHLCV + reference market data (corporate actions, identifier state) |
 | `FINNHUB_API_KEY` | No | Finnhub key for crypto social sentiment |
-| `OPENAI_API_KEY` | Producer only, for AI Insights | OpenAI key used by the Producer's private `/ai-insights` route; do not copy it into the Terminal |
-| `CISCO_AI_DEFENSE_API_KEY` | Producer only, for AI Insights | Cisco AI Defense **Inspection API** key; Producer-side AI calls fail closed when missing |
-| `CISCO_AI_DEFENSE_REGION` | Producer only, for AI Insights | Cisco tenant region: `eu-central-1`, `us-west-2`, `ap-northeast-1`, or `me-central-1` |
+| `CISCO_AI_DEFENSE_API_KEY` | Required for AI Insights | Cisco AI Defense **Inspection API** key; AI calls fail closed when missing |
+| `CISCO_AI_DEFENSE_REGION` | Required for AI Insights | Cisco tenant region: `eu-central-1`, `us-west-2`, `ap-northeast-1`, or `me-central-1` |
 | `CISCO_AI_DEFENSE_MODE` | No | `enforce` (default) or time-bounded `monitor`; there is no runtime `off` mode |
 | `CISCO_AI_DEFENSE_TIMEOUT_SECONDS` | No | Inspection timeout, 1–60 seconds (default: `10`) |
-| `AI_VALIDATION_TOKEN` | Producer only, for Cisco Validation | Dedicated 32–512 byte bearer token for the public `/ai-validation` application target; do not reuse `SIGNALS_INTERNAL_TOKEN` or `TERMINAL_ACCESS_TOKEN` |
-| `TERMINAL_PRODUCER_FEED_URL` | One news source required | Private producer URL, normally `http://${{smc-signals-producer.RAILWAY_PRIVATE_DOMAIN}}:8080/news-feed.json`; only loopback and `*.railway.internal` hosts are accepted |
-| `TERMINAL_PRODUCER_FEED_TOKEN` | With producer URL | Bearer token referenced from the producer's `SIGNALS_INTERNAL_TOKEN`; never put it in the URL |
-| `TERMINAL_PRODUCER_FEED_TIMEOUT_S` | No | Private-feed request timeout in seconds (default: `5`) |
-| `TERMINAL_PRODUCER_FEED_MAX_AGE_S` | No | Reject producer snapshots older than this many seconds (default: `300`) |
-| `TERMINAL_PRODUCER_AI_TIMEOUT_S` | No | Timeout for private interactive AI Insights requests (default: `150`) |
-| `TERMINAL_DIRECT_NEWS_PRIMARY` | No | `0` (default): Producer primary, direct providers on failure; `1`: direct providers primary, Producer on failure. The sidebar toggle changes this at runtime. |
 | `TERMINAL_NOTIFY_ENABLED` | No | `1` to enable push notifications |
 | `TERMINAL_NOTIFY_MIN_SCORE` | No | Minimum news score for notification (default: `0.85`) |
 | `TERMINAL_NOTIFY_THROTTLE_S` | No | Throttle window in seconds (default: `600`) |
-| `TERMINAL_NOTIFY_STATE_PATH` | No | Where the throttle is persisted so a restart keeps it (default: `artifacts/terminal/notify_throttle.json`) |
 | `TERMINAL_WEBHOOK_URL` | No | Webhook URL for alert dispatch |
-| `TERMINAL_POLL_INTERVAL_S` | No | Poll interval in seconds (default: `10`) |
+| `TERMINAL_POLL_INTERVAL` | No | Poll interval in seconds (default: `15`) |
 | `TERMINAL_TOPICS` | No | Comma-separated topic filter for Benzinga |
-
-When both private Producer settings and direct-provider keys are present, the
-Terminal polls only one path per cycle. By default the prepared Producer feed
-is primary and direct Benzinga/FMP polling runs only when the Producer request
-fails. The sidebar toggle can reverse that order. A successful empty or
-deduplicated batch never triggers fallback, preventing duplicate calls and
-quota use. Partial Producer configuration is reported as invalid but does not
-disable a working direct-provider path.
-
-Interactive AI Insights always sends the Terminal-built, multi-source context
-to the private Producer `/ai-insights` route. The context can include explicit
-Databento OHLCV, FMP fundamentals, technicals, news, social, analyst, and macro
-layers. OpenAI and Cisco AI Defense credentials stay on the Producer; Cisco
-inspects both request and response and fails closed before content crosses the
-respective boundary. The private client accepts only loopback or direct
-`*.railway.internal` hosts and never follows redirects.
 
 > **NewsAPI.ai retirement**: the production pollers and generator snapshot no
 > longer call Event Registry. The remaining adapter and legacy UI tabs are
@@ -611,14 +570,7 @@ metrics and small HTTP probes:
 - `GET /healthz` — always returns `200 OK`
 - `GET /readyz` — returns `200 ready` only when the watchlist is loaded,
   the Open-Prep snapshot is present, and the last successful poll is younger
-  than 5 minutes. With `RT_QUOTE_SOURCE=databento`, it additionally requires
-  a non-empty quote reference, a connected Databento feed, and at least one
-  received bar during regular market hours; otherwise it returns `503`.
-
-Railway uses `/readyz` as the producer healthcheck. Both
-`smc-signals-producer` and `smc-signals-producer-databento-shadow` must point
-at `services/signals_producer/railway.toml`; otherwise the shadow silently
-loses the readiness check and the scoped auto-deploy watch patterns.
+  than 5 minutes; otherwise returns `503 not_ready`
 
 Key readiness gauges (all prefixed `signals_producer_`):
 

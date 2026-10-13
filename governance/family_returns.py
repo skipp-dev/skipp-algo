@@ -10,40 +10,23 @@ forward bars into a realized per-event return, grouped by family, in the
 exact spec shape :func:`scripts.build_family_metrics.build_bundle`
 consumes.
 
-LOAD-BEARING ASSUMPTION — the trade definition (ADR-0031, Nachtrag
-2026-10-02 II). Rule ``next_open_then_horizon_close``:
+LOAD-BEARING ASSUMPTION — the trade definition (chosen autonomously,
+pending review). Variant **A** (``touch_then_horizon_close``):
 
-1. The **decision bar** is the bar at whose close the trade is known:
-   the anchor bar for level families (the break / the sweep is confirmed
-   by that bar's close), and for zone families the first forward bar
-   whose range reaches the zone while the zone is still valid at that
-   bar's close.
-2. Entry at the **open of the bar after the decision bar** — the first
-   price that trades once the decision exists.
-3. Exit at the close ``family_outcome_horizon(family)`` bars after the
-   decision bar, signed by direction; no full horizon -> event dropped
-   (S3 #2674). This is the exit bar the previous rule used.
-4. Subtract a fixed round-turn cost (``DEFAULT_COST_BPS``).
+1. Entry at the zone midpoint on the first forward bar that *touches*
+   the zone (long zones: a forward low enters ``[zone_low, zone_high]``;
+   short zones: a forward high enters it — mirrors the label semantics).
+2. Exit at the close ``family_outcome_horizon(family)`` bars after that
+   touch, signed by direction; no full horizon -> event dropped (S3 #2674).
+3. Subtract a fixed round-turn cost (``DEFAULT_COST_BPS``).
 
-An event without ``forward_opens`` is **not a trade** under this rule:
-there is no price to enter at, and none is substituted.
-
-Why the rule changed. Until 2026-10-02 the rule was Variant A
-(``touch_then_horizon_close``): entry at the zone midpoint on the first
-touch, and at the event level for level families. Measured on 15m
-(``docs/governance/variant_a_entry_price_measurement_2026-10-02.md``):
-the midpoint did not trade on the touch bar for about two thirds of the
-zone trades; the level of a level trade traded before the signal bar's
-close made it a signal, and that close lay 18-20 bps further in the
-trade's direction; the assumed entry carried the whole reported return.
-Returns under the two rules are different quantities and must
-never be pooled — ``RETURN_RULE`` is stamped into every persisted row
-for that purpose.
-
-Untriggered setups are **not trades** and are excluded, not counted as
-zero (so the series is "returns *given* a triggered setup"). No
-target/stop optimisation. Switching the rule must be an explicit,
-reviewed code change, never a silent default.
+This is the most conservative, fewest-degrees-of-freedom rule: no
+target/stop optimisation, no best-fill, fixed costs — hard to flatter.
+Untriggered setups (no touch) are **not trades** and are excluded, not
+counted as zero (so the series is "returns *given* a triggered setup").
+Variants B (triple-barrier) and C (signed next-bar) are intentionally
+NOT implemented here; switching the rule must be an explicit, reviewed
+code change, never a silent default.
 
 It does NOT fabricate data: events and forward bars are injected by the
 caller (from the real databento + SMC scoring pipeline). It only does
@@ -53,7 +36,7 @@ Roadmap pointer: Edge-Validation Roadmap, Phase 2 / story EV-06b.
 """
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any, Literal, TypedDict
 
@@ -81,76 +64,14 @@ DEFAULT_COST_BPS = 5.0
 
 # Tag recorded so downstream provenance can audit which trade definition
 # produced a return series.
-RETURN_RULE = "next_open_then_horizon_close"
+RETURN_RULE = "touch_then_horizon_close"
 
-# The rule the series carried until 2026-10-02. Kept as a name only, so
-# readers of frozen artifacts and guards against pooling can refer to it.
-LEGACY_RETURN_RULE = "touch_then_horizon_close"
-
-# First UTC day whose trades count as evidence under RETURN_RULE: the first
-# trading day after the rule was fixed (2026-10-02, a Friday). The rule was
-# chosen with September's data on the table, so nothing anchored before this
-# day is forward evidence. Cumulative verdicts never start earlier.
-RETURN_RULE_EVIDENCE_START = "2026-10-05"
-
-# The bar grid the measured events are detected on. Intraday bars are built
-# from start-stamped 1m bars: the bar labelled T covers [T - tf, T), aligned
-# with the exchange clock. Until 2026-10-02 the resampler booked the minute
-# stamped T into the bar ENDING at T, so every intraday bar was shifted by one
-# minute (ADR-0031, Nachtrag 2026-10-02 III). Events of the two grids are
-# different events — the same structure can appear on both with the same id —
-# and must never share a pool or a ledger. The benchmark stamps this value on
-# every FamilyEvent it emits; an event without it predates the correction.
-BAR_GRID = "exchange_aligned"
-LEGACY_BAR_GRID = "offset_one_minute"
-
-
-def event_bar_grid(event: Mapping[str, Any]) -> str:
-    """The bar grid an event (or a ledger row) was measured on."""
-    value = event.get("bar_grid")
-    return str(value) if value else LEGACY_BAR_GRID
-
-
-# The structure grain: how many bars on each side a pivot needs
-# (``detect_pivots(pivot_lookup=...)``). The record measures 1-bar pivots. The
-# Pine engine's default swing size is 50; since 2026-10-03 the benchmark also
-# emits BOS events on that grain (ADR-0031, Nachtrag 2026-10-03 IV) so the
-# engine's central assumption — coarser structure, more edge — gets its own
-# record. A coarse event is a different event from the fine one on the same
-# bar (another level, often another kind); its ``event_id`` carries
-# ``COARSE_EVENT_ID_SUFFIX`` so the pool never folds the two together, and
-# every pool reader keeps to ONE grain: the gates, the shadow ledger and the
-# cumulative ledgers read ``PIVOT_LOOKUP`` unless told otherwise. An event
-# without the stamp predates the second grain and is a fine-grain event.
-# Only BOS/CHoCH depend on the grain; OB, FVG and SWEEP are emitted once.
-PIVOT_LOOKUP = 1
-COARSE_PIVOT_LOOKUP = 50
-COARSE_EVENT_ID_SUFFIX = f":p{COARSE_PIVOT_LOOKUP}"
-
-
-def event_pivot_lookup(event: Mapping[str, Any]) -> int:
-    """The structure grain an event (or a ledger row) was detected on."""
-    value = event.get("pivot_lookup")
-    if value is None or value == "":
-        return PIVOT_LOOKUP
-    return int(value)
-
-
-def record_grain_events(events: Sequence[Mapping[str, Any]]) -> list[Any]:
-    """The pool events of the record's grain (``PIVOT_LOOKUP``).
-
-    Every reader of the pool that is not explicitly asked for another grain
-    goes through here, so the coarse BOS events never leak into the gates,
-    the shadow ledger or the record's own series.
-    """
-    return [event for event in events if event_pivot_lookup(event) == PIVOT_LOOKUP]
-
-# Entry conventions. Two SMC event geometries locate the DECISION BAR
-# differently; the entry price is the same for both (next bar's open):
-#   - "retest_touch" (zone families OB/FVG): the decision bar is the first
-#     forward bar whose range reaches the zone.
-#   - "immediate" (level families BOS/SWEEP): the decision bar IS the anchor
-#     bar (the break / the sweep is confirmed by its close).
+# Entry conventions. Two SMC event geometries need two rules:
+#   - "retest_touch" (zone families OB/FVG): wait for price to retest the
+#     zone, enter at the zone midpoint on first touch. This is variant A.
+#   - "immediate" (level families BOS/SWEEP): the signal IS the anchor bar
+#     (a break / a sweep already happened); enter at the event level price
+#     at the anchor, no retest wait. Second load-bearing assumption.
 EntryMode = Literal["retest_touch", "immediate"]
 
 _BULLISH = {"UP", "BULL", "BULLISH", "LONG"}
@@ -167,11 +88,7 @@ class FamilyEvent(TypedDict, total=False):
 
     Zone families (OB/FVG) supply ``zone_low``/``zone_high`` and use the
     default ``entry_mode="retest_touch"``. Level families (BOS/SWEEP)
-    use ``entry_mode="immediate"``; their ``entry_price`` is the event
-    level and is NOT the price a trade enters at.
-
-    ``forward_opens`` is parallel to the other ``forward_*`` lists. A trade
-    enters at one of these opens; an event without them yields no return.
+    supply ``entry_price`` and ``entry_mode="immediate"``.
     """
 
     family: EventFamily
@@ -182,13 +99,6 @@ class FamilyEvent(TypedDict, total=False):
     zone_high: float
     entry_price: float
     anchor_ts: float
-    # The bar grid the event was detected on (see ``BAR_GRID``). Stamped by the
-    # measurement benchmark; absent on events recorded before 2026-10-02.
-    bar_grid: str
-    # The structure grain (see ``PIVOT_LOOKUP``). Stamped by the measurement
-    # benchmark; absent on events recorded before 2026-10-03 (fine grain).
-    pivot_lookup: int
-    forward_opens: list[float]
     forward_highs: list[float]
     forward_lows: list[float]
     forward_closes: list[float]
@@ -341,24 +251,27 @@ def _direction_sign(direction: str) -> int:
     return 0
 
 
-def _first_reach_index(
+def _first_touch_index(
     direction_sign: int,
     zone_low: float,
     zone_high: float,
     forward_highs: list[float],
     forward_lows: list[float],
 ) -> int | None:
-    """First forward-bar index whose RANGE overlaps the zone.
+    """First forward-bar index whose price enters the zone.
 
-    It does not ask where the bar's extreme ended up: a bar that trades into
-    the zone and on through it has reached the zone just as much as one that
-    stops inside. (Variant A counted only bars whose low / high came to rest
-    INSIDE the zone — a selection on what happened after the entry.)
+    Long zone: a bar low dips into ``[zone_low, zone_high]``.
+    Short zone: a bar high rises into ``[zone_low, zone_high]``.
+    Mirrors the touch semantics of the mitigation label functions.
     """
-    if direction_sign == 0:
+    if direction_sign > 0:
+        series = forward_lows
+    elif direction_sign < 0:
+        series = forward_highs
+    else:
         return None
-    for idx, (high, low) in enumerate(zip(forward_highs, forward_lows, strict=False)):
-        if low <= zone_high and high >= zone_low:
+    for idx, price in enumerate(series):
+        if zone_low <= price <= zone_high:
             return idx
     return None
 
@@ -416,11 +329,9 @@ def realized_return(event: FamilyEvent, *, cost_bps: float = DEFAULT_COST_BPS) -
     """Realized return for a single event.
 
     Dispatches on ``entry_mode`` (default ``"retest_touch"`` for zone
-    families) to find the decision bar, then enters at the next bar's open
-    (see the module docstring). Returns ``None`` when the setup did not
-    trigger, carries no ``forward_opens``, or is degenerate (non-positive
-    entry / no exit bar) — those are not trades and must not be counted as
-    zero.
+    families). Returns ``None`` when the setup did not trigger (no touch),
+    or is degenerate (non-positive entry / no exit bar) — those are not
+    trades and must not be counted as zero.
 
     Thin wrapper over :func:`_realized_return_and_exit` (which also returns the
     forward index of the exit bar, used to bound the label window).
@@ -435,8 +346,8 @@ def _realized_return_and_exit(
     """Realized return AND the forward index of the exit bar it consumed.
 
     The exit index is the last forward bar whose price enters the outcome:
-    ``horizon - 1`` for immediate entry, ``decision_idx + horizon`` for a zone
-    retest. It is an index into the event's parallel ``forward_*`` arrays (closes
+    ``horizon - 1`` for immediate entry, ``touch_idx + horizon`` for a retest
+    touch. It is an index into the event's parallel ``forward_*`` arrays (closes
     and timestamps share the window), so ``forward_timestamps[exit_idx]`` is the
     label-window end — the walk-forward purge uses it instead of the full
     forward-buffer end (:func:`_guard_end_ts`). ``None`` when the setup did not
@@ -450,56 +361,58 @@ def _realized_return_and_exit(
 
     family = event["family"]
     closes = [float(x) for x in event.get("forward_closes", [])]
-    opens = [float(x) for x in event.get("forward_opens") or []]
-    if len(opens) != len(closes):
-        # No opens (an event recorded before 2026-10-02) or a misaligned list:
-        # there is no reachable entry price, and none is substituted.
-        return None
     horizon = family_outcome_horizon(family)
     mode: EntryMode = event.get("entry_mode", "retest_touch")
 
     if mode == "immediate":
-        # The break/sweep is confirmed by the anchor bar's close, so the anchor
-        # bar is the decision bar and the first forward bar is the entry bar.
-        # The exit ``horizon`` bars after the anchor sits at index
-        # ``horizon - 1``. Stat-review S3 (#2674): a window shorter than the
-        # horizon is REFUSED (None) — clamping to the last available close
-        # pooled horizon-truncated returns as full-horizon measurements,
-        # biasing the most recent (test-fold-dominating) events.
-        entry_idx = 0
+        entry_price = float(event.get("entry_price", 0.0))
+        if entry_price <= 0.0:
+            return None
+        # The break/sweep is the anchor bar; the first forward close is one
+        # bar after the anchor, so the exit ``horizon`` bars later sits at
+        # index ``horizon - 1``. Stat-review S3 (#2674): a window shorter
+        # than the horizon is REFUSED (None), mirroring the retest path —
+        # clamping to the last available close pooled horizon-truncated
+        # returns as full-horizon measurements, biasing the most recent
+        # (test-fold-dominating) events.
         exit_idx = horizon - 1
-    else:
-        zone_low = float(event["zone_low"])
-        zone_high = float(event["zone_high"])
-        if zone_low <= 0.0 or zone_high <= 0.0 or zone_high < zone_low:
+        if exit_idx >= len(closes):
             return None
+        exit_price = closes[exit_idx]
+        gross = sign * (exit_price - entry_price) / entry_price
+        return gross - cost_bps / 1e4, exit_idx
 
-        highs = [float(x) for x in event.get("forward_highs", [])]
-        lows = [float(x) for x in event.get("forward_lows", [])]
-
-        decision_idx = _first_reach_index(sign, zone_low, zone_high, highs, lows)
-        if decision_idx is None:
-            return None
-
-        # The decision is taken at the decision bar's close, so a zone that
-        # is invalidated BY that close is no trade. Order blocks invalidate
-        # on a single close breach, FVGs on two consecutive ones (mirrors the
-        # SMC label semantics); ``invalid_idx`` is the first breach of the
-        # streak, so the invalidation stands at ``invalid_idx + consecutive - 1``.
-        invalidation_consecutive = 2 if family == "FVG" else 1
-        invalid_idx = _first_invalidation_index(
-            sign, zone_low, zone_high, closes, consecutive=invalidation_consecutive
-        )
-        if invalid_idx is not None and invalid_idx + invalidation_consecutive - 1 <= decision_idx:
-            return None
-
-        entry_idx = decision_idx + 1
-        exit_idx = decision_idx + horizon
-
-    if exit_idx >= len(closes) or entry_idx > exit_idx:
-        # No full horizon available after the decision -> drop this event.
+    # Default: zone retest-touch (variant A).
+    zone_low = float(event["zone_low"])
+    zone_high = float(event["zone_high"])
+    if zone_low <= 0.0 or zone_high <= 0.0 or zone_high < zone_low:
         return None
-    entry_price = opens[entry_idx]
+
+    highs = [float(x) for x in event.get("forward_highs", [])]
+    lows = [float(x) for x in event.get("forward_lows", [])]
+
+    touch_idx = _first_touch_index(sign, zone_low, zone_high, highs, lows)
+    if touch_idx is None:
+        return None
+
+    # Variant-A fix: a retest touch that lands *after* the setup has already
+    # been invalidated is not a tradable mitigation. Mirror the SMC label
+    # semantics exactly — order blocks invalidate on a single close breach,
+    # FVGs on two consecutive close breaches.
+    invalidation_consecutive = 2 if family == "FVG" else 1
+    invalid_idx = _first_invalidation_index(
+        sign, zone_low, zone_high, closes, consecutive=invalidation_consecutive
+    )
+    if invalid_idx is not None and touch_idx > invalid_idx:
+        return None
+
+    required_exit_idx = touch_idx + horizon
+    if required_exit_idx >= len(closes):
+        # No full horizon available after the touch -> drop this event.
+        return None
+    exit_idx = required_exit_idx
+
+    entry_price = (zone_low + zone_high) / 2.0
     if entry_price <= 0.0:
         return None
     exit_price = closes[exit_idx]

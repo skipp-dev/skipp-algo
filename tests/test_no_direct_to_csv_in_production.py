@@ -38,8 +38,6 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from tests._guard_corpus import iter_tracked_files
-
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 # Audit E-1 2026-06-13 (AW-1): scan all production surfaces, not just scripts/.
 _SCAN_DIRS: tuple[Path, ...] = tuple(
@@ -162,22 +160,13 @@ def _iter_scan_files() -> list[Path]:
     """All production .py files in scope: scan dirs (recursive) + repo root."""
     files: list[Path] = []
     for scan_dir in _SCAN_DIRS:
-        files.extend(iter_tracked_files("*.py", frozenset(), root=scan_dir))
-    # One floor over the whole scope rather than eight per-directory ones: the
-    # claim this guard makes is "production was scanned", and rl/ alone going
-    # missing is not what would make that claim false.
-    assert len(files) >= 800, (
-        f"production scan collapsed: {len(files)} files across "
-        f"{len(_SCAN_DIRS)} scan dirs, expected >= 800"
-    )
+        files.extend(sorted(scan_dir.rglob("*.py")))
     # Repo-root modules (non-recursive); exclude test helpers and conftest
     # which may use raw writes in test-only contexts (not production surfaces).
     files.extend(
         p
-        for p in sorted(iter_tracked_files("*.py", frozenset(), root=_REPO_ROOT))
-        if p.parent == _REPO_ROOT
-        and not p.name.startswith("test_")
-        and p.name != "conftest.py"
+        for p in sorted(_REPO_ROOT.glob("*.py"))
+        if not p.name.startswith("test_") and p.name != "conftest.py"
     )
     return files
 

@@ -409,6 +409,5 @@ class TestResetAdapterLifecycle:
             time.sleep(0.05)
 
         # The error is caught by the poller's error handler
-        assert "direct:RuntimeError" in bp.last_poll_error
-        assert "client has been closed" not in bp.last_poll_error
+        assert "client has been closed" in bp.last_poll_error
         bp.stop_and_join(timeout=2.0)

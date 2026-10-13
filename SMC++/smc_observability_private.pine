@@ -3,7 +3,7 @@
 //@version=6
 library("smc_observability_private", overlay = true)
 
-import preuss_steffen/smc_utils/4 as u
+import preuss_steffen/smc_utils/3 as u
 
 debug_mode_is_full(string long_engine_debug_mode) =>
     long_engine_debug_mode == 'Full'

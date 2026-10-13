@@ -15,7 +15,7 @@ from open_prep.pre_a0_model import PreA0ModelArtifact, parse_artifact, verify_ar
 
 DEFAULT_EXPERIMENT_NAME = "pre-a0"
 DEFAULT_REGISTERED_MODEL_NAME = "skipp-pre-a0"
-PROMOTION_POLICY_CONTRACT_VERSION = "pre-a0-promotion-policy-v2"
+PROMOTION_POLICY_CONTRACT_VERSION = "pre-a0-promotion-policy-v1"
 RUNTIME_CONTRACT = "local-json-v1"
 SUPPORTED_ALIASES = ("candidate", "shadow")
 
@@ -173,24 +173,8 @@ def validate_bundle(
         reasons.append("brier_does_not_beat_baseline")
     if _metric(report_metrics, "test_ece") > float(candidate_policy["max_test_ece"]):
         reasons.append("test_ece_above_maximum")
-    # Policy v2 (2026-08-03): ranking quality is gated on AP *lift* (AP divided
-    # by the test base rate), not absolute AP — an absolute floor is
-    # base-rate-dependent (the old 0.8 meant 16.8x lift on the 4.76%-base-rate
-    # bootstrap eval but 156x on the 0.51% live distribution). The lift
-    # threshold is only meaningful with enough positives: Monte Carlo over
-    # random rankings puts the null AP p99.9 at 1.93x base rate with 250
-    # positives (base rate 0.5%) but 3.25x with only 100 — so the positives
-    # floor below is the statistical validity condition for this check, not an
-    # independent knob.
-    test_positive_rows = _metric(report_metrics, "test_positive_rows")
-    if test_positive_rows < float(candidate_policy["min_test_positive_rows"]):
-        reasons.append("test_positive_rows_below_minimum")
-    test_base_rate = _metric(report_metrics, "test_base_rate")
-    if test_base_rate <= 0:
-        raise GovernanceValidationError("test_base_rate must be positive")
-    ap_lift = _metric(report_metrics, "test_average_precision") / test_base_rate
-    if ap_lift < float(candidate_policy["min_test_average_precision_lift"]):
-        reasons.append("average_precision_lift_below_minimum")
+    if _metric(report_metrics, "test_average_precision") < float(candidate_policy["min_test_average_precision"]):
+        reasons.append("average_precision_below_minimum")
 
     candidate_blockers = {
         "artifact_identity_mismatch",
@@ -199,10 +183,9 @@ def validate_bundle(
         "offline_evaluation_missing",
         "calibration_missing",
         "test_rows_below_minimum",
-        "test_positive_rows_below_minimum",
         "brier_does_not_beat_baseline",
         "test_ece_above_maximum",
-        "average_precision_lift_below_minimum",
+        "average_precision_below_minimum",
     }
     candidate_eligible = not candidate_blockers.intersection(reasons)
     shadow_evaluated = bool(artifact.gates.get("shadow_evaluated")) and bool(report.get("shadow_gate_passed"))

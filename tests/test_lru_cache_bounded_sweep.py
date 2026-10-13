@@ -18,8 +18,6 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from tests._guard_corpus import iter_production_py_files
-
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # Folders to skip entirely. Vendored deps + virtualenv + caches.
@@ -43,7 +41,13 @@ _WAIVERS: frozenset[str] = frozenset()
 
 
 def _iter_python_files() -> list[Path]:
-    return iter_production_py_files(_SKIP_DIRS)
+    files: list[Path] = []
+    for path in REPO_ROOT.rglob("*.py"):
+        rel = path.relative_to(REPO_ROOT)
+        if any(part in _SKIP_DIRS for part in rel.parts):
+            continue
+        files.append(path)
+    return files
 
 
 def _decorator_calls_lru_cache(deco: ast.expr) -> tuple[bool, bool]:

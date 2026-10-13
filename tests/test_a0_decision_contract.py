@@ -125,9 +125,6 @@ def _detect(
         (_engine(rsi=20.0), 1.2, 1.2, {}, "A0", "rsi_directional_upgrade"),
         (_engine(technical_signal="STRONG_SELL"), 3.0, 2.0, {}, "A1", "technical_contra_downgrade"),
         (_engine(technical_score=0.8, technical_signal="BUY"), 1.6, 1.2, {}, "A0", "technical_alignment_upgrade"),
-        # SHORT mirror: strong BEARISH technical alignment (low score / STRONG_SELL)
-        # must upgrade an A1-band SHORT to A0, symmetric to the LONG case above.
-        (_engine(technical_score=0.05, technical_signal="STRONG_SELL"), 1.6, -1.2, {}, "A0", "technical_alignment_upgrade"),
         (_engine(cooldown_active=True), 3.0, 2.0, {}, "A1", "cooldown_downgrade"),
         (_engine(previous_price=102.0), 3.0, 2.0, {}, "A1", "momentum_not_confirmed"),
         (_engine(hysteresis_level="A1"), 3.0, 2.0, {}, "A1", "hysteresis_adjustment"),

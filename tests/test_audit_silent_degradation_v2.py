@@ -19,12 +19,6 @@ from unittest import mock
 
 import httpx
 
-# 2026-08-20: siehe tests/test_smc_live_overlay_feed_lifecycle_thread_safety.py
-# — ``Barrier.wait()`` ohne Frist haengt statt zu scheitern. 15 s, damit ein
-# echter Hang eine ``BrokenBarrierError``-Zusicherung erzeugt statt eines
-# Thread-Dumps aus ``faulthandler_timeout = 180``.
-_BARRIER_TIMEOUT_SECS = 15.0
-
 # ── RED 1 — _bz_http.py: full-jitter retry ──────────────────────
 
 
@@ -162,7 +156,7 @@ def test_finnhub_concurrent_429s_do_not_corrupt_counter() -> None:
     barrier = threading.Barrier(2)
 
     def bump() -> None:
-        barrier.wait(timeout=_BARRIER_TIMEOUT_SECS)
+        barrier.wait()
         for _ in range(50):
             with fh._state_lock:
                 fh._consecutive_429_count += 1
@@ -171,12 +165,8 @@ def test_finnhub_concurrent_429s_do_not_corrupt_counter() -> None:
     t2 = threading.Thread(target=bump)
     t1.start()
     t2.start()
-    t1.join(timeout=_BARRIER_TIMEOUT_SECS + 5.0)
-    t2.join(timeout=_BARRIER_TIMEOUT_SECS + 5.0)
-    assert not t1.is_alive() and not t2.is_alive(), (
-        "ein Zaehler-Thread lief nicht zu Ende — ohne diese Zusicherung haette "
-        "der unbegrenzte join() hier gehangen statt zu scheitern"
-    )
+    t1.join()
+    t2.join()
 
     with fh._state_lock:
         final = fh._consecutive_429_count

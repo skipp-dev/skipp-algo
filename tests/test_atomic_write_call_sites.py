@@ -78,9 +78,6 @@ for _scan_dir in _SCAN_DIRS:
 #
 # Keys are repo-relative POSIX paths (Deep-Review 2026-04-27).
 _ALLOWED_RAW_WRITE_FILES: dict[str, str] = {
-    # scripts/judge_proof_ledger.py: migrated to smc_atomic_write.atomic_write_json
-    # (pre-push-gate fix wave, 2026-08-24) instead of an allowlisted raw
-    # open(...,"w") -- no raw write site remains, so no entry here.
     "scripts/bake_overlay_library.py": "mkstemp + fdopen + os.replace atomic pattern (overlay .pine + manifest snapshots)",
     "scripts/plan_2_8_history_backfill.py": "fdopen + os.replace atomic pattern (json snapshots)",
     "scripts/plan_2_8_snooze_admin.py": "fdopen + os.replace atomic pattern (json snapshots)",
@@ -97,11 +94,7 @@ _ALLOWED_RAW_WRITE_FILES: dict[str, str] = {
     "scripts/f2_flip_status.py": "JSONL flip-status journal append (mode='a', append-only audit ledger; issue #45)",
     "scripts/render_ci_gate_summary.py": "GitHub Actions $GITHUB_STEP_SUMMARY append (mode='a')",
     "scripts/resolve_workflow_runner.py": "GitHub Actions $GITHUB_OUTPUT append for runner-selection outputs (mode='a')",
-    "scripts/hold_r1_attested_sources.py": "GitHub Actions $GITHUB_OUTPUT append for the held-paths/notice outputs (mode='a')",
-    "scripts/hold_customer_surfaces.py": "GitHub Actions $GITHUB_OUTPUT append for the held-paths/notice outputs (mode='a'); the restores themselves go through smc_atomic_write",
-    "scripts/decide_rolling_benchmark_run.py": "GitHub Actions $GITHUB_OUTPUT append fuer die Kadenz-Entscheidung (mode='a', zwei einzeilige key=value-Paare); das Skript schreibt sonst nichts — es entscheidet nur",
     "scripts/restore_databento_export_bundle.py": "GitHub Actions $GITHUB_OUTPUT append in Databento artifact-restore helper (mode='a')",
-    "scripts/tv_repair_watchdog_decision.py": "GitHub Actions $GITHUB_OUTPUT append for the repair-watchdog dispatch/reason outputs (mode='a')",
     "scripts/backfill_live_outcomes.py": "fdopen + os.replace atomic pattern (audit JSON snapshots)",
     "scripts/build_families_telemetry.py": "fdopen + os.replace atomic pattern (C13 families telemetry JSON)",
     "scripts/collect_opening_imbalances.py": "mkstemp + os.replace atomic pattern (C13 imbalance JSONL/JSON snapshots)",
@@ -160,7 +153,6 @@ _ALLOWED_RAW_WRITE_FILES: dict[str, str] = {
     "smc_integration/structure_batch.py": "fdopen + os.replace atomic pattern (structure batch JSON)",
     "newsstack_fmp/open_prep_export.py": "mkstemp + fsync + os.replace atomic pattern (news candidates JSON export)",
     "scripts/collect_drift_calibration_corpus.py": "JSONL corpus append (mode='a', append-only calibration corpus; issue #2798)",
-    "scripts/composio_canary_report.py": "Markdown-Anhang an $GITHUB_STEP_SUMMARY (mode='a', append-only Runner-Log; atomares Ersetzen wuerde die Summary anderer Steps loeschen)",
     # Repo-root modules.
     "streamlit_terminal.py": "_write_json_atomic mkstemp + fsync + os.replace; plus JSONL append (mode='a', audit trail)",
     "terminal_export.py": "JSONL append (mode='a', error/audit trail) + mkstemp + os.replace VisiData exports",

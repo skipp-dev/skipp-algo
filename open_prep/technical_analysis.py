@@ -124,7 +124,7 @@ def compute_risk_penalty(
 
     # Spread penalty
     if spread_pct > 0:
-        total += min(spread_pct * 0.1, 0.02)  # 2026-07-25: caller sends pct-points (×100); was *10.0 (fraction-era) → saturated cap
+        total += min(spread_pct * 10.0, 0.02)
 
     return max(0.05, min(total, 0.20))
 
@@ -154,20 +154,16 @@ def classify_instrument(price: float, atr_pct: float) -> str:
 def compute_adaptive_gates(
     *,
     base_score_min: float = 0.35,
+    base_trend_z_min: float = 0.3,
+    base_atr_ratio_min: float = 1.5,
     vix_level: float = 20.0,
+    instrument_class: str = "mid_cap",
 ) -> dict[str, float]:
-    """Compute the adaptive score gate threshold from VIX.
+    """Compute adaptive gate thresholds from VIX and instrument class.
 
-    • High VIX (>30)  → relax the score gate by 15 % (more opportunities)
-    • Low VIX  (<15)  → tighten the score gate by 15 %
-
-    2026-08-18 (Verdrahtungs-Sweep C3): ``trend_z_min`` und ``atr_ratio_min``
-    wurden hier berechnet, an jede publizierte Kandidatenzeile geheftet — und
-    von NIEMANDEM gelesen. Schlimmer: repo-weit existiert kein gemessener
-    ``trend_z``-/``atr_ratio``-Wert auf den Rows, gegen den sie je hätten
-    gaten können (Phantom-Input). Sie standen als „Gates" im Payload, ohne zu
-    gaten. Entfernt statt verdrahtet; ``score_min`` ist das eine echte Gate
-    (Soft-Warn + gate_tracker im Scorer).
+    • High VIX (>30)  → relax score/trend gates by 15 % (more opportunities)
+    • Low VIX  (<15)  → tighten score/trend gates by 15 % (the VIX multiplier is NOT applied to the ATR threshold — corrected 2026-07-08)
+    • Instrument class → ATR-ratio threshold from ``atr_table``; ``base_atr_ratio_min`` is only a fallback for unknown classes
     """
     # VIX multiplier
     if vix_level > 30:
@@ -178,9 +174,20 @@ def compute_adaptive_gates(
         vix_mult = 1.0
 
     adapted_score = max(0.20, min(0.50, base_score_min * vix_mult))
+    adapted_trend = max(0.15, min(0.50, base_trend_z_min * vix_mult))
+
+    atr_table = {
+        "penny": 0.5,
+        "small_cap": 1.0,
+        "mid_cap": 1.5,
+        "large_cap": 2.5,
+    }
+    adapted_atr = max(0.5, min(3.0, atr_table.get(instrument_class, base_atr_ratio_min)))
 
     return {
         "score_min": round(adapted_score, 3),
+        "trend_z_min": round(adapted_trend, 3),
+        "atr_ratio_min": round(adapted_atr, 3),
     }
 
 
@@ -571,7 +578,7 @@ def validate_data_quality(candidate: dict[str, Any]) -> DataQualityResult:
     price = _safe_float(candidate.get("price"))
     volume = _safe_float(candidate.get("volume"))
     avg_volume = _safe_float(_coalesce(candidate.get("avg_volume"), candidate.get("avgVolume")))
-    rsi = _safe_float(_coalesce(candidate.get("rsi"), candidate.get("rsi14")), default=50.0)  # 2026-07-28: read rsi14 too (producer sets rsi14, not bare rsi) — mirrors scorer.filter_candidate
+    rsi = _safe_float(candidate.get("rsi"), default=50.0)
     momentum_z = _safe_float(_coalesce(candidate.get("momentum_z_score"), candidate.get("momentum_z")))
     rel_vol = _safe_float(_coalesce(candidate.get("volume_ratio"), candidate.get("rel_vol")))
 
@@ -896,7 +903,7 @@ def calculate_support_resistance_targets(
     # --- Combine & sort ---
     try:
         res_candidates = [v for v in [r1, r2, r3] if v is not None] + swing_highs + [
-            v for v in (ema_20, ema_50, ema_200, fib_382, fib_500, fib_618) if v is not None
+            v for v in (ema_20, ema_50, ema_200) if v is not None
         ]
         res_candidates = sorted(v for v in res_candidates if v > current_price * 1.001)
 
@@ -1246,8 +1253,8 @@ def resolve_regime_weights(
     Regimes:
       - ``TRENDING`` → boost momentum & ext-hours, dampen gap
       - ``RANGING``  → boost gap & rvol, dampen momentum
-      - ``NEUTRAL``  → no regime tilt (the cap below still runs, but see the
-        component_cap note: in production it can never bind)
+      - ``NEUTRAL``  → no regime tilt (but the cap below still runs, so a
+        base weight already over-cap would be trimmed)
 
     After adjustment an iterative cap (bounded to 5 passes) trims any single
     weight toward *component_cap* × sum-of-positive-weights. Because trimming
@@ -1261,12 +1268,7 @@ def resolve_regime_weights(
     regime : str
         One of ``"TRENDING"``, ``"RANGING"``, ``"NEUTRAL"``.
     component_cap : float
-        Maximum fraction any single weight may occupy (default 0.45). Truth
-        note 2026-07-28 (B-sweep): no production caller overrides it, and
-        under DEFAULT_WEIGHTS + the 0.50 candidate drift gate no admissible
-        weight set can reach 0.45 (max ~0.34) — the trim branch is defensive
-        only. Also NOT wired to config ``score_component_cap_fraction``:
-        that key caps score *components* in scorer.py, not weights here.
+        Maximum fraction any single weight may occupy (default 0.45).
 
     Returns
     -------
@@ -1399,46 +1401,3 @@ def compute_trend_state_features(
                 out["trend_alignment"] = 0
 
     return out
-
-
-# ── RSI(14) producer (2026-07-27) ────────────────────────────────────
-#
-# Appended below every line-pinned site. Closes the rsi_extreme phantom-key
-# gap: scorer.filter_candidate and validate_data_quality have consumed
-# quote["rsi"]/["rsi14"] since their introduction, but no producer ever set
-# either key on the open_prep path — the warn-only gate could not fire.
-#
-# 2026-07-28: this coverage claim was incomplete. The producer + scorer.
-# filter_candidate were wired, but validate_data_quality still read bare
-# "rsi" only (never rsi14), so its own rsi_extreme gate stayed dead. Now
-# reads rsi14 too (mirrors scorer.filter_candidate) — see line ~581.
-
-
-def rsi14_from_closes(closes: list[float], period: int = 14) -> float | None:
-    """Wilder-smoothed RSI over daily closes (oldest → newest).
-
-    Returns ``None`` — "not measured", never a fake-neutral 50 — when there
-    are fewer than ``period + 1`` closes or any close is non-finite. The
-    consumer contract treats a missing value as "no data": the scorer's
-    ``rsi_extreme`` check self-disables via its NaN fallback and
-    ``validate_data_quality`` falls back to its neutral default.
-
-    Matches Wilder's recursive smoothing (``avg = (prev*(n-1) + cur) / n``)
-    rather than a rolling simple mean — the two visibly diverge from the
-    second value on (pinned against Wilder's worked example in
-    ``tests/test_rsi14_producer.py``).
-    """
-    values = [float(c) for c in closes]
-    if len(values) < period + 1 or not all(math.isfinite(v) for v in values):
-        return None
-
-    deltas = [values[i] - values[i - 1] for i in range(1, len(values))]
-    avg_gain = sum(max(d, 0.0) for d in deltas[:period]) / period
-    avg_loss = sum(max(-d, 0.0) for d in deltas[:period]) / period
-    for delta in deltas[period:]:
-        avg_gain = (avg_gain * (period - 1) + max(delta, 0.0)) / period
-        avg_loss = (avg_loss * (period - 1) + max(-delta, 0.0)) / period
-
-    if avg_loss == 0.0:
-        return 100.0 if avg_gain > 0.0 else None  # flat series: no signal
-    return round(100.0 - 100.0 / (1.0 + avg_gain / avg_loss), 4)

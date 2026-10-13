@@ -1,0 +1,77 @@
+{
+  "ts": "2026-10-13T13:14:29.043646+00:00",
+  "regime": "ROTATION",
+  "market_weather": "RED",
+  "candidates": [
+    {
+      "symbol": "BKHA",
+      "gap_pct": 0.0,
+      "score": 6.9181,
+      "confidence_tier": "STANDARD",
+      "sector": null
+    },
+    {
+      "symbol": "MANH",
+      "gap_pct": 0.0,
+      "score": 6.6896,
+      "confidence_tier": "STANDARD",
+      "sector": "Technology"
+    },
+    {
+      "symbol": "FICO",
+      "gap_pct": 0.0,
+      "score": 6.276,
+      "confidence_tier": "STANDARD",
+      "sector": "Technology"
+    },
+    {
+      "symbol": "CCC",
+      "gap_pct": 0.0,
+      "score": 5.8101,
+      "confidence_tier": "STANDARD",
+      "sector": null
+    },
+    {
+      "symbol": "FIGS",
+      "gap_pct": 0.0,
+      "score": 5.7842,
+      "confidence_tier": "STANDARD",
+      "sector": null
+    },
+    {
+      "symbol": "IONZ",
+      "gap_pct": 0.0,
+      "score": 5.0726,
+      "confidence_tier": "STANDARD",
+      "sector": null
+    },
+    {
+      "symbol": "RGTZ",
+      "gap_pct": 0.0,
+      "score": 4.6506,
+      "confidence_tier": "STANDARD",
+      "sector": null
+    },
+    {
+      "symbol": "ARL",
+      "gap_pct": 0.0,
+      "score": 4.4827,
+      "confidence_tier": "STANDARD",
+      "sector": null
+    },
+    {
+      "symbol": "SOXS",
+      "gap_pct": 0.0,
+      "score": 4.4691,
+      "confidence_tier": "STANDARD",
+      "sector": null
+    },
+    {
+      "symbol": "NRR",
+      "gap_pct": 0.0,
+      "score": 4.4095,
+      "confidence_tier": "STANDARD",
+      "sector": null
+    }
+  ]
+}

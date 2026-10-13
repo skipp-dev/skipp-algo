@@ -297,8 +297,7 @@ class TestBackgroundPoller:
         time.sleep(0.3)
         bp.stop_and_join(timeout=1.0)
 
-        assert "direct:RuntimeError" in bp.last_poll_error
-        assert "API down" not in bp.last_poll_error
+        assert "API down" in bp.last_poll_error
         assert bp.last_poll_status == "ERROR"
 
     def test_start_idempotent(self):

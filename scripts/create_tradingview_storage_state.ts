@@ -1,29 +1,17 @@
 #!/usr/bin/env -S node --enable-source-maps
 
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
+
+import { authenticator } from "otplib";
 
 import { inspectTradingViewStorageState } from "../automation/tradingview/lib/tv_validation_model.js";
 import {
-  acquireExclusiveFileLock,
   collectTradingViewPageAuthState,
   launchTradingViewChromium,
   launchTradingViewPersistentContext,
   resolveTradingViewHeadlessDefault,
   resolveTradingViewLaunchOptions,
-  extractErrorLines,
-  generateTotpToken,
-  isOtpEntryComplete,
-  planOtpEntry,
-  revealEmailLoginField,
-  resolveTradingViewStorageCaptureWaitAction,
-  resolveTotpTelemetry,
-  shouldAttemptTotp,
-  summariseActionableNodes,
-  TV_LOGIN_IDENTIFIER_SELECTOR,
-  TV_OTP_FIELD_SELECTOR,
-  writePrivateJsonAtomic,
 } from "../automation/tradingview/lib/tv_shared.js";
 
 /**
@@ -38,7 +26,6 @@ const STORAGE_STATE_CAPTURE_VIEWPORT = { width: 1440, height: 1100 } as const;
 type CliArgs = {
   out: string;
   inputStorageState?: string;
-  forceFreshLogin: boolean;
   loginUrl: string;
   chartUrl: string;
   waitTimeoutMs: number;
@@ -48,30 +35,13 @@ type CliArgs = {
   password?: string;
   totpSecret?: string;
   headless: boolean;
-  sessionOwner: string;
-  sessionLockFile: string;
 };
-
-type TwoFactorAttemptState = {
-  lastAttemptedStep?: number;
-  lastTotpInputDispatchedAtMs?: number;
-  totpEntered: boolean;
-  totpSubmitted: boolean;
-};
-
-type AuthenticationMode =
-  | "bootstrap_session"
-  | "fresh_login"
-  | "interactive_login"
-  | "persistent_profile";
 
 async function collectPageAuthDiagnostics(page: import("playwright").Page): Promise<{
   url: string;
   title: string;
   bodyPreview: string;
   signInSignals: boolean;
-  loginFormVisible: boolean;
-  explicitlyAnonymous: boolean;
   authenticated: boolean;
   authReason: string;
   authProbeStatuses: number[];
@@ -85,10 +55,7 @@ async function collectPageAuthDiagnostics(page: import("playwright").Page): Prom
       url: location.href,
       title: document.title,
       bodyPreview: bodyText.slice(0, 240),
-      signInSignals:
-        /sign in|log in|email|password|continue with google|two-factor authentication|verification code|backup code|code from your app/i.test(
-          bodyText,
-        ),
+      signInSignals: /sign in|log in|email|password|continue with google/i.test(bodyText),
     };
   }).catch((error) => {
     // Clone of the auth-state probe evaluate in tv_shared: a crashed execution
@@ -103,76 +70,14 @@ async function collectPageAuthDiagnostics(page: import("playwright").Page): Prom
   return {
     ...domDiagnostics,
     signInSignals: domDiagnostics.signInSignals || pageAuthState?.explicitlyAnonymous === true || pageAuthState?.authenticated === false,
-    // Unconflated DOM evidence: the field above is ORed with "session is
-    // anonymous", so it cannot answer "is a login form actually on screen?".
-    loginFormVisible: domDiagnostics.signInSignals,
-    explicitlyAnonymous: pageAuthState?.explicitlyAnonymous === true,
     authenticated: pageAuthState?.authenticated === true,
     authReason: pageAuthState?.reason ?? "auth_state_probe_failed",
     authProbeStatuses: pageAuthState?.evidence.accountProbeStatuses ?? [],
   };
 }
 
-// The inventory is verbose and the caller polls every ~6s for 180s — dump it
-// once, on the first poll that cannot submit, and stay quiet afterwards.
-let twoFactorInventoryLogged = false;
-
-/**
- * Describe the 2FA page well enough to NAME the submit control next time.
- *
- * `buttons on page: []` (run 30343856471) says what is absent, not what is
- * there. This casts a wider net — any visibly actionable node, every frame, and
- * whatever reads like a rejection — so the follow-up stops being guesswork.
- */
-async function logTwoFactorPageInventory(page: import("playwright").Page): Promise<void> {
-  const nodes = await page
-    .locator(
-      'button, [role="button"], input[type="submit"], input[type="button"], a[href], '
-      + '[class*="button" i], [class*="submit" i], [tabindex]:not([tabindex="-1"])',
-    )
-    .evaluateAll((elements) =>
-      elements.slice(0, 60).map((element) => {
-        const rect = element.getBoundingClientRect();
-        return {
-          tag: element.tagName,
-          type: (element as HTMLInputElement).type || undefined,
-          role: element.getAttribute("role") || undefined,
-          className: typeof element.className === "string" ? element.className : undefined,
-          text: (element.textContent || "").trim() || undefined,
-          visible: rect.width > 0 && rect.height > 0,
-        };
-      }),
-    )
-    .catch(() => [] as Parameters<typeof summariseActionableNodes>[0]);
-
-  const bodyText = await page.locator("body").innerText().catch(() => "");
-  const frames = page.frames().map((frame) => frame.url()).filter((url) => url && url !== "about:blank");
-  const formInfo = await page
-    .locator(TV_OTP_FIELD_SELECTOR)
-    .first()
-    .evaluate((element) => {
-      const form = element.closest("form");
-      return {
-        insideForm: form !== null,
-        formAction: form?.getAttribute("action") || undefined,
-        name: element.getAttribute("name") || undefined,
-        autocomplete: element.getAttribute("autocomplete") || undefined,
-      };
-    })
-    .catch(() => ({ insideForm: false }) as { insideForm: boolean });
-
-  console.warn(
-    "[tv-2fa] page inventory — actionable="
-    + JSON.stringify(summariseActionableNodes(nodes))
-    + " codeField=" + JSON.stringify(formInfo)
-    + " frames=" + JSON.stringify(frames.slice(0, 6))
-    + " errors=" + JSON.stringify(extractErrorLines(bodyText)),
-  );
-}
-
 async function assistTwoFactorSubmission(
   page: import("playwright").Page,
-  state: TwoFactorAttemptState,
   totpSecret?: string,
 ): Promise<void> {
   const bodyText = await page.locator("body").innerText().catch(() => "");
@@ -180,86 +85,26 @@ async function assistTwoFactorSubmission(
     return;
   }
 
-  const codeFields = page.locator(TV_OTP_FIELD_SELECTOR);
-  const fieldCount = await codeFields.count().catch(() => 0);
-  const codeField = codeFields.first();
+  const codeField = page.locator(
+    'input[autocomplete="one-time-code"], input[inputmode="numeric"], input[name*="code" i], input[placeholder*="code" i], input[type="tel"], input[type="text"]',
+  ).first();
 
-  const fieldVisible = fieldCount > 0 && (await codeField.isVisible().catch(() => false));
+  const fieldVisible = (await codeField.count().catch(() => 0)) > 0 && (await codeField.isVisible().catch(() => false));
 
-  const readEnteredCode = async (): Promise<string> => {
-    if (!fieldVisible) {
-      return "";
-    }
-    const values = await codeFields.evaluateAll(
-      (nodes) => nodes.map((node) => (node as HTMLInputElement).value || ""),
-    ).catch(() => [] as string[]);
-    return values.join("").trim();
-  };
-
-  // If we have a TOTP secret, generate the current 6-digit code and enter it.
+  // If we have a TOTP secret, generate the current 6-digit code and fill it.
   if (totpSecret && fieldVisible) {
-    const retry = shouldAttemptTotp(state.lastAttemptedStep, Date.now());
-    if (!retry.attempt) {
-      return;
-    }
-    // Reserve this time-step before any asynchronous DOM work so a transient
-    // error cannot make the polling loop submit the same code repeatedly.
-    state.lastAttemptedStep = retry.step;
     try {
-      const token = generateTotpToken(totpSecret);
-      const shapes = await codeFields.evaluateAll(
-        (nodes) => nodes.map((node) => ({ maxLength: (node as HTMLInputElement).maxLength })),
-      ).catch(() => [] as { maxLength: number }[]);
-      const plan = planOtpEntry(shapes, token.length);
-
-      // Type instead of fill(): a per-digit layout auto-advances on keystrokes,
-      // and framework-backed single fields ignore a value written straight to
-      // the DOM. fill() wrote all six digits into box one — the bug this fixes.
-      await codeField.click({ timeout: 2_000 }).catch(() => undefined);
-      let inputDispatched = false;
-      if (plan.perBox) {
-        inputDispatched = await page.keyboard.type(token, { delay: 60 })
-          .then(() => true)
-          .catch(() => false);
-      } else {
-        await codeField.fill("").catch(() => undefined);
-        inputDispatched = await codeField.pressSequentially(token, { delay: 40 })
-          .then(() => true)
-          .catch(() => false);
-      }
-      if (inputDispatched) {
-        state.lastTotpInputDispatchedAtMs = Date.now();
-      }
+      const token = authenticator.generate(totpSecret);
+      console.log("TOTP code generated — filling 2FA field automatically.");
+      await codeField.fill(token);
       await page.waitForTimeout(500);
-
-      const entered = await readEnteredCode();
-      const entryComplete = isOtpEntryComplete(entered, token);
-      console.log(
-        `TOTP input dispatched — fields=${fieldCount} plan=${plan.reason} `
-        + `dispatched=${inputDispatched} readbackComplete=${entryComplete} `
-        + `digits=${entered.length}/${token.length}`,
-      );
-      state.totpEntered = state.totpEntered || entryComplete;
     } catch (err) {
       console.warn(`TOTP generation failed: ${err instanceof Error ? err.message : String(err)}. Proceeding without filling.`);
     }
   }
 
-  const currentValue = await readEnteredCode();
-  const hasLikelyCode = currentValue.length >= 6;
-  if (fieldVisible && !hasLikelyCode) {
-    if (state.lastTotpInputDispatchedAtMs !== undefined) {
-      console.log(
-        `2FA readback incomplete after code dispatch (${currentValue.length}/6 digits) — `
-        + "awaiting the auth probe because TradingView may have auto-submitted and cleared the field.",
-      );
-    } else {
-      console.warn(
-        `2FA code incomplete (${currentValue.length}/6 digits across ${fieldCount} field(s)) — `
-        + "not submitting; the next poll retries with a fresh code.",
-      );
-    }
-  }
+  const currentValue = fieldVisible ? await codeField.inputValue().catch(() => "") : "";
+  const hasLikelyCode = currentValue.trim().length >= 6;
 
   const submitCandidates = [
     page.getByRole("button", { name: /continue/i }),
@@ -296,38 +141,17 @@ async function assistTwoFactorSubmission(
       continue;
     }
 
-    const label = (await button.innerText().catch(() => "")).trim().split("\n")[0];
-    console.log(`2FA submit clicked ("${label || "unlabelled"}").`);
-    const clicked = await button.click({ timeout: 2_000 })
-      .then(() => true)
-      .catch(() => false);
-    state.totpSubmitted = state.totpSubmitted || (clicked && state.totpEntered);
+    await button.click({ timeout: 2_000 }).catch(() => undefined);
     await page.waitForTimeout(750);
     return;
   }
 
-  if (!hasLikelyCode && fieldVisible) {
-    return;
+  if (hasLikelyCode && fieldVisible) {
+    await codeField.focus().catch(() => undefined);
+    await codeField.press("Enter").catch(() => undefined);
+    await page.keyboard.press("Enter").catch(() => undefined);
+    await page.waitForTimeout(750);
   }
-
-  // No button matched. A single OTP field inside a form normally submits on
-  // Enter, so try that before giving up — run 30343856471 proved there is no
-  // `button`/`[role=button]` element on this page at all, so the candidate loop
-  // above can never fire here.
-  if (fieldVisible) {
-    console.log("2FA: no submit control matched — pressing Enter on the code field.");
-    const pressed = await codeField.press("Enter")
-      .then(() => true)
-      .catch(() => false);
-    state.totpSubmitted = state.totpSubmitted || (pressed && state.totpEntered);
-    await page.waitForTimeout(1_500);
-  }
-
-  if (!twoFactorInventoryLogged) {
-    twoFactorInventoryLogged = true;
-    await logTwoFactorPageInventory(page);
-  }
-
 }
 
 
@@ -342,39 +166,17 @@ function parseArgs(): CliArgs {
     return args[idx + 1];
   }
 
-  function getBooleanFlag(name: string, envValue: string | undefined): boolean {
-    if (args.includes(name)) {
-      return true;
-    }
-    return /^(1|true|yes|on)$/i.test((envValue || "").trim());
-  }
-
-  const out = path.resolve(
-    getFlag(
-      "--out",
-      process.env.TV_STORAGE_STATE || "automation/tradingview/auth/storage-state.json",
-    ),
-  );
-  const sessionOwner = (
-    getFlag(
-      "--session-owner",
-      process.env.TV_STORAGE_SESSION_OWNER || `${os.hostname()}:${process.pid}`,
-    ) || ""
-  ).trim();
-  if (!sessionOwner) {
-    throw new Error("TradingView storage-state capture requires a non-empty session owner");
-  }
-
   return {
-    out,
+    out: path.resolve(
+      getFlag(
+        "--out",
+        process.env.TV_STORAGE_STATE || "automation/tradingview/auth/storage-state.json",
+      ),
+    ),
     inputStorageState: (getFlag(
       "--input-storage-state",
       process.env.TV_STORAGE_STATE_INPUT || "",
     ) || "").trim() || undefined,
-    forceFreshLogin: getBooleanFlag(
-      "--force-fresh-login",
-      process.env.TV_FORCE_FRESH_LOGIN,
-    ),
     loginUrl: getFlag(
       "--login-url",
       process.env.TV_LOGIN_URL || "https://www.tradingview.com/accounts/signin/",
@@ -401,13 +203,6 @@ function parseArgs(): CliArgs {
     // Canonical TV_HEADLESS semantics ("1"/"true"/"yes"/"on" + CI fallback) — the
     // previous `=== "1"` parse silently diverged from every other TV entry point.
     headless: args.includes("--headless") || resolveTradingViewHeadlessDefault(process.env),
-    sessionOwner,
-    sessionLockFile: path.resolve(
-      getFlag(
-        "--session-lock-file",
-        process.env.TV_STORAGE_SESSION_LOCK_FILE || `${out}.lock`,
-      ),
-    ),
   };
 }
 
@@ -419,71 +214,27 @@ async function waitForUserOrAuthenticatedChart(
   page: import("playwright").Page,
   context: import("playwright").BrowserContext,
   cli: CliArgs,
-  twoFactorState: TwoFactorAttemptState,
 ): Promise<void> {
   console.log(
     `Waiting up to ${Math.round(cli.waitTimeoutMs / 1000)}s for an authenticated TradingView chart session...`,
   );
 
   const deadline = Date.now() + cli.waitTimeoutMs;
-  let navigatedToLogin = false;
   while (Date.now() < deadline) {
     await page.waitForTimeout(1_000);
-    await assistTwoFactorSubmission(page, twoFactorState, cli.totpSecret).catch(() => undefined);
+      await assistTwoFactorSubmission(page, cli.totpSecret).catch(() => undefined);
     const authDiagnostics = await collectPageAuthDiagnostics(page).catch(() => undefined);
     const storageState = await context.storageState({ indexedDB: true }).catch(() => undefined);
     const inspection = storageState ? inspectTradingViewStorageState(storageState) : undefined;
-    const waitAction = authDiagnostics
-      ? resolveTradingViewStorageCaptureWaitAction({
-          url: authDiagnostics.url,
-          signInSignals: authDiagnostics.signInSignals,
-          loginFormVisible: authDiagnostics.loginFormVisible,
-          explicitlyAnonymous: authDiagnostics.explicitlyAnonymous,
-          authenticated: authDiagnostics.authenticated,
-          storageLooksAuthenticated: inspection?.looksAuthenticated === true,
-          persistentProfile: Boolean(cli.persistentProfileDir),
-        })
-      : "wait";
 
-    if (waitAction !== "wait") {
-      const totpTelemetry = resolveTotpTelemetry({
-        inputDispatchedAtMs: twoFactorState.lastTotpInputDispatchedAtMs,
-        entryObserved: twoFactorState.totpEntered,
-        submitDispatched: twoFactorState.totpSubmitted,
-        authenticated: authDiagnostics?.authenticated === true,
-        authenticatedAtMs: Date.now(),
-      });
-      twoFactorState.totpEntered = totpTelemetry.entered;
-      twoFactorState.totpSubmitted = totpTelemetry.submitted;
-      if (totpTelemetry.inferredFromAuthenticatedSession) {
-        console.log(
-          "TOTP telemetry reconciled from successful authentication after code dispatch "
-          + "(TradingView auto-submit/readback race).",
-        );
-      }
-    }
-
-    if (waitAction === "complete") {
+    if (
+      authDiagnostics?.url.includes("/chart") &&
+      !authDiagnostics.signInSignals &&
+      authDiagnostics.authenticated &&
+      (inspection?.looksAuthenticated || Boolean(cli.persistentProfileDir))
+    ) {
       console.log("Authenticated TradingView chart session detected.");
       return;
-    }
-    if (waitAction === "navigate_to_chart") {
-      console.log("Authenticated TradingView session detected outside the chart; navigating to chart URL...");
-      await page.goto(cli.chartUrl, { waitUntil: "domcontentloaded" });
-      continue;
-    }
-    if (waitAction === "navigate_to_login") {
-      // Once per run: repeated navigation would wipe a half-filled form if the
-      // login page ever fails to expose recognisable sign-in DOM.
-      if (!navigatedToLogin) {
-        navigatedToLogin = true;
-        console.log(
-          `Session is anonymous and no login form is on screen — opening the login page (${cli.loginUrl}). `
-          + "Complete the login in THIS browser window; the capture keeps polling.",
-        );
-        await page.goto(cli.loginUrl, { waitUntil: "domcontentloaded" });
-        continue;
-      }
     }
 
     await sleep(cli.pollIntervalMs);
@@ -504,17 +255,10 @@ async function attemptAutomatedLogin(
   console.log("Attempting automated login with TV_USERNAME / TV_PASSWORD ...");
   try {
     // ── email / username field ───────────────────────────────────────
-    // TradingView creates this input only after the "Email" chooser is clicked,
-    // so reveal it FIRST. Waiting on it up front (as this did until 2026-07-28)
-    // always burns the timeout and drops the run into the interactive branch.
-    if (!(await revealEmailLoginField(page))) {
-      console.warn(
-        "Sign-in page exposed no e-mail/username field (chooser missing or "
-        + "social-only login) — automated login cannot proceed.",
-      );
-      return;
-    }
-    const emailField = page.locator(TV_LOGIN_IDENTIFIER_SELECTOR).first();
+    const emailField = page.locator(
+      'input[name="id_username"], input[name="username"], input[type="email"], ' +
+      'input[placeholder*="email" i], input[placeholder*="username" i]',
+    ).first();
     await emailField.waitFor({ state: "visible", timeout: 10_000 });
     await emailField.fill(cli.username);
 
@@ -557,27 +301,15 @@ async function attemptAutomatedLogin(
 
 async function main(): Promise<number> {
   const cli = parseArgs();
-  if (cli.forceFreshLogin && cli.persistentProfileDir) {
-    throw new Error(
-      "--force-fresh-login cannot be combined with --persistent-profile-dir because the profile already contains session state",
-    );
-  }
-  const captureLock = acquireExclusiveFileLock(cli.sessionLockFile, cli.sessionOwner);
-  let browser!: import("playwright").Browser;
-  let context!: import("playwright").BrowserContext;
 
-  try {
+  fs.mkdirSync(path.dirname(cli.out), { recursive: true });
   const storageStatePath = cli.inputStorageState
     ? path.resolve(cli.inputStorageState)
     : undefined;
   const existingStorageStatePath =
-    !cli.forceFreshLogin && storageStatePath && fs.existsSync(storageStatePath)
-      ? storageStatePath
-      : undefined;
+    storageStatePath && fs.existsSync(storageStatePath) ? storageStatePath : undefined;
 
-  if (cli.forceFreshLogin && storageStatePath) {
-    console.log(`Fresh-login mode: ignoring input storage state ${storageStatePath}`);
-  } else if (storageStatePath && !existingStorageStatePath) {
+  if (storageStatePath && !existingStorageStatePath) {
     console.warn(`Input storage state not found, continuing without bootstrap: ${storageStatePath}`);
   }
 
@@ -591,6 +323,8 @@ async function main(): Promise<number> {
     );
   }
 
+  let browser: import("playwright").Browser;
+  let context: import("playwright").BrowserContext;
   let page: import("playwright").Page;
 
   if (cli.persistentProfileDir) {
@@ -630,9 +364,6 @@ async function main(): Promise<number> {
   console.log("TradingView storage-state capture");
   console.log("--------------------------------");
   console.log(`Output file : ${cli.out}`);
-  console.log(`Session     : ${cli.sessionOwner}`);
-  console.log(`Capture lock: ${captureLock.path}`);
-  console.log(`Fresh login: ${cli.forceFreshLogin ? "forced" : "bootstrap allowed"}`);
   if (existingStorageStatePath) {
     console.log(`Input state : ${existingStorageStatePath}`);
   }
@@ -663,20 +394,8 @@ async function main(): Promise<number> {
   const shouldTryLogin = Boolean(
     cli.username
     && cli.password
-    && (
-      cli.forceFreshLogin
-      || !existingStorageStatePath
-      || initialDiagnostics?.signInSignals
-      || !page.url().includes("/chart")
-    ),
+    && (!existingStorageStatePath || initialDiagnostics?.signInSignals || !page.url().includes("/chart")),
   );
-  const authenticationMode: AuthenticationMode = cli.persistentProfileDir
-    ? "persistent_profile"
-    : shouldTryLogin
-      ? "fresh_login"
-      : existingStorageStatePath
-        ? "bootstrap_session"
-        : "interactive_login";
   if (shouldTryLogin) {
     if (!page.url().includes("/accounts/signin")) {
       await page.goto(cli.loginUrl, { waitUntil: "domcontentloaded" });
@@ -684,11 +403,7 @@ async function main(): Promise<number> {
     await attemptAutomatedLogin(page, cli);
   }
 
-  const twoFactorState: TwoFactorAttemptState = {
-    totpEntered: false,
-    totpSubmitted: false,
-  };
-  await waitForUserOrAuthenticatedChart(page, context, cli, twoFactorState);
+  await waitForUserOrAuthenticatedChart(page, context, cli);
 
   const currentUrl = page.url();
   if (!currentUrl.includes("tradingview.com")) {
@@ -730,36 +445,21 @@ async function main(): Promise<number> {
     meta: {
       authValidatedAt: new Date().toISOString(),
       validationMode: "standard_session",
-      authMode: authenticationMode,
-      totpEntered: twoFactorState.totpEntered,
-      totpSubmitted: twoFactorState.totpSubmitted,
-      sessionOwner: cli.sessionOwner,
       chartUrl: authDiagnostics.url,
       authReason: authDiagnostics.authReason,
       authProbeStatuses: authDiagnostics.authProbeStatuses,
     },
   };
 
-  writePrivateJsonAtomic(cli.out, storageStateToWrite);
+  fs.writeFileSync(cli.out, JSON.stringify(storageStateToWrite, null, 2) + "\n", "utf-8");
 
   console.log("");
   console.log(`Storage state saved to: ${cli.out}`);
-  console.log(
-    `Authentication path: ${authenticationMode}; `
-    + `TOTP entered=${twoFactorState.totpEntered} submitted=${twoFactorState.totpSubmitted}`,
-  );
   console.log("");
 
+  await context.close();
+  await browser.close();
   return 0;
-  } finally {
-    if (context) {
-      await context.close().catch(() => undefined);
-    }
-    if (browser) {
-      await browser.close().catch(() => undefined);
-    }
-    captureLock.release();
-  }
 }
 
 main()

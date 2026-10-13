@@ -75,49 +75,6 @@ class TestGenerateReport:
         assert rec["backend"]["device_name"] == "Test GPU"
 
 
-class TestEwmaRecalibration:
-    def test_counts_only_measured_shadow_rows(self, monkeypatch) -> None:
-        full = {
-            "total_samples": 350,
-            "labeled_samples": 350,
-            "features": {
-                "ewma_score_shadow": {
-                    "measured_samples": 42,
-                    "pearson_r": 0.4,
-                    "mean_separation": 0.2,
-                    "p_value": 0.02,
-                    "fdr_significant": True,
-                }
-            },
-        }
-        monkeypatch.setattr(fr, "compute_feature_importance", lambda **kw: full)
-        decision = fr.generate_report(lookback_days=30, min_samples=200)["ewma_recalibration"]
-        assert decision["status"] == "collecting"
-        assert decision["measured_labeled_samples"] == 42
-        assert decision["shortfall"] == 158
-        assert decision["recommended_weight"] is None
-        assert decision["activation_allowed"] is False
-
-    def test_requires_fdr_after_sample_gate(self, monkeypatch) -> None:
-        full = {
-            "total_samples": 240,
-            "labeled_samples": 240,
-            "features": {
-                "ewma_score_shadow": {
-                    "measured_samples": 240,
-                    "pearson_r": 0.4,
-                    "mean_separation": 0.2,
-                    "p_value": 0.08,
-                    "fdr_significant": False,
-                }
-            },
-        }
-        monkeypatch.setattr(fr, "compute_feature_importance", lambda **kw: full)
-        decision = fr.generate_report(lookback_days=30, min_samples=200)["ewma_recalibration"]
-        assert decision["status"] == "not_fdr_significant"
-        assert decision["live_weight_unchanged"] is True
-
-
 # ── Persistence ──────────────────────────────────────────────────────
 
 
@@ -319,7 +276,6 @@ class TestBackendSelection:
         assert report["labeled_samples"] == 12
         assert report["total_samples"] == 12
         assert report["sample_dates_filter"] == ["2026-07-03"]
-        assert report["labeled_sample_dates"] == ["2026-07-03"]
 
 
 # ── Ranking drift detection (E4) ─────────────────────────────────────

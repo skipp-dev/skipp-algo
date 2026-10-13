@@ -52,7 +52,7 @@ class TestHelpers:
     def test_default_for_desktop(self) -> None:
         d = default_for(Audience.DESKTOP)
         assert d is not None
-        assert d.name == "SMC_Decision_Board.pine"
+        assert d.name == "SMC_Long_Dip_Dashboard.pine"
 
     def test_default_for_mobile(self) -> None:
         d = default_for(Audience.MOBILE)

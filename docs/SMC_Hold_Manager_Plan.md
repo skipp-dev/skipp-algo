@@ -1,126 +1,9 @@
 # SMC Hold-Manager — Plan (Option C)
 
-> **Aktueller Standard-Rollout-Vertrag (2026-07-26):**
-> [SMC Extended Pine Architecture and Rollout Plan](SMC_EXTENDED_PINE_ARCHITECTURE_AND_ROLLOUT_2026-07-26.md).
-> Dieses Dokument bewahrt die ursprüngliche Phasenplanung. Bei Widersprüchen
-> gelten die neueren Anforderungen zu BUS-Anbindung, Zustandsrekonstruktion,
-> Replay-Evidenz, Long-only-Scope und Rollback.
+Status: **Plan-Dokument** — v1 (reine Visualisierung) implementiert in
+`SMC_Hold_Manager.pine`. v2/v3/v4 noch ausstehend (siehe Phase-Gate-Section).
 
-Status: **Historischer Phasenplan mit implementierter v1-Basis.**
-`SMC_Hold_Manager.pine` wird nach bestandenem Readiness-Gate ein
-Standard-Companion; die weitergehenden v2/v3/v4-Funktionen bleiben gestuft.
-Die R2.2-Repository-Implementierung rekonstruiert den bestätigten BUS-Pfad
-deterministisch. Der versionierte R2.4-Repository-Preflight führt inzwischen
-alle 20 Fälle aus, bindet das Ergebnis an den Pine-Source-Hash und zählt die
-Alert-Pulse. Er ist ausdrücklich keine TradingView-Laufzeitevidenz. R2.4
-ist durch die unabhängige TradingView-Replay-Evidenz abgeschlossen; R2.5
-bleibt offen, bis Shadow- und Server-Alert-Evidenz vorliegen.
-Der TradingView-Harness unterscheidet dabei bewusst `raw_step` von
-`confirmed_step`: Der neueste Replay-Bar bleibt unbestätigt, während die
-Produktlogik ausschließlich bestätigte Bars verarbeitet. Jeder manifestierte
-`replayStopSteps`-Wert liegt deshalb genau einen Bar nach dem zu prüfenden
-logischen Checkpoint; maßgeblich ist ausschließlich der sichtbare
-`confirmed_step`.
-Die private Wiederholung vom 2026-07-28 absolvierte mit dem korrigierten
-Fixture alle 23 physischen Läufe. Alle 20 logischen Fälle bestanden,
-einschließlich R2.4-02 an den bestätigten Schritten 204 und 205, aller vier
-Reset-Varianten, beider Reload-Prüfungen und des 1D-Zeitstopps. Das validierte
-Fixture trägt SHA-256
-`2dadabfdf400e1adb11b597f609d7cd18a09c0642966fff426171886e4888f1d`.
-Es wurde ausschließlich privat gespeichert und kompiliert, nicht
-veröffentlicht. Pine-Pulse-Zähler belegen weiterhin keine serverseitige
-TradingView-Alert-Auslieferung; diese bleibt ein separates Cutover-Gate.
-Die kanonische Precondition wurde anschließend für denselben aktuellen
-Source-Hash erneut erfasst: Das private Skript
-`SMC Hold Manager R2.4 Validation` kompiliert, liegt zusammen mit
-`SMC Long-Dip Suite` auf Chart #2 und behielt alle 13 Engine-BUS-v2-Bindings
-nach Layout-Speicherung und Seiten-Reload. Der vollständige gespeicherte
-Quelltext konnte über TradingViews zugängliche Monaco-Sicht nicht unabhängig
-exportiert und gehasht werden; deshalb ist der Readback ehrlich als begrenzter
-sichtbarer Match dokumentiert. Es erfolgten weder Veröffentlichung noch
-Alert-Erstellung oder Shadow-Cutover. Der Nachweis liegt in
-`artifacts/governance/smc_hold_manager_tradingview_preconditions_2026-07-28.json`.
-Der nachfolgende Shadow-Schritt ist nun vorregistriert und ausführbar:
-`artifacts/governance/smc_hold_manager_shadow_contract.json` definiert
-Session-Auswahl, sechs Server-Alert-Kanäle, Vergleichs- und
-Exklusivitätsregeln sowie den Rollback-Drill;
-`scripts/evaluate_smc_hold_manager_shadow.py` bewertet diese Regeln
-fail-closed und materialisiert den kanonischen Status in
-`artifacts/governance/smc_hold_manager_shadow_evidence.json`. Der eingecheckte
-Beobachtungsstand ist weiterhin ausdrücklich `not_started`. Für den privaten
-Managed-Saved-Script-Refresh und die
-kontrollierte Alert-Erstellung ist eine separate Freigabe erforderlich.
-Eine öffentliche oder Invite-only-TradingView-Veröffentlichung gehört nicht
-zu diesem Gate. Der isolierte Preflight
-`automation/tradingview/preflight-hold-manager-shadow.json` prüft dafür das
-private Validierungsskript und alle 13 BUS-Bindings, ohne den geplanten
-Companion in produktive Rollout-Targets aufzunehmen.
-
-Am 2026-07-28 wurde dieser private Schritt ausgeführt. Der authentifizierte
-Headless-Runner brach fail-closed ab, weil der Pine-Editor in seiner
-Browseroberfläche nicht sichtbar wurde; er erreichte weder Editor-Mutation
-noch Compile oder Binding-Prüfung. Der anschließend im sichtbaren
-Chrome-Chart ausgeführte Fallback bestätigte nach Reload das private Saved
-Script, fehlende sichtbare Compile-Fehler, `Engine BUS v2` und exakt alle 13
-Zuordnungen zur `SMC Long-Dip Suite`. Es erfolgten weder Veröffentlichung noch
-Alert-Erstellung oder Shadow-Aktivierung. Der vollständige Nachweis liegt in
-`artifacts/governance/smc_hold_manager_shadow_preflight_2026-07-28.json`.
-
-Der kontrollierte Empfänger ist standardmäßig inaktiv im
-`live_overlay_daemon` implementiert. Er akzeptiert ausschließlich die sechs
-vorregistrierten Kanäle, den exakten Source-Hash, das private Skript/Layout,
-Producer und BUS-Schema 7001; ein persistentes SQLite-Ledger zählt eindeutige
-und doppelte Zustellungen. Das Webhook-Secret liegt im JSON-Body und wird weder
-in URL-Access-Logs noch im Ledger gespeichert. Die sechs Nachrichtenvorlagen
-liegen in
-`artifacts/governance/smc_hold_manager_shadow_alert_templates.json`.
-Der Source-Hash verwendet dieselbe eng begrenzte Pin-Normalisierung wie der
-R2.4-Replay-Vertrag: Ausschließlich die automatisch aktualisierte
-`smc_micro_profiles_generated`-Importversion wird auf den evidierten Pin 175
-normalisiert; jede andere Quelltextänderung verändert den Hash weiterhin.
-Der Receiver wurde am 2026-07-28 fail-closed deployt und konfiguriert. Sein
-64-stelliges Secret wurde nicht als Evidenz gespeichert; der persistente Pfad
-`/app/data/smc-hold-manager-shadow.sqlite3` ist beschreibbar. Der
-authentifizierte Zustand bestätigte `accepting=false` sowie null Events,
-Zustellversuche und Duplikate. Der redigierte Nachweis liegt in
-`artifacts/governance/smc_hold_manager_shadow_receiver_railway_2026-07-28.json`.
-Am 2026-07-28 wurden — nach Token-Rotation und Redeploy — die sechs privaten
-TradingView-Alerts `R2 SHADOW · HM_ENTRY/HM_T1/HM_T2/HM_STOP/HM_TIMESTOP/`
-`HM_EXIT_ANY` im autorisierten, kontrollierten Browser-Lauf erstellt (Konto
-`preuss_steffen`, Saved Script `SMC Hold Manager R2.4 Validation`, Layout
-`SMC Hold R2.4 Validation`, Chart `NASDAQ:BKNG` 5m); der Operator hat die sechs
-korrekt konfigurierten Alerts am 2026-07-29 bestätigt. Die redigierte
-Attestation liegt in
-`artifacts/governance/smc_hold_manager_shadow_alerts_2026-07-28.json` —
-TradingView-Alert-Zustand ist aus dem Repo nicht maschinell nachprüfbar,
-deshalb Operator-Attestation statt automatisiertem Readback.
-
-Mit separater Operator-Autorisierung wurde der Shadow am 2026-07-28 um
-22:41 UTC — nach XNYS-Handelsschluss, also exakt an der Beobachtungsgrenze —
-aktiviert: `HOLD_MANAGER_SHADOW_ACCEPTING=1` (Deployment
-`059b2883-3e5e-44ad-a781-d3f12c46fb51`), Readback bestätigte
-`accepting=true` bei leerem Ledger und `/health`/`/ready` 200. Nachweis:
-`artifacts/governance/smc_hold_manager_shadow_activation_2026-07-28.json`.
-Die erste vollständig evaluierbare XNYS-Session ist der 2026-07-29; ein
-etwaiges Event mit `bar_time` vom 2026-07-28 (späte Extended Hours) muss als
-ausgeschlossene Teilsession erfasst werden. `R2-SHADOW-CUTOVER` steht damit
-auf `in_progress`/`partial`: Der Evaluator meldet erwartungsgemäß `blocked`,
-bis fünf vollständige Sessions in Aktivierungsreihenfolge, die Pflicht-Kanten
-und der Rollback-Drill vorliegen. Der Rollback-Drill ist vom Operator bereits
-vorab autorisiert, wird aber protokollgemäß erst nach Bestehen der
-Beobachtungskriterien ausgeführt.
-
-Für die Beobachtung selbst ist die Zustellungs-Seite jetzt verdrahtet: `/state`
-liefert zusätzlich einen `sessions`-Breakdown pro US-Marktsitzungstag
-(Kalender der Contract-`marketTimezone`), und
-`scripts/reconcile_smc_hold_manager_shadow_deliveries.py` füllt daraus
-fail-closed `sessions[*].deliveredServerAlerts` in
-`smc_hold_manager_shadow_observations.json` — manuell erfasste Werte werden nie
-überschrieben (Konflikt = Blocker), unerfasste Receiver-Sitzungen blockieren.
-Die erwartete Seite (Pine-Kanten, Exit-Signal-/Strategie-Vergleich, Bindings)
-bleibt gemäß vorregistriertem Protokoll Operator-Aufzeichnung.
-
-Letzte Aktualisierung: 2026-07-29
+Letzte Aktualisierung: 2026-04-29
 
 ## Naming — warum kein separater „Exit-Manager"?
 
@@ -215,18 +98,18 @@ den Stop zu früh zu verkürzen.
 
 ## Quellen-Validierung (welche BUS-Outputs / Library-Symbole brauchen wir?)
 
-### Bestätigt verfügbar (aktualisiert 2026-07-26)
+### Bestätigt verfügbar (validated 2026-04-29)
 - `BUS Armed`, `BUS Confirmed`, `BUS Ready` (input.source) ✅
 - `BUS Trigger`, `BUS Invalidation` ✅
-- `BUS StopLevel`, `BUS Target1`, `BUS Target2` ✅
 - `BUS QualityScore`, `BUS StateCode`, `BUS SourceKind`, `BUS TrendPack` ✅
 - `BUS ZoneActive`, `BUS SchemaVersion` ✅
 
-Die frühere Angabe, dass `BUS StopLevel`, `BUS Target1` und `BUS Target2`
-nicht publiziert seien, ist überholt. Sie sind Teil des eingefrorenen Engine
-BUS v2 und werden im Standard-Rollout zum primären Hold-Plan. Eine interne
-R-Multiple-Berechnung bleibt höchstens ein ausdrücklich gekennzeichneter
-Fallback, nicht der Standardpfad.
+### **NICHT verfügbar** — wichtige Korrektur
+- ❌ `BUS Target1`, `BUS Target2`, `BUS StopLevel` existieren **nicht** als
+  separate BUS-Outputs. Nur `BUS Invalidation` ist publiziert.
+- → Targets müssen **intern berechnet** werden als R-Multiple von
+  `(Trigger − Invalidation)`. Genau dieses Pattern nutzt
+  `SMC_Long_Dip_Strategy.pine` (Zeile 75–76, `take_profit_r` default 2.0).
 
 ### Library `mp.*` — Lifecycle-Flags (KORREKTUR 2026-04-29)
 
@@ -301,8 +184,8 @@ Der **vollständige 4-Tupel-Return** von `resolve_long_invalidation_state()`
 |---|---|---|---|
 | A | `long_setup_expired` initial im Flag-Inventar gefehlt | Doku | **gefixt** — siehe 4-Tupel oben |
 | B | `_now` vs `_this_bar` Semantik unklar | Doku | **gefixt** — siehe Tabelle oben |
-| C | Pine `var`-State-Loss bei Recompile | R2.2 | **Repository-seitig gefixt:** bestätigte historische BUS-/OHLC-Rekonstruktion mit Plan-Generation, Entry-Epoch, Protected High, T1, aktivem Stop und terminalem Exit; TradingView-Reload-Replay bleibt R2.4-Evidenz |
-| D | Time-Stop in Bars ist TF-abhängig | v3 | Time-Stop in **Minuten**, nicht Bars; Uhrstart erst beim tatsächlichen Entry-Touch, nicht beim Arming |
+| C | Pine `var`-State-Loss bei Recompile | v3+ | Reset-Hook + `barstate.isconfirmed`-Gate; v3: Webhook-gestützte State-Rekonstruktion |
+| D | Time-Stop in Bars ist TF-abhängig | v3 | Time-Stop in **Minuten**, nicht Bars (TF-agnostisch) |
 | E | `alertcondition()` feuert auf Level → Alert-Spam | v1 | **Alert-Edge-Framework von Tag 1**: alle Alerts auf rising-edge (`x and not x[1]`) |
 | F | Quality-Sizing-Schwellen (0.5/0.8) sind arbiträr | v4 | Aus `mp.ZONE_CAL_*` / neuen `mp.HOLD_SIZING_*` Konstanten ziehen |
 | G | ATR-Chandelier `mult=2.5` nicht family-aware | v2 | `mult_by_family` aus T4-Backtest-Slippage-Sample (Sprint C13) |
@@ -344,10 +227,9 @@ Der **vollständige 4-Tupel-Return** von `resolve_long_invalidation_state()`
    `HM_STOP`, `HM_TIMESTOP`, `HM_EXIT_ANY`) feuert **genau einmal** pro
    Event über simulierten Multi-Bar-Hold. Pinned Test gegen
    Pine↔Python-Parity-Risiko aus Bug-Hunt v2 Phase 7.4.
-6. **State-Persistence-Test**: Nach Recompile wird der bestätigte BUS-Pfad
-   bytegleich bis zu Plan-Generation, Entry-Epoch, Protected High, T1,
-   aktivem Stop und terminalem Exit wiederhergestellt. Der timestamp-basierte
-   Recovery-Punkt muss auf derselben historischen Bar erneut wirken.
+6. **State-Persistence-Test**: Nach simuliertem Recompile ist der Zustand
+   entweder wiederhergestellt oder explizit als `UNKNOWN` markiert (kein
+   silentes State=NONE).
 7. **Outcomes-Schema-Integration**: Hold-Manager-Outputs landen im
    `cache/live/outcomes_*.jsonl` im **selben Schema** wie
    `SMC_Long_Strategy`-Outcomes. Notwendig für die Phase-A
@@ -365,7 +247,6 @@ Der **vollständige 4-Tupel-Return** von `resolve_long_invalidation_state()`
 2. Brauchen wir eine TV-Strategy-Variante (`SMC_Hold_Strategy.pine`) für
    Backtests? — Ja, in Phase v2/v3 sinnvoll.
 3. Sollten wir den State im Indikator persistent speichern (var) oder per
-   `request.security` aus einer höheren TF? — Entschieden: ein persistentes
-   Runtime-Objekt wird ausschließlich aus bestätigter BUS-/Preishistorie
-   rekonstruiert. Ein höherer TF wäre keine Zustandsquelle und würde die
-   Entry-Bar-Semantik verfälschen.
+   `request.security` aus einer höheren TF? — Var reicht; aber Watch-out:
+   wenn Pine-Skript neu kompiliert wird, geht der State verloren. Akzeptabel
+   für manuellen Trader (er sieht es im Chart sofort).

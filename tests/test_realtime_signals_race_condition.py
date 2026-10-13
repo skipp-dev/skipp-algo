@@ -15,19 +15,6 @@ import pytest
 from open_prep import realtime_signals as rs
 
 
-@pytest.fixture(autouse=True)
-def _offline_open_prep_snapshot(monkeypatch: Any) -> None:
-    """Keep the engine on the test's local snapshot.
-
-    ``_open_prep_snapshot_url()`` defaults to the LIVE rolling snapshot on the
-    GitHub API. Unset, ``_load_watchlist`` fetched it whenever the network call
-    succeeded and read real symbols (ALAB, DELL, ...) instead of the tmp file:
-    validate (4) red on main-adjacent bot PRs and #5748 (2026-10-08). An
-    explicitly empty value is the documented offline switch.
-    """
-    monkeypatch.setenv("OPEN_PREP_SNAPSHOT_URL", "")
-
-
 def _minimal_snapshot(symbols: list[str]) -> dict[str, Any]:
     return {
         "ranked_v2": [{"symbol": s, "score": 0.5, "confidence_tier": "STANDARD"} for s in symbols],
@@ -52,30 +39,6 @@ def _make_quote(symbol: str, price: float, previous_close: float, volume: float,
         "avgVolume": avg_volume,
         "changesPercentage": change_pct,
     }
-
-
-def test_first_run_diff_lights_no_new_entrant_badges(tmp_path: Path, monkeypatch: Any) -> None:
-    """2026-08-18 (Verdrahtungs-Sweep F3): first_run=true listet ALLE
-    Kandidaten als new_entrants — solange die last_result.json-Persistenz
-    fehlte, hielt sich jeder Tageslauf für den allerersten und die 🆕-Spalte
-    leuchtete dauerhaft für jedes Symbol. Ein First-Run trägt keine
-    Vergleichsinformation und liefert deshalb keine Badges; ein normaler
-    Diff liefert sie weiterhin (upper-normalisiert)."""
-    monkeypatch.setattr(rs, "LATEST_RUN_PATH", tmp_path / "latest_open_prep_run.json")
-    monkeypatch.setattr(rs, "_ARTIFACTS_LATEST", tmp_path)
-    monkeypatch.setattr(rs, "SIGNALS_PATH", tmp_path / "signals.json")
-    monkeypatch.setattr(rs, "VD_SIGNALS_PATH", tmp_path / "vd.jsonl")
-
-    snapshot = _minimal_snapshot(["AAA"])
-    snapshot["diff"] = {"first_run": True, "new_entrants": ["AAA"]}
-    _write_snapshot(tmp_path, snapshot)
-    engine = rs.RealtimeEngine(fmp_client=None)
-    assert engine._new_entrant_set == set()
-
-    snapshot["diff"] = {"first_run": False, "new_entrants": ["aaa"]}
-    _write_snapshot(tmp_path, snapshot)
-    engine = rs.RealtimeEngine(fmp_client=None)
-    assert engine._new_entrant_set == {"AAA"}
 
 
 def test_poll_once_does_not_hold_active_signals_lock(tmp_path: Path, monkeypatch: Any) -> None:

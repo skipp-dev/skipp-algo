@@ -56,25 +56,11 @@ class BackgroundPoller:
         benzinga_adapter: Any | None,
         fmp_adapter: Any | None,
         store: Any,
-        producer_feed_client: Any | None = None,
     ) -> None:
         self._cfg = cfg
         self._benzinga = benzinga_adapter
         self._fmp = fmp_adapter
         self._store = store
-        self._producer_feed: Any | None = producer_feed_client
-        self._direct_news_primary = bool(getattr(cfg, "direct_news_primary", False))
-        producer_url = str(getattr(cfg, "producer_feed_url", "") or "").strip()
-        producer_token = str(getattr(cfg, "producer_feed_token", "") or "").strip()
-        if self._producer_feed is None and producer_url and producer_token:
-            from terminal_internal_feed import ProducerFeedClient
-
-            self._producer_feed = ProducerFeedClient(
-                producer_url,
-                producer_token,
-                timeout_s=float(getattr(cfg, "producer_feed_timeout_s", 5.0) or 5.0),
-                max_age_s=float(getattr(cfg, "producer_feed_max_age_s", 300.0) or 300.0),
-            )
 
         self._queue: queue.Queue[list[Any]] = queue.Queue(maxsize=500)
         self._provider_cursors: dict[str, str] = {}
@@ -137,7 +123,7 @@ class BackgroundPoller:
             seeded = str(cursor or "").strip()
             self._provider_cursors = {
                 key: seeded
-                for key in ("benzinga", "fmp_stock", "fmp_press", "tv")
+                for key in ("benzinga", "fmp_stock", "fmp_press")
                 if seeded
             }
         self._stop_event.clear()
@@ -184,11 +170,6 @@ class BackgroundPoller:
                 self._benzinga = benzinga_adapter
             if fmp_adapter is not _UNSET:
                 self._fmp = fmp_adapter
-
-    def update_source_priority(self, *, direct_primary: bool) -> None:
-        """Switch primary source without starting parallel provider polls."""
-        with self._lock:
-            self._direct_news_primary = bool(direct_primary)
 
     # ── Drain results (called from Streamlit main thread) ───
 
@@ -285,8 +266,6 @@ class BackgroundPoller:
         """
         with self._lock:
             self._provider_cursors = {}
-            if self._producer_feed is not None:
-                self._producer_feed.reset()
         self._wake_event.set()
 
     # ── Internal poll loop ──────────────────────────────────
@@ -383,7 +362,6 @@ class BackgroundPoller:
         """Main loop running in the background thread."""
         import re as _re
 
-        from terminal_news_routing import poll_news_sources
         from terminal_poller import live_news_source_label, poll_and_classify_live_bus
 
         logger.info("Background poll loop entered")
@@ -410,10 +388,8 @@ class BackgroundPoller:
             with self._lock:
                 bz = self._benzinga
                 fmp = self._fmp
-                producer_feed = self._producer_feed
-                direct_primary = self._direct_news_primary
 
-            if producer_feed is None and bz is None and fmp is None:
+            if bz is None and fmp is None:
                 continue
 
             with self._stats_lock:
@@ -424,34 +400,15 @@ class BackgroundPoller:
             with self._lock:
                 _use_provider_cursors = dict(self._provider_cursors)
             try:
-                _provider_cursor_items = tuple(_use_provider_cursors.items())
-
-                def _poll_direct(
-                    benzinga_adapter: Any = bz,
-                    fmp_adapter: Any = fmp,
-                    provider_cursor_items: tuple[tuple[str, str], ...] = _provider_cursor_items,
-                ) -> tuple[list[Any], dict[str, str], dict[str, int]]:
-                    return poll_and_classify_live_bus(
-                        benzinga_adapter=benzinga_adapter,
-                        fmp_adapter=fmp_adapter,
-                        store=self._store,
-                        provider_cursors=dict(provider_cursor_items),
-                        page_size=self._cfg.page_size,
-                        channels=getattr(self._cfg, "channels", None) or None,
-                        topics=getattr(self._cfg, "topics", None) or None,
-                    )
-
-                poll_result = poll_news_sources(
-                    producer_feed=producer_feed,
-                    direct_poll=_poll_direct,
-                    direct_available=bz is not None or fmp is not None,
-                    direct_primary=direct_primary,
+                items, new_provider_cursors, provider_counts = poll_and_classify_live_bus(
+                    benzinga_adapter=bz,
+                    fmp_adapter=fmp,
+                    store=self._store,
+                    provider_cursors=_use_provider_cursors,
+                    page_size=self._cfg.page_size,
+                    channels=getattr(self._cfg, "channels", None) or None,
+                    topics=getattr(self._cfg, "topics", None) or None,
                 )
-                items = poll_result.items
-                new_provider_cursors = poll_result.provider_cursors
-                provider_counts = poll_result.provider_counts
-                used_source = poll_result.source
-                fallback_from = poll_result.fallback_from
             except Exception as exc:
                 _safe = _re.sub(
                     r"(apikey|api_key|token|key)=[^&\s]+", r"\1=***",
@@ -481,9 +438,7 @@ class BackgroundPoller:
             with self._lock:
                 # Only advance cursor if it wasn't reset while we were polling
                 if self._provider_cursors == _use_provider_cursors:
-                    merged_cursors = dict(_use_provider_cursors)
-                    merged_cursors.update(new_provider_cursors)
-                    self._provider_cursors = merged_cursors
+                    self._provider_cursors = dict(new_provider_cursors)
 
             with self._stats_lock:
                 self.last_poll_duration_s = time.monotonic() - _t0
@@ -498,11 +453,10 @@ class BackgroundPoller:
             src = live_news_source_label(provider_counts)
 
             with self._stats_lock:
-                fallback_label = f" fallback:{fallback_from}" if fallback_from else ""
-                self.last_poll_status = f"{len(items)} items [{src}{fallback_label}]"
+                self.last_poll_status = f"{len(items)} items [{src}]"
 
             # Track consecutive empties → auto-prune dedup
-            if not items and used_source == "direct":
+            if not items:
                 with self._stats_lock:
                     self.consecutive_empty_polls += 1
                     _empties = self.consecutive_empty_polls
@@ -529,7 +483,7 @@ class BackgroundPoller:
                     )
                     with self._stats_lock:
                         self.consecutive_empty_polls = 0
-            elif items:
+            else:
                 with self._stats_lock:
                     self.consecutive_empty_polls = 0
 

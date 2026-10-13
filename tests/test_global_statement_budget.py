@@ -26,7 +26,7 @@ from pathlib import Path
 
 import pytest
 
-from tests._guard_corpus import iter_production_py_files, parse_module
+from tests._guard_corpus import parse_module
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -50,7 +50,12 @@ _DIR_EXCLUDE = frozenset(
 
 
 def _iter_prod_files() -> list[Path]:
-    return iter_production_py_files(_DIR_EXCLUDE)
+    out: list[Path] = []
+    for path in _REPO_ROOT.rglob("*.py"):
+        if any(part in _DIR_EXCLUDE for part in path.relative_to(_REPO_ROOT).parts):
+            continue
+        out.append(path)
+    return sorted(out)
 
 
 def _all_sites() -> list[tuple[str, int, tuple[str, ...]]]:
@@ -73,8 +78,8 @@ def _all_sites() -> list[tuple[str, int, tuple[str, ...]]]:
 # adding a new global to an already-ledgered line).
 _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
     {
-        ("databento_reference.py", 173, ("_STATE_CACHE_MTIME", "_STATE_CACHE_PATH", "_STATE_CACHE_VALUE")),  # 2026-08-18 (D7): 137->173
-        ("databento_reference.py", 181, ("_STATE_CACHE_MTIME", "_STATE_CACHE_PATH", "_STATE_CACHE_VALUE")),  # 2026-08-18 (D7): 145->181
+        ("databento_reference.py", 137, ("_STATE_CACHE_MTIME", "_STATE_CACHE_PATH", "_STATE_CACHE_VALUE")),
+        ("databento_reference.py", 145, ("_STATE_CACHE_MTIME", "_STATE_CACHE_PATH", "_STATE_CACHE_VALUE")),
         ("newsstack_fmp/pipeline.py", 70, ("_store",)),
         ("newsstack_fmp/pipeline.py", 79, ("_fmp_adapter", "_fmp_adapter_key")),
         ("newsstack_fmp/pipeline.py", 93, ("_bz_rest_adapter", "_bz_rest_adapter_key")),
@@ -94,12 +99,8 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
             1169,
             ("_bz_rest_adapter_key", "_bz_ws_adapter_key", "_fmp_adapter_key"),
         ),
-        # RG1 (2026-07-24): same-session regime hysteresis seed — reset_regime_state
-        # gains a seed param (still the sole _prev_regime writer, no NEW global) and
-        # helper functions inserted above classify_regime shifted these anchors
-        # 129->134 and 156->236.
-        ("open_prep/regime.py", 134, ("_prev_regime",)),
-        ("open_prep/regime.py", 236, ("_prev_regime",)),
+        ("open_prep/regime.py", 129, ("_prev_regime",)),
+        ("open_prep/regime.py", 156, ("_prev_regime",)),
         # R-E2 audit (2026-06-14): thread-safe one-time guard for
         # _normalize_tls_certificate_env os.environ write (see macro.py R-E2).
         # Line shifted 145→148 by M1 iteration-limit addition (PR #2828).
@@ -128,8 +129,7 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # to fix the 5 consecutive cron OOMs 2026-05-11 → 2026-05-13.
         (
             "scripts/databento_production_export.py",
-            # 2026-07-23 (session-minute-detail collector + coverage-scope imports): 851->855
-            855,  # 2026-07-18 (dataset-policy imports): 846->851
+            851,  # 2026-07-18 (dataset-policy imports): 846->851
             ("_DEFAULT_BULLISH_QUALITY_CFG",),
         ),
         # WP-H (PR #2612): lines shifted 184/192/200 -> 186/194/202 by the
@@ -145,7 +145,7 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         ("smc_tv_bridge/smc_api.py", 234, ("_tech_provider",)),
         (
             "streamlit_terminal.py",
-            614,  # 2026-07-23 (A1 horizons: outcomes import block above): 608->614
+            587,  # 2026-07-20: remove retired TradingView UI availability shim
             ("btc_available", "databento_available", "ensure_rt_engine_running", "newsapi_available"),
         ),
         # F-V8-perf-3.5 (2026-05-19): opt-in cache probe log for the sharded
@@ -195,10 +195,10 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # shifted cache.py globals 49/71/148/218 -> 70/92/185/255. The throttle
         # uses in-place attribute mutation, NOT a new `global`, so the inventory
         # count is unchanged.
-        ("services/live_overlay_daemon/cache.py", 125, ("_max_symbols", "_rolling_bars_cap")),  # 2026-08-18 C1 high-water regression metric: 112->125
-        ("services/live_overlay_daemon/cache.py", 153, ("_last_eviction_at",)),  # 2026-08-18 C1 high-water regression metric: 139->153
-        ("services/live_overlay_daemon/cache.py", 416, ("_overlay_computed_at",)),  # 2026-08-18 C1 high-water regression metric: 368->416
-        ("services/live_overlay_daemon/cache.py", 490, ("_vix_level",)),  # 2026-08-18 C1 high-water regression metric: 442->490
+        ("services/live_overlay_daemon/cache.py", 70, ("_max_symbols", "_rolling_bars_cap")),
+        ("services/live_overlay_daemon/cache.py", 92, ("_last_eviction_at",)),
+        ("services/live_overlay_daemon/cache.py", 185, ("_overlay_computed_at",)),
+        ("services/live_overlay_daemon/cache.py", 259, ("_vix_level",)),
         # 2026-06-19 (fix/live-overlay-post-merge-bugs): separate _news_checked_at
         # from _news_loaded_at so missing-file rate-limiting does not pin the
         # success cache for the full TTL when a snapshot appears later.
@@ -240,19 +240,19 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # _parse_history_lines shifted this anchor to 853.
         # 2026-07-19 (mesh semantic-contract docs): explicit unknown event
         # fields added above the cache loaders shifted this anchor 857 -> 860.
-        ("services/live_overlay_daemon/compute.py", 869, ("_news_index", "_news_index_built_at", "_news_index_cache_key")),
+        ("services/live_overlay_daemon/compute.py", 860, ("_news_index", "_news_index_built_at", "_news_index_cache_key")),
         # 2026-06-23 (feat/grafana-trading-signals): realtime trading-signals
         # snapshot loader mirrors the news snapshot caching pattern.
         # 2026-06-26 (PR #2962): shifted by producer client code.
         # 2026-07-19 (mesh semantic-contract docs): explicit unknown event
         # fields added above the cache loaders shifted this anchor 473 -> 476.
-        ("services/live_overlay_daemon/compute.py", 485, ("_signals_cache", "_signals_checked_at", "_signals_loaded_at")),
+        ("services/live_overlay_daemon/compute.py", 476, ("_signals_cache", "_signals_checked_at", "_signals_loaded_at")),
         # 2026-06-23 (feat/grafana-tv-credential-age): credential-health report
         # loader mirrors the same snapshot caching pattern.
         # 2026-06-26 (PR #2962): shifted by producer client code.
         # 2026-07-19 (mesh semantic-contract docs): explicit unknown event
         # fields added above the cache loaders shifted this anchor 560 -> 563.
-        ("services/live_overlay_daemon/compute.py", 572, ("_tradingview_credential_cache", "_tradingview_credential_checked_at", "_tradingview_credential_loaded_at")),
+        ("services/live_overlay_daemon/compute.py", 563, ("_tradingview_credential_cache", "_tradingview_credential_checked_at", "_tradingview_credential_loaded_at")),
         # 2026-06-23 (feat/grafana-experiment-timeline): daily experiment rollup
         # + per-day history loaders mirror the same snapshot caching pattern.
         # 2026-06-24 (feat/live-overlay-credential-health): +5 lines for
@@ -265,8 +265,8 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # 2026-07-19 (mesh semantic-contract docs): explicit unknown event
         # fields added above the cache loaders shifted these anchors 720/768
         # -> 723/771.
-        ("services/live_overlay_daemon/compute.py", 732, ("_experiment_cache", "_experiment_checked_at", "_experiment_loaded_at")),
-        ("services/live_overlay_daemon/compute.py", 780, ("_experiment_history_cache", "_experiment_history_checked_at", "_experiment_history_loaded_at")),
+        ("services/live_overlay_daemon/compute.py", 723, ("_experiment_cache", "_experiment_checked_at", "_experiment_loaded_at")),
+        ("services/live_overlay_daemon/compute.py", 771, ("_experiment_history_cache", "_experiment_history_checked_at", "_experiment_history_loaded_at")),
         # 2026-06-21 (provider/bridge + queue backpressure follow-ups):
         # feed.py gained additional helper/config blocks, shifting global
         # statements to 362/420/496.
@@ -283,57 +283,33 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # ingest loop into the feed loop (F2.1). The +3-line arming block in the
         # feed loop shifted every anchor below it: 421->427 (the ingest-side
         # swap was net-zero), 586->589, 685->688. 229 is above the edit.
-        # 2026-07-22 (truth-audit F-2 drop counters): _metrics seed +4 lines and
-        # two _inc_metric drop sites shifted every anchor: 231->235, 483->489,
-        # 646->652, 745->751.
-        # 2026-07-22 (F-3 VIX bounded retry): +1 constant, +18 poll lines shifted
-        # every anchor: 235->254, 489->508, 652->671, 751->770.
-        ("services/live_overlay_daemon/feed.py", 287, ("_feed_connected_at",)),  # 2026-08-06 (heal grace follows the backoff): 261->287  # 2026-08-05 supervisor post-heal grace: 254->261
-        # 2026-07-25 (fix/live-overlay-feed-stream-circuit): the recovery
-        # comment is deliberately local to the iterator success boundary,
-        # shifting these existing singleton anchors by three lines.
-        ("services/live_overlay_daemon/feed.py", 550, ("_last_bar_at",)),  # 2026-08-06 (heal grace follows the backoff): 520->550  # 2026-07-26 preserve TF history across feed restart: 511->513; 2026-08-05 supervisor post-heal grace: 513->520
-        ("services/live_overlay_daemon/feed.py", 776, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),  # 2026-08-20 (heal window widens, kill switch does not): 752->776  # 2026-08-06 (heal grace follows the backoff): 702->752  # 2026-07-26 preserve TF history across feed restart: 674->676; 2026-08-05 supervisor post-heal grace: 676->702
-        ("services/live_overlay_daemon/feed.py", 875, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),  # 2026-08-20 (heal window widens, kill switch does not): 851->875  # 2026-08-06 (heal grace follows the backoff): 801->851  # 2026-07-26 preserve TF history across feed restart: 773->775; 2026-08-05 supervisor post-heal grace: 775->801
+        ("services/live_overlay_daemon/feed.py", 231, ("_feed_connected_at",)),
+        ("services/live_overlay_daemon/feed.py", 483, ("_last_bar_at",)),
+        ("services/live_overlay_daemon/feed.py", 646, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
+        ("services/live_overlay_daemon/feed.py", 745, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
         # 2026-06-21: optional external bridge snapshot caches are guarded by
         # module locks and cached via module-level singleton snapshots.
         # 2026-06-23: workflow bridge hardening (status/conclusion semantics,
         # owner/repo encoding and pagination note) shifted this global anchor.
         # 2026-06-28 monitoring follow-up: lines shifted by one because of last_success_fetched_at_unix setdefault.
         # 2026-06-30 bridge contract duration family shifted these anchors by one.
-        # Shifted 251 -> 258 by the expected_present presence map (declared-workflow
-        # absence detection) added to _fetch_snapshot and the two no-fetch snapshots.
-        # 2026-08-31 (Praesenz-Sonde je Workflow): 258 -> 380, und ZWEI neue
-        # Cache-Singletons daneben. Beide folgen demselben TTL-Muster wie der
-        # Snapshot-Cache darunter -- eigener Zustand, weil die Praesenz-Sonde
-        # eine andere Kadenz und ein anderes Ausfallbild hat (Fehlschlag haelt
-        # den letzten Stand, statt Abwesenheit zu behaupten).
-        ("services/live_overlay_daemon/github_workflow_bridge.py", 275, ("_workflow_ids_at_monotonic", "_workflow_ids_cache")),
-        ("services/live_overlay_daemon/github_workflow_bridge.py", 357, ("_presence_at_monotonic", "_presence_cache")),
-        ("services/live_overlay_daemon/github_workflow_bridge.py", 380, ("_cached_at_monotonic", "_cached_snapshot")),
+        ("services/live_overlay_daemon/github_workflow_bridge.py", 251, ("_cached_at_monotonic", "_cached_snapshot")),
         ("services/live_overlay_daemon/uptimerobot_bridge.py", 142, ("_cached_at_monotonic", "_cached_snapshot")),
         # 2026-07-06 (feat/evidence-freshness-monitoring): evidence bridge mirrors
         # the github_workflow_bridge snapshot-cache singleton (same TTL pattern).
         # 2026-07-09 (fix/c8-deploy-robust): submit_failed + submitter fields in
         # _empty/_coerce shifted this global anchor +8: 188->196.
-        # 2026-08-09 (feat/portfolio-f4-evidence): normalization-only line
-        # shift; the existing cache singleton and names are unchanged.
-        ("services/live_overlay_daemon/evidence_freshness_bridge.py", 306, ("_cached", "_cached_at_monotonic")),  # 2026-08-20 (Disposition-Ledger: 4 Zeilen ueber der Stelle): 302->306
+        ("services/live_overlay_daemon/evidence_freshness_bridge.py", 203, ("_cached", "_cached_at_monotonic")),  # 2026-07-16 (last-good cache docstring): 198->203
         # 2026-07-11 (feat/sweep-trap-shadow-grafana): WS4a sweep-trap shadow
         # snapshot bridge — same TTL-cache singleton pattern (snapshot() +
         # _reset_cache_for_tests()).
         ("services/live_overlay_daemon/sweep_trap_shadow_bridge.py", 153, ("_cached", "_cached_at_monotonic")),  # 2026-07-16 (last-good cache docstring): 142->146; (ruff format): 146->153
         ("services/live_overlay_daemon/sweep_trap_shadow_bridge.py", 167, ("_cached", "_cached_at_monotonic")),  # 2026-07-16 (last-good cache docstring): 155->160; (ruff format): 160->167
-        # 2026-07-28 (feat/reaction-zone-shadow-bridge): reaction-zone shadow
-        # snapshot bridge — same TTL-cache singleton pattern (snapshot() +
-        # _reset_cache_for_tests()), mirrors sweep_trap_shadow_bridge.
-        ("services/live_overlay_daemon/reaction_zone_shadow_bridge.py", 205, ("_cached", "_cached_at_monotonic")),
-        ("services/live_overlay_daemon/reaction_zone_shadow_bridge.py", 219, ("_cached", "_cached_at_monotonic")),
         ("services/live_overlay_daemon/provider_usage_bridge.py", 136, ("_cached", "_cached_at_monotonic")),  # 2026-07-13 (snapshot age-recompute docstring +6): 130->136
         # 2026-07-13 (feat/pine-library-version-monitor, #3599/#3603 follow-up):
         # repo↔TradingView Pine-library version snapshot bridge — same TTL-cache
         # singleton pattern (snapshot() + _cached/_cached_at_monotonic).
-        ("services/live_overlay_daemon/pine_library_version_bridge.py", 187, ("_cached", "_cached_at_monotonic")),  # 2026-07-22 (ADR-0029 payload volume fields): 180->187
+        ("services/live_overlay_daemon/pine_library_version_bridge.py", 176, ("_cached", "_cached_at_monotonic")),  # 2026-07-16 (last-good cache docstring): 172->176
         # 2026-06-24 (feat/railway-metrics): Railway GraphQL bridge for container
         # metrics exposes a lazily-refreshed TTL cache (mirroring uptimerobot).
         # 2026-06-25 (fix/live-overlay-bridge-contract-followup): added
@@ -350,14 +326,8 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # / _failed_snapshot shifted both globals by four more (236->240, 274->278).
         # 2026-07-07 str(id) sort-key rationale comment in _build_services shifted
         # both globals by three more (240->243, 278->281).
-        ("services/live_overlay_daemon/railway_metrics.py", 246, ("_CACHE", "_CACHE_EXPIRES_AT")),  # 2026-08-13 (volume-backup bridge, +1 import): 245->246
-        ("services/live_overlay_daemon/railway_metrics.py", 291, ("_CACHE", "_CACHE_EXPIRES_AT")),  # 2026-08-13 (volume-backup bridge, +1 import): 290->291
-        # 2026-08-13: the volume-backup half of the same bridge, deliberately a
-        # SECOND cache rather than a shared one — the two halves have different
-        # TTLs (container metrics 60s, backups 600s) and a failure in one must
-        # not evict the other's last good data.
-        ("services/live_overlay_daemon/railway_metrics.py", 433, ("_BACKUP_CACHE", "_BACKUP_CACHE_EXPIRES_AT")),
-        ("services/live_overlay_daemon/railway_metrics.py", 476, ("_BACKUP_CACHE", "_BACKUP_CACHE_EXPIRES_AT")),
+        ("services/live_overlay_daemon/railway_metrics.py", 245, ("_CACHE", "_CACHE_EXPIRES_AT")),  # +2 (2026-07-09): snapshot() docstring truth-fix
+        ("services/live_overlay_daemon/railway_metrics.py", 283, ("_CACHE", "_CACHE_EXPIRES_AT")),  # +2 (2026-07-09): snapshot() docstring truth-fix
         # 2026-06-19 (fix/live-overlay-post-merge-bugs): added non-finite JSON
         # sanitization helper and related imports, shifting _startup_ts line.
         # 2026-06-19 (Copilot follow-up): _VALID_TFS contract alignment shifted
@@ -366,8 +336,7 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # 2026-06-21 (auth decode hardening): binascii import shifted
         # _startup_ts to line 72.
         # WP2 epoch clock added `global _startup_ts, _startup_epoch` (line 73).
-        # 2026-07-22 (stale-flag data-freshness docstring): 73->74
-        ("services/live_overlay_daemon/main.py", 74, ("_startup_epoch", "_startup_ts")),
+        ("services/live_overlay_daemon/main.py", 73, ("_startup_epoch", "_startup_ts")),
     }
 )
 

@@ -326,32 +326,16 @@ def calibrate_costs(
         reasons.append("min_fill_samples")
     if fill_rate < min_fill_rate:
         reasons.append("min_fill_rate")
+    measurable = not reasons
 
-    if reasons:
-        # Too thin to bound: the CI would be meaningless, so do not compute it.
-        ci_low, ci_high = 0.0, 0.0
-    else:
+    if measurable:
         rng = random.Random(seed)
         ci_low_side, ci_high_side = _bootstrap_mean_ci(
             per_side, n_bootstrap=n_bootstrap, rng=rng
         )
         ci_low, ci_high = 2.0 * ci_low_side, 2.0 * ci_high_side
-        if ci_high <= 0.0:
-            # A round-turn "cost" that pays you is not a cost. The §5 gate
-            # substitutes conservative_cost_bps — this CI HIGH, not the point
-            # estimate — for the flat default after checking only `measurable`
-            # and finiteness, so a non-positive bound would enter E[PnL] as a
-            # credit and flatter every candidate. Judging the point estimate
-            # instead would also discard usable calibrations whose mean merely
-            # dips below zero, which marketable limits do routinely.
-            #
-            # A whole sample above zero means the limit reference does not
-            # describe the intended execution price (measured 2026-08-05: the
-            # C8 ledger's limits are signal LEVELS, so its fills "improve" by
-            # the opening gap) — a modelling question for a human, not a bar.
-            reasons.append("non_positive_cost")
-            ci_low, ci_high = 0.0, 0.0
-    measurable = not reasons
+    else:
+        ci_low, ci_high = 0.0, 0.0
 
     return CostCalibration(
         n_sessions=len(sessions),

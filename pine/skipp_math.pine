@@ -8,13 +8,11 @@ library("skipp_math", overlay = true)
 // --------------------------------------------------
 // Constants
 // --------------------------------------------------
-// 2026-08-26 (#4756): getter-functions -> `export const` (moeglich seit
-// Juni 2025). Werte unveraendert; API-Bruch nur in der Form (kein `()`).
 
-export const float PROB_EPS    = 0.0001
-export const float LOGIT_CLAMP = 20.0
-export const float PRICE_EPS   = 0.0001
-export const float Z_95        = 1.96
+export PROB_EPS()    => 0.0001
+export LOGIT_CLAMP() => 20.0
+export PRICE_EPS()   => 0.0001
+export Z_95()        => 1.96
 
 // --------------------------------------------------
 // Clamping
@@ -27,7 +25,7 @@ export clamp(float val, float lo, float hi) =>
     math.max(lo, math.min(hi, val))
 
 export eps_clamp(float p) =>
-    float eps = PROB_EPS
+    float eps = PROB_EPS()
     math.max(eps, math.min(1.0 - eps, p))
 
 // --------------------------------------------------
@@ -35,8 +33,8 @@ export eps_clamp(float p) =>
 // --------------------------------------------------
 
 export logit(float p) =>
-    float pc = math.max(PROB_EPS, math.min(1.0 - PROB_EPS, p))
-    math.max(-LOGIT_CLAMP, math.min(LOGIT_CLAMP, math.log(pc / (1.0 - pc))))
+    float pc = math.max(PROB_EPS(), math.min(1.0 - PROB_EPS(), p))
+    math.max(-LOGIT_CLAMP(), math.min(LOGIT_CLAMP(), math.log(pc / (1.0 - pc))))
 
 export sigmoid(float x) =>
     x < -500.0 ? 0.0 : x > 500.0 ? 1.0 : 1.0 / (1.0 + math.exp(-x))
@@ -45,7 +43,7 @@ export platt_prob(float pRaw, float a, float b) =>
     sigmoid(a * logit(pRaw) + b)
 
 export safe_log(float p) =>
-    math.log(math.max(PROB_EPS, p))
+    math.log(math.max(PROB_EPS(), p))
 
 // --------------------------------------------------
 // Range position (min-max normalisation)
@@ -76,9 +74,9 @@ export ci95_halfwidth(float p, float n) =>
     if na(p) or na(n) or n <= 0.0
         float(na)
     else
-        float z2  = Z_95 * Z_95
+        float z2  = Z_95() * Z_95()
         float den = 1.0 + z2 / n
-        float half = (Z_95 * math.sqrt((p * (1.0 - p) / n) + (z2 / (4.0 * n * n)))) / den
+        float half = (Z_95() * math.sqrt((p * (1.0 - p) / n) + (z2 / (4.0 * n * n)))) / den
         half
 
 export brier(float p, float y) =>

@@ -36,7 +36,6 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-import math
 import os
 import tempfile
 from collections.abc import Callable, Mapping, Sequence
@@ -44,9 +43,8 @@ from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime
 from pathlib import Path
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
-from scripts.build_commercial_family_setups import FAMILY_VARIANTS
 from scripts.execute_ibkr_watchlist import (
     PAPER_PORT,
     IBKRConnectionConfig,
@@ -76,18 +74,6 @@ logger = logging.getLogger("scripts.run_smc_live_incubation")
 
 # Track-record-gate verdicts that are allowed to trade live.
 _LIVE_TRADABLE_GATE_STATUSES = frozenset({"green", "amber"})
-_PROSPECTIVE_FAMILY_BY_VARIANT = {
-    variant: family for family, variant in FAMILY_VARIANTS.items()
-}
-_PROSPECTIVE_AUDIT_FIELDS = (
-    "family",
-    "producer_mode",
-    "source_event_id",
-    "source_anchor_ts",
-    "source_asof_ts",
-    "source_timeframe",
-    "source_snapshot_id",
-)
 
 # CLI phase → size_scale default mapping.
 _PHASE_DEFAULTS: dict[str, dict[str, Any]] = {
@@ -354,146 +340,6 @@ def _filter_tradable_setups(
     return out
 
 
-def _required_timestamp(record: Mapping[str, Any], key: str) -> float:
-    value = record.get(key)
-    if isinstance(value, bool):
-        raise ValueError(f"commercial setup {key} must be a numeric timestamp")
-    try:
-        parsed = float(value)  # type: ignore[arg-type]
-    except (TypeError, ValueError) as exc:
-        raise ValueError(
-            f"commercial setup {key} must be a numeric timestamp"
-        ) from exc
-    if not math.isfinite(parsed) or parsed <= 0:
-        raise ValueError(
-            f"commercial setup {key} must be a finite positive timestamp"
-        )
-    return parsed
-
-
-def _validate_prospective_commercial_setups(
-    setup_records: Sequence[dict[str, Any]],
-    gate_status_by_variant: dict[str, str],
-    *,
-    phase: str,
-    now: datetime,
-    max_setup_age_seconds: int,
-    require_all_tradable: bool,
-) -> None:
-    """Protect the evidence boundary before an intent can be submitted."""
-    if isinstance(max_setup_age_seconds, bool) or max_setup_age_seconds < 0:
-        raise ValueError("max_setup_age_seconds must be non-negative")
-    expected_evidence = "PAPER" if phase == "paper" else "LIVE"
-    now_utc = now if now.tzinfo is not None else now.replace(tzinfo=UTC)
-    now_ts = now_utc.astimezone(UTC).timestamp()
-    snapshot_ids: set[str] = set()
-
-    for record in _filter_tradable_setups(
-        setup_records, gate_status_by_variant
-    ):
-        variant = record.get("variant")
-        family = _PROSPECTIVE_FAMILY_BY_VARIANT.get(str(variant))
-        if family is None:
-            if require_all_tradable:
-                raise ValueError(
-                    "prospective paper pilot accepts only the four owned "
-                    f"commercial variants; got {variant!r}"
-                )
-            continue
-        if record.get("family") != family:
-            raise ValueError(
-                f"commercial setup {variant!r} must declare family={family!r}"
-            )
-        if record.get("producer_mode") != "prospective_pit":
-            raise ValueError(
-                f"commercial setup {variant!r} must use producer_mode="
-                "'prospective_pit'"
-            )
-        if record.get("evidence_class") != expected_evidence:
-            raise ValueError(
-                f"commercial setup {variant!r} evidence_class must be "
-                f"{expected_evidence!r} for phase={phase!r}"
-            )
-        event_id = record.get("source_event_id")
-        if not isinstance(event_id, str) or not event_id.strip():
-            raise ValueError(
-                f"commercial setup {variant!r} requires source_event_id"
-            )
-        anchor_ts = _required_timestamp(record, "source_anchor_ts")
-        asof_ts = _required_timestamp(record, "source_asof_ts")
-        if anchor_ts > asof_ts:
-            raise ValueError(
-                f"commercial setup {variant!r} source anchor is after source asof"
-            )
-        age_seconds = now_ts - asof_ts
-        if age_seconds < 0:
-            raise ValueError(
-                f"commercial setup {variant!r} source asof is in the future"
-            )
-        if age_seconds > max_setup_age_seconds:
-            raise ValueError(
-                f"commercial setup {variant!r} is stale: age={age_seconds:.3f}s "
-                f"> max={max_setup_age_seconds}s"
-            )
-        source_timeframe = record.get("source_timeframe")
-        if not isinstance(source_timeframe, str) or not source_timeframe.strip():
-            raise ValueError(
-                f"commercial setup {variant!r} requires source_timeframe"
-            )
-        snapshot_id = record.get("source_snapshot_id")
-        if (
-            not isinstance(snapshot_id, str)
-            or not snapshot_id.startswith("sha256:")
-            or len(snapshot_id) != 71
-            or any(char not in "0123456789abcdef" for char in snapshot_id[7:])
-        ):
-            raise ValueError(
-                f"commercial setup {variant!r} requires a canonical "
-                "source_snapshot_id"
-            )
-        snapshot_ids.add(snapshot_id)
-        provenance = record.get("source_provenance")
-        if not isinstance(provenance, dict):
-            raise ValueError(
-                f"commercial setup {variant!r} requires source_provenance"
-            )
-        symbol = str(record.get("symbol", "")).strip().upper()
-        if str(provenance.get("symbol", "")).strip().upper() != symbol:
-            raise ValueError(
-                f"commercial setup {variant!r} symbol/provenance mismatch"
-            )
-        if str(provenance.get("timeframe", "")).strip() != source_timeframe:
-            raise ValueError(
-                f"commercial setup {variant!r} timeframe/provenance mismatch"
-            )
-        if not str(provenance.get("source", "")).strip():
-            raise ValueError(
-                f"commercial setup {variant!r} requires provenance source"
-            )
-        asof_date = datetime.fromtimestamp(asof_ts, UTC).date().isoformat()
-        if record.get("trade_date") != asof_date:
-            raise ValueError(
-                f"commercial setup {variant!r} trade_date does not match "
-                "source_asof_ts UTC date"
-            )
-    if len(snapshot_ids) > 1:
-        raise ValueError("commercial setup batch mixes source_snapshot_id values")
-
-
-def _setup_audit_metadata(record: Mapping[str, Any]) -> dict[str, Any]:
-    if record.get("variant") not in _PROSPECTIVE_FAMILY_BY_VARIANT:
-        return {}
-    metadata = {
-        key: record[key]
-        for key in _PROSPECTIVE_AUDIT_FIELDS
-        if key in record
-    }
-    provenance = record.get("source_provenance")
-    if isinstance(provenance, dict):
-        metadata["source_provenance"] = dict(provenance)
-    return metadata
-
-
 def _utc_iso(now: datetime | None) -> str:
     instant = now if now is not None else datetime.now(UTC)
     if instant.tzinfo is None:
@@ -555,11 +401,6 @@ def run_live_incubation(
     submit_fn: SubmitFn = _no_op_submit,
     now: datetime | None = None,
     earnings_filter: EarningsFilter | None = None,
-    portfolio_snapshot: PortfolioSnapshotV1 | None = None,
-    portfolio_limits: PortfolioRiskLimitsV1 | None = None,
-    portfolio_context: PortfolioRiskContextV1 | None = None,
-    prospective_paper_pilot: bool = False,
-    max_setup_age_seconds: int = 300,
 ) -> dict[str, Any]:
     """Execute one orchestration round and return a structured summary.
 
@@ -576,19 +417,7 @@ def run_live_incubation(
     with reason WSH_DATA_MISSING) — Phase A must never block on data
     unavailability.
     """
-    run_now = now if now is not None else datetime.now(UTC)
-    timestamp = _utc_iso(run_now)
-    evidence_class = "PAPER" if phase == "paper" else "LIVE"
-    if prospective_paper_pilot and phase != "paper":
-        raise ValueError("prospective_paper_pilot requires phase='paper'")
-    _validate_prospective_commercial_setups(
-        setup_records,
-        gate_status_by_variant,
-        phase=phase,
-        now=run_now,
-        max_setup_age_seconds=max_setup_age_seconds,
-        require_all_tradable=prospective_paper_pilot,
-    )
+    timestamp = _utc_iso(now)
     kill_decision: KillSwitchDecision = check_risk_limits(
         account_state, risk_limits
     )
@@ -597,7 +426,6 @@ def run_live_incubation(
         halt_record = {
             "ts": timestamp,
             "phase": phase,
-            "evidence_class": evidence_class,
             "action": "halted",
             "kill_switch_triggered": True,
             "kill_reason": (
@@ -628,13 +456,11 @@ def run_live_incubation(
     # the *pre-filter* tradable[]↔intents[] zip per the
     # smc_to_ibkr_adapter ordering contract).
     variant_by_order_ref: dict[str, str] = {}
-    metadata_by_order_ref: dict[str, dict[str, Any]] = {}
     if len(tradable) == len(intents):
         for setup, intent in zip(tradable, intents, strict=False):
             variant = setup.get("variant")
             if isinstance(variant, str):
                 variant_by_order_ref[intent.order_ref] = variant
-            metadata_by_order_ref[intent.order_ref] = _setup_audit_metadata(setup)
 
     # T7.2 — pre-trade earnings filter. Run BEFORE submit_fn so blocked
     # intents never reach IBKR. Decisions are recorded as audit rows so
@@ -658,71 +484,12 @@ def run_live_incubation(
                 allowed.append(intent)
         intents = allowed
 
-    if (portfolio_snapshot is None) != (portfolio_limits is None):
-        raise ValueError(
-            "portfolio_snapshot and portfolio_limits must be supplied together"
-        )
-    portfolio_decision = None
-    if portfolio_snapshot is not None and portfolio_limits is not None:
-        from governance.portfolio_contract import PortfolioIntent, Side
-        from governance.portfolio_risk import evaluate_portfolio_risk
-
-        portfolio_intents = tuple(
-            PortfolioIntent(
-                intent_id=intent.order_ref,
-                symbol=intent.symbol,
-                account=portfolio_snapshot.account,
-                side=Side.BUY,
-                quantity=float(intent.quantity),
-                entry_price=float(intent.entry_limit),
-                stop_price=float(intent.stop_loss),
-                strategy_family=variant_by_order_ref.get(intent.order_ref),
-            )
-            for intent in intents
-        )
-        portfolio_decision = evaluate_portfolio_risk(
-            portfolio_snapshot,
-            portfolio_intents,
-            portfolio_limits,
-            now=now,
-            context=portfolio_context,
-        )
-        if portfolio_decision.enforced and phase != "paper":
-            raise ValueError(
-                "portfolio enforcement is currently restricted to phase='paper'"
-            )
-
-    if portfolio_decision is not None and not portfolio_decision.permits_submission:
-        intents_handed_to_submitter = 0
-        submission_results = [
-            {
-                "intent_id": intent.order_ref,
-                "action": "portfolio_blocked",
-                "fill_price": None,
-            }
-            for intent in intents
-        ]
-    else:
-        intents_handed_to_submitter = len(intents)
-        submission_results = submit_fn(intents)
+    submission_results = submit_fn(intents)
     submission_by_intent = {
         result.get("intent_id"): result for result in submission_results
     }
 
     audit_records: list[dict[str, Any]] = []
-    if portfolio_decision is not None:
-        audit_records.append(
-            {
-                "ts": timestamp,
-                "phase": phase,
-                "evidence_class": evidence_class,
-                "action": "portfolio_risk_evaluated",
-                "kill_switch_triggered": False,
-                "portfolio_risk": portfolio_decision.to_audit_dict(
-                    max_snapshot_age_seconds=portfolio_limits.max_snapshot_age_seconds,
-                ),
-            }
-        )
     # First, emit one audit row per earnings-blocked intent (those were
     # filtered out of ``intents`` above and therefore never seen by
     # ``submit_fn``). Variant key still resolved from variant_by_order_ref.
@@ -733,10 +500,8 @@ def run_live_incubation(
             {
                 "ts": timestamp,
                 "phase": phase,
-                "evidence_class": evidence_class,
                 "intent_id": order_ref,
                 "variant": variant_by_order_ref.get(order_ref, ""),
-                **metadata_by_order_ref.get(order_ref, {}),
                 "symbol": decision.symbol,
                 "action": "earnings_blocked",
                 "earnings_filter": decision.as_audit_dict(),
@@ -745,22 +510,12 @@ def run_live_incubation(
         )
     for intent in intents:
         result = submission_by_intent.get(intent.order_ref, {})
-        portfolio_audit = None
-        if portfolio_decision is not None:
-            portfolio_audit = {
-                "mode": portfolio_decision.mode.value,
-                "verdict": portfolio_decision.verdict.value,
-                "reasons": list(portfolio_decision.reasons),
-                "recommended_scale": portfolio_decision.recommended_scale,
-            }
         audit_records.append(
             {
                 "ts": timestamp,
                 "phase": phase,
-                "evidence_class": evidence_class,
                 "intent_id": intent.order_ref,
                 "variant": variant_by_order_ref.get(intent.order_ref, ""),
-                **metadata_by_order_ref.get(intent.order_ref, {}),
                 "symbol": intent.symbol,
                 "action": str(result.get("action", "unknown")),
                 "entry_price": float(intent.entry_limit),
@@ -770,7 +525,6 @@ def run_live_incubation(
                 "size_scale": float(size_scale),
                 "fill_price": _coerce_optional_float(result.get("fill_price")),
                 "kill_switch_triggered": False,
-                "portfolio_risk": portfolio_audit,
             }
         )
 
@@ -786,16 +540,9 @@ def run_live_incubation(
         # Count of intents HANDED to submit_fn (post earnings-gate), NOT confirmed
         # transmitted — a batch that IB error-110'd is action="submit_failed" in the
         # per-row audit log, but still counts here. See audit rows for real outcomes.
-        "intents_passed_to_submitter": intents_handed_to_submitter,
-        "intents_portfolio_blocked": (
-            len(intents) - intents_handed_to_submitter
-        ),
+        "intents_passed_to_submitter": len(intents),
         "intents_earnings_blocked": earnings_blocked,
         "audit_records_written": len(audit_records),
-        "prospective_paper_pilot": prospective_paper_pilot,
-        "portfolio_risk": (
-            portfolio_decision.to_dict() if portfolio_decision is not None else None
-        ),
     }
 
 
@@ -926,26 +673,6 @@ def _build_parser() -> argparse.ArgumentParser:
             "outright. Default off — no orders are placed."
         ),
     )
-    parser.add_argument(
-        "--prospective-paper-pilot",
-        action="store_true",
-        help=(
-            "Require every tradable setup to be a PIT-safe owned commercial "
-            "family setup with PAPER evidence and complete provenance. This "
-            "does not place orders; --place-paper-orders remains a separate "
-            "paper-only opt-in."
-        ),
-    )
-    parser.add_argument(
-        "--max-setup-age-seconds",
-        type=int,
-        default=300,
-        help=(
-            "Maximum source_asof age for prospective commercial setups "
-            "(default: 300 seconds)."
-        ),
-    )
-    _add_portfolio_arguments(parser)
     return parser
 
 
@@ -1086,34 +813,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             f"(got --phase {args.phase!r}). This flag intentionally cannot "
             "transmit live orders; refusing to run."
         )
-    if args.prospective_paper_pilot and args.phase != "paper":
-        raise SystemExit(
-            "--prospective-paper-pilot is only supported for --phase paper"
-        )
-    if args.place_paper_orders and args.portfolio_snapshot_json is None:
-        raise SystemExit(
-            "--place-paper-orders requires --portfolio-snapshot-json so every "
-            "transmitted paper order receives a projected-portfolio decision. "
-            "The configured --portfolio-risk-limits-json still controls whether "
-            "that decision is shadow-only or enforced."
-        )
 
     setup_records = json.loads(args.setups.read_text(encoding="utf-8"))
     gate_statuses = json.loads(args.gate_statuses.read_text(encoding="utf-8"))
-    commercial_variants_present = any(
-        isinstance(record, dict)
-        and record.get("variant") in _PROSPECTIVE_FAMILY_BY_VARIANT
-        for record in setup_records
-    ) if isinstance(setup_records, list) else False
-    if (
-        args.place_paper_orders
-        and commercial_variants_present
-        and not args.prospective_paper_pilot
-    ):
-        raise SystemExit(
-            "commercial family paper orders require "
-            "--prospective-paper-pilot so evidence and provenance fail closed"
-        )
 
     risk_limits = _resolve_risk_limits(args.phase, args.risk_limits_json)
 
@@ -1182,32 +884,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
     execution_cfg = IBKRExecutionConfig(paper_mode=bool(phase_defaults["paper_mode"]))
 
-    portfolio_snapshot = None
-    portfolio_limits = None
-    portfolio_context = None
-    if args.portfolio_snapshot_json is not None:
-        from governance.portfolio_contract import (
-            PortfolioRiskContextV1,
-            PortfolioSnapshotV1,
-        )
-        from governance.portfolio_risk import PortfolioRiskLimitsV1, PortfolioRiskMode
-
-        portfolio_snapshot_payload = json.loads(
-            args.portfolio_snapshot_json.read_text(encoding="utf-8")
-        )
-        portfolio_snapshot = PortfolioSnapshotV1.from_dict(portfolio_snapshot_payload)
-        portfolio_limits = PortfolioRiskLimitsV1.from_json(args.portfolio_risk_limits_json)
-        if portfolio_limits.mode is PortfolioRiskMode.ENFORCE and args.phase != "paper":
-            raise SystemExit(
-                "portfolio enforcement is currently paper-only; use mode=shadow "
-                f"for phase={args.phase!r}"
-            )
-        if args.portfolio_context_json is not None:
-            context_payload = json.loads(
-                args.portfolio_context_json.read_text(encoding="utf-8")
-            )
-            portfolio_context = PortfolioRiskContextV1.from_dict(context_payload)
-
     # Default to the audit-only no-op submitter. Only when the operator
     # explicitly opts in (guarded to --phase paper above) do we build a
     # submitter that actually transmits bracket orders to the paper TWS;
@@ -1217,15 +893,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.place_paper_orders:
         submit_fn = _build_paper_submit_fn(
             connection_cfg=IBKRConnectionConfig(),
-            # exit_tif="GTC": tp/sl legs must survive the session. With DAY
-            # exits every position that outlived the bell lost its protection
-            # and stayed open forever (nine leftovers measured 2026-08-18) —
-            # the client-side time stop in execute_ibkr_watchlist never runs
-            # here because this driver disconnects right after submit. The
-            # same-day close is owned by the EOD flatten cron
-            # (automation/launchd/run-c13-eod-flatten.sh); GTC is the backstop
-            # for the day that cron misses.
-            execution_cfg=IBKRWatchlistExecutionConfig(exit_tif="GTC"),
+            execution_cfg=IBKRWatchlistExecutionConfig(),
         )
 
     earnings_filter: EarningsFilter | None = None
@@ -1247,54 +915,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         size_scale=size_scale,
         earnings_filter=earnings_filter,
         submit_fn=submit_fn,
-        portfolio_snapshot=portfolio_snapshot,
-        portfolio_limits=portfolio_limits,
-        portfolio_context=portfolio_context,
-        prospective_paper_pilot=args.prospective_paper_pilot,
-        max_setup_age_seconds=args.max_setup_age_seconds,
     )
     print(json.dumps(summary, sort_keys=True))
     return 0
-
-
-if TYPE_CHECKING:
-    from governance.portfolio_contract import PortfolioRiskContextV1, PortfolioSnapshotV1
-    from governance.portfolio_risk import PortfolioRiskLimitsV1
 
 
 __all__ = [
     "main",
     "run_live_incubation",
 ]
-
-
-def _add_portfolio_arguments(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
-        "--portfolio-snapshot-json",
-        type=Path,
-        default=None,
-        help=(
-            "PortfolioSnapshotV1 captured immediately before this run. Required "
-            "with --place-paper-orders; otherwise optional. When supplied, every "
-            "surviving intent receives a shadow/enforced projected-portfolio "
-            "decision before submit_fn."
-        ),
-    )
-    parser.add_argument(
-        "--portfolio-risk-limits-json",
-        type=Path,
-        default=Path("configs/portfolio_risk_limits.json"),
-        help="Versioned PortfolioRiskLimitsV1 config (default: shadow mode).",
-    )
-    parser.add_argument(
-        "--portfolio-context-json",
-        type=Path,
-        default=None,
-        help=(
-            "Optional PIT-safe sector/correlation context. Its thresholds remain "
-            "inactive while the configured caps are null."
-        ),
-    )
 
 
 if __name__ == "__main__":  # pragma: no cover - script entry point

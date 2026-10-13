@@ -61,10 +61,6 @@ DISPERSION_SMOOTH_DAYS = 5
 CORR_WINDOW = 20            # pairwise-correlation lookback (trading days)
 EOD_CALENDAR_DAYS_BACK = 200  # fetch depth to cover trailing windows
 MIN_USABLE_SYMBOLS = 30     # below this the snapshot degrades to UNKNOWN
-# Intraday ER is a median of per-symbol 1h ERs (a robust statistic) over the
-# smaller intraday subsample; it tolerates a lower absolute floor than the
-# cross-sectional daily metrics, which need MIN_USABLE_SYMBOLS for a stable spread.
-MIN_INTRADAY_ER_SYMBOLS = 20
 
 WEATHER_GREEN = "GREEN"
 WEATHER_YELLOW = "YELLOW"
@@ -395,7 +391,7 @@ def compute_microstructure_snapshot(
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         er_1h_vals = [v for v in pool.map(lambda s: _fetch_intraday_er(client, s), intraday_syms)
                       if v is not None]
-    er_1h = statistics.median(er_1h_vals) if len(er_1h_vals) >= MIN_INTRADAY_ER_SYMBOLS else None
+    er_1h = statistics.median(er_1h_vals) if len(er_1h_vals) >= 20 else None
 
     # --- percentiles + weather ---------------------------------------------
     percentiles = {

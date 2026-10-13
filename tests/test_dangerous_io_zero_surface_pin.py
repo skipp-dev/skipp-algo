@@ -28,7 +28,7 @@ import ast
 from collections.abc import Iterator
 from pathlib import Path
 
-from tests._guard_corpus import iter_production_py_files, parse_module
+from tests._guard_corpus import parse_module
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -49,7 +49,11 @@ _DIR_EXCLUDE = {
 
 
 def _iter_py_files() -> Iterator[Path]:
-    return iter_production_py_files(_DIR_EXCLUDE)
+    for path in ROOT.rglob("*.py"):
+        rel = path.relative_to(ROOT)
+        if any(part in _DIR_EXCLUDE or part.startswith(".") for part in rel.parts):
+            continue
+        yield path
 
 
 def _attr_call_sites(attr_owner: str, attr_name: str) -> set[tuple[str, int]]:
@@ -98,8 +102,8 @@ OS_KILL_ALLOWED: set[tuple[str, int]] = {
     # Signal-0 PID liveness probes in _detect_rt_engine_pid(): existing PID
     # file check and pgrep result validation.
     # 2026-07-15 (reconcile): shifted 207/237 -> 208/238 by #3584/#3587 edits above.
-    ("open_prep/realtime_signals.py", 210),  # 2026-07-25 (databento-signal-migration): 209->210
-    ("open_prep/realtime_signals.py", 240),  # 2026-07-25 (databento-signal-migration): 239->240
+    ("open_prep/realtime_signals.py", 209),  # 2026-07-16 market-session import: 208->209
+    ("open_prep/realtime_signals.py", 239),  # 2026-07-16 market-session import: 238->239
     # 2026-07-15 (security review): THIRD signal-0 probe, added by #3584 without a
     # ledger entry -- this pin is not on the required path, so the addition merged
     # green. Reviewed and accepted: same class as the two above, not new signalling
@@ -107,7 +111,7 @@ OS_KILL_ALLOWED: set[tuple[str, int]] = {
     # dead (the status file is written on START paths only, so a crashed engine
     # leaves running:true forever). Signal 0 sends nothing -- it only probes
     # existence -- and OSError is caught and mapped to alive=False.
-    ("open_prep/realtime_signals.py", 269),  # 2026-07-25 (databento-signal-migration): 268->269
+    ("open_prep/realtime_signals.py", 268),  # 2026-07-16 market-session import: 267->268
     # Signal-0 PID liveness probe for the IB-client-id leasing registry
     # (claims an IB API client_id slot only if the previous owner is gone).
     ("scripts/ib_client_id.py", 81),

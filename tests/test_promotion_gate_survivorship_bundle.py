@@ -46,11 +46,7 @@ def test_build_bundle_omits_flag_when_none(tmp_path) -> None:
     assert all("universe_survivorship_bias_risk" not in e["provenance"] for e in bundle)
 
 
-def test_gate_demotes_to_rc2_on_bundle_carried_flag(tmp_path, monkeypatch) -> None:
-    # chdir like the sibling CLI tests in tests/test_run_promotion_gate.py:
-    # --archive-dir defaults to the RELATIVE governance/promotion_decisions, so
-    # without this the gate archives a real report into the repo on every run.
-    monkeypatch.chdir(tmp_path)
+def test_gate_demotes_to_rc2_on_bundle_carried_flag(tmp_path) -> None:
     # No --universe-trade-date (the production path): the flag rides the bundle.
     bundle = bpb.build_bundle(scoring_root=tmp_path, universe_survivorship_bias_risk=True)
     metrics = _write(tmp_path / "bundle.json", bundle)
@@ -60,8 +56,7 @@ def test_gate_demotes_to_rc2_on_bundle_carried_flag(tmp_path, monkeypatch) -> No
     assert json.loads(out.read_text(encoding="utf-8"))["universe_survivorship_bias_risk"] is True
 
 
-def test_gate_no_flag_reports_false(tmp_path, monkeypatch) -> None:
-    monkeypatch.chdir(tmp_path)  # keep the default archive-dir inside tmp_path
+def test_gate_no_flag_reports_false(tmp_path) -> None:
     bundle = bpb.build_bundle(scoring_root=tmp_path)
     metrics = _write(tmp_path / "bundle.json", bundle)
     out = tmp_path / "out.json"

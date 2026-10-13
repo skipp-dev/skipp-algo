@@ -173,10 +173,6 @@ from scripts.databento_production_workbook import (
 )
 from scripts.market_structure_features import build_market_structure_feature_frame
 from scripts.smc_atomic_write import atomic_write_csv
-from scripts.smc_databento_session_detail import (
-    build_session_minute_coverage_scope,
-    collect_full_universe_session_minute_detail,
-)
 
 # Compatibility seam for tests: keep the historic patch target while still
 # defaulting to the boundary-backed factory when no override is installed.
@@ -3979,11 +3975,11 @@ def run_production_export_pipeline(
     intraday_fetched_at = datetime.now(UTC).isoformat(timespec="seconds")
 
     # Step 6c/10: FMP intraday bridge – fills today's data during trading hours
-    # when Databento same-day data is not yet available (finalized ~1h after US
-    # close: 20:00Z EDT / 21:00Z EST — 2026-08-18 A5, don't hardcode UTC). The
-    # first post-finalization cron tick (22:00Z covers both halves) sees the
-    # Databento rows, `today_et` is in `intraday`, block skipped automatically.
-    # No dedup needed: the bridge only fires for a date Databento had no rows for.
+    # when Databento same-day data is not yet available (dataset finalized only
+    # after market close ~20:00 UTC).  At 21:00 UTC the safety-net cron runs
+    # with Databento data already present, so `today_et` will already be in
+    # `intraday` and this block is skipped automatically.  No dedup needed:
+    # the bridge only fires for a date that Databento returned no rows for.
     if fmp_api_key and trading_days:
         today_et = datetime.now(US_EASTERN_TZ).date()
         if today_et in set(trading_days):
@@ -4353,43 +4349,6 @@ def run_production_export_pipeline(
         f"Step 9b/10 complete: benchmark-universe 1m bars collected in "
         f"{time_module.perf_counter() - benchmark_ohlcv_started_at:.1f}s (rows={len(benchmark_universe_ohlcv_1m)})"
     )
-    # Step 9c/10 — full-session minute detail for the microstructure base.
-    #
-    # `smc_microstructure_base_runtime` derives every minute-based symbol-day
-    # metric from this frame, and the library refresh reads it out of the bundle
-    # via the `--bundle` path, which cannot collect it itself. Until 2026-07-22
-    # nothing produced it: the frame resolved to empty, all minute metrics fell
-    # back to 0.0, and five published library versions shipped seven empty
-    # membership lists without a single failing check.
-    #
-    # Unlike the benchmark-1m collection above this is NOT fail-soft. An empty
-    # frame here is indistinguishable from healthy-but-quiet market data, and the
-    # consumer cannot tell the difference either — so a failure must stop the run
-    # rather than silently zero the payload. The collector caches per trade day
-    # (`use_file_cache`), so a warm cache only fetches the new day.
-    session_minute_started_at = time_module.perf_counter()
-    # Fetch every symbol-day, but only REQUIRE the ones flagged has_intraday.
-    # Requiring the whole universe makes a normal thin-book day a hard failure:
-    # run 29985038127 died with `incomplete symbol coverage (5822/6917)`, the
-    # missing names all illiquid tickers with no bars that session.
-    session_minute_scope = build_session_minute_coverage_scope(daily_symbol_features_full_universe)
-    session_minute_detail_full_universe = collect_full_universe_session_minute_detail(
-        databento_api_key,
-        dataset=dataset,
-        trading_days=trading_days,
-        universe_symbols=session_minute_scope.universe_symbols,
-        expected_symbols_by_trade_day=session_minute_scope.expected_symbols_by_trade_day,
-        required_symbols_by_trade_day=session_minute_scope.required_symbols_by_trade_day,
-        display_timezone=display_timezone,
-        cache_dir=resolved_cache_dir,
-        use_file_cache=use_file_cache,
-        force_refresh=force_refresh,
-    )
-    _progress(
-        "Step 9c/10 complete: full-session minute detail collected in "
-        f"{time_module.perf_counter() - session_minute_started_at:.1f}s "
-        f"(rows={len(session_minute_detail_full_universe)})"
-    )
     full_universe_second_detail_close = _prepare_full_universe_second_detail_export(
         full_universe_close_detail_raw,
         daily_symbol_features_full_universe,
@@ -4718,7 +4677,6 @@ def run_production_export_pipeline(
         additional_parquet_targets={
             "daily_symbol_features_full_universe": daily_symbol_features_full_universe,
             "benchmark_universe_ohlcv_1m": benchmark_universe_ohlcv_1m,
-            "session_minute_detail_full_universe": session_minute_detail_full_universe,
             "full_universe_second_detail_open": full_universe_second_detail_open,
             "full_universe_second_detail_close": full_universe_second_detail_close,
             "full_universe_close_trade_detail": full_universe_close_trade_detail,

@@ -418,7 +418,6 @@ class FVGLifecycleLightBlock(TypedDict, total=False):
     FVG_MATURITY_LEVEL: int          # 0-3 fill-derived maturity proxy
     FVG_FRESH: bool
     FVG_INVALIDATED: bool
-    FVG_NET_IMBALANCE: int           # active bull count - active bear count
 
 
 class StructureStateLightBlock(TypedDict, total=False):

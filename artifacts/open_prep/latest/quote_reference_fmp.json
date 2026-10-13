@@ -1,0 +1,4898 @@
+{
+  "A": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2435757.933333333,
+    "previous_close": 171.33,
+    "source": "fmp:adjusted-eod"
+  },
+  "AA": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3935731.0,
+    "previous_close": 41.67,
+    "source": "fmp:adjusted-eod"
+  },
+  "AAL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 63226519.0,
+    "previous_close": 12.62,
+    "source": "fmp:adjusted-eod"
+  },
+  "AAPL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 34406047.666666664,
+    "previous_close": 340.97,
+    "source": "fmp:adjusted-eod"
+  },
+  "ABBV": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 4555032.733333333,
+    "previous_close": 281.12,
+    "source": "fmp:adjusted-eod"
+  },
+  "ABLV": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 357772.5333333333,
+    "previous_close": 1.33,
+    "source": "fmp:adjusted-eod"
+  },
+  "ABNB": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 4862516.933333334,
+    "previous_close": 163.5,
+    "source": "fmp:adjusted-eod"
+  },
+  "ABT": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 8969473.2,
+    "previous_close": 101.82,
+    "source": "fmp:adjusted-eod"
+  },
+  "ADBE": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 4432994.866666666,
+    "previous_close": 238.14,
+    "source": "fmp:adjusted-eod"
+  },
+  "ADI": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2665567.2,
+    "previous_close": 406.25,
+    "source": "fmp:adjusted-eod"
+  },
+  "ADM": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3002870.933333333,
+    "previous_close": 80.42,
+    "source": "fmp:adjusted-eod"
+  },
+  "ADP": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1799991.5333333334,
+    "previous_close": 273.81,
+    "source": "fmp:adjusted-eod"
+  },
+  "ADSK": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2017898.2666666666,
+    "previous_close": 233.54,
+    "source": "fmp:adjusted-eod"
+  },
+  "AEE": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2283666.6666666665,
+    "previous_close": 103.24,
+    "source": "fmp:adjusted-eod"
+  },
+  "AEIS": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 437221.4,
+    "previous_close": 280.77,
+    "source": "fmp:adjusted-eod"
+  },
+  "AEP": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3676039.6,
+    "previous_close": 124.23,
+    "source": "fmp:adjusted-eod"
+  },
+  "AES": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 9294829.0,
+    "previous_close": 14.98,
+    "source": "fmp:adjusted-eod"
+  },
+  "AFG": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 371822.93333333335,
+    "previous_close": 143.78,
+    "source": "fmp:adjusted-eod"
+  },
+  "AFL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1699890.7333333334,
+    "previous_close": 115.89,
+    "source": "fmp:adjusted-eod"
+  },
+  "AFRM": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 4026485.0,
+    "previous_close": 78.63,
+    "source": "fmp:adjusted-eod"
+  },
+  "AGNC": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 39329454.93333333,
+    "previous_close": 8.68,
+    "source": "fmp:adjusted-eod"
+  },
+  "AHR": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2965642.8666666667,
+    "previous_close": 52.52,
+    "source": "fmp:adjusted-eod"
+  },
+  "AIG": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 5112644.2,
+    "previous_close": 77.7,
+    "source": "fmp:adjusted-eod"
+  },
+  "AIT": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 229285.4,
+    "previous_close": 333.81,
+    "source": "fmp:adjusted-eod"
+  },
+  "AIXI": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 16051495.6,
+    "previous_close": 2.4,
+    "source": "fmp:adjusted-eod"
+  },
+  "AIZ": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 392768.6,
+    "previous_close": 268.63,
+    "source": "fmp:adjusted-eod"
+  },
+  "AIZN": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 17353.266666666666,
+    "previous_close": 17.16,
+    "source": "fmp:adjusted-eod"
+  },
+  "AJG": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1503581.4666666666,
+    "previous_close": 233.92,
+    "source": "fmp:adjusted-eod"
+  },
+  "AKAM": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 6894522.4,
+    "previous_close": 101.65,
+    "source": "fmp:adjusted-eod"
+  },
+  "ALAB": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 4169320.2666666666,
+    "previous_close": 324.11,
+    "source": "fmp:adjusted-eod"
+  },
+  "ALB": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2389028.2666666666,
+    "previous_close": 98.51,
+    "source": "fmp:adjusted-eod"
+  },
+  "ALL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2582792.066666667,
+    "previous_close": 232.6,
+    "source": "fmp:adjusted-eod"
+  },
+  "ALLY": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 4002497.8,
+    "previous_close": 37.91,
+    "source": "fmp:adjusted-eod"
+  },
+  "ALNY": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1242682.1333333333,
+    "previous_close": 227.02,
+    "source": "fmp:adjusted-eod"
+  },
+  "AMAT": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 5270593.133333334,
+    "previous_close": 497.53,
+    "source": "fmp:adjusted-eod"
+  },
+  "AMD": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 19272332.066666666,
+    "previous_close": 594.24,
+    "source": "fmp:adjusted-eod"
+  },
+  "AME": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1341687.0,
+    "previous_close": 249.89,
+    "source": "fmp:adjusted-eod"
+  },
+  "AMGN": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2740757.3333333335,
+    "previous_close": 417.57,
+    "source": "fmp:adjusted-eod"
+  },
+  "AMH": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3265689.3333333335,
+    "previous_close": 30.69,
+    "source": "fmp:adjusted-eod"
+  },
+  "AMKR": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3439523.8,
+    "previous_close": 48.11,
+    "source": "fmp:adjusted-eod"
+  },
+  "AMP": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 636039.3333333334,
+    "previous_close": 500.02,
+    "source": "fmp:adjusted-eod"
+  },
+  "AMT": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3342154.466666667,
+    "previous_close": 182.56,
+    "source": "fmp:adjusted-eod"
+  },
+  "AMTD": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 39205.2,
+    "previous_close": 0.4173,
+    "source": "fmp:adjusted-eod"
+  },
+  "AMZN": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 35868782.13333333,
+    "previous_close": 259.53,
+    "source": "fmp:adjusted-eod"
+  },
+  "ANET": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 4389858.4,
+    "previous_close": 210.88,
+    "source": "fmp:adjusted-eod"
+  },
+  "APA": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 5472551.6,
+    "previous_close": 46.84,
+    "source": "fmp:adjusted-eod"
+  },
+  "APD": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1045658.2,
+    "previous_close": 283.87,
+    "source": "fmp:adjusted-eod"
+  },
+  "APG": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2713861.2666666666,
+    "previous_close": 40.39,
+    "source": "fmp:adjusted-eod"
+  },
+  "APH": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 11390912.533333333,
+    "previous_close": 86.19,
+    "source": "fmp:adjusted-eod"
+  },
+  "APO": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3155819.533333333,
+    "previous_close": 119.22,
+    "source": "fmp:adjusted-eod"
+  },
+  "APOS": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 41208.8,
+    "previous_close": 25.37,
+    "source": "fmp:adjusted-eod"
+  },
+  "APP": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 5122178.133333334,
+    "previous_close": 270.87,
+    "source": "fmp:adjusted-eod"
+  },
+  "AR": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 4205186.2,
+    "previous_close": 36.56,
+    "source": "fmp:adjusted-eod"
+  },
+  "ARCC": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 4742879.8,
+    "previous_close": 18.63,
+    "source": "fmp:adjusted-eod"
+  },
+  "ARES": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2096850.8,
+    "previous_close": 118.15,
+    "source": "fmp:adjusted-eod"
+  },
+  "ARMK": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1961639.4666666666,
+    "previous_close": 54.76,
+    "source": "fmp:adjusted-eod"
+  },
+  "ARW": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 497157.5333333333,
+    "previous_close": 225.72,
+    "source": "fmp:adjusted-eod"
+  },
+  "ASTS": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 15290060.733333332,
+    "previous_close": 51.46,
+    "source": "fmp:adjusted-eod"
+  },
+  "ATH-PA": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 83537.53333333334,
+    "previous_close": 22.72,
+    "source": "fmp:adjusted-eod"
+  },
+  "ATHS": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 42899.666666666664,
+    "previous_close": 23.39,
+    "source": "fmp:adjusted-eod"
+  },
+  "ATI": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1270369.1333333333,
+    "previous_close": 187.98,
+    "source": "fmp:adjusted-eod"
+  },
+  "ATO": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1138173.2666666666,
+    "previous_close": 162.38,
+    "source": "fmp:adjusted-eod"
+  },
+  "AU": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2012835.4,
+    "previous_close": 93.44,
+    "source": "fmp:adjusted-eod"
+  },
+  "AUR": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 27730714.6,
+    "previous_close": 5.66,
+    "source": "fmp:adjusted-eod"
+  },
+  "AVGO": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 21434803.0,
+    "previous_close": 354.73,
+    "source": "fmp:adjusted-eod"
+  },
+  "AVTR": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 8286066.333333333,
+    "previous_close": 15.49,
+    "source": "fmp:adjusted-eod"
+  },
+  "AVX": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 483120.4,
+    "previous_close": 5.43,
+    "source": "fmp:adjusted-eod"
+  },
+  "AVY": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 645832.9333333333,
+    "previous_close": 167.65,
+    "source": "fmp:adjusted-eod"
+  },
+  "AWK": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1809613.5333333334,
+    "previous_close": 129.55,
+    "source": "fmp:adjusted-eod"
+  },
+  "AXON": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 985839.0,
+    "previous_close": 414.43,
+    "source": "fmp:adjusted-eod"
+  },
+  "AXP": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3447827.7333333334,
+    "previous_close": 311.53,
+    "source": "fmp:adjusted-eod"
+  },
+  "AZO": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 355732.26666666666,
+    "previous_close": 2898.85,
+    "source": "fmp:adjusted-eod"
+  },
+  "BA": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 9337667.066666666,
+    "previous_close": 189.5,
+    "source": "fmp:adjusted-eod"
+  },
+  "BAC": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 36354708.46666667,
+    "previous_close": 54.58,
+    "source": "fmp:adjusted-eod"
+  },
+  "BALL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2200234.2666666666,
+    "previous_close": 59.19,
+    "source": "fmp:adjusted-eod"
+  },
+  "BAM": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3353480.6,
+    "previous_close": 45.83,
+    "source": "fmp:adjusted-eod"
+  },
+  "BAX": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 6783962.933333334,
+    "previous_close": 24.78,
+    "source": "fmp:adjusted-eod"
+  },
+  "BBIO": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2955916.2666666666,
+    "previous_close": 65.75,
+    "source": "fmp:adjusted-eod"
+  },
+  "BBY": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3070796.6666666665,
+    "previous_close": 86.99,
+    "source": "fmp:adjusted-eod"
+  },
+  "BDX": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1578555.4666666666,
+    "previous_close": 188.89,
+    "source": "fmp:adjusted-eod"
+  },
+  "BE": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 13482999.733333332,
+    "previous_close": 262.28,
+    "source": "fmp:adjusted-eod"
+  },
+  "BEN": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 4506464.4,
+    "previous_close": 31.81,
+    "source": "fmp:adjusted-eod"
+  },
+  "BF-B": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2336057.933333333,
+    "previous_close": 26.81,
+    "source": "fmp:adjusted-eod"
+  },
+  "BG": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1695942.7333333334,
+    "previous_close": 104.22,
+    "source": "fmp:adjusted-eod"
+  },
+  "BGMS": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 29006.0,
+    "previous_close": 0.99,
+    "source": "fmp:adjusted-eod"
+  },
+  "BIAF": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2614912.4,
+    "previous_close": 3.9,
+    "source": "fmp:adjusted-eod"
+  },
+  "BIIB": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1203748.7333333334,
+    "previous_close": 229.41,
+    "source": "fmp:adjusted-eod"
+  },
+  "BIPI": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 16875.266666666666,
+    "previous_close": 15.74,
+    "source": "fmp:adjusted-eod"
+  },
+  "BITO": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 72328690.06666666,
+    "previous_close": 11.06,
+    "source": "fmp:adjusted-eod"
+  },
+  "BJ": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2155512.8,
+    "previous_close": 99.8,
+    "source": "fmp:adjusted-eod"
+  },
+  "BKNG": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 8159269.6,
+    "previous_close": 158.43,
+    "source": "fmp:adjusted-eod"
+  },
+  "BKR": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 6208142.133333334,
+    "previous_close": 56.18,
+    "source": "fmp:adjusted-eod"
+  },
+  "BLK": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 477979.4666666667,
+    "previous_close": 1083.92,
+    "source": "fmp:adjusted-eod"
+  },
+  "BMBL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 4653183.133333334,
+    "previous_close": 3.8,
+    "source": "fmp:adjusted-eod"
+  },
+  "BMNP": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 15305.866666666667,
+    "previous_close": 99.46,
+    "source": "fmp:adjusted-eod"
+  },
+  "BMNR": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 31325644.933333334,
+    "previous_close": 23.83,
+    "source": "fmp:adjusted-eod"
+  },
+  "BMRN": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2238392.0,
+    "previous_close": 55.39,
+    "source": "fmp:adjusted-eod"
+  },
+  "BMY": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 13879950.666666666,
+    "previous_close": 57.58,
+    "source": "fmp:adjusted-eod"
+  },
+  "BNY": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3631361.3333333335,
+    "previous_close": 142.85,
+    "source": "fmp:adjusted-eod"
+  },
+  "BR": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 797524.3333333334,
+    "previous_close": 166.41,
+    "source": "fmp:adjusted-eod"
+  },
+  "BRK-B": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 4084760.2666666666,
+    "previous_close": 517.6,
+    "source": "fmp:adjusted-eod"
+  },
+  "BRO": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2363361.7333333334,
+    "previous_close": 63.65,
+    "source": "fmp:adjusted-eod"
+  },
+  "BSX": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 16963877.4,
+    "previous_close": 43.84,
+    "source": "fmp:adjusted-eod"
+  },
+  "BTSG": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2270918.3333333335,
+    "previous_close": 63.01,
+    "source": "fmp:adjusted-eod"
+  },
+  "BURL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1421597.6666666667,
+    "previous_close": 268.16,
+    "source": "fmp:adjusted-eod"
+  },
+  "BWA": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2713294.0,
+    "previous_close": 60.03,
+    "source": "fmp:adjusted-eod"
+  },
+  "BWXT": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1317826.6666666667,
+    "previous_close": 139.92,
+    "source": "fmp:adjusted-eod"
+  },
+  "BX": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 5066922.266666667,
+    "previous_close": 114.78,
+    "source": "fmp:adjusted-eod"
+  },
+  "C": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 8840510.8,
+    "previous_close": 131.92,
+    "source": "fmp:adjusted-eod"
+  },
+  "CABR": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 15537.933333333332,
+    "previous_close": 1.29,
+    "source": "fmp:adjusted-eod"
+  },
+  "CACI": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 251443.53333333333,
+    "previous_close": 614.36,
+    "source": "fmp:adjusted-eod"
+  },
+  "CAH": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1761339.0,
+    "previous_close": 238.08,
+    "source": "fmp:adjusted-eod"
+  },
+  "CARR": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 5471539.533333333,
+    "previous_close": 55.42,
+    "source": "fmp:adjusted-eod"
+  },
+  "CART": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3546791.933333333,
+    "previous_close": 47.83,
+    "source": "fmp:adjusted-eod"
+  },
+  "CASY": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 602865.4666666667,
+    "previous_close": 645.72,
+    "source": "fmp:adjusted-eod"
+  },
+  "CAT": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2274837.6,
+    "previous_close": 799.37,
+    "source": "fmp:adjusted-eod"
+  },
+  "CBAT": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 672417.3333333334,
+    "previous_close": 1.18,
+    "source": "fmp:adjusted-eod"
+  },
+  "CBRE": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2109275.6,
+    "previous_close": 130.71,
+    "source": "fmp:adjusted-eod"
+  },
+  "CBRS": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 9180054.0,
+    "previous_close": 146.62,
+    "source": "fmp:adjusted-eod"
+  },
+  "CCC": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 12364772.0,
+    "previous_close": 7.59,
+    "source": "fmp:adjusted-eod"
+  },
+  "CCHH": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 32837.0,
+    "previous_close": 1.12,
+    "source": "fmp:adjusted-eod"
+  },
+  "CCI": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 4442265.666666667,
+    "previous_close": 81.01,
+    "source": "fmp:adjusted-eod"
+  },
+  "CCK": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 948762.8,
+    "previous_close": 108.51,
+    "source": "fmp:adjusted-eod"
+  },
+  "CCL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 28573163.733333334,
+    "previous_close": 26.48,
+    "source": "fmp:adjusted-eod"
+  },
+  "CCTG": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1297550.4,
+    "previous_close": 0.4,
+    "source": "fmp:adjusted-eod"
+  },
+  "CDE": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 35307045.93333333,
+    "previous_close": 16.76,
+    "source": "fmp:adjusted-eod"
+  },
+  "CDNS": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2281006.8666666667,
+    "previous_close": 348.42,
+    "source": "fmp:adjusted-eod"
+  },
+  "CDW": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1345384.2,
+    "previous_close": 143.76,
+    "source": "fmp:adjusted-eod"
+  },
+  "CEG": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 4212163.666666667,
+    "previous_close": 293.89,
+    "source": "fmp:adjusted-eod"
+  },
+  "CF": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2620931.3333333335,
+    "previous_close": 114.58,
+    "source": "fmp:adjusted-eod"
+  },
+  "CFG": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 4449368.666666667,
+    "previous_close": 63.9,
+    "source": "fmp:adjusted-eod"
+  },
+  "CG": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3222491.8,
+    "previous_close": 38.25,
+    "source": "fmp:adjusted-eod"
+  },
+  "CHD": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1746526.8,
+    "previous_close": 99.87,
+    "source": "fmp:adjusted-eod"
+  },
+  "CHRW": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2228678.0,
+    "previous_close": 139.75,
+    "source": "fmp:adjusted-eod"
+  },
+  "CHTR": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3276276.4,
+    "previous_close": 102.48,
+    "source": "fmp:adjusted-eod"
+  },
+  "CHYM": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 5129390.0,
+    "previous_close": 30.45,
+    "source": "fmp:adjusted-eod"
+  },
+  "CI": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1674088.0,
+    "previous_close": 283.34,
+    "source": "fmp:adjusted-eod"
+  },
+  "CIEN": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2811046.8,
+    "previous_close": 405.01,
+    "source": "fmp:adjusted-eod"
+  },
+  "CINF": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 622883.6666666666,
+    "previous_close": 165.55,
+    "source": "fmp:adjusted-eod"
+  },
+  "CL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 4867101.733333333,
+    "previous_close": 89.98,
+    "source": "fmp:adjusted-eod"
+  },
+  "CLGN": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 59914.066666666666,
+    "previous_close": 4.02,
+    "source": "fmp:adjusted-eod"
+  },
+  "CLH": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 372857.6666666667,
+    "previous_close": 319.02,
+    "source": "fmp:adjusted-eod"
+  },
+  "CMCSA": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 31949054.933333334,
+    "previous_close": 20.68,
+    "source": "fmp:adjusted-eod"
+  },
+  "CMCT": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2317573.3333333335,
+    "previous_close": 4.38,
+    "source": "fmp:adjusted-eod"
+  },
+  "CME": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1823402.8,
+    "previous_close": 277.24,
+    "source": "fmp:adjusted-eod"
+  },
+  "CMG": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 21866771.0,
+    "previous_close": 30.4,
+    "source": "fmp:adjusted-eod"
+  },
+  "CMI": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1068770.5333333334,
+    "previous_close": 527.86,
+    "source": "fmp:adjusted-eod"
+  },
+  "CMS": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 4392877.533333333,
+    "previous_close": 65.86,
+    "source": "fmp:adjusted-eod"
+  },
+  "CMSA": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 23819.466666666667,
+    "previous_close": 18.84,
+    "source": "fmp:adjusted-eod"
+  },
+  "CMTL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 243811.8,
+    "previous_close": 1.33,
+    "source": "fmp:adjusted-eod"
+  },
+  "CNA": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 574146.8,
+    "previous_close": 46.66,
+    "source": "fmp:adjusted-eod"
+  },
+  "CNC": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 4227465.4,
+    "previous_close": 67.02,
+    "source": "fmp:adjusted-eod"
+  },
+  "CNP": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 6873313.133333334,
+    "previous_close": 39.03,
+    "source": "fmp:adjusted-eod"
+  },
+  "CODX": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 318308.6,
+    "previous_close": 1.25,
+    "source": "fmp:adjusted-eod"
+  },
+  "COF": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3441159.6,
+    "previous_close": 201.14,
+    "source": "fmp:adjusted-eod"
+  },
+  "COHR": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 6874088.133333334,
+    "previous_close": 288.02,
+    "source": "fmp:adjusted-eod"
+  },
+  "COIN": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 8070852.266666667,
+    "previous_close": 180.39,
+    "source": "fmp:adjusted-eod"
+  },
+  "COKE": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 444088.4,
+    "previous_close": 197.22,
+    "source": "fmp:adjusted-eod"
+  },
+  "COO": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 4379849.266666667,
+    "previous_close": 55.55,
+    "source": "fmp:adjusted-eod"
+  },
+  "COP": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 5783991.8,
+    "previous_close": 137.56,
+    "source": "fmp:adjusted-eod"
+  },
+  "COR": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1157646.2666666666,
+    "previous_close": 325.06,
+    "source": "fmp:adjusted-eod"
+  },
+  "CORT": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 821522.4,
+    "previous_close": 121.19,
+    "source": "fmp:adjusted-eod"
+  },
+  "COST": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2260601.7333333334,
+    "previous_close": 959.44,
+    "source": "fmp:adjusted-eod"
+  },
+  "CPAY": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 523948.86666666664,
+    "previous_close": 397.67,
+    "source": "fmp:adjusted-eod"
+  },
+  "CPNG": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 17316931.666666668,
+    "previous_close": 15.28,
+    "source": "fmp:adjusted-eod"
+  },
+  "CPRT": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 9084468.2,
+    "previous_close": 26.48,
+    "source": "fmp:adjusted-eod"
+  },
+  "CQP": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 115956.2,
+    "previous_close": 63.64,
+    "source": "fmp:adjusted-eod"
+  },
+  "CR": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 324181.0,
+    "previous_close": 204.54,
+    "source": "fmp:adjusted-eod"
+  },
+  "CRBG": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 4766542.6,
+    "previous_close": 34.58,
+    "source": "fmp:adjusted-eod"
+  },
+  "CRCL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 10224870.333333334,
+    "previous_close": 83.87,
+    "source": "fmp:adjusted-eod"
+  },
+  "CRL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1044226.4,
+    "previous_close": 301.86,
+    "source": "fmp:adjusted-eod"
+  },
+  "CRM": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 9131163.6,
+    "previous_close": 233.92,
+    "source": "fmp:adjusted-eod"
+  },
+  "CRS": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 717298.0,
+    "previous_close": 377.25,
+    "source": "fmp:adjusted-eod"
+  },
+  "CRVO": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 326719.5333333333,
+    "previous_close": 2.51,
+    "source": "fmp:adjusted-eod"
+  },
+  "CRWD": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 8071744.666666667,
+    "previous_close": 263.01,
+    "source": "fmp:adjusted-eod"
+  },
+  "CRWV": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 25289712.466666665,
+    "previous_close": 80.26,
+    "source": "fmp:adjusted-eod"
+  },
+  "CSCO": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 18464126.333333332,
+    "previous_close": 115.34,
+    "source": "fmp:adjusted-eod"
+  },
+  "CSGP": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 5356579.066666666,
+    "previous_close": 29.21,
+    "source": "fmp:adjusted-eod"
+  },
+  "CSL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 462370.06666666665,
+    "previous_close": 319.57,
+    "source": "fmp:adjusted-eod"
+  },
+  "CSX": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 8943707.0,
+    "previous_close": 47.75,
+    "source": "fmp:adjusted-eod"
+  },
+  "CTAS": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1924900.4666666666,
+    "previous_close": 205.23,
+    "source": "fmp:adjusted-eod"
+  },
+  "CTNM": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1294941.6666666667,
+    "previous_close": 8.57,
+    "source": "fmp:adjusted-eod"
+  },
+  "CTSH": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 6543030.2,
+    "previous_close": 59.68,
+    "source": "fmp:adjusted-eod"
+  },
+  "CUPR": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 153152.86666666667,
+    "previous_close": 2.06,
+    "source": "fmp:adjusted-eod"
+  },
+  "CVNA": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 8047978.933333334,
+    "previous_close": 59.51,
+    "source": "fmp:adjusted-eod"
+  },
+  "CVS": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 9480939.333333334,
+    "previous_close": 87.74,
+    "source": "fmp:adjusted-eod"
+  },
+  "CVX": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 7236711.866666666,
+    "previous_close": 215.0,
+    "source": "fmp:adjusted-eod"
+  },
+  "CW": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 431472.93333333335,
+    "previous_close": 504.16,
+    "source": "fmp:adjusted-eod"
+  },
+  "D": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 4627847.866666666,
+    "previous_close": 62.45,
+    "source": "fmp:adjusted-eod"
+  },
+  "DAIC": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2451386.8,
+    "previous_close": 1.7,
+    "source": "fmp:adjusted-eod"
+  },
+  "DAL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 7617171.466666667,
+    "previous_close": 80.11,
+    "source": "fmp:adjusted-eod"
+  },
+  "DASH": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 4011737.6,
+    "previous_close": 194.24,
+    "source": "fmp:adjusted-eod"
+  },
+  "DCX": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 629752.4,
+    "previous_close": 2.2,
+    "source": "fmp:adjusted-eod"
+  },
+  "DD": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 788080.3333333334,
+    "previous_close": 129.37,
+    "source": "fmp:adjusted-eod"
+  },
+  "DDOG": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2926967.2,
+    "previous_close": 287.29,
+    "source": "fmp:adjusted-eod"
+  },
+  "DE": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1273083.6666666667,
+    "previous_close": 632.61,
+    "source": "fmp:adjusted-eod"
+  },
+  "DECK": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3021274.8,
+    "previous_close": 84.27,
+    "source": "fmp:adjusted-eod"
+  },
+  "DELL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 6264852.933333334,
+    "previous_close": 576.76,
+    "source": "fmp:adjusted-eod"
+  },
+  "DG": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2070489.8666666667,
+    "previous_close": 126.54,
+    "source": "fmp:adjusted-eod"
+  },
+  "DGX": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1172353.2666666666,
+    "previous_close": 232.63,
+    "source": "fmp:adjusted-eod"
+  },
+  "DHI": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3094533.6666666665,
+    "previous_close": 134.29,
+    "source": "fmp:adjusted-eod"
+  },
+  "DHR": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 4307351.2,
+    "previous_close": 221.2,
+    "source": "fmp:adjusted-eod"
+  },
+  "DINO": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2622499.3333333335,
+    "previous_close": 122.91,
+    "source": "fmp:adjusted-eod"
+  },
+  "DIS": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 8496953.2,
+    "previous_close": 108.49,
+    "source": "fmp:adjusted-eod"
+  },
+  "DKI": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 13698912.133333333,
+    "previous_close": 0.1433,
+    "source": "fmp:adjusted-eod"
+  },
+  "DKS": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2631904.2,
+    "previous_close": 137.37,
+    "source": "fmp:adjusted-eod"
+  },
+  "DLR": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1688557.9333333333,
+    "previous_close": 180.16,
+    "source": "fmp:adjusted-eod"
+  },
+  "DLTR": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2096052.8,
+    "previous_close": 117.61,
+    "source": "fmp:adjusted-eod"
+  },
+  "DOC": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 6188578.733333333,
+    "previous_close": 18.95,
+    "source": "fmp:adjusted-eod"
+  },
+  "DOCN": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1877519.8666666667,
+    "previous_close": 131.41,
+    "source": "fmp:adjusted-eod"
+  },
+  "DOCU": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2652125.0,
+    "previous_close": 70.97,
+    "source": "fmp:adjusted-eod"
+  },
+  "DOV": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1103594.2,
+    "previous_close": 190.88,
+    "source": "fmp:adjusted-eod"
+  },
+  "DOW": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 8741853.2,
+    "previous_close": 28.12,
+    "source": "fmp:adjusted-eod"
+  },
+  "DRI": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1351715.0,
+    "previous_close": 199.61,
+    "source": "fmp:adjusted-eod"
+  },
+  "DRK": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 218365.53333333333,
+    "previous_close": 2.27,
+    "source": "fmp:adjusted-eod"
+  },
+  "DT": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 6898565.333333333,
+    "previous_close": 65.25,
+    "source": "fmp:adjusted-eod"
+  },
+  "DTE": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1901052.8,
+    "previous_close": 128.05,
+    "source": "fmp:adjusted-eod"
+  },
+  "DTM": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 839740.4666666667,
+    "previous_close": 125.62,
+    "source": "fmp:adjusted-eod"
+  },
+  "DTW": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 37233.333333333336,
+    "previous_close": 18.0,
+    "source": "fmp:adjusted-eod"
+  },
+  "DUK": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3981142.3333333335,
+    "previous_close": 117.69,
+    "source": "fmp:adjusted-eod"
+  },
+  "DUKB": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 71332.4,
+    "previous_close": 20.3,
+    "source": "fmp:adjusted-eod"
+  },
+  "DVA": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 543982.0666666667,
+    "previous_close": 181.78,
+    "source": "fmp:adjusted-eod"
+  },
+  "DVLT": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 31033420.4,
+    "previous_close": 0.1297,
+    "source": "fmp:adjusted-eod"
+  },
+  "DVN": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 9578989.666666666,
+    "previous_close": 48.96,
+    "source": "fmp:adjusted-eod"
+  },
+  "DXCM": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3301050.6666666665,
+    "previous_close": 85.92,
+    "source": "fmp:adjusted-eod"
+  },
+  "EBAY": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3416655.066666667,
+    "previous_close": 114.65,
+    "source": "fmp:adjusted-eod"
+  },
+  "ECHO": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 4008199.066666667,
+    "previous_close": 95.1,
+    "source": "fmp:adjusted-eod"
+  },
+  "ECL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1118587.2,
+    "previous_close": 284.3,
+    "source": "fmp:adjusted-eod"
+  },
+  "ED": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2307640.466666667,
+    "previous_close": 107.2,
+    "source": "fmp:adjusted-eod"
+  },
+  "EFX": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2081876.8666666667,
+    "previous_close": 147.33,
+    "source": "fmp:adjusted-eod"
+  },
+  "EGP": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 518523.0,
+    "previous_close": 197.45,
+    "source": "fmp:adjusted-eod"
+  },
+  "EHC": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 988909.8,
+    "previous_close": 124.42,
+    "source": "fmp:adjusted-eod"
+  },
+  "EIX": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 5072070.133333334,
+    "previous_close": 55.64,
+    "source": "fmp:adjusted-eod"
+  },
+  "EL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2931133.8666666667,
+    "previous_close": 100.04,
+    "source": "fmp:adjusted-eod"
+  },
+  "ELAN": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 5403404.466666667,
+    "previous_close": 22.56,
+    "source": "fmp:adjusted-eod"
+  },
+  "ELC": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 19788.8,
+    "previous_close": 18.1,
+    "source": "fmp:adjusted-eod"
+  },
+  "ELOG": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 637659.8666666667,
+    "previous_close": 1.01,
+    "source": "fmp:adjusted-eod"
+  },
+  "ELS": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1850749.4666666666,
+    "previous_close": 59.19,
+    "source": "fmp:adjusted-eod"
+  },
+  "ELV": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1129809.6666666667,
+    "previous_close": 422.09,
+    "source": "fmp:adjusted-eod"
+  },
+  "EME": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 343062.86666666664,
+    "previous_close": 779.16,
+    "source": "fmp:adjusted-eod"
+  },
+  "EMR": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2625083.4,
+    "previous_close": 162.46,
+    "source": "fmp:adjusted-eod"
+  },
+  "ENHA": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 784238.2,
+    "previous_close": 1.5,
+    "source": "fmp:adjusted-eod"
+  },
+  "ENTG": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1924539.5333333334,
+    "previous_close": 160.01,
+    "source": "fmp:adjusted-eod"
+  },
+  "EOG": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2817731.6,
+    "previous_close": 150.51,
+    "source": "fmp:adjusted-eod"
+  },
+  "EPD": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3481071.2,
+    "previous_close": 35.91,
+    "source": "fmp:adjusted-eod"
+  },
+  "EQH": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2506242.066666667,
+    "previous_close": 53.52,
+    "source": "fmp:adjusted-eod"
+  },
+  "EQIX": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 470401.3333333333,
+    "previous_close": 1032.6,
+    "source": "fmp:adjusted-eod"
+  },
+  "EQT": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 7246856.733333333,
+    "previous_close": 53.22,
+    "source": "fmp:adjusted-eod"
+  },
+  "ERIE": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 176479.8,
+    "previous_close": 225.06,
+    "source": "fmp:adjusted-eod"
+  },
+  "ES": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2673282.533333333,
+    "previous_close": 66.1,
+    "source": "fmp:adjusted-eod"
+  },
+  "ESLA": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1414376.2666666666,
+    "previous_close": 0.3286,
+    "source": "fmp:adjusted-eod"
+  },
+  "ESS": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 552743.8666666667,
+    "previous_close": 270.39,
+    "source": "fmp:adjusted-eod"
+  },
+  "ETR": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2868087.2,
+    "previous_close": 103.99,
+    "source": "fmp:adjusted-eod"
+  },
+  "EVR": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 531099.2,
+    "previous_close": 272.22,
+    "source": "fmp:adjusted-eod"
+  },
+  "EVRG": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2265736.933333333,
+    "previous_close": 81.5,
+    "source": "fmp:adjusted-eod"
+  },
+  "EW": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3704632.7333333334,
+    "previous_close": 86.39,
+    "source": "fmp:adjusted-eod"
+  },
+  "EWBC": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 788600.7333333333,
+    "previous_close": 125.56,
+    "source": "fmp:adjusted-eod"
+  },
+  "EXC": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 8529518.466666667,
+    "previous_close": 42.12,
+    "source": "fmp:adjusted-eod"
+  },
+  "EXE": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3090475.6,
+    "previous_close": 88.81,
+    "source": "fmp:adjusted-eod"
+  },
+  "EXEL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2173586.7333333334,
+    "previous_close": 59.82,
+    "source": "fmp:adjusted-eod"
+  },
+  "EXPD": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1082282.1333333333,
+    "previous_close": 193.41,
+    "source": "fmp:adjusted-eod"
+  },
+  "EXPE": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2280726.0,
+    "previous_close": 268.47,
+    "source": "fmp:adjusted-eod"
+  },
+  "EXR": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1532910.2,
+    "previous_close": 134.05,
+    "source": "fmp:adjusted-eod"
+  },
+  "F": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 41485175.13333333,
+    "previous_close": 12.0,
+    "source": "fmp:adjusted-eod"
+  },
+  "FANG": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2278769.8,
+    "previous_close": 195.11,
+    "source": "fmp:adjusted-eod"
+  },
+  "FAST": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 7002716.533333333,
+    "previous_close": 51.49,
+    "source": "fmp:adjusted-eod"
+  },
+  "FCHL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1863271.7333333334,
+    "previous_close": 1.0,
+    "source": "fmp:adjusted-eod"
+  },
+  "FCNCA": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 62781.2,
+    "previous_close": 2082.5,
+    "source": "fmp:adjusted-eod"
+  },
+  "FCNCN": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 51433.666666666664,
+    "previous_close": 22.9,
+    "source": "fmp:adjusted-eod"
+  },
+  "FCX": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 10580671.933333334,
+    "previous_close": 73.29,
+    "source": "fmp:adjusted-eod"
+  },
+  "FDX": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1540471.8,
+    "previous_close": 292.23,
+    "source": "fmp:adjusted-eod"
+  },
+  "FDXF": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1565885.4666666666,
+    "previous_close": 113.12,
+    "source": "fmp:adjusted-eod"
+  },
+  "FE": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 4541409.266666667,
+    "previous_close": 45.36,
+    "source": "fmp:adjusted-eod"
+  },
+  "FERG": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1403354.2666666666,
+    "previous_close": 220.55,
+    "source": "fmp:adjusted-eod"
+  },
+  "FFIV": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 492766.93333333335,
+    "previous_close": 473.49,
+    "source": "fmp:adjusted-eod"
+  },
+  "FHN": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 5389072.466666667,
+    "previous_close": 23.06,
+    "source": "fmp:adjusted-eod"
+  },
+  "FICO": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1488976.8666666667,
+    "previous_close": 740.0,
+    "source": "fmp:adjusted-eod"
+  },
+  "FIG": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 9803264.0,
+    "previous_close": 21.96,
+    "source": "fmp:adjusted-eod"
+  },
+  "FIGS": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3927656.4,
+    "previous_close": 17.74,
+    "source": "fmp:adjusted-eod"
+  },
+  "FIS": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 6511865.2,
+    "previous_close": 34.26,
+    "source": "fmp:adjusted-eod"
+  },
+  "FISV": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 6609368.266666667,
+    "previous_close": 46.05,
+    "source": "fmp:adjusted-eod"
+  },
+  "FITB": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 7553392.533333333,
+    "previous_close": 50.82,
+    "source": "fmp:adjusted-eod"
+  },
+  "FITB-PA": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 18111.2,
+    "previous_close": 22.11,
+    "source": "fmp:adjusted-eod"
+  },
+  "FIVE": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1037663.8,
+    "previous_close": 213.58,
+    "source": "fmp:adjusted-eod"
+  },
+  "FIX": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 291878.3333333333,
+    "previous_close": 1638.05,
+    "source": "fmp:adjusted-eod"
+  },
+  "FLEX": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2749939.2,
+    "previous_close": 117.24,
+    "source": "fmp:adjusted-eod"
+  },
+  "FLUT": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2964364.4,
+    "previous_close": 78.28,
+    "source": "fmp:adjusted-eod"
+  },
+  "FNF": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2885985.2,
+    "previous_close": 39.05,
+    "source": "fmp:adjusted-eod"
+  },
+  "FOX": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 928728.2,
+    "previous_close": 55.98,
+    "source": "fmp:adjusted-eod"
+  },
+  "FOXA": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3903360.3333333335,
+    "previous_close": 62.59,
+    "source": "fmp:adjusted-eod"
+  },
+  "FRGT": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 44598122.0,
+    "previous_close": 0.35,
+    "source": "fmp:adjusted-eod"
+  },
+  "FROG": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1469802.8666666667,
+    "previous_close": 99.02,
+    "source": "fmp:adjusted-eod"
+  },
+  "FSLR": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2395204.466666667,
+    "previous_close": 179.72,
+    "source": "fmp:adjusted-eod"
+  },
+  "FTAI": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1297502.5333333334,
+    "previous_close": 165.53,
+    "source": "fmp:adjusted-eod"
+  },
+  "FTNT": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3249951.933333333,
+    "previous_close": 192.94,
+    "source": "fmp:adjusted-eod"
+  },
+  "FTV": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2017638.2,
+    "previous_close": 57.37,
+    "source": "fmp:adjusted-eod"
+  },
+  "FWONA": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 200259.13333333333,
+    "previous_close": 86.39,
+    "source": "fmp:adjusted-eod"
+  },
+  "FWONK": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2591498.0,
+    "previous_close": 93.81,
+    "source": "fmp:adjusted-eod"
+  },
+  "GCTK": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 5728849.333333333,
+    "previous_close": 1.16,
+    "source": "fmp:adjusted-eod"
+  },
+  "GD": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1432352.2666666666,
+    "previous_close": 335.46,
+    "source": "fmp:adjusted-eod"
+  },
+  "GDDY": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2606667.3333333335,
+    "previous_close": 102.32,
+    "source": "fmp:adjusted-eod"
+  },
+  "GE": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 4006725.466666667,
+    "previous_close": 308.64,
+    "source": "fmp:adjusted-eod"
+  },
+  "GEHC": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3698655.6,
+    "previous_close": 67.74,
+    "source": "fmp:adjusted-eod"
+  },
+  "GEN": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 15230832.866666667,
+    "previous_close": 23.35,
+    "source": "fmp:adjusted-eod"
+  },
+  "GEV": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1835071.6,
+    "previous_close": 996.8,
+    "source": "fmp:adjusted-eod"
+  },
+  "GFL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3435445.7333333334,
+    "previous_close": 42.38,
+    "source": "fmp:adjusted-eod"
+  },
+  "GFS": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 4344942.066666666,
+    "previous_close": 48.34,
+    "source": "fmp:adjusted-eod"
+  },
+  "GGG": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1524822.8,
+    "previous_close": 78.81,
+    "source": "fmp:adjusted-eod"
+  },
+  "GH": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1866110.6,
+    "previous_close": 162.79,
+    "source": "fmp:adjusted-eod"
+  },
+  "GILD": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 5194814.0,
+    "previous_close": 150.43,
+    "source": "fmp:adjusted-eod"
+  },
+  "GIS": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 11860831.333333334,
+    "previous_close": 32.7,
+    "source": "fmp:adjusted-eod"
+  },
+  "GIXI": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2604114.533333333,
+    "previous_close": 4.72,
+    "source": "fmp:adjusted-eod"
+  },
+  "GL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 481488.3333333333,
+    "previous_close": 165.12,
+    "source": "fmp:adjusted-eod"
+  },
+  "GLPI": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3085260.533333333,
+    "previous_close": 38.48,
+    "source": "fmp:adjusted-eod"
+  },
+  "GLW": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 6957954.333333333,
+    "previous_close": 147.28,
+    "source": "fmp:adjusted-eod"
+  },
+  "GM": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 6895351.466666667,
+    "previous_close": 82.37,
+    "source": "fmp:adjusted-eod"
+  },
+  "GME": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 11612945.6,
+    "previous_close": 27.23,
+    "source": "fmp:adjusted-eod"
+  },
+  "GNRC": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1092519.6666666667,
+    "previous_close": 218.37,
+    "source": "fmp:adjusted-eod"
+  },
+  "GOOG": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 15894464.533333333,
+    "previous_close": 348.97,
+    "source": "fmp:adjusted-eod"
+  },
+  "GPC": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 761170.2666666667,
+    "previous_close": 129.62,
+    "source": "fmp:adjusted-eod"
+  },
+  "GPN": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2094875.4666666666,
+    "previous_close": 82.06,
+    "source": "fmp:adjusted-eod"
+  },
+  "GRAB": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 83585572.6,
+    "previous_close": 3.15,
+    "source": "fmp:adjusted-eod"
+  },
+  "GRML": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 18527307.0,
+    "previous_close": 6.02,
+    "source": "fmp:adjusted-eod"
+  },
+  "GS": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2019164.8,
+    "previous_close": 893.95,
+    "source": "fmp:adjusted-eod"
+  },
+  "GSAT": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 592319.8,
+    "previous_close": 83.04,
+    "source": "fmp:adjusted-eod"
+  },
+  "GURE": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 298947.13333333336,
+    "previous_close": 3.32,
+    "source": "fmp:adjusted-eod"
+  },
+  "GWRE": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1186974.2666666666,
+    "previous_close": 164.74,
+    "source": "fmp:adjusted-eod"
+  },
+  "GWW": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 267503.06666666665,
+    "previous_close": 1306.73,
+    "source": "fmp:adjusted-eod"
+  },
+  "H": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 752561.8666666667,
+    "previous_close": 161.18,
+    "source": "fmp:adjusted-eod"
+  },
+  "HAIN": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 972003.8666666667,
+    "previous_close": 0.6189,
+    "source": "fmp:adjusted-eod"
+  },
+  "HAL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 9029971.2,
+    "previous_close": 32.6,
+    "source": "fmp:adjusted-eod"
+  },
+  "HALO": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2490039.0,
+    "previous_close": 111.08,
+    "source": "fmp:adjusted-eod"
+  },
+  "HAS": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1782845.2666666666,
+    "previous_close": 94.73,
+    "source": "fmp:adjusted-eod"
+  },
+  "HBAN": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 27706434.933333334,
+    "previous_close": 15.4,
+    "source": "fmp:adjusted-eod"
+  },
+  "HCA": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1103495.5333333334,
+    "previous_close": 458.6,
+    "source": "fmp:adjusted-eod"
+  },
+  "HCAI": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 883615.4666666667,
+    "previous_close": 0.3815,
+    "source": "fmp:adjusted-eod"
+  },
+  "HD": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 5734538.533333333,
+    "previous_close": 290.62,
+    "source": "fmp:adjusted-eod"
+  },
+  "HDRN": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 75961.53333333334,
+    "previous_close": 0.8317,
+    "source": "fmp:adjusted-eod"
+  },
+  "HEI": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 465531.4666666667,
+    "previous_close": 297.09,
+    "source": "fmp:adjusted-eod"
+  },
+  "HIG": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1768420.8666666667,
+    "previous_close": 130.19,
+    "source": "fmp:adjusted-eod"
+  },
+  "HII": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 533722.4666666667,
+    "previous_close": 264.03,
+    "source": "fmp:adjusted-eod"
+  },
+  "HL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 35875925.53333333,
+    "previous_close": 16.84,
+    "source": "fmp:adjusted-eod"
+  },
+  "HLT": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1381641.0,
+    "previous_close": 327.54,
+    "source": "fmp:adjusted-eod"
+  },
+  "HON": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2264356.1333333333,
+    "previous_close": 209.64,
+    "source": "fmp:adjusted-eod"
+  },
+  "HONA": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2614127.533333333,
+    "previous_close": 157.27,
+    "source": "fmp:adjusted-eod"
+  },
+  "HOOD": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 18648388.333333332,
+    "previous_close": 109.22,
+    "source": "fmp:adjusted-eod"
+  },
+  "HPE": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 18802122.066666666,
+    "previous_close": 70.33,
+    "source": "fmp:adjusted-eod"
+  },
+  "HPQ": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 12624388.0,
+    "previous_close": 29.87,
+    "source": "fmp:adjusted-eod"
+  },
+  "HRL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 5757066.666666667,
+    "previous_close": 19.3,
+    "source": "fmp:adjusted-eod"
+  },
+  "HST": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 7659361.066666666,
+    "previous_close": 22.74,
+    "source": "fmp:adjusted-eod"
+  },
+  "HSY": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1368714.4,
+    "previous_close": 163.84,
+    "source": "fmp:adjusted-eod"
+  },
+  "HTCO": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 85565.53333333334,
+    "previous_close": 1.06,
+    "source": "fmp:adjusted-eod"
+  },
+  "HUBB": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 461521.4,
+    "previous_close": 474.05,
+    "source": "fmp:adjusted-eod"
+  },
+  "HUBS": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1417073.2,
+    "previous_close": 223.37,
+    "source": "fmp:adjusted-eod"
+  },
+  "HUM": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1703923.8666666667,
+    "previous_close": 433.5,
+    "source": "fmp:adjusted-eod"
+  },
+  "HWM": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2346887.7333333334,
+    "previous_close": 220.81,
+    "source": "fmp:adjusted-eod"
+  },
+  "IBKR": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3642960.0,
+    "previous_close": 87.89,
+    "source": "fmp:adjusted-eod"
+  },
+  "IBM": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 5140934.133333334,
+    "previous_close": 227.02,
+    "source": "fmp:adjusted-eod"
+  },
+  "IBRX": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 15017341.0,
+    "previous_close": 10.12,
+    "source": "fmp:adjusted-eod"
+  },
+  "ICE": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2457935.8,
+    "previous_close": 157.42,
+    "source": "fmp:adjusted-eod"
+  },
+  "IDXX": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 478522.06666666665,
+    "previous_close": 523.94,
+    "source": "fmp:adjusted-eod"
+  },
+  "IESC": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 223937.06666666668,
+    "previous_close": 287.79,
+    "source": "fmp:adjusted-eod"
+  },
+  "IEX": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 662679.7333333333,
+    "previous_close": 235.77,
+    "source": "fmp:adjusted-eod"
+  },
+  "IFF": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1749584.3333333333,
+    "previous_close": 84.96,
+    "source": "fmp:adjusted-eod"
+  },
+  "ILLR": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3131749.466666667,
+    "previous_close": 0.068,
+    "source": "fmp:adjusted-eod"
+  },
+  "ILMN": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2977012.1333333333,
+    "previous_close": 276.67,
+    "source": "fmp:adjusted-eod"
+  },
+  "INCY": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1687803.1333333333,
+    "previous_close": 111.36,
+    "source": "fmp:adjusted-eod"
+  },
+  "INSM": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2931172.2,
+    "previous_close": 98.56,
+    "source": "fmp:adjusted-eod"
+  },
+  "INTC": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 96106969.6,
+    "previous_close": 101.35,
+    "source": "fmp:adjusted-eod"
+  },
+  "INTU": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3795973.6,
+    "previous_close": 305.99,
+    "source": "fmp:adjusted-eod"
+  },
+  "INVH": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 5565172.133333334,
+    "previous_close": 26.7,
+    "source": "fmp:adjusted-eod"
+  },
+  "IONL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 959782.8666666667,
+    "previous_close": 10.18,
+    "source": "fmp:adjusted-eod"
+  },
+  "IONQ": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 26485935.8,
+    "previous_close": 36.27,
+    "source": "fmp:adjusted-eod"
+  },
+  "IONX": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1466275.6666666667,
+    "previous_close": 18.25,
+    "source": "fmp:adjusted-eod"
+  },
+  "IONZ": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 436174.6666666667,
+    "previous_close": 28.62,
+    "source": "fmp:adjusted-eod"
+  },
+  "IOT": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 4797969.466666667,
+    "previous_close": 41.62,
+    "source": "fmp:adjusted-eod"
+  },
+  "IP": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 5277069.6,
+    "previous_close": 31.74,
+    "source": "fmp:adjusted-eod"
+  },
+  "IQV": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1298468.1333333333,
+    "previous_close": 262.21,
+    "source": "fmp:adjusted-eod"
+  },
+  "IR": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 4803518.2,
+    "previous_close": 79.09,
+    "source": "fmp:adjusted-eod"
+  },
+  "IREN": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 37915399.46666667,
+    "previous_close": 34.8,
+    "source": "fmp:adjusted-eod"
+  },
+  "IRM": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1487652.6,
+    "previous_close": 115.1,
+    "source": "fmp:adjusted-eod"
+  },
+  "ISRG": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1880053.8666666667,
+    "previous_close": 427.64,
+    "source": "fmp:adjusted-eod"
+  },
+  "IT": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 831998.0,
+    "previous_close": 194.1,
+    "source": "fmp:adjusted-eod"
+  },
+  "ITT": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 817005.3333333334,
+    "previous_close": 201.9,
+    "source": "fmp:adjusted-eod"
+  },
+  "ITW": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1405261.0666666667,
+    "previous_close": 265.11,
+    "source": "fmp:adjusted-eod"
+  },
+  "IVZ": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 4820990.4,
+    "previous_close": 29.26,
+    "source": "fmp:adjusted-eod"
+  },
+  "J": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 819565.6,
+    "previous_close": 139.43,
+    "source": "fmp:adjusted-eod"
+  },
+  "JBHT": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 920342.8,
+    "previous_close": 228.31,
+    "source": "fmp:adjusted-eod"
+  },
+  "JBL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1598633.4666666666,
+    "previous_close": 312.01,
+    "source": "fmp:adjusted-eod"
+  },
+  "JELD": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1877742.1333333333,
+    "previous_close": 1.23,
+    "source": "fmp:adjusted-eod"
+  },
+  "JKHY": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 832589.8,
+    "previous_close": 149.63,
+    "source": "fmp:adjusted-eod"
+  },
+  "JLL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 469636.06666666665,
+    "previous_close": 298.1,
+    "source": "fmp:adjusted-eod"
+  },
+  "JNJ": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 6668680.2,
+    "previous_close": 263.73,
+    "source": "fmp:adjusted-eod"
+  },
+  "JPM": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 7740789.4,
+    "previous_close": 334.3,
+    "source": "fmp:adjusted-eod"
+  },
+  "KDP": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 10699084.866666667,
+    "previous_close": 32.75,
+    "source": "fmp:adjusted-eod"
+  },
+  "KEY": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 14952676.666666666,
+    "previous_close": 20.09,
+    "source": "fmp:adjusted-eod"
+  },
+  "KEYS": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1101264.8666666667,
+    "previous_close": 377.7,
+    "source": "fmp:adjusted-eod"
+  },
+  "KHC": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 15068388.066666666,
+    "previous_close": 22.45,
+    "source": "fmp:adjusted-eod"
+  },
+  "KIM": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 4697582.333333333,
+    "previous_close": 22.32,
+    "source": "fmp:adjusted-eod"
+  },
+  "KKR": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 4761163.8,
+    "previous_close": 91.51,
+    "source": "fmp:adjusted-eod"
+  },
+  "KKRS": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 33148.933333333334,
+    "previous_close": 15.28,
+    "source": "fmp:adjusted-eod"
+  },
+  "KLAC": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 8032775.8,
+    "previous_close": 190.12,
+    "source": "fmp:adjusted-eod"
+  },
+  "KMB": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3968935.2666666666,
+    "previous_close": 98.77,
+    "source": "fmp:adjusted-eod"
+  },
+  "KMI": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 10890795.666666666,
+    "previous_close": 33.08,
+    "source": "fmp:adjusted-eod"
+  },
+  "KNX": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3162059.3333333335,
+    "previous_close": 64.52,
+    "source": "fmp:adjusted-eod"
+  },
+  "KO": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 15309624.4,
+    "previous_close": 89.79,
+    "source": "fmp:adjusted-eod"
+  },
+  "KORU": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 19337280.8,
+    "previous_close": 15.74,
+    "source": "fmp:adjusted-eod"
+  },
+  "KR": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 7642682.4,
+    "previous_close": 62.56,
+    "source": "fmp:adjusted-eod"
+  },
+  "KVUE": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 17738696.933333334,
+    "previous_close": 17.83,
+    "source": "fmp:adjusted-eod"
+  },
+  "L": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 995927.2666666667,
+    "previous_close": 107.78,
+    "source": "fmp:adjusted-eod"
+  },
+  "LAMR": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 579911.6,
+    "previous_close": 146.87,
+    "source": "fmp:adjusted-eod"
+  },
+  "LDOS": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1173725.5333333334,
+    "previous_close": 121.6,
+    "source": "fmp:adjusted-eod"
+  },
+  "LECO": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 337713.73333333334,
+    "previous_close": 259.69,
+    "source": "fmp:adjusted-eod"
+  },
+  "LEN": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 6129774.2,
+    "previous_close": 74.65,
+    "source": "fmp:adjusted-eod"
+  },
+  "LFUS": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 167950.0,
+    "previous_close": 413.84,
+    "source": "fmp:adjusted-eod"
+  },
+  "LH": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 771672.2,
+    "previous_close": 315.52,
+    "source": "fmp:adjusted-eod"
+  },
+  "LHX": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1395196.7333333334,
+    "previous_close": 238.25,
+    "source": "fmp:adjusted-eod"
+  },
+  "LII": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 444402.13333333336,
+    "previous_close": 356.72,
+    "source": "fmp:adjusted-eod"
+  },
+  "LITE": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 4611837.6,
+    "previous_close": 995.41,
+    "source": "fmp:adjusted-eod"
+  },
+  "LLY": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2158822.6,
+    "previous_close": 1182.62,
+    "source": "fmp:adjusted-eod"
+  },
+  "LMT": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1060474.9333333333,
+    "previous_close": 511.88,
+    "source": "fmp:adjusted-eod"
+  },
+  "LNG": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1694506.0666666667,
+    "previous_close": 282.49,
+    "source": "fmp:adjusted-eod"
+  },
+  "LNKS": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 10847429.266666668,
+    "previous_close": 2.27,
+    "source": "fmp:adjusted-eod"
+  },
+  "LNT": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3142544.466666667,
+    "previous_close": 66.46,
+    "source": "fmp:adjusted-eod"
+  },
+  "LOW": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3300810.7333333334,
+    "previous_close": 185.57,
+    "source": "fmp:adjusted-eod"
+  },
+  "LPLA": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 981607.9333333333,
+    "previous_close": 330.12,
+    "source": "fmp:adjusted-eod"
+  },
+  "LRCX": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 7741030.333333333,
+    "previous_close": 309.56,
+    "source": "fmp:adjusted-eod"
+  },
+  "LSCC": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1688445.5333333334,
+    "previous_close": 122.84,
+    "source": "fmp:adjusted-eod"
+  },
+  "LUV": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 6232576.666666667,
+    "previous_close": 40.76,
+    "source": "fmp:adjusted-eod"
+  },
+  "LVS": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 5359153.4,
+    "previous_close": 36.15,
+    "source": "fmp:adjusted-eod"
+  },
+  "LYV": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1889471.8,
+    "previous_close": 169.64,
+    "source": "fmp:adjusted-eod"
+  },
+  "MA": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2867589.4,
+    "previous_close": 595.09,
+    "source": "fmp:adjusted-eod"
+  },
+  "MAA": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1255870.4666666666,
+    "previous_close": 116.53,
+    "source": "fmp:adjusted-eod"
+  },
+  "MAIR": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2567761.933333333,
+    "previous_close": 23.29,
+    "source": "fmp:adjusted-eod"
+  },
+  "MANH": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 526207.6666666666,
+    "previous_close": 217.89,
+    "source": "fmp:adjusted-eod"
+  },
+  "MAR": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1266159.8,
+    "previous_close": 369.3,
+    "source": "fmp:adjusted-eod"
+  },
+  "MAS": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2013669.1333333333,
+    "previous_close": 68.98,
+    "source": "fmp:adjusted-eod"
+  },
+  "MCD": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 6782281.733333333,
+    "previous_close": 235.65,
+    "source": "fmp:adjusted-eod"
+  },
+  "MCHP": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 7808704.466666667,
+    "previous_close": 73.83,
+    "source": "fmp:adjusted-eod"
+  },
+  "MCK": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 692224.1333333333,
+    "previous_close": 955.76,
+    "source": "fmp:adjusted-eod"
+  },
+  "MCO": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 830940.7333333333,
+    "previous_close": 470.5,
+    "source": "fmp:adjusted-eod"
+  },
+  "MDB": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3693209.466666667,
+    "previous_close": 381.29,
+    "source": "fmp:adjusted-eod"
+  },
+  "MDCX": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 83517.2,
+    "previous_close": 3.58,
+    "source": "fmp:adjusted-eod"
+  },
+  "MDGL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 283265.0,
+    "previous_close": 467.16,
+    "source": "fmp:adjusted-eod"
+  },
+  "MDLN": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 8941280.133333333,
+    "previous_close": 35.76,
+    "source": "fmp:adjusted-eod"
+  },
+  "MDLZ": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 7467269.866666666,
+    "previous_close": 61.79,
+    "source": "fmp:adjusted-eod"
+  },
+  "MDT": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 34319348.46666667,
+    "previous_close": 91.93,
+    "source": "fmp:adjusted-eod"
+  },
+  "MEDP": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 252110.26666666666,
+    "previous_close": 620.05,
+    "source": "fmp:adjusted-eod"
+  },
+  "MER-PK": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 122640.06666666667,
+    "previous_close": 22.88,
+    "source": "fmp:adjusted-eod"
+  },
+  "MERC": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 751709.2666666667,
+    "previous_close": 0.1951,
+    "source": "fmp:adjusted-eod"
+  },
+  "MET": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3187406.6,
+    "previous_close": 100.17,
+    "source": "fmp:adjusted-eod"
+  },
+  "META": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 20689320.333333332,
+    "previous_close": 742.96,
+    "source": "fmp:adjusted-eod"
+  },
+  "MKC": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 4209788.266666667,
+    "previous_close": 45.58,
+    "source": "fmp:adjusted-eod"
+  },
+  "MKC-V": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 4983.466666666666,
+    "previous_close": 46.77,
+    "source": "fmp:adjusted-eod"
+  },
+  "MKL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 78978.4,
+    "previous_close": 1790.32,
+    "source": "fmp:adjusted-eod"
+  },
+  "MKSI": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1162367.4666666666,
+    "previous_close": 249.91,
+    "source": "fmp:adjusted-eod"
+  },
+  "MLEC": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 38366.13333333333,
+    "previous_close": 1.8,
+    "source": "fmp:adjusted-eod"
+  },
+  "MLI": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1386284.7333333334,
+    "previous_close": 60.87,
+    "source": "fmp:adjusted-eod"
+  },
+  "MLM": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 813898.0666666667,
+    "previous_close": 477.18,
+    "source": "fmp:adjusted-eod"
+  },
+  "MMED": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 10140341.2,
+    "previous_close": 18.8,
+    "source": "fmp:adjusted-eod"
+  },
+  "MMM": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2863284.0,
+    "previous_close": 160.89,
+    "source": "fmp:adjusted-eod"
+  },
+  "MNDR": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 13171058.466666667,
+    "previous_close": 3.04,
+    "source": "fmp:adjusted-eod"
+  },
+  "MNST": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 9424261.866666667,
+    "previous_close": 43.76,
+    "source": "fmp:adjusted-eod"
+  },
+  "MO": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 7299868.066666666,
+    "previous_close": 71.66,
+    "source": "fmp:adjusted-eod"
+  },
+  "MOG-A": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 298448.0,
+    "previous_close": 371.76,
+    "source": "fmp:adjusted-eod"
+  },
+  "MOH": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 671936.0666666667,
+    "previous_close": 204.36,
+    "source": "fmp:adjusted-eod"
+  },
+  "MPC": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2351974.7333333334,
+    "previous_close": 458.81,
+    "source": "fmp:adjusted-eod"
+  },
+  "MPLX": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1362318.8666666667,
+    "previous_close": 56.83,
+    "source": "fmp:adjusted-eod"
+  },
+  "MPWR": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 653377.2666666667,
+    "previous_close": 1319.23,
+    "source": "fmp:adjusted-eod"
+  },
+  "MRK": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 8851455.066666666,
+    "previous_close": 145.45,
+    "source": "fmp:adjusted-eod"
+  },
+  "MRNA": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 18486351.0,
+    "previous_close": 213.74,
+    "source": "fmp:adjusted-eod"
+  },
+  "MRSH": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2762992.8,
+    "previous_close": 176.54,
+    "source": "fmp:adjusted-eod"
+  },
+  "MRVL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 19452200.533333335,
+    "previous_close": 265.86,
+    "source": "fmp:adjusted-eod"
+  },
+  "MS": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 5494884.133333334,
+    "previous_close": 190.02,
+    "source": "fmp:adjusted-eod"
+  },
+  "MSCI": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 535161.0,
+    "previous_close": 568.01,
+    "source": "fmp:adjusted-eod"
+  },
+  "MSFT": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 21549485.8,
+    "previous_close": 541.15,
+    "source": "fmp:adjusted-eod"
+  },
+  "MSGY": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 7426073.666666667,
+    "previous_close": 2.7,
+    "source": "fmp:adjusted-eod"
+  },
+  "MSI": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 779425.6666666666,
+    "previous_close": 446.33,
+    "source": "fmp:adjusted-eod"
+  },
+  "MSTR": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 19197062.533333335,
+    "previous_close": 152.68,
+    "source": "fmp:adjusted-eod"
+  },
+  "MTB": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 967205.2,
+    "previous_close": 219.89,
+    "source": "fmp:adjusted-eod"
+  },
+  "MTD": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 195853.06666666668,
+    "previous_close": 1563.01,
+    "source": "fmp:adjusted-eod"
+  },
+  "MTSI": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1247084.0666666667,
+    "previous_close": 306.36,
+    "source": "fmp:adjusted-eod"
+  },
+  "MTZ": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1352750.1333333333,
+    "previous_close": 206.85,
+    "source": "fmp:adjusted-eod"
+  },
+  "MU": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 25641507.8,
+    "previous_close": 989.04,
+    "source": "fmp:adjusted-eod"
+  },
+  "NBIX": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1431401.0666666667,
+    "previous_close": 141.37,
+    "source": "fmp:adjusted-eod"
+  },
+  "NCPL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 15033890.266666668,
+    "previous_close": 1.54,
+    "source": "fmp:adjusted-eod"
+  },
+  "NDAQ": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3092488.2,
+    "previous_close": 94.29,
+    "source": "fmp:adjusted-eod"
+  },
+  "NDSN": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 342899.0,
+    "previous_close": 330.44,
+    "source": "fmp:adjusted-eod"
+  },
+  "NEE": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 12851755.533333333,
+    "previous_close": 78.51,
+    "source": "fmp:adjusted-eod"
+  },
+  "NEM": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 4895909.133333334,
+    "previous_close": 117.15,
+    "source": "fmp:adjusted-eod"
+  },
+  "NET": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2703540.2,
+    "previous_close": 350.87,
+    "source": "fmp:adjusted-eod"
+  },
+  "NFLX": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 34328084.0,
+    "previous_close": 70.61,
+    "source": "fmp:adjusted-eod"
+  },
+  "NI": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 5450670.866666666,
+    "previous_close": 41.23,
+    "source": "fmp:adjusted-eod"
+  },
+  "NIKI": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 18968.266666666666,
+    "previous_close": 3.02,
+    "source": "fmp:adjusted-eod"
+  },
+  "NIO": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 31680553.733333334,
+    "previous_close": 3.47,
+    "source": "fmp:adjusted-eod"
+  },
+  "NIVF": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 31625324.066666666,
+    "previous_close": 0.2361,
+    "source": "fmp:adjusted-eod"
+  },
+  "NKE": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 50576641.0,
+    "previous_close": 35.35,
+    "source": "fmp:adjusted-eod"
+  },
+  "NLY": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 15334718.6,
+    "previous_close": 18.29,
+    "source": "fmp:adjusted-eod"
+  },
+  "NOC": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 972233.3333333334,
+    "previous_close": 485.0,
+    "source": "fmp:adjusted-eod"
+  },
+  "NOK": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 67714338.33333333,
+    "previous_close": 9.9,
+    "source": "fmp:adjusted-eod"
+  },
+  "NOW": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 9667054.666666666,
+    "previous_close": 140.32,
+    "source": "fmp:adjusted-eod"
+  },
+  "NRG": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3256073.7333333334,
+    "previous_close": 106.37,
+    "source": "fmp:adjusted-eod"
+  },
+  "NSC": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 706164.6,
+    "previous_close": 319.36,
+    "source": "fmp:adjusted-eod"
+  },
+  "NTAP": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2631803.2666666666,
+    "previous_close": 239.18,
+    "source": "fmp:adjusted-eod"
+  },
+  "NTCL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1303713.2,
+    "previous_close": 1.09,
+    "source": "fmp:adjusted-eod"
+  },
+  "NTNX": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2431299.466666667,
+    "previous_close": 74.14,
+    "source": "fmp:adjusted-eod"
+  },
+  "NTRA": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1875262.7333333334,
+    "previous_close": 397.77,
+    "source": "fmp:adjusted-eod"
+  },
+  "NTRS": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1056110.7333333334,
+    "previous_close": 169.21,
+    "source": "fmp:adjusted-eod"
+  },
+  "NU": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 90601678.4,
+    "previous_close": 16.01,
+    "source": "fmp:adjusted-eod"
+  },
+  "NUE": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1193459.2666666666,
+    "previous_close": 251.83,
+    "source": "fmp:adjusted-eod"
+  },
+  "NVD": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 75889519.4,
+    "previous_close": 3.67,
+    "source": "fmp:adjusted-eod"
+  },
+  "NVDA": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 102448096.86666666,
+    "previous_close": 226.32,
+    "source": "fmp:adjusted-eod"
+  },
+  "NVR": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 38384.26666666667,
+    "previous_close": 5749.96,
+    "source": "fmp:adjusted-eod"
+  },
+  "NWS": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 953106.2,
+    "previous_close": 32.38,
+    "source": "fmp:adjusted-eod"
+  },
+  "NWSA": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 4135610.066666667,
+    "previous_close": 29.38,
+    "source": "fmp:adjusted-eod"
+  },
+  "NXT": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1876703.8,
+    "previous_close": 84.86,
+    "source": "fmp:adjusted-eod"
+  },
+  "NYT": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3379171.6,
+    "previous_close": 66.08,
+    "source": "fmp:adjusted-eod"
+  },
+  "O": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 9161008.133333333,
+    "previous_close": 54.7,
+    "source": "fmp:adjusted-eod"
+  },
+  "ODFL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1732695.0,
+    "previous_close": 181.91,
+    "source": "fmp:adjusted-eod"
+  },
+  "OFAL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 24375616.933333334,
+    "previous_close": 0.3829,
+    "source": "fmp:adjusted-eod"
+  },
+  "OHI": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1995628.1333333333,
+    "previous_close": 45.17,
+    "source": "fmp:adjusted-eod"
+  },
+  "OKE": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3315660.6666666665,
+    "previous_close": 92.02,
+    "source": "fmp:adjusted-eod"
+  },
+  "OKTA": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3425703.066666667,
+    "previous_close": 227.08,
+    "source": "fmp:adjusted-eod"
+  },
+  "OLB": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 98380209.06666666,
+    "previous_close": 0.6542,
+    "source": "fmp:adjusted-eod"
+  },
+  "OMC": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2301719.4,
+    "previous_close": 77.07,
+    "source": "fmp:adjusted-eod"
+  },
+  "ON": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 11056654.466666667,
+    "previous_close": 76.0,
+    "source": "fmp:adjusted-eod"
+  },
+  "ONDS": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 59367766.666666664,
+    "previous_close": 6.67,
+    "source": "fmp:adjusted-eod"
+  },
+  "ONTO": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 729783.4,
+    "previous_close": 273.74,
+    "source": "fmp:adjusted-eod"
+  },
+  "OPEN": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 30020431.866666667,
+    "previous_close": 2.09,
+    "source": "fmp:adjusted-eod"
+  },
+  "OPTT": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 921395.9333333333,
+    "previous_close": 0.6958,
+    "source": "fmp:adjusted-eod"
+  },
+  "ORCL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 29501923.866666667,
+    "previous_close": 137.39,
+    "source": "fmp:adjusted-eod"
+  },
+  "ORLY": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 5415258.866666666,
+    "previous_close": 86.65,
+    "source": "fmp:adjusted-eod"
+  },
+  "OTIS": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 4394267.266666667,
+    "previous_close": 66.75,
+    "source": "fmp:adjusted-eod"
+  },
+  "OVV": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2918757.8,
+    "previous_close": 65.12,
+    "source": "fmp:adjusted-eod"
+  },
+  "OWL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 19835980.933333334,
+    "previous_close": 9.34,
+    "source": "fmp:adjusted-eod"
+  },
+  "OXY": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 9029221.066666666,
+    "previous_close": 61.13,
+    "source": "fmp:adjusted-eod"
+  },
+  "P": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 5163184.533333333,
+    "previous_close": 155.31,
+    "source": "fmp:adjusted-eod"
+  },
+  "PAA": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2269085.066666667,
+    "previous_close": 24.5,
+    "source": "fmp:adjusted-eod"
+  },
+  "PAG": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 475531.3333333333,
+    "previous_close": 194.67,
+    "source": "fmp:adjusted-eod"
+  },
+  "PANW": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 5169220.466666667,
+    "previous_close": 403.83,
+    "source": "fmp:adjusted-eod"
+  },
+  "PASG": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 20117.8,
+    "previous_close": 4.55,
+    "source": "fmp:adjusted-eod"
+  },
+  "PAYC": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 557979.8,
+    "previous_close": 235.01,
+    "source": "fmp:adjusted-eod"
+  },
+  "PAYX": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3500554.6,
+    "previous_close": 104.64,
+    "source": "fmp:adjusted-eod"
+  },
+  "PCAR": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3715986.6666666665,
+    "previous_close": 108.13,
+    "source": "fmp:adjusted-eod"
+  },
+  "PCG": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 40084315.2,
+    "previous_close": 13.16,
+    "source": "fmp:adjusted-eod"
+  },
+  "PCSA": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 246960.0,
+    "previous_close": 1.9,
+    "source": "fmp:adjusted-eod"
+  },
+  "PEG": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 4539838.333333333,
+    "previous_close": 70.76,
+    "source": "fmp:adjusted-eod"
+  },
+  "PEN": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 368155.3333333333,
+    "previous_close": 320.96,
+    "source": "fmp:adjusted-eod"
+  },
+  "PEP": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 9775548.333333334,
+    "previous_close": 126.68,
+    "source": "fmp:adjusted-eod"
+  },
+  "PFE": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 30327778.066666666,
+    "previous_close": 28.4,
+    "source": "fmp:adjusted-eod"
+  },
+  "PFG": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1252052.2,
+    "previous_close": 107.84,
+    "source": "fmp:adjusted-eod"
+  },
+  "PFGC": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1247041.6,
+    "previous_close": 94.72,
+    "source": "fmp:adjusted-eod"
+  },
+  "PFH": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 74351.06666666667,
+    "previous_close": 14.56,
+    "source": "fmp:adjusted-eod"
+  },
+  "PG": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 7850581.066666666,
+    "previous_close": 153.2,
+    "source": "fmp:adjusted-eod"
+  },
+  "PGR": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3026909.7333333334,
+    "previous_close": 220.28,
+    "source": "fmp:adjusted-eod"
+  },
+  "PH": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 477413.86666666664,
+    "previous_close": 956.89,
+    "source": "fmp:adjusted-eod"
+  },
+  "PHM": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1699230.9333333333,
+    "previous_close": 111.14,
+    "source": "fmp:adjusted-eod"
+  },
+  "PINS": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 12780521.733333332,
+    "previous_close": 21.42,
+    "source": "fmp:adjusted-eod"
+  },
+  "PKG": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 506591.4,
+    "previous_close": 227.82,
+    "source": "fmp:adjusted-eod"
+  },
+  "PLD": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3664793.4,
+    "previous_close": 132.47,
+    "source": "fmp:adjusted-eod"
+  },
+  "PLTR": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 22630327.133333333,
+    "previous_close": 209.0,
+    "source": "fmp:adjusted-eod"
+  },
+  "PLUG": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 47066798.4,
+    "previous_close": 1.62,
+    "source": "fmp:adjusted-eod"
+  },
+  "PM": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 4445511.133333334,
+    "previous_close": 202.0,
+    "source": "fmp:adjusted-eod"
+  },
+  "PMI": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 351005.8,
+    "previous_close": 11.34,
+    "source": "fmp:adjusted-eod"
+  },
+  "PNC": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1977714.1333333333,
+    "previous_close": 221.26,
+    "source": "fmp:adjusted-eod"
+  },
+  "PNFP": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1129965.4,
+    "previous_close": 94.51,
+    "source": "fmp:adjusted-eod"
+  },
+  "PNW": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1464919.2,
+    "previous_close": 99.91,
+    "source": "fmp:adjusted-eod"
+  },
+  "POM": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 46168.46666666667,
+    "previous_close": 0.621,
+    "source": "fmp:adjusted-eod"
+  },
+  "PPG": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1639724.6,
+    "previous_close": 103.71,
+    "source": "fmp:adjusted-eod"
+  },
+  "PPL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 7360864.666666667,
+    "previous_close": 34.34,
+    "source": "fmp:adjusted-eod"
+  },
+  "PPLC": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 209525.53333333333,
+    "previous_close": 46.18,
+    "source": "fmp:adjusted-eod"
+  },
+  "PR": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 8547711.666666666,
+    "previous_close": 23.4,
+    "source": "fmp:adjusted-eod"
+  },
+  "PRU": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1513951.2666666666,
+    "previous_close": 113.39,
+    "source": "fmp:adjusted-eod"
+  },
+  "PS": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 411343.13333333336,
+    "previous_close": 54.22,
+    "source": "fmp:adjusted-eod"
+  },
+  "PSA": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 937992.6,
+    "previous_close": 288.88,
+    "source": "fmp:adjusted-eod"
+  },
+  "PSIG": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1610009.1333333333,
+    "previous_close": 3.87,
+    "source": "fmp:adjusted-eod"
+  },
+  "PSX": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2652374.2,
+    "previous_close": 281.47,
+    "source": "fmp:adjusted-eod"
+  },
+  "PTC": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 4717175.6,
+    "previous_close": 194.39,
+    "source": "fmp:adjusted-eod"
+  },
+  "PWR": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 867645.0,
+    "previous_close": 694.79,
+    "source": "fmp:adjusted-eod"
+  },
+  "PYPL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 11629532.733333332,
+    "previous_close": 56.05,
+    "source": "fmp:adjusted-eod"
+  },
+  "Q": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1298432.8666666667,
+    "previous_close": 123.21,
+    "source": "fmp:adjusted-eod"
+  },
+  "QCOM": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 10388794.8,
+    "previous_close": 174.43,
+    "source": "fmp:adjusted-eod"
+  },
+  "QNME": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 17800964.333333332,
+    "previous_close": 0.5601,
+    "source": "fmp:adjusted-eod"
+  },
+  "QNT": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1897663.1333333333,
+    "previous_close": 39.52,
+    "source": "fmp:adjusted-eod"
+  },
+  "QSR": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2601232.7333333334,
+    "previous_close": 71.12,
+    "source": "fmp:adjusted-eod"
+  },
+  "QUCY": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 545171.1333333333,
+    "previous_close": 1.03,
+    "source": "fmp:adjusted-eod"
+  },
+  "QXO": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 23700609.066666666,
+    "previous_close": 10.64,
+    "source": "fmp:adjusted-eod"
+  },
+  "RBA": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1612606.6,
+    "previous_close": 87.8,
+    "source": "fmp:adjusted-eod"
+  },
+  "RBC": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 267918.13333333336,
+    "previous_close": 510.0,
+    "source": "fmp:adjusted-eod"
+  },
+  "RBLX": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 13058248.933333334,
+    "previous_close": 49.58,
+    "source": "fmp:adjusted-eod"
+  },
+  "RBRK": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2748450.2,
+    "previous_close": 120.01,
+    "source": "fmp:adjusted-eod"
+  },
+  "RCL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3663002.2,
+    "previous_close": 280.67,
+    "source": "fmp:adjusted-eod"
+  },
+  "RDDT": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 4195538.066666666,
+    "previous_close": 159.93,
+    "source": "fmp:adjusted-eod"
+  },
+  "REG": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1272938.8,
+    "previous_close": 71.71,
+    "source": "fmp:adjusted-eod"
+  },
+  "REGN": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 701386.2,
+    "previous_close": 762.81,
+    "source": "fmp:adjusted-eod"
+  },
+  "RF": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 10718762.866666667,
+    "previous_close": 27.37,
+    "source": "fmp:adjusted-eod"
+  },
+  "RGA": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 427777.3333333333,
+    "previous_close": 259.95,
+    "source": "fmp:adjusted-eod"
+  },
+  "RGLD": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 577987.2666666667,
+    "previous_close": 236.91,
+    "source": "fmp:adjusted-eod"
+  },
+  "RGTZ": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 400498.2,
+    "previous_close": 21.12,
+    "source": "fmp:adjusted-eod"
+  },
+  "RIVN": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 25757842.533333335,
+    "previous_close": 13.54,
+    "source": "fmp:adjusted-eod"
+  },
+  "RJF": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1214028.4666666666,
+    "previous_close": 158.65,
+    "source": "fmp:adjusted-eod"
+  },
+  "RKLB": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 20792361.133333333,
+    "previous_close": 65.71,
+    "source": "fmp:adjusted-eod"
+  },
+  "RKT": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 39386525.733333334,
+    "previous_close": 10.87,
+    "source": "fmp:adjusted-eod"
+  },
+  "RL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 558976.2,
+    "previous_close": 373.24,
+    "source": "fmp:adjusted-eod"
+  },
+  "RMBS": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1904820.6666666667,
+    "previous_close": 101.04,
+    "source": "fmp:adjusted-eod"
+  },
+  "RMD": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 984229.8,
+    "previous_close": 234.6,
+    "source": "fmp:adjusted-eod"
+  },
+  "ROK": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 675845.9333333333,
+    "previous_close": 433.97,
+    "source": "fmp:adjusted-eod"
+  },
+  "ROKU": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1410425.5333333334,
+    "previous_close": 152.81,
+    "source": "fmp:adjusted-eod"
+  },
+  "ROL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 9044550.733333332,
+    "previous_close": 32.07,
+    "source": "fmp:adjusted-eod"
+  },
+  "ROP": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 747887.8,
+    "previous_close": 367.32,
+    "source": "fmp:adjusted-eod"
+  },
+  "ROST": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1993811.6666666667,
+    "previous_close": 225.84,
+    "source": "fmp:adjusted-eod"
+  },
+  "RPM": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1403390.6666666667,
+    "previous_close": 97.57,
+    "source": "fmp:adjusted-eod"
+  },
+  "RPRX": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2767972.7333333334,
+    "previous_close": 57.78,
+    "source": "fmp:adjusted-eod"
+  },
+  "RRX": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1053076.9333333333,
+    "previous_close": 163.15,
+    "source": "fmp:adjusted-eod"
+  },
+  "RS": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 234860.53333333333,
+    "previous_close": 401.12,
+    "source": "fmp:adjusted-eod"
+  },
+  "RSG": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1224825.0,
+    "previous_close": 219.75,
+    "source": "fmp:adjusted-eod"
+  },
+  "RTX": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3867632.6666666665,
+    "previous_close": 186.66,
+    "source": "fmp:adjusted-eod"
+  },
+  "RVMD": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2175315.466666667,
+    "previous_close": 193.95,
+    "source": "fmp:adjusted-eod"
+  },
+  "RVTY": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2075701.4,
+    "previous_close": 155.61,
+    "source": "fmp:adjusted-eod"
+  },
+  "RZC": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 108398.4,
+    "previous_close": 24.92,
+    "source": "fmp:adjusted-eod"
+  },
+  "SAIL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 5568199.733333333,
+    "previous_close": 19.57,
+    "source": "fmp:adjusted-eod"
+  },
+  "SAIQ": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 6429399.066666666,
+    "previous_close": 3.71,
+    "source": "fmp:adjusted-eod"
+  },
+  "SANM": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 604969.6,
+    "previous_close": 213.74,
+    "source": "fmp:adjusted-eod"
+  },
+  "SATA": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 600592.1333333333,
+    "previous_close": 99.4,
+    "source": "fmp:adjusted-eod"
+  },
+  "SBAC": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1012817.0,
+    "previous_close": 184.28,
+    "source": "fmp:adjusted-eod"
+  },
+  "SBUX": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 9416712.4,
+    "previous_close": 92.29,
+    "source": "fmp:adjusted-eod"
+  },
+  "SCCO": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 902189.7333333333,
+    "previous_close": 208.69,
+    "source": "fmp:adjusted-eod"
+  },
+  "SCHW": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 7964990.6,
+    "previous_close": 97.06,
+    "source": "fmp:adjusted-eod"
+  },
+  "SCI": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 999901.0,
+    "previous_close": 77.74,
+    "source": "fmp:adjusted-eod"
+  },
+  "SDST": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 59607889.266666666,
+    "previous_close": 0.0515,
+    "source": "fmp:adjusted-eod"
+  },
+  "SEIC": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 750699.6666666666,
+    "previous_close": 105.0,
+    "source": "fmp:adjusted-eod"
+  },
+  "SF": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1484551.8666666667,
+    "previous_close": 70.04,
+    "source": "fmp:adjusted-eod"
+  },
+  "SGI": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2632705.533333333,
+    "previous_close": 62.4,
+    "source": "fmp:adjusted-eod"
+  },
+  "SHW": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1619211.6666666667,
+    "previous_close": 320.21,
+    "source": "fmp:adjusted-eod"
+  },
+  "SITM": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 388043.4666666667,
+    "previous_close": 570.07,
+    "source": "fmp:adjusted-eod"
+  },
+  "SJM": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1090879.3333333333,
+    "previous_close": 120.02,
+    "source": "fmp:adjusted-eod"
+  },
+  "SKK": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 70177.73333333334,
+    "previous_close": 6.08,
+    "source": "fmp:adjusted-eod"
+  },
+  "SKYA": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3131729.2666666666,
+    "previous_close": 2.6,
+    "source": "fmp:adjusted-eod"
+  },
+  "SLB": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 12654761.866666667,
+    "previous_close": 48.77,
+    "source": "fmp:adjusted-eod"
+  },
+  "SLND": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 17793983.066666666,
+    "previous_close": 0.9602,
+    "source": "fmp:adjusted-eod"
+  },
+  "SMCI": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 33012517.066666666,
+    "previous_close": 39.98,
+    "source": "fmp:adjusted-eod"
+  },
+  "SMMT": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 7509980.266666667,
+    "previous_close": 17.13,
+    "source": "fmp:adjusted-eod"
+  },
+  "SMR": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 33358720.533333335,
+    "previous_close": 6.7,
+    "source": "fmp:adjusted-eod"
+  },
+  "SMTC": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3156418.4,
+    "previous_close": 168.28,
+    "source": "fmp:adjusted-eod"
+  },
+  "SMXT": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 387038.2,
+    "previous_close": 4.84,
+    "source": "fmp:adjusted-eod"
+  },
+  "SN": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1270584.0,
+    "previous_close": 189.98,
+    "source": "fmp:adjusted-eod"
+  },
+  "SNA": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 254640.53333333333,
+    "previous_close": 361.99,
+    "source": "fmp:adjusted-eod"
+  },
+  "SNAP": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 33208378.133333333,
+    "previous_close": 6.53,
+    "source": "fmp:adjusted-eod"
+  },
+  "SNDK": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 7885775.666666667,
+    "previous_close": 1487.33,
+    "source": "fmp:adjusted-eod"
+  },
+  "SNOW": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 4208746.6,
+    "previous_close": 360.37,
+    "source": "fmp:adjusted-eod"
+  },
+  "SNPS": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2622428.066666667,
+    "previous_close": 502.51,
+    "source": "fmp:adjusted-eod"
+  },
+  "SNX": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1160091.8,
+    "previous_close": 273.06,
+    "source": "fmp:adjusted-eod"
+  },
+  "SO": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 5938250.6,
+    "previous_close": 87.04,
+    "source": "fmp:adjusted-eod"
+  },
+  "SOFI": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 46721755.2,
+    "previous_close": 15.23,
+    "source": "fmp:adjusted-eod"
+  },
+  "SOJC": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 57560.46666666667,
+    "previous_close": 18.42,
+    "source": "fmp:adjusted-eod"
+  },
+  "SOJD": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 138274.46666666667,
+    "previous_close": 17.44,
+    "source": "fmp:adjusted-eod"
+  },
+  "SOJE": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 96782.86666666667,
+    "previous_close": 15.7,
+    "source": "fmp:adjusted-eod"
+  },
+  "SOLV": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 888236.6666666666,
+    "previous_close": 85.31,
+    "source": "fmp:adjusted-eod"
+  },
+  "SOMN": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 721127.7333333333,
+    "previous_close": 46.3,
+    "source": "fmp:adjusted-eod"
+  },
+  "SOXL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 60854599.6,
+    "previous_close": 128.4,
+    "source": "fmp:adjusted-eod"
+  },
+  "SOXS": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 75894518.13333334,
+    "previous_close": 37.19,
+    "source": "fmp:adjusted-eod"
+  },
+  "SPCX": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 82118969.46666667,
+    "previous_close": 163.42,
+    "source": "fmp:adjusted-eod"
+  },
+  "SPG": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1133704.2666666666,
+    "previous_close": 201.41,
+    "source": "fmp:adjusted-eod"
+  },
+  "SPGI": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1906142.1333333333,
+    "previous_close": 412.19,
+    "source": "fmp:adjusted-eod"
+  },
+  "SRE": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3362490.1333333333,
+    "previous_close": 81.88,
+    "source": "fmp:adjusted-eod"
+  },
+  "SREA": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 69420.13333333333,
+    "previous_close": 18.79,
+    "source": "fmp:adjusted-eod"
+  },
+  "SSNC": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1282242.6,
+    "previous_close": 80.99,
+    "source": "fmp:adjusted-eod"
+  },
+  "STE": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 606942.6666666666,
+    "previous_close": 218.98,
+    "source": "fmp:adjusted-eod"
+  },
+  "STLD": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 825098.1333333333,
+    "previous_close": 239.14,
+    "source": "fmp:adjusted-eod"
+  },
+  "STRC": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1527780.8,
+    "previous_close": 99.88,
+    "source": "fmp:adjusted-eod"
+  },
+  "STRD": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 91339.26666666666,
+    "previous_close": 73.1,
+    "source": "fmp:adjusted-eod"
+  },
+  "STRF": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 47127.73333333333,
+    "previous_close": 103.44,
+    "source": "fmp:adjusted-eod"
+  },
+  "STRK": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 96286.06666666667,
+    "previous_close": 75.51,
+    "source": "fmp:adjusted-eod"
+  },
+  "STRL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 473493.26666666666,
+    "previous_close": 501.19,
+    "source": "fmp:adjusted-eod"
+  },
+  "STT": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2103345.1333333333,
+    "previous_close": 174.93,
+    "source": "fmp:adjusted-eod"
+  },
+  "STZ": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2685264.6,
+    "previous_close": 126.4,
+    "source": "fmp:adjusted-eod"
+  },
+  "SUGP": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1271108.8,
+    "previous_close": 1.81,
+    "source": "fmp:adjusted-eod"
+  },
+  "SUI": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1118531.0,
+    "previous_close": 114.46,
+    "source": "fmp:adjusted-eod"
+  },
+  "SUNB": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 4053260.0,
+    "previous_close": 75.56,
+    "source": "fmp:adjusted-eod"
+  },
+  "SWK": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1581454.0666666667,
+    "previous_close": 88.65,
+    "source": "fmp:adjusted-eod"
+  },
+  "SWKS": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 7762792.6,
+    "previous_close": 74.7,
+    "source": "fmp:adjusted-eod"
+  },
+  "SXTC": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 28222167.2,
+    "previous_close": 0.102,
+    "source": "fmp:adjusted-eod"
+  },
+  "SYF": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2684909.0,
+    "previous_close": 73.62,
+    "source": "fmp:adjusted-eod"
+  },
+  "SYK": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2451327.4,
+    "previous_close": 282.6,
+    "source": "fmp:adjusted-eod"
+  },
+  "SYM": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1384216.4,
+    "previous_close": 40.78,
+    "source": "fmp:adjusted-eod"
+  },
+  "SYY": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 4182379.7333333334,
+    "previous_close": 78.7,
+    "source": "fmp:adjusted-eod"
+  },
+  "T": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 43381262.266666666,
+    "previous_close": 22.49,
+    "source": "fmp:adjusted-eod"
+  },
+  "TBB": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 175477.13333333333,
+    "previous_close": 18.32,
+    "source": "fmp:adjusted-eod"
+  },
+  "TCPA": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 43842.066666666666,
+    "previous_close": 19.92,
+    "source": "fmp:adjusted-eod"
+  },
+  "TCRT": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 359863.8,
+    "previous_close": 1.05,
+    "source": "fmp:adjusted-eod"
+  },
+  "TDG": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 350498.26666666666,
+    "previous_close": 1119.94,
+    "source": "fmp:adjusted-eod"
+  },
+  "TDY": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 267807.73333333334,
+    "previous_close": 613.66,
+    "source": "fmp:adjusted-eod"
+  },
+  "TECH": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3015688.2666666666,
+    "previous_close": 72.56,
+    "source": "fmp:adjusted-eod"
+  },
+  "TEM": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 7404869.6,
+    "previous_close": 67.99,
+    "source": "fmp:adjusted-eod"
+  },
+  "TER": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2169217.6,
+    "previous_close": 383.85,
+    "source": "fmp:adjusted-eod"
+  },
+  "TFC": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 7910171.466666667,
+    "previous_close": 46.64,
+    "source": "fmp:adjusted-eod"
+  },
+  "TGE": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 13988385.2,
+    "previous_close": 0.83,
+    "source": "fmp:adjusted-eod"
+  },
+  "TGL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 499018.06666666665,
+    "previous_close": 0.8398,
+    "source": "fmp:adjusted-eod"
+  },
+  "TGT": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3785753.066666667,
+    "previous_close": 153.62,
+    "source": "fmp:adjusted-eod"
+  },
+  "THC": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 558919.2,
+    "previous_close": 268.76,
+    "source": "fmp:adjusted-eod"
+  },
+  "TJX": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 8221325.8,
+    "previous_close": 141.92,
+    "source": "fmp:adjusted-eod"
+  },
+  "TKO": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1010187.0,
+    "previous_close": 173.45,
+    "source": "fmp:adjusted-eod"
+  },
+  "TLN": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1224749.3333333333,
+    "previous_close": 379.77,
+    "source": "fmp:adjusted-eod"
+  },
+  "TMO": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2067966.9333333333,
+    "previous_close": 662.24,
+    "source": "fmp:adjusted-eod"
+  },
+  "TMUS": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 5951955.0,
+    "previous_close": 151.87,
+    "source": "fmp:adjusted-eod"
+  },
+  "TOL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1140118.3333333333,
+    "previous_close": 132.15,
+    "source": "fmp:adjusted-eod"
+  },
+  "TOST": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 8331647.066666666,
+    "previous_close": 31.32,
+    "source": "fmp:adjusted-eod"
+  },
+  "TPG": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2621654.6,
+    "previous_close": 45.12,
+    "source": "fmp:adjusted-eod"
+  },
+  "TPL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 314097.4,
+    "previous_close": 365.32,
+    "source": "fmp:adjusted-eod"
+  },
+  "TPR": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2622976.3333333335,
+    "previous_close": 117.22,
+    "source": "fmp:adjusted-eod"
+  },
+  "TQQQ": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 49550900.333333336,
+    "previous_close": 79.61,
+    "source": "fmp:adjusted-eod"
+  },
+  "TRGP": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1098265.6666666667,
+    "previous_close": 290.54,
+    "source": "fmp:adjusted-eod"
+  },
+  "TRMB": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2119401.8,
+    "previous_close": 59.49,
+    "source": "fmp:adjusted-eod"
+  },
+  "TROW": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1674130.4,
+    "previous_close": 103.99,
+    "source": "fmp:adjusted-eod"
+  },
+  "TRU": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2917484.066666667,
+    "previous_close": 66.07,
+    "source": "fmp:adjusted-eod"
+  },
+  "TRV": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1077393.3333333333,
+    "previous_close": 371.68,
+    "source": "fmp:adjusted-eod"
+  },
+  "TSCO": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 10807281.866666667,
+    "previous_close": 33.45,
+    "source": "fmp:adjusted-eod"
+  },
+  "TSLA": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 34310940.93333333,
+    "previous_close": 378.03,
+    "source": "fmp:adjusted-eod"
+  },
+  "TSLG": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 54079661.4,
+    "previous_close": 5.09,
+    "source": "fmp:adjusted-eod"
+  },
+  "TSLL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 59330453.06666667,
+    "previous_close": 10.15,
+    "source": "fmp:adjusted-eod"
+  },
+  "TSN": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3101134.2666666666,
+    "previous_close": 53.57,
+    "source": "fmp:adjusted-eod"
+  },
+  "TTMI": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2189938.6,
+    "previous_close": 110.33,
+    "source": "fmp:adjusted-eod"
+  },
+  "TTWO": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2243235.533333333,
+    "previous_close": 208.82,
+    "source": "fmp:adjusted-eod"
+  },
+  "TW": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1343659.7333333334,
+    "previous_close": 110.63,
+    "source": "fmp:adjusted-eod"
+  },
+  "TWLO": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 5380289.066666666,
+    "previous_close": 282.66,
+    "source": "fmp:adjusted-eod"
+  },
+  "TXN": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 4620851.4,
+    "previous_close": 281.74,
+    "source": "fmp:adjusted-eod"
+  },
+  "TXRH": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1443957.4,
+    "previous_close": 158.81,
+    "source": "fmp:adjusted-eod"
+  },
+  "TXT": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1900167.0,
+    "previous_close": 75.78,
+    "source": "fmp:adjusted-eod"
+  },
+  "TYL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 569787.7333333333,
+    "previous_close": 339.94,
+    "source": "fmp:adjusted-eod"
+  },
+  "U": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 11394309.066666666,
+    "previous_close": 46.68,
+    "source": "fmp:adjusted-eod"
+  },
+  "UAL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 4371457.533333333,
+    "previous_close": 104.44,
+    "source": "fmp:adjusted-eod"
+  },
+  "UBER": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 15815655.533333333,
+    "previous_close": 71.5,
+    "source": "fmp:adjusted-eod"
+  },
+  "UDR": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 4035890.8666666667,
+    "previous_close": 34.02,
+    "source": "fmp:adjusted-eod"
+  },
+  "UHAL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 135704.4,
+    "previous_close": 56.22,
+    "source": "fmp:adjusted-eod"
+  },
+  "UHS": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 627488.2666666667,
+    "previous_close": 178.83,
+    "source": "fmp:adjusted-eod"
+  },
+  "UI": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 97676.73333333334,
+    "previous_close": 619.56,
+    "source": "fmp:adjusted-eod"
+  },
+  "ULS": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1165665.8666666667,
+    "previous_close": 71.18,
+    "source": "fmp:adjusted-eod"
+  },
+  "ULTA": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 383295.0,
+    "previous_close": 567.47,
+    "source": "fmp:adjusted-eod"
+  },
+  "UNG": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 34751479.0,
+    "previous_close": 10.92,
+    "source": "fmp:adjusted-eod"
+  },
+  "UNH": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 4952081.866666666,
+    "previous_close": 378.52,
+    "source": "fmp:adjusted-eod"
+  },
+  "UNM": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1704740.5333333334,
+    "previous_close": 92.51,
+    "source": "fmp:adjusted-eod"
+  },
+  "UNMA": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 59758.46666666667,
+    "previous_close": 20.66,
+    "source": "fmp:adjusted-eod"
+  },
+  "UNP": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2220252.2666666666,
+    "previous_close": 281.57,
+    "source": "fmp:adjusted-eod"
+  },
+  "UPS": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 4819337.733333333,
+    "previous_close": 95.34,
+    "source": "fmp:adjusted-eod"
+  },
+  "URI": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 504661.73333333334,
+    "previous_close": 1056.92,
+    "source": "fmp:adjusted-eod"
+  },
+  "USB": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 7586797.066666666,
+    "previous_close": 57.42,
+    "source": "fmp:adjusted-eod"
+  },
+  "USFD": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2038183.0666666667,
+    "previous_close": 97.7,
+    "source": "fmp:adjusted-eod"
+  },
+  "UTHR": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1013230.0,
+    "previous_close": 550.1,
+    "source": "fmp:adjusted-eod"
+  },
+  "V": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 5419730.266666667,
+    "previous_close": 389.27,
+    "source": "fmp:adjusted-eod"
+  },
+  "VBIO": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 4605582.133333334,
+    "previous_close": 1.68,
+    "source": "fmp:adjusted-eod"
+  },
+  "VCIG": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 10626323.733333332,
+    "previous_close": 0.44,
+    "source": "fmp:adjusted-eod"
+  },
+  "VEEA": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 16568244.266666668,
+    "previous_close": 4.61,
+    "source": "fmp:adjusted-eod"
+  },
+  "VEEV": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1344875.4,
+    "previous_close": 295.85,
+    "source": "fmp:adjusted-eod"
+  },
+  "VG": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 12087779.133333333,
+    "previous_close": 13.13,
+    "source": "fmp:adjusted-eod"
+  },
+  "VICI": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 10339266.266666668,
+    "previous_close": 23.03,
+    "source": "fmp:adjusted-eod"
+  },
+  "VICR": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 962028.7333333333,
+    "previous_close": 259.4,
+    "source": "fmp:adjusted-eod"
+  },
+  "VIRT": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1464901.6666666667,
+    "previous_close": 56.77,
+    "source": "fmp:adjusted-eod"
+  },
+  "VIVK": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3106377.0,
+    "previous_close": 2.17,
+    "source": "fmp:adjusted-eod"
+  },
+  "VLO": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3335394.6666666665,
+    "previous_close": 436.0,
+    "source": "fmp:adjusted-eod"
+  },
+  "VLTO": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1718515.3333333333,
+    "previous_close": 98.2,
+    "source": "fmp:adjusted-eod"
+  },
+  "VMC": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1296943.9333333333,
+    "previous_close": 245.15,
+    "source": "fmp:adjusted-eod"
+  },
+  "VNOM": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2180487.2666666666,
+    "previous_close": 43.37,
+    "source": "fmp:adjusted-eod"
+  },
+  "VRSK": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1175084.6,
+    "previous_close": 177.49,
+    "source": "fmp:adjusted-eod"
+  },
+  "VRSN": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 878188.4666666667,
+    "previous_close": 302.7,
+    "source": "fmp:adjusted-eod"
+  },
+  "VRT": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 4056470.4,
+    "previous_close": 239.36,
+    "source": "fmp:adjusted-eod"
+  },
+  "VRTX": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1034041.8666666667,
+    "previous_close": 507.0,
+    "source": "fmp:adjusted-eod"
+  },
+  "VST": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 7896418.333333333,
+    "previous_close": 158.13,
+    "source": "fmp:adjusted-eod"
+  },
+  "VTR": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3797939.8666666667,
+    "previous_close": 83.54,
+    "source": "fmp:adjusted-eod"
+  },
+  "VTRS": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 9445351.466666667,
+    "previous_close": 17.54,
+    "source": "fmp:adjusted-eod"
+  },
+  "VWAV": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 746084.4666666667,
+    "previous_close": 4.52,
+    "source": "fmp:adjusted-eod"
+  },
+  "VZ": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 26210485.4,
+    "previous_close": 42.78,
+    "source": "fmp:adjusted-eod"
+  },
+  "W": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2188419.066666667,
+    "previous_close": 106.14,
+    "source": "fmp:adjusted-eod"
+  },
+  "WAB": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 789633.8,
+    "previous_close": 285.77,
+    "source": "fmp:adjusted-eod"
+  },
+  "WAT": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 847183.4,
+    "previous_close": 432.1,
+    "source": "fmp:adjusted-eod"
+  },
+  "WBD": {
+    "as_of_session": "2026-10-05",
+    "average_daily_volume": 90432142.13333334,
+    "previous_close": 30.95,
+    "source": "fmp:adjusted-eod"
+  },
+  "WBUY": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 8356755.0,
+    "previous_close": 0.8144,
+    "source": "fmp:adjusted-eod"
+  },
+  "WCC": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 532607.0666666667,
+    "previous_close": 361.34,
+    "source": "fmp:adjusted-eod"
+  },
+  "WCT": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1531646.5333333334,
+    "previous_close": 0.7001,
+    "source": "fmp:adjusted-eod"
+  },
+  "WDAY": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1882870.2666666666,
+    "previous_close": 188.25,
+    "source": "fmp:adjusted-eod"
+  },
+  "WDC": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 8833585.066666666,
+    "previous_close": 386.94,
+    "source": "fmp:adjusted-eod"
+  },
+  "WEC": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2823554.3333333335,
+    "previous_close": 104.91,
+    "source": "fmp:adjusted-eod"
+  },
+  "WELL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2463412.066666667,
+    "previous_close": 230.29,
+    "source": "fmp:adjusted-eod"
+  },
+  "WES": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 870835.0666666667,
+    "previous_close": 45.29,
+    "source": "fmp:adjusted-eod"
+  },
+  "WFC": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 14366414.533333333,
+    "previous_close": 83.32,
+    "source": "fmp:adjusted-eod"
+  },
+  "WFF": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 12561637.4,
+    "previous_close": 17.28,
+    "source": "fmp:adjusted-eod"
+  },
+  "WHLR": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 10571035.933333334,
+    "previous_close": 0.458,
+    "source": "fmp:adjusted-eod"
+  },
+  "WM": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2130082.933333333,
+    "previous_close": 211.14,
+    "source": "fmp:adjusted-eod"
+  },
+  "WMB": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 6690755.333333333,
+    "previous_close": 74.17,
+    "source": "fmp:adjusted-eod"
+  },
+  "WMG": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2084932.2,
+    "previous_close": 28.65,
+    "source": "fmp:adjusted-eod"
+  },
+  "WMT": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 20924511.2,
+    "previous_close": 113.08,
+    "source": "fmp:adjusted-eod"
+  },
+  "WPC": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1671415.4,
+    "previous_close": 64.29,
+    "source": "fmp:adjusted-eod"
+  },
+  "WRB": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2337390.2666666666,
+    "previous_close": 72.9,
+    "source": "fmp:adjusted-eod"
+  },
+  "WSM": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1041410.2666666667,
+    "previous_close": 238.86,
+    "source": "fmp:adjusted-eod"
+  },
+  "WSO": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 496984.13333333336,
+    "previous_close": 286.32,
+    "source": "fmp:adjusted-eod"
+  },
+  "WST": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 555058.9333333333,
+    "previous_close": 367.6,
+    "source": "fmp:adjusted-eod"
+  },
+  "WTRG": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2482908.6,
+    "previous_close": 39.15,
+    "source": "fmp:adjusted-eod"
+  },
+  "WTS": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 184093.26666666666,
+    "previous_close": 351.65,
+    "source": "fmp:adjusted-eod"
+  },
+  "WWD": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 652245.6666666666,
+    "previous_close": 332.56,
+    "source": "fmp:adjusted-eod"
+  },
+  "WY": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 9554258.4,
+    "previous_close": 18.94,
+    "source": "fmp:adjusted-eod"
+  },
+  "XCH": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 78368.86666666667,
+    "previous_close": 2.34,
+    "source": "fmp:adjusted-eod"
+  },
+  "XEL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 5668407.333333333,
+    "previous_close": 74.17,
+    "source": "fmp:adjusted-eod"
+  },
+  "XELB": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1482427.4,
+    "previous_close": 0.4542,
+    "source": "fmp:adjusted-eod"
+  },
+  "XELLL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 117023.66666666667,
+    "previous_close": 20.91,
+    "source": "fmp:adjusted-eod"
+  },
+  "XOM": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 11320262.266666668,
+    "previous_close": 172.15,
+    "source": "fmp:adjusted-eod"
+  },
+  "XPO": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 1105517.0666666667,
+    "previous_close": 180.52,
+    "source": "fmp:adjusted-eod"
+  },
+  "XRTX": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2103016.8666666667,
+    "previous_close": 1.72,
+    "source": "fmp:adjusted-eod"
+  },
+  "XYL": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2388172.933333333,
+    "previous_close": 102.59,
+    "source": "fmp:adjusted-eod"
+  },
+  "XYZ": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 4514576.8,
+    "previous_close": 76.82,
+    "source": "fmp:adjusted-eod"
+  },
+  "YMAT": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 10410405.533333333,
+    "previous_close": 2.91,
+    "source": "fmp:adjusted-eod"
+  },
+  "YRD": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 102581.73333333334,
+    "previous_close": 0.55951,
+    "source": "fmp:adjusted-eod"
+  },
+  "YUM": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2354689.8,
+    "previous_close": 146.75,
+    "source": "fmp:adjusted-eod"
+  },
+  "ZBH": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2062913.6,
+    "previous_close": 92.17,
+    "source": "fmp:adjusted-eod"
+  },
+  "ZBRA": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 490497.93333333335,
+    "previous_close": 388.12,
+    "source": "fmp:adjusted-eod"
+  },
+  "ZM": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 2660421.7333333334,
+    "previous_close": 97.94,
+    "source": "fmp:adjusted-eod"
+  },
+  "ZS": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 3004746.533333333,
+    "previous_close": 225.78,
+    "source": "fmp:adjusted-eod"
+  },
+  "ZTS": {
+    "as_of_session": "2026-10-12",
+    "average_daily_volume": 4138436.1333333333,
+    "previous_close": 75.65,
+    "source": "fmp:adjusted-eod"
+  }
+}

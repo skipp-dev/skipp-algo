@@ -9,12 +9,6 @@ Provides:
 
 Ported from IB_MON's error_taxonomy pattern and adapted for the
 open_prep (FMP-based) context.
-
-Adoption status (2026-07-27, unwired-feature sweep): NO production
-importer — only tests import this module. The retry decorator and the
-exception hierarchy were never adopted by the FMP call sites (macro.py
-grew its own retry/circuit-breaker instead). Wire-or-remove candidate;
-kept because the API is sound and test-pinned.
 """
 from __future__ import annotations
 

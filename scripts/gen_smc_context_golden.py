@@ -1,7 +1,7 @@
 """Generate the SMC context golden-vector file (Phase 2 of the context bus-v3 track).
 
-This is the cross-language semantic contract for the implemented context library
-(`SMC++/smc_context_engine_private.pine`). It pins the *exact
+This is the cross-language semantic contract for the context library
+(`SMC++/smc_context_engine_private.pine`, not yet written). It pins the *exact
 scoring / rule-layer parity* that the Pine port must reproduce, by running the
 authoritative Python reference builders over canonical fixtures and freezing
 their outputs to ``tests/fixtures/smc_context_golden.json``.
@@ -28,7 +28,6 @@ the frozen file, so regeneration is a deliberate, reviewed act.
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -54,7 +53,6 @@ from scripts.smc_liquidity_sweeps import (
     SWEEP_VOLUME_RATIO_MIN,
     build_liquidity_sweeps,
 )
-from scripts.smc_session_context_block import build_session_context_block
 
 ROOT = Path(__file__).resolve().parents[1]
 GOLDEN_PATH = ROOT / "tests" / "fixtures" / "smc_context_golden.json"
@@ -192,52 +190,6 @@ _POOL_FIXTURES: dict[str, dict[str, Any]] = {
 }
 
 
-# --- Session fixtures (independent IANA-zone classification + rule scoring) ---
-_SESSION_FIXTURES: dict[str, dict[str, Any]] = {
-    "none": {
-        "timestamp": "2026-07-20T23:30:00+00:00",
-        "row": {},
-    },
-    "asia_killzone": {
-        "timestamp": "2026-07-20T01:00:00+00:00",
-        "row": {},
-    },
-    "london_killzone_during_us_dst": {
-        "timestamp": "2026-07-20T07:30:00+00:00",
-        "row": {},
-    },
-    "ny_am_killzone_during_eu_overlap": {
-        "timestamp": "2026-07-20T14:00:00+00:00",
-        "row": {
-            "session_mss_bull": True,
-            "session_structure_state": "BULLISH",
-            "session_fvg_bull_active": True,
-            "session_range_top": 105.0,
-            "session_range_bottom": 95.0,
-            "session_mean": 100.0,
-            "session_vwap": 101.0,
-            "session_target_bull": 105.0,
-            "session_target_bear": 95.0,
-        },
-    },
-    "ny_pm_bearish": {
-        "timestamp": "2026-07-20T18:00:00+00:00",
-        "row": {
-            "session_mss_bear": True,
-            "session_structure_state": "BEARISH",
-            "session_fvg_bear_active": True,
-            "session_bpr_active": True,
-            "session_range_top": 105.0,
-            "session_range_bottom": 95.0,
-            "session_mean": 100.0,
-            "session_vwap": 99.0,
-            "session_target_bull": 105.0,
-            "session_target_bear": 95.0,
-        },
-    },
-}
-
-
 def _imbalance_expected(bars: list[tuple[float, float, float, float]]) -> dict[str, Any]:
     df = pd.DataFrame(bars, columns=list(_OHLC_COLS))
     return build_imbalance_lifecycle(snapshot=df)
@@ -253,13 +205,6 @@ def _pool_expected(row: dict[str, Any]) -> dict[str, Any]:
     return build_liquidity_pools(snapshot=df)
 
 
-def _session_expected(fixture: dict[str, Any]) -> dict[str, Any]:
-    row = fixture["row"]
-    df = pd.DataFrame([row]) if row else pd.DataFrame([{"_placeholder": 0}])
-    timestamp = datetime.fromisoformat(fixture["timestamp"]).astimezone(UTC)
-    return build_session_context_block(snapshot=df, timestamp=timestamp)
-
-
 def build_golden() -> dict[str, Any]:
     return {
         "_meta": {
@@ -269,7 +214,6 @@ def build_golden() -> dict[str, Any]:
                 "scripts/smc_imbalance_lifecycle.py",
                 "scripts/smc_liquidity_sweeps.py",
                 "scripts/smc_liquidity_pools.py",
-                "scripts/smc_session_context_block.py",
             ],
             "thresholds": {
                 "imbalance": {
@@ -305,14 +249,6 @@ def build_golden() -> dict[str, Any]:
         "liquidity_pools": {
             name: {"row": row, "expected": _pool_expected(row)}
             for name, row in _POOL_FIXTURES.items()
-        },
-        "session_context": {
-            name: {
-                "timestamp": fixture["timestamp"],
-                "row": fixture["row"],
-                "expected": _session_expected(fixture),
-            }
-            for name, fixture in _SESSION_FIXTURES.items()
         },
     }
 

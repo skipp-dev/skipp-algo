@@ -284,19 +284,6 @@ class SMCFMPClient:
                     payload = resp.read().decode("utf-8")
                 return self._parse(path, payload)
             except urllib.error.HTTPError as exc:
-                if exc.code == 429:
-                    # 429 telemetry — count every hit even when the retry
-                    # rescues it, so lo-provider-rate-limited sees THIS
-                    # consumer too (Grenzgänger-Sweep D3, 2026-08-18; the
-                    # ingest sibling has carried this since the deep-review).
-                    try:
-                        from newsstack_fmp import provider_usage
-
-                        provider_usage.record_rate_limit_hit(
-                            "fmp", endpoint=path, consumer="scripts.smc_fmp_client"
-                        )
-                    except Exception:  # telemetry must not break the fetch
-                        logger.debug("FMP 429 telemetry skipped", exc_info=True)
                 if exc.code in _RETRIABLE_HTTP_CODES:
                     headers = getattr(exc, "headers", None) or {}
                     hint = _parse_retry_after_seconds(

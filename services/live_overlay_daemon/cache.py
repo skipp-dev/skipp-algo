@@ -20,8 +20,6 @@ import time
 from collections import deque
 from typing import Any
 
-from . import config, request_hotspots
-
 logger = logging.getLogger(__name__)
 
 # BarCache: symbol → deque of bar dicts (OHLCV), capped at rolling_bars
@@ -30,8 +28,6 @@ _bars: dict[str, deque[dict[str, Any]]] = {}
 _bar_last_update: dict[str, float] = {}  # symbol → monotonic timestamp of last push
 _rolling_bars_cap: int = 60  # set by feed.py on init
 _max_symbols: int = 2000  # configurable via init_bar_cache()
-_MAX_EXPANDED_BAR_SYMBOLS: int = 32
-_MAX_EXPANDED_BAR_CAP: int = 9_600
 _last_eviction_at: float = 0.0  # monotonic ts of last eviction pass (L5)
 _EVICT_INTERVAL_SECS: float = 60.0  # periodic eviction interval
 # Eviction-log throttle: cap-eviction fires once per new symbol while the cache
@@ -56,59 +52,10 @@ class _EvictSummary:
 
 _evict_summary = _EvictSummary()
 
-
-class _ExpandedBarRetention:
-    """Bounded per-symbol history requirements, mutated under ``_bar_lock``."""
-
-    __slots__ = ("caps", "seen", "tick")
-
-    def __init__(self) -> None:
-        self.caps: dict[str, int] = {}
-        self.seen: dict[str, int] = {}
-        self.tick = 0
-
-    def reset(self) -> None:
-        self.caps.clear()
-        self.seen.clear()
-        self.tick = 0
-
-    def remember(self, symbol: str, required_bars: int) -> int:
-        self.tick += 1
-        retained = max(required_bars, self.caps.get(symbol, 0))
-        self.caps[symbol] = retained
-        self.seen[symbol] = self.tick
-        return retained
-
-
-_expanded_retention = _ExpandedBarRetention()
-
-# 2026-08-18 (Grenzgaenger C1, operator decision "Metrik wird neu
-# geschnitten"): per-symbol depth high-water marks since process start, for
-# expanded-retention symbols only. The absolute readiness ratio needs up to
-# ~160h of accumulated stream against a 15min warmup gate, so the old
-# depth-low alert fired for DAYS after every deploy while the cache refilled
-# — unactionable by construction. Depth falling below the symbol's OWN
-# high-water mark, however, means accumulated history was destroyed
-# (eviction/cap churn) — the real defect — and is meaningful from the first
-# minute after a restart. Entries survive an eviction on purpose (the loss
-# is what they remember) and are pruned only when nobody requests the
-# symbol any more. Guarded by _bar_lock.
-_history_high_water: dict[str, int] = {}
-
 # OverlayCache: symbol → overlay payload dict (pre-computed)
 _overlay_lock = threading.Lock()
 _overlay: dict[str, dict[str, Any]] = {}
 _overlay_computed_at: float = 0.0
-
-# Bar-cache eviction counters. Cap churn had NO metric before 2026-07-22, so
-# the cache thrashing that starved every rolling metric was invisible to
-# monitoring; `evicted_protected_total` rising means the cap is genuinely too
-# small for actual demand (not just for the ALL_SYMBOLS firehose).
-# Mutated in place under `_bar_lock` — no ``global`` statement (statement-budget
-# guard) and trivially resettable in tests.
-_evict_counters: dict[str, int] = {"total": 0, "protected": 0}
-_rejected_bar_counters: dict[str, int] = {"future_ts": 0}
-
 
 # VIX level (updated separately since it's a single value)
 _vix_lock = threading.Lock()
@@ -119,9 +66,7 @@ _vix_level: float | None = None
 # Bar cache API
 # ---------------------------------------------------------------------------
 
-def init_bar_cache(
-    rolling_bars: int, *, max_symbols: int = 2000, preserve_expanded: bool = False
-) -> None:
+def init_bar_cache(rolling_bars: int, *, max_symbols: int = 2000) -> None:
     global _rolling_bars_cap, _max_symbols
     if rolling_bars < 1:
         raise ValueError(f"rolling_bars must be >= 1, got {rolling_bars}")
@@ -130,18 +75,12 @@ def init_bar_cache(
     with _bar_lock:
         _rolling_bars_cap = rolling_bars
         _max_symbols = max_symbols
-        if not preserve_expanded:
-            _expanded_retention.reset()
-            _history_high_water.clear()
         # Apply updated rolling cap to existing symbol deques as well, so a
         # runtime reconfiguration is reflected immediately for already-tracked
         # symbols.
         if _bars:
             for sym, dq in list(_bars.items()):
-                retained_cap = max(
-                    _rolling_bars_cap, _expanded_retention.caps.get(sym, 0)
-                )
-                _bars[sym] = deque(dq, maxlen=retained_cap)
+                _bars[sym] = deque(dq, maxlen=_rolling_bars_cap)
             # Downscaling max_symbols must enforce the hard cap immediately.
             overshoot = len(_bars) - _max_symbols
             if overshoot > 0:
@@ -151,18 +90,6 @@ def init_bar_cache(
 def push_bar(symbol: str, bar: dict[str, Any]) -> None:
     """Append a 1-min OHLCV bar for symbol, evicting stale entries."""
     global _last_eviction_at
-    ts = bar.get("ts_event")
-    if (
-        isinstance(ts, int)
-        and not isinstance(ts, bool)
-        and ts / 1_000_000_000 > time.time() + config.bar_max_future_skew_secs()
-    ):
-        # Keeping one of these would make _latest_bar_age_secs() return None for
-        # the whole symbol, masking the valid bars behind it for as long as it
-        # stays in the deque.
-        with _bar_lock:
-            _rejected_bar_counters["future_ts"] += 1
-        return
     with _bar_lock:
         now = time.monotonic()
         # Seed the eviction clock on first push so periodic eviction can fire
@@ -176,21 +103,16 @@ def push_bar(symbol: str, bar: dict[str, Any]) -> None:
             _evict_n_stale_symbols_locked(overshoot_plus_incoming)
             _last_eviction_at = now
         if symbol not in _bars:
-            retained_cap = _expanded_retention.caps.get(symbol, _rolling_bars_cap)
-            _bars[symbol] = deque(maxlen=max(_rolling_bars_cap, retained_cap))
+            _bars[symbol] = deque(maxlen=_rolling_bars_cap)
         _bars[symbol].append(bar)
         _bar_last_update[symbol] = now
-        if symbol in _expanded_retention.caps:
-            depth = len(_bars[symbol])
-            if depth > _history_high_water.get(symbol, 0):
-                _history_high_water[symbol] = depth
         # L5: periodic eviction so stale symbols don't linger indefinitely
         if (
             _last_eviction_at > 0
             and not need_cap_evict
             and (now - _last_eviction_at) >= _EVICT_INTERVAL_SECS
         ):
-            _evict_stale_symbols_locked(now)
+            _evict_stale_symbols_locked()
             _last_eviction_at = now
 
 
@@ -200,42 +122,6 @@ def get_bars_snapshot(symbol: str) -> list[dict[str, Any]]:
         if symbol not in _bars:
             return []
         return list(_bars[symbol])
-
-
-def ensure_bar_capacity(symbol: str, required_bars: int) -> int:
-    """Retain enough raw bars for one requested symbol, within a hard bound.
-
-    Only the most recently requested 32 symbols receive expanded history.
-    This keeps 1H/4H rolling fields attainable without allocating a 9,600-bar
-    window to every symbol in the ``ALL_SYMBOLS`` firehose.
-    """
-    sym = symbol.upper().strip()
-    if not sym:
-        raise ValueError("symbol must not be empty")
-    if isinstance(required_bars, bool) or required_bars < 1:
-        raise ValueError("required_bars must be a positive integer")
-    bounded_required = min(int(required_bars), _MAX_EXPANDED_BAR_CAP)
-    with _bar_lock:
-        if (
-            sym not in _expanded_retention.caps
-            and len(_expanded_retention.caps) >= _MAX_EXPANDED_BAR_SYMBOLS
-        ):
-            victim = min(
-                _expanded_retention.seen,
-                key=_expanded_retention.seen.__getitem__,
-            )
-            _expanded_retention.caps.pop(victim, None)
-            _expanded_retention.seen.pop(victim, None)
-            if victim in _bars:
-                _bars[victim] = deque(_bars[victim], maxlen=_rolling_bars_cap)
-
-        retained_cap = max(
-            _rolling_bars_cap,
-            _expanded_retention.remember(sym, bounded_required),
-        )
-        if sym in _bars and _bars[sym].maxlen != retained_cap:
-            _bars[sym] = deque(_bars[sym], maxlen=retained_cap)
-        return retained_cap
 
 
 def get_all_symbols_snapshot() -> dict[str, list[dict[str, Any]]]:
@@ -249,145 +135,28 @@ def bar_symbol_count() -> int:
         return len(_bars)
 
 
-def evicted_symbols_total() -> int:
-    """Symbols dropped from the bar cache since process start."""
-    with _bar_lock:
-        return _evict_counters["total"]
-
-
-def evicted_protected_total() -> int:
-    """Evictions that hit a REQUESTED symbol — the cap is too small when >0."""
-    with _bar_lock:
-        return _evict_counters["protected"]
-
-
-def future_dated_bars_rejected_total() -> int:
-    """Bars dropped at ingest for being dated beyond the accepted clock skew.
-
-    Separates "the provider sent an impossible timestamp" from "no data at all";
-    both otherwise surface only as a stale symbol.
-    """
-    with _bar_lock:
-        return _rejected_bar_counters["future_ts"]
-
-
 def total_bar_count() -> int:
     with _bar_lock:
         return sum(len(dq) for dq in _bars.values())
 
 
-def requested_bar_depth() -> tuple[int, float]:
-    """Depth of the bar cache restricted to symbols a consumer actually reads.
-
-    Returns ``(count, mean_bars)`` over the intersection of the cache and
-    ``request_hotspots.requested_symbols()``. This — not the global
-    ``bar_count / bar_symbols`` — is the number that gates the rolling
-    features: with an ``ALL_SYMBOLS`` feed the cache pins at the cap with the
-    unrequested majority holding a single bar, so the global mean sits at ~1.0
-    by design (demand-aware retention, #3903) even while every watched symbol
-    carries full history. ``count`` is 0 when no requested symbol is cached, so
-    callers can leave the "no consumer" case to the request-rate watchdog.
-
-    Lock order matches ``_evict_n_stale_symbols_locked``: hold ``_bar_lock``
-    first, then read the hotspots snapshot, so the two never deadlock.
-    """
-    with _bar_lock:
-        requested = request_hotspots.requested_symbols()
-        depths = [len(_bars[sym]) for sym in requested if sym in _bars]
-    if not depths:
-        return 0, 0.0
-    return len(depths), sum(depths) / len(depths)
-
-
-def requested_bar_history_readiness() -> tuple[int, float]:
-    """Return ``(symbols, minimum readiness ratio)`` for expanded histories."""
-    with _bar_lock:
-        ratios = [
-            min(1.0, len(_bars[sym]) / required)
-            for sym, required in _expanded_retention.caps.items()
-            if sym in _bars
-        ]
-    if not ratios:
-        return 0, 0.0
-    return len(ratios), min(ratios)
-
-
-def requested_bar_history_regressed() -> int:
-    """Count expanded symbols whose depth fell below their own high-water mark.
-
-    2026-08-18 (Grenzgaenger C1): this — not the absolute readiness ratio —
-    is the alertable signal. Readiness needs up to ~160h of accumulated
-    stream to reach 1.0 (the requirement for the largest timeframes), so
-    after every deploy the depth-low alert fired for days while the cache
-    was merely warming. A depth BELOW the symbol's own high-water mark since
-    process start can only mean accumulated history was destroyed
-    (eviction/cap churn shrank or dropped the deque) — the defect the alert
-    exists for — and is meaningful from the first post-restart minute.
-
-    High-water entries deliberately survive an eviction (the loss is what
-    they remember: an evicted-but-still-requested symbol counts as regressed
-    until its depth recovers). Entries are pruned here once the symbol is
-    neither expanded nor requested any more, so a consumer that legitimately
-    stopped watching cannot pin the count above zero forever.
-    """
-    with _bar_lock:
-        requested = request_hotspots.requested_symbols()
-        for sym in list(_history_high_water):
-            if sym not in requested and sym not in _expanded_retention.caps:
-                _history_high_water.pop(sym, None)
-        return sum(
-            1
-            for sym, high_water in _history_high_water.items()
-            if len(_bars.get(sym, ())) < high_water
-        )
-
-
-def _evict_stale_symbols_locked(now: float) -> None:
-    """Evict old, unrequested symbols periodically. Caller MUST hold _bar_lock."""
-    stale_before = now - config.max_stale_secs()
-    protected = request_hotspots.requested_symbols()
-    candidates = {
-        symbol
-        for symbol, updated_at in _bar_last_update.items()
-        if updated_at < stale_before and symbol not in protected
-    }
+def _evict_stale_symbols_locked() -> None:
+    """Evict the 10% least-recently-updated symbols. Caller MUST hold _bar_lock."""
     n_evict = max(1, len(_bars) // 10)
-    _evict_n_stale_symbols_locked(n_evict, candidates=candidates)
+    _evict_n_stale_symbols_locked(n_evict)
 
 
-def _evict_n_stale_symbols_locked(
-    n_evict: int, *, candidates: set[str] | None = None
-) -> None:
+def _evict_n_stale_symbols_locked(n_evict: int) -> None:
     """Evict N least-recently-updated symbols. Caller MUST hold _bar_lock."""
-    available = _bar_last_update.keys() if candidates is None else candidates
-    if not available:
+    if not _bar_last_update:
         return
-    n_evict = max(0, min(n_evict, len(available)))
+    n_evict = max(0, min(n_evict, len(_bars)))
     if n_evict == 0:
         return
-    # Demand-aware retention: with an ALL_SYMBOLS feed every tracked symbol
-    # ticks about once a minute, so `_bar_last_update` is near-uniform and
-    # sorting by it alone evicts essentially at random — including the few
-    # symbols someone is actually watching. Observed 2026-07-22 in production:
-    # bar_symbols pinned at the 2000 cap with bar_count also 2000, i.e. ONE bar
-    # per symbol, so every rolling metric (relative volume needs 19 prior bars,
-    # squeeze 20, ATS z-score history) was structurally unavailable and the
-    # sidecar's technical feed rendered "—" for every symbol.
-    # Requested symbols are therefore evicted only when nothing else is left;
-    # the cap stays a hard limit.
-    protected = request_hotspots.requested_symbols()
-    victims = sorted(
-        available,
-        key=lambda s: (s in protected, _bar_last_update[s]),
-    )[:n_evict]
+    victims = sorted(_bar_last_update, key=lambda s: _bar_last_update[s])[:n_evict]
     for sym in victims:
         _bars.pop(sym, None)
         _bar_last_update.pop(sym, None)
-        _expanded_retention.caps.pop(sym, None)
-        _expanded_retention.seen.pop(sym, None)
-        _evict_counters["total"] += 1
-        if sym in protected:
-            _evict_counters["protected"] += 1
     logger.debug("Evicted %d stale symbols from bar cache (cap=%d)", len(victims), _max_symbols)
 
     # Throttle the INFO line: aggregate churn and emit at most one summary per
@@ -493,46 +262,8 @@ def set_vix(level: float) -> None:
         return
     with _vix_lock:
         _vix_level = level
-        _vix_updated_at["ts"] = time.monotonic()
 
 
 def get_vix() -> float | None:
     with _vix_lock:
         return _vix_level
-
-
-# Monotonic timestamp of the last ACCEPTED set_vix. Kept in a mutable holder
-# (declared below the pinned `global` sites) instead of a rebound module global:
-# a new `global` statement would add a site to the global-statement budget
-# ledger. Mirrors the feed._runtime precedent.
-_vix_updated_at: dict[str, float] = {}
-
-
-def vix_age_secs() -> float:
-    """Seconds since the last accepted VIX refresh (``inf`` before the first).
-
-    Rejected non-finite quotes do not stamp the timestamp, so a poll loop that
-    only ever yields garbage keeps ageing instead of masquerading as fresh.
-    """
-    with _vix_lock:
-        ts = _vix_updated_at.get("ts")
-    return float("inf") if ts is None else time.monotonic() - ts
-
-
-# Same threshold the lo-vix-unavailable Grafana alert fires on: the FMP ^VIX
-# poll runs on OVERLAY_REFRESH_SECS (default 1800s), so 5400s is three
-# consecutive missed polls.
-VIX_MAX_AGE_SECS = 5400.0
-
-
-def get_vix_fresh(max_age_secs: float = VIX_MAX_AGE_SECS) -> float | None:
-    """VIX level, or ``None`` once it is older than ``max_age_secs``.
-
-    Wire consumers only ever see ``vix_level``, never ``vix_age_seconds``, so a
-    frozen level is indistinguishable from a live quote for them. ``get_vix()``
-    stays deliberately un-gated for the /metrics export, which publishes the age
-    next to the level and lets the dashboard gate on it.
-    """
-    if vix_age_secs() > max_age_secs:
-        return None
-    return get_vix()

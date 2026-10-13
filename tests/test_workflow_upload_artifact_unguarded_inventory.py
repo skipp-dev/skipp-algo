@@ -23,12 +23,7 @@ WORKFLOWS_DIR = ROOT / ".github" / "workflows"
 # the default ``if: success()``. Each entry must have a corresponding
 # F-V4-D2 intent comment in the workflow itself (grep for F-V4-D2).
 ALLOWED_UNGUARDED: frozenset[str] = frozenset({
-    # 2026-07-31 (issue #298): the sole entry,
-    # "public-calibration-dashboard.yml", was removed together with that
-    # workflow — c13-daily-cron.yml now owns the published calibration
-    # report, and its "Upload daily artefacts" step is `if: always()`
-    # (guarded), so it does not belong here. Empty is the correct state:
-    # every remaining upload-artifact step carries an `if:` guard.
+    "public-calibration-dashboard.yml", # published calibration report
 })
 
 

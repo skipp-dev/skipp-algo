@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Literal
+from typing import Any
 
 import pandas as pd
 
@@ -50,48 +50,7 @@ def _coerce_bars(df: pd.DataFrame) -> pd.DataFrame:
     return out.sort_values(["symbol", "timestamp"]).reset_index(drop=True)
 
 
-def _source_step(timestamps: pd.Series) -> pd.Timedelta | None:
-    """Smallest positive spacing between consecutive source bars; None if undefined."""
-    diffs = timestamps.sort_values().diff()
-    diffs = diffs[diffs > pd.Timedelta(0)]
-    return None if diffs.empty else diffs.min()
-
-
-def resample_bars_to_timeframe(
-    df: pd.DataFrame,
-    timeframe: str,
-    *,
-    source_stamp: Literal["start", "end"] = "start",
-) -> pd.DataFrame:
-    """Aggregate finer bars into ``timeframe`` bars, each labelled by its END.
-
-    ``source_stamp`` says what the timestamps of the SOURCE bars mean:
-
-    * ``"start"`` (default) — a bar stamped ``T`` covers ``[T, T + step)``.
-      That is how every vendor frame this repo ingests is stamped (Databento
-      ``ohlcv-1m`` ``ts_event`` is the start of the minute; measured on
-      2026-10-02 at the opening-auction volume, which sits at ``13:30`` UTC,
-      not ``13:31``). The minute stamped ``13:30`` therefore belongs to the
-      bar ``[13:30, 13:45)``, labelled ``13:45``.
-    * ``"end"`` — a bar stamped ``T`` covers ``(T - step, T]``. Only this
-      function's own output is stamped that way; pass it when re-aggregating
-      such output to a higher timeframe.
-
-    Until 2026-10-02 the function treated every source as end-stamped. Fed the
-    start-stamped 1m frame, it put the minute ``13:30`` into the bar ending
-    ``13:30`` — every intraday bar was shifted by one source bar against the
-    exchange grid, and the opening minute of the regular session landed in the
-    last pre-market bar (ADR-0031, Nachtrag 2026-10-02 III).
-
-    Bars that are ALREADY at the target timeframe are passed through unchanged:
-    a frame whose timestamps all sit on the target grid with at most one bar
-    per bucket carries nothing to aggregate, and its stamps stay the caller's.
-
-    The trailing bucket is dropped unless the source reaches its last sub-bar,
-    so a bar still forming is never served as a confirmed one.
-    """
-    if source_stamp not in ("start", "end"):
-        raise ValueError(f"source_stamp must be 'start' or 'end', got {source_stamp!r}")
+def resample_bars_to_timeframe(df: pd.DataFrame, timeframe: str) -> pd.DataFrame:
     canonical_tf = _canonical_timeframe(timeframe)
     freq = _TIMEFRAME_TO_PANDAS_FREQ[canonical_tf]
     bars = _coerce_bars(df)
@@ -122,24 +81,7 @@ def resample_bars_to_timeframe(
         grouped = group.sort_values("timestamp").copy()
         max_source_ts = grouped["timestamp"].max()
         floored = grouped["timestamp"].dt.floor(freq)
-        on_grid = grouped["timestamp"].eq(floored)
-
-        # Already at the target timeframe: nothing to aggregate.
-        if canonical_tf != "1D" and bool(on_grid.all()) and not bool(floored.duplicated().any()):
-            passthrough = grouped[["timestamp", "open", "high", "low", "close", "volume"]].reset_index(drop=True)
-            passthrough.insert(0, "symbol", symbol)
-            parts.append(passthrough)
-            continue
-
-        if source_stamp == "end":
-            # The bar stamped T is the LAST sub-bar of the bucket ending at T.
-            grouped["bucket_end"] = floored.where(on_grid, floored + bucket_offset)
-            last_complete_through = max_source_ts
-        else:
-            # The bar stamped T is the FIRST sub-bar of the bucket [T, T + freq).
-            grouped["bucket_end"] = floored + bucket_offset
-            step = _source_step(grouped["timestamp"])
-            last_complete_through = max_source_ts + step if step is not None else max_source_ts
+        grouped["bucket_end"] = floored.where(grouped["timestamp"].eq(floored), floored + bucket_offset)
         agg = (
             grouped.groupby("bucket_end", sort=True, dropna=True)
             .agg(
@@ -154,7 +96,7 @@ def resample_bars_to_timeframe(
         )
         # BAR-CLOSE-EXEMPT: offline batch aggregation script. Reads a finished
         # historical bar series and trims a partial trailing bucket whose end
-        # lies beyond what the source covers. There is no live trading loop
+        # exceeds the source's max timestamp. There is no live trading loop
         # here — the tail-row indexer reads a closed historical bar, not the
         # chart's current candle (system review 2026-04-24 / iloc-guard ledger).
         # NOTE: this comment block intentionally avoids the literal token so
@@ -167,7 +109,7 @@ def resample_bars_to_timeframe(
             not agg.empty
             and pd.notna(max_source_ts)
             and pd.Timestamp(agg["timestamp"].iloc[-1])
-            > pd.Timestamp(last_complete_through)
+            > pd.Timestamp(max_source_ts)
         ):
             # BAR-CLOSE-EXEMPT: drops the partial trailing bucket detected above.
             agg = agg.iloc[:-1]

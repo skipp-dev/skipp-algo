@@ -33,70 +33,47 @@ root or `pine/legacy/` must be indexed below, and no basename may
 appear in both locations — see
 [`scripts/check_pine_legacy_drift.py`](scripts/check_pine_legacy_drift.py).
 
-## SMC product surfaces
+## Active SMC suite (DO NOT touch in legacy sweeps)
 
-The canonical machine-readable lifecycle is
-[`scripts/smc_bus_manifest.py`](scripts/smc_bus_manifest.py). This index is a
-human-readable compatibility view and must not introduce a second
-classification.
+These are the canonical TradingView library + consumer files, pinned by
+[`artifacts/tradingview/library_release_manifest.json`](artifacts/tradingview/library_release_manifest.json):
 
-### Deployed standard rollout
+| File                              | Role          |
+|-----------------------------------|---------------|
+| `SMC_Long_Dip_Suite.pine`            | core engine   |
+| `SMC_Long_Dip_Dashboard.pine`              | consumer      |
+| `SMC_Long_Dip_Mobile.pine`       | consumer      |
+| `SMC_Long_Dip_Strategy.pine`          | strategy      |
+| `SMC_Confluence_Hub.pine`       | consumer (active — see note below) |
+| `SMC_Structure_Context.pine`      | overlay       |
+| `SMC_Session_Context.pine`        | overlay       |
+| `SMC_Profile_Context.pine`        | overlay       |
+| `SMC_Orderflow_Overlay.pine`      | overlay       |
+| `SMC_Liquidity_Structure.pine`    | overlay       |
+| `SMC_Liquidity_Context.pine`      | overlay       |
+| `SMC_Imbalance_Context.pine`      | overlay       |
+| `SMC_HTF_Confluence.pine`         | overlay       |
+| `SMC_Event_Overlay.pine`          | overlay       |
+| `SMC_Breakout_Overlay.pine`       | overlay       |
+| `SMC_Volume_Profile_Overlay.pine`           | overlay       |
+| `SMC_Exit_Signal.pine`            | consumer      |
+| `SMC_Hold_Manager.pine`           | consumer      |
+| `SMC_Long_Dip_Alerts.pine`        | consumer      |
+| `SMC_Regime_and_News.pine`              | bridge        |
+| `SMC_Setup_Check.pine`            | diagnostic    |
+| `pine/skipp_calibration.pine`     | library       |
+| `pine/skipp_indicators.pine`      | library       |
+| `pine/skipp_labels.pine`          | library       |
+| `pine/skipp_math.pine`            | library       |
+| `pine/skipp_scoring.pine`         | library       |
+| `pine/generated/*`                | code-generated |
 
-These eight files are the current managed TradingView save targets:
-
-| File | Role |
-|---|---|
-| `SMC_Long_Dip_Suite.pine` | Engine BUS v2 producer |
-| `SMC_Breakout_Overlay.pine` | deployed overlay consumer |
-| `SMC_Confluence_Hub.pine` | deployed confluence consumer |
-| `SMC_Long_Dip_Alerts.pine` | deployed alert consumer |
-| `SMC_Decision_Board.pine` | deployed dashboard consumer |
-| `SMC_Long_Dip_Mobile.pine` | deployed mobile consumer |
-| `SMC_Long_Dip_Strategy.pine` | deployed execution consumer |
-| `SMC_Setup_Check.pine` | deployed setup and binding diagnostic |
-
-### Planned rollout
-
-These sources exist, but are not part of the current managed rollout:
-
-| File | Target state |
-|---|---|
-| `SMC_Event_Overlay.pine` | planned standard companion |
-| `SMC_Exit_Signal.pine` | planned standard companion |
-| `SMC_Hold_Manager.pine` | planned standard companion after its readiness gates |
-| `SMC_Volume_Profile_Overlay.pine` | planned optional companion |
-| `SMC_Context_Bus.pine` | R4 shadow producer; source exists but is not deployed until private runtime gates pass |
-| `SMC_Context_Overlay.pine` | R4 non-gating shadow consumer; source exists but is not deployed until binding and parity gates pass |
-
-### Replacement or retirement pending
-
-The seven snapshot-era context files below are known-broken against the
-current generated micro-profile contract. They remain at the root only until
-their documented replacement or archive gate is complete. They are not active
-rollout targets.
-
-| File | State |
-|---|---|
-| `SMC_HTF_Confluence.pine` | replacement pending |
-| `SMC_Imbalance_Context.pine` | replacement pending |
-| `SMC_Liquidity_Context.pine` | replacement pending |
-| `SMC_Liquidity_Structure.pine` | replacement pending |
-| `SMC_Profile_Context.pine` | replacement pending |
-| `SMC_Session_Context.pine` | replacement pending |
-| `SMC_Structure_Context.pine` | replacement pending |
-| `SMC_Orderflow_Overlay.pine` | retirement pending; live orderflow belongs in the Databento backend |
-| `SMC_Regime_and_News.pine` | retired, network-inert compatibility tombstone |
-
-### Published Pine libraries and generated sources
-
-| File | Role |
-|---|---|
-| `pine/skipp_calibration.pine` | library |
-| `pine/skipp_indicators.pine` | library |
-| `pine/skipp_labels.pine` | library |
-| `pine/skipp_math.pine` | library |
-| `pine/skipp_scoring.pine` | library |
-| `pine/generated/*` | code-generated |
+> **Note on `SMC_Confluence_Hub.pine`**: the audit listed it as legacy,
+> but it appears in the active consumer set in
+> [`docs/freeze_exit_checklist_wp_f.md`](docs/freeze_exit_checklist_wp_f.md)
+> and is referenced by `scripts/audit_library_consumers.py`. Status
+> reclassified to **active**. If the audit was correct that it's
+> dead, that needs a separate D-1 v2 verification PR before any move.
 
 ## Legacy / standalone (not in active SMC manifest)
 
@@ -128,8 +105,6 @@ Generated 2026-04-24 by enumerating root-level `*.pine` files that are
 | `USI-Flip.pine`                                             |  209 | LEGACY      |                                                |
 | `REV-Ladder-CHoCH.pine`                                     |  157 | LEGACY      |                                                |
 | `Volume_Weighted_Trend_SkippAlgo.pine`                      |   81 | LEGACY      |                                                |
-| `SMC_HTF_Confluence_v1_snapshot.pine`                       |  101 | LEGACY      | R5 snapshot-era HTF consumer; rollback reference for the confirmed rebuild |
-| `SMC_Session_Context_v1_snapshot.pine`                      |   56 | LEGACY      | R5 snapshot-era Session consumer; rollback reference for the IANA rebuild |
 | `test_div.pine`                                             |   ~ | TEST FIXTURE | not legacy — used by lint tests               |
 
 **Total legacy LOC**: ~12 000 lines across 24 files.
@@ -149,22 +124,16 @@ Generated 2026-04-24 by enumerating root-level `*.pine` files that are
 
 When adding a new `.pine` file at the repo root:
 
-1. If it belongs to the SMC product → classify it once in
-   [`scripts/smc_bus_manifest.py`](scripts/smc_bus_manifest.py). Generated
-   manifests, rollout gates, lifecycle views, and this human index must agree
-   with that registry.
-2. If it is a one-off or historical tool → move or add it under
-   `pine/legacy/` and record it in **Legacy / standalone** with the LOC and a
-   one-line note.
+1. If it belongs to the SMC suite → add to the **Active SMC suite**
+   table here AND to
+   [`artifacts/tradingview/library_release_manifest.json`](artifacts/tradingview/library_release_manifest.json).
+2. If it is a one-off / experiment → add to **Legacy / standalone**
+   here with the LOC and a one-line note.
 
 **Drift detection is enforced in CI.**
 [`scripts/check_pine_legacy_drift.py`](scripts/check_pine_legacy_drift.py)
-runs together with the Pine surface-registry gate in
-[`smc-fast-pr-gates`](.github/workflows/smc-fast-pr-gates.yml) and fails the
-build whenever:
+runs as part of [`smc-fast-pr-gates`](.github/workflows/smc-fast-pr-gates.yml)
+and fails the build whenever:
 
 - A root-level `*.pine` file is missing from this index, **or**
-- A physical file mentioned in this index is missing from the root or
-  `pine/legacy/`, **or**
-- Registry lifecycle, rollout configuration, BUS dependencies, or known
-  micro-profile debt drift from their canonical contracts.
+- A file mentioned in this index is missing from the repo root.

@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 
 import { hasExpectedImportPathEvidence } from "./tv_publish_import_path_evidence.js";
 import {
+  addCurrentScriptToChart,
   assertNoVisibleCompileError,
   closeTradingViewSession,
   collectOpenScriptIdentityTexts,
@@ -403,8 +404,8 @@ function buildDefaultConsumers(): LibraryReleaseManifest["consumers"] {
       role: "producer",
     },
     {
-      scriptName: "SMC Decision Board",
-      file: "SMC_Decision_Board.pine",
+      scriptName: "SMC Long-Dip Dashboard",
+      file: "SMC_Long_Dip_Dashboard.pine",
       role: "dashboard_companion",
     },
     {
@@ -439,10 +440,6 @@ export function readProductCutSummary(): ProductCutSummary {
       proOnly: [],
       dashboardBindings: [],
       strategyBindings: [],
-      holdManagerBindings: [],
-      eventOverlayBindings: [],
-      exitSignalBindings: [],
-      contextOverlayBindings: [],
     },
     preflightScopes: payload.preflightScopes ?? {},
     deprecatedFieldPolicy: payload.deprecatedFieldPolicy ?? {
@@ -467,8 +464,6 @@ export function readProductCutSummary(): ProductCutSummary {
     || !Array.isArray(summary.preflightScopes.smcCoreDashboard)
     || !Array.isArray(summary.preflightScopes.smcMainline)
     || !Array.isArray(summary.preflightScopes.smcDecisionFirst)
-    || !Array.isArray(summary.preflightScopes.smcHoldManagerShadow)
-    || !Array.isArray(summary.preflightScopes.smcR1Companions)
     || summary.deprecatedFieldPolicy.mode !== "compatibility_only"
     || summary.deprecatedFieldPolicy.preferredFieldVersion.length === 0
     || summary.deprecatedFieldPolicy.extensionAllowed !== false
@@ -767,28 +762,6 @@ function expectedImportPathMatchesVersion(expectedImportPath: string, expectedVe
   return versionSegment === String(expectedVersion);
 }
 
-/**
- * Version 1 is the known-stale sentinel, never a real published version.
- *
- * The generator runs BEFORE the publish, so it cannot know the version it is
- * about to get and regenerates `library_version: 1` /
- * `recommended_import_path: .../1` every time. On main today the consumers pin
- * /179 while the generated artifact still says 1.
- *
- * That matters here because the promote below corroborates
- * `expectedVersion` against `expectedImportPath` — and BOTH come from that same
- * artifact, so the check compares 1 against 1 and can never fail. The only real
- * evidence is the facade probe, which is documented fail-open (null on any
- * error). When it falls through, the promote used to write
- * `library_release_manifest.json` with expectedVersion 1, replacing a correct
- * 179 with the sentinel.
- *
- * `smc-library-refresh.yml` already refuses the same value for the consumer
- * repin — "A modern publish can never legitimately be version 1 again — treat
- * it as broken evidence". This is that rule where the manifest is written.
- */
-const STALE_LIBRARY_VERSION_SENTINEL = 1;
-
 export function shouldPromotePublishConfirmationVersionEvidence(options: {
   publishConfirmed: boolean;
   publishSurfaceClosedAfterConfirm: boolean;
@@ -804,7 +777,7 @@ export function shouldPromotePublishConfirmationVersionEvidence(options: {
     && options.identityVerificationMode === "script_context"
     && options.versionVerificationMode === "not_verified"
     && Number.isInteger(options.expectedVersion)
-    && options.expectedVersion > STALE_LIBRARY_VERSION_SENTINEL
+    && options.expectedVersion > 0
     && expectedImportPathMatchesVersion(options.expectedImportPath, options.expectedVersion);
 }
 
@@ -869,26 +842,13 @@ export async function runPublishMicroLibraryCli(): Promise<number> {
       await saveScript(session.page, details.libraryName);
       await waitForPostSaveCompileSettlement(session.page, details.libraryName);
       await assertNoVisibleCompileError(session.page);
+      await addCurrentScriptToChart(session.page, details.libraryName);
       await takeScreenshot(session.page, runId, `${details.libraryName}-compiled`, screenshots);
 
       publishAttempted = true;
-      // Bound outside the failure closure: TypeScript loses the non-null
-      // narrowing of `details` (a mutable outer binding) inside a callback.
-      const publishLibraryName = details.libraryName;
       const publishResult = await publishPrivateScript(session.page, {
-        scriptName: publishLibraryName,
-        title: publishLibraryName,
-        publishMode: openedExistingScript ? "update_existing" : "auto",
-      }).catch(async (publishError: unknown) => {
-        // 2026-07-31 (issue #4238): a failing publish shipped NO screenshot of
-        // its own failure. The outer catch cannot take one — the enclosing
-        // `finally` has already closed the session by then — so the only image
-        // in the report was the pre-publish "-compiled" shot, taken before
-        // anything went wrong. Capture the actual failure frame here, while the
-        // page is still alive, then rethrow unchanged.
-        await takeScreenshot(session.page, runId, `${publishLibraryName}-publish-failed`, screenshots)
-          .catch(() => undefined);
-        throw publishError;
+        scriptName: details.libraryName,
+        title: details.libraryName,
       });
       publishNoChangeDetected = publishResult.noChangeDetected;
       publishConfirmed = publishConfirmed || publishResult.publishConfirmed;
@@ -979,7 +939,6 @@ export async function runPublishMicroLibraryCli(): Promise<number> {
             const retryPublishResult = await publishPrivateScript(session.page, {
               scriptName: details.libraryName,
               title: details.libraryName,
-              publishMode: openedExistingScript ? "update_existing" : "auto",
             });
             publishNoChangeDetected = publishNoChangeDetected || retryPublishResult.noChangeDetected;
             publishConfirmed = publishConfirmed || retryPublishResult.publishConfirmed;

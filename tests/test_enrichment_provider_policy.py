@@ -54,10 +54,9 @@ class TestPolicyDeclarations:
     def test_news_is_fmp_primary_with_explicit_fallback_chain(self):
         # newsapi_ai dropped 2026-07-08 (subscription cancelled — a dead key
         # in the chain burned a doomed third attempt on every double-failure).
-        # 2026-10-08: operator stopped every FMP news query; Benzinga carries news alone
-        assert POLICY_NEWS.primary == "benzinga"
-        assert POLICY_NEWS.fallbacks == ()
-        assert POLICY_NEWS.all_providers == ("benzinga",)
+        assert POLICY_NEWS.primary == "fmp"
+        assert POLICY_NEWS.fallbacks == ("benzinga",)
+        assert POLICY_NEWS.all_providers == ("fmp", "benzinga")
 
     def test_calendar_is_fmp_primary_no_working_fallback(self):
         # Benzinga fallback dropped 2026-07-09: our only Benzinga key is a Massive
@@ -102,18 +101,15 @@ class TestProviderSuccess:
         assert result.data["regime"] == "RISK_ON"
         assert result.stale == []
 
-    @patch("scripts.smc_provider_policy.fetch_news_benzinga")
     @patch("scripts.smc_provider_policy.fetch_news_fmp")
-    def test_news_success_returns_benzinga_and_never_queries_fmp(self, mock_fmp, mock_bz):
-        # 2026-10-08: operator stopped every FMP news query
-        mock_bz.return_value = ProviderResult(
+    def test_news_success_returns_fmp_provider(self, mock_fn):
+        mock_fn.return_value = ProviderResult(
             data={"bullish_tickers": ["AAPL"], "bearish_tickers": []},
-            provider="benzinga",
+            provider="fmp",
         )
-        result = resolve_domain("news", fmp=MagicMock(), benzinga_api_key="bz-key", symbols=["AAPL"])
+        result = resolve_domain("news", fmp=MagicMock(), symbols=["AAPL"])
         assert result.ok is True
-        assert result.provider == "benzinga"
-        mock_fmp.assert_not_called()
+        assert result.provider == "fmp"
 
     @patch("scripts.smc_provider_policy.fetch_calendar_fmp")
     def test_calendar_success_returns_fmp_provider(self, mock_fn):
@@ -153,7 +149,7 @@ class TestProviderUnavailable:
         result = resolve_domain("news", fmp=None, benzinga_api_key="", symbols=["AAPL"])
         assert result.ok is False
         assert result.provider == "none"
-        assert "fmp" not in result.stale  # FMP news no longer in the chain (2026-10-08)
+        assert "fmp" in result.stale
         assert "benzinga" in result.stale
         # Retired 2026-07-08: the dead newsapi_ai key must no longer be tried.
         assert "newsapi_ai" not in result.stale
@@ -187,8 +183,8 @@ class TestPartialProviderAvailability:
 
     @patch("scripts.smc_provider_policy.fetch_news_benzinga")
     @patch("scripts.smc_provider_policy.fetch_news_fmp")
-    def test_news_benzinga_carries_news_without_any_fmp_attempt(self, mock_fmp, mock_bz):
-        mock_fmp.side_effect = RuntimeError("FMP must not be called")
+    def test_news_fmp_fails_benzinga_succeeds(self, mock_fmp, mock_bz):
+        mock_fmp.side_effect = RuntimeError("FMP timeout")
         mock_bz.return_value = ProviderResult(
             data={"bullish_tickers": ["NVDA"], "bearish_tickers": []},
             provider="benzinga",
@@ -198,8 +194,7 @@ class TestPartialProviderAvailability:
         )
         assert result.ok is True
         assert result.provider == "benzinga"
-        mock_fmp.assert_not_called()
-        assert "fmp" not in result.stale
+        assert "fmp" in result.stale
         assert result.data["bullish_tickers"] == ["NVDA"]
 
     @patch("scripts.smc_provider_policy.fetch_news_newsapi_ai")
@@ -229,10 +224,9 @@ class TestPartialProviderAvailability:
         mock_newsapi.assert_not_called()
         assert result.ok is False
         assert result.provider == "none"
-        assert result.stale == ["benzinga"]
+        assert result.stale == ["fmp", "benzinga"]
         attempts = result.meta["attempts"]
-        assert [attempt["provider"] for attempt in attempts] == ["benzinga"]
-        mock_fmp.assert_not_called()
+        assert [attempt["provider"] for attempt in attempts] == ["fmp", "benzinga"]
 
     @patch("scripts.smc_provider_policy.fetch_calendar_benzinga")
     @patch("scripts.smc_provider_policy.fetch_calendar_fmp")
@@ -274,8 +268,7 @@ class TestPartialProviderAvailability:
         )
         assert result.ok is False
         assert result.provider == "none"
-        assert "fmp" not in result.stale
-        mock_fmp.assert_not_called()
+        assert "fmp" in result.stale
         assert "benzinga" in result.stale
         # Retired 2026-07-08: the dead newsapi_ai key must no longer be tried.
         assert "newsapi_ai" not in result.stale

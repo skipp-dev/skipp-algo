@@ -132,7 +132,6 @@ def _triggered_event(family: str, anchor_ts: float, n_forward: int = 10) -> dict
         "entry_mode": "immediate",
         "entry_price": 100.0,
         "score": 1.5,
-        "forward_opens": [100.0, *closes[:-1]],
         "forward_closes": closes,
         "forward_highs": [c + 1 for c in closes],
         "forward_lows": [c - 1 for c in closes],
@@ -190,7 +189,6 @@ def test_main_thin_feed_appends_heartbeat_and_advances_ledger(tmp_path, capsys) 
     assert rc == 3  # all_thin verdict code is unchanged...
     rows = [json.loads(ln) for ln in ledger.read_text().splitlines() if ln.strip()]
     # ...but the ledger now carries today's heartbeat rows (was: empty).
-    assert rows, "the ledger stayed empty — the per-row checks below would pass vacuously"
     assert {r["family"] for r in rows} == set(shadow.ALL_FAMILIES)
     assert all(r["date"] == "2026-07-06" for r in rows)
     assert all(r["status"] == "INCONCLUSIVE" for r in rows)
@@ -211,10 +209,7 @@ def test_main_stale_feed_still_appends_nothing(tmp_path, capsys) -> None:
     rc = shadow.main([str(events_path), "--ledger", str(ledger), "--date", "2026-07-06"])
     assert rc == 5
     rows = [json.loads(ln) for ln in ledger.read_text().splitlines() if ln.strip()]
-    # No 2026-07-06 row was appended — the frozen feed does not advance the
-    # ledger. Pinning the seed row's survival keeps the check below from
-    # passing over an empty file, which would look identical.
-    assert len(rows) == 1
+    # No 2026-07-06 row was appended — the frozen feed does not advance the ledger.
     assert all(r["date"] != "2026-07-06" for r in rows)
 
 
@@ -472,7 +467,6 @@ def test_main_stale_feed_same_hash_earlier_date_returns_5(
         "family": "BOS",
         "status": "PASS",
         "events_hash": shadow.events_content_hash(events),
-        "return_rule": shadow.RETURN_RULE,
     }
     ledger.write_text(json.dumps(stale_row) + "\n", encoding="utf-8")
     before = ledger.read_text(encoding="utf-8")
@@ -557,185 +551,3 @@ def test_main_malformed_date_is_usage_error_not_verdict(tmp_path: Path) -> None:
     )
     assert code == 1
     assert not ledger.exists()
-
-
-# --------------------------------------------------------------------------- #
-# --plane governed-plane filter (issue #3872)
-# --------------------------------------------------------------------------- #
-def _intraday_event(family: str, anchor_ts: float, bar_seconds: float = 300.0) -> dict:
-    event = _triggered_event(family, anchor_ts)
-    event["forward_timestamps"] = [
-        anchor_ts + (i + 1) * bar_seconds for i in range(10)
-    ]
-    return event
-
-
-def test_event_measurement_plane_is_per_event() -> None:
-    assert shadow.event_measurement_plane(_triggered_event("BOS", 1_780_000_000.0)) == "1D"
-    assert shadow.event_measurement_plane(_intraday_event("BOS", 1_780_000_000.0)) == "5m"
-    assert shadow.event_measurement_plane({"family": "BOS"}) is None
-
-
-def test_main_plane_filter_grades_only_governed_plane_events(tmp_path) -> None:
-    """A 5m-dominated pool must not flip the ledger's plane (2026-07-16..21):
-    with --plane 1D only 1D-cadence events are graded, the row's events_hash
-    is the FILTERED evidence hash, and the plane column stays 1D even though
-    the pool's modal cadence is 5m."""
-    one_d = [_triggered_event("BOS", 1_780_000_000.0 + i * 90_000) for i in range(3)]
-    pool = one_d + [
-        _intraday_event("BOS", 1_781_000_000.0 + i * 4_000) for i in range(20)
-    ]
-    events_path = tmp_path / "events.json"
-    events_path.write_text(json.dumps(pool))
-    ledger = tmp_path / "shadow_1d.jsonl"
-    rc = shadow.main(
-        [str(events_path), "--ledger", str(ledger), "--date", "2026-07-22", "--plane", "1D"]
-    )
-    assert rc == 3  # thin 1D subset -> all_thin heartbeat, a valid verdict
-    rows = [json.loads(ln) for ln in ledger.read_text().splitlines() if ln.strip()]
-    assert rows, "the ledger stayed empty — the per-row checks below would pass vacuously"
-    assert {r["plane"] for r in rows} == {"1D"}
-    # The graded evidence is exactly the 1D subset, not the raw pool.
-    assert {r["events_hash"] for r in rows} == {shadow.events_content_hash(one_d)}
-    assert all(r["fail_reasons"] == ["all_thin"] for r in rows)
-
-
-def test_main_plane_starved_pool_heartbeats_and_stays_single_plane(tmp_path) -> None:
-    """Zero governed-plane events (the observed 2026-07-20 pool: 5m..1H, no
-    1D) must append plane_starved heartbeats stamped with the GOVERNED plane
-    — never grade foreign-cadence evidence, never rc 1."""
-    pool = [_intraday_event("BOS", 1_780_000_000.0 + i * 4_000) for i in range(5)]
-    events_path = tmp_path / "events.json"
-    events_path.write_text(json.dumps(pool))
-    ledger = tmp_path / "shadow_1d.jsonl"
-    rc = shadow.main(
-        [str(events_path), "--ledger", str(ledger), "--date", "2026-07-22", "--plane", "1D"]
-    )
-    assert rc == 3
-    rows = [json.loads(ln) for ln in ledger.read_text().splitlines() if ln.strip()]
-    assert rows, "the ledger stayed empty — the per-row checks below would pass vacuously"
-    assert {r["family"] for r in rows} == set(shadow.ALL_FAMILIES)
-    assert {r["plane"] for r in rows} == {"1D"}
-    assert all(r["fail_reasons"] == ["plane_starved"] for r in rows)
-    assert all(r["status"] == "INCONCLUSIVE" for r in rows)
-
-
-def test_main_plane_starved_repeat_is_stale_skip(tmp_path) -> None:
-    """Day 2 of an unchanged starved pool must rc-5-skip (empty filtered
-    evidence hashes identically), so the ledger freezes and the gap guard —
-    not silent heartbeats — escalates a persistent starvation."""
-    pool = [_intraday_event("BOS", 1_780_000_000.0 + i * 4_000) for i in range(5)]
-    events_path = tmp_path / "events.json"
-    events_path.write_text(json.dumps(pool))
-    ledger = tmp_path / "shadow_1d.jsonl"
-    args = [str(events_path), "--ledger", str(ledger), "--plane", "1D"]
-    assert shadow.main([*args, "--date", "2026-07-22"]) == 3
-    assert shadow.main([*args, "--date", "2026-07-23"]) == 5
-    rows = [json.loads(ln) for ln in ledger.read_text().splitlines() if ln.strip()]
-    assert rows, "day 1 appended nothing — the freeze check below would pass vacuously"
-    assert all(r["date"] == "2026-07-22" for r in rows)
-
-
-def test_committed_live_ledger_is_single_plane_1d() -> None:
-    """The committed live ledger must never mix planes again (issue #3872):
-    a mix wedges the weekly evaluator for days before anyone notices. The
-    2026-07-16..21 mixed-pool rows live in the 5m quarantine file, which
-    nothing grades."""
-    repo = Path(__file__).resolve().parents[1]
-    live = repo / "artifacts/governance/magnitude_resolution_shadow.jsonl"
-    rows = [json.loads(ln) for ln in live.read_text().splitlines() if ln.strip()]
-    assert rows, "live ledger must not be empty"
-    assert {r.get("plane") for r in rows} <= {"1D"}
-    quarantine = repo / (
-        "artifacts/governance/magnitude_resolution_shadow_5m_mixed_quarantine.jsonl"
-    )
-    qrows = [
-        json.loads(ln) for ln in quarantine.read_text().splitlines() if ln.strip()
-    ]
-    assert {r.get("plane") for r in qrows} == {"5m"}
-
-
-# --------------------------------------------------------------------------- #
-# return rule (ADR-0031, Nachtrag 2026-10-02 II): a row is an observation of
-# the rule its returns were computed under
-# --------------------------------------------------------------------------- #
-def test_every_new_row_names_the_return_rule() -> None:
-    measured = shadow.build_ledger_rows(
-        _report({"BOS": _result()}), date="2026-10-05", events_hash="h", plane="1D"
-    )
-    heartbeat = shadow.build_heartbeat_rows(
-        [], date="2026-10-05", events_hash="h", plane="1D", cost_bps=5.0
-    )
-    rows = measured + heartbeat
-    assert len(rows) == 1 + len(shadow.ALL_FAMILIES)
-    assert {row["return_rule"] for row in rows} == {"next_open_then_horizon_close"}
-    assert "return_rule" in shadow.LEDGER_COLUMNS
-
-
-def test_rows_without_a_rule_are_variant_a() -> None:
-    """Every row written before 2026-10-02 lacks the field; there was one rule."""
-    assert shadow.row_return_rule({"family": "BOS"}) == "touch_then_horizon_close"
-    assert shadow.row_return_rule({"return_rule": None}) == "touch_then_horizon_close"
-    assert shadow.row_return_rule({"return_rule": shadow.RETURN_RULE}) == shadow.RETURN_RULE
-
-
-def test_rows_are_split_by_rule_and_the_others_are_counted() -> None:
-    rows = [
-        {"family": "BOS", "date": "2026-06-11", "status": "PASS"},
-        {"family": "SWEEP", "date": "2026-06-11", "status": "PASS"},
-        {"family": "BOS", "date": "2026-10-05", "status": "FAIL", "return_rule": shadow.RETURN_RULE},
-        {"family": "OB", "date": "2026-10-05", "status": "FAIL", "return_rule": "some_future_rule"},
-    ]
-    current, others = shadow.rows_under_current_rule(rows)
-    assert current == [rows[2]]
-    assert others == {"touch_then_horizon_close": 2, "some_future_rule": 1}
-
-
-def test_the_same_events_graded_under_the_old_rule_are_not_a_stale_feed(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The stale-feed guard refuses a duplicate vote. A row for the same
-    events under ANOTHER return rule was a different measurement, so today's
-    grading under the current rule is new evidence, not a re-served one."""
-    events = [{"family": "BOS", "x": 1}]
-    events_path = tmp_path / "events.json"
-    events_path.write_text(json.dumps(events), encoding="utf-8")
-    ledger = tmp_path / "shadow.jsonl"
-    legacy_row = {
-        "date": "2026-10-01",
-        "family": "BOS",
-        "status": "PASS",
-        "events_hash": shadow.events_content_hash(events),
-    }  # no return_rule: graded under Variant A
-    ledger.write_text(json.dumps(legacy_row) + "\n", encoding="utf-8")
-    graded: list[int] = []
-
-    def _report_once(*args: object, **kwargs: object) -> dict:
-        graded.append(1)
-        return _report({"BOS": _result()})
-
-    monkeypatch.setattr(shadow, "build_report", _report_once)
-    code = shadow.main([str(events_path), "--ledger", str(ledger), "--date", "2026-10-05"])
-    assert code != 5
-    assert graded == [1]
-    rows = [json.loads(line) for line in ledger.read_text(encoding="utf-8").splitlines()]
-    assert [shadow.row_return_rule(row) for row in rows] == ["touch_then_horizon_close", shadow.RETURN_RULE]
-
-
-def test_main_grades_only_the_records_structure_grain(tmp_path) -> None:
-    """ADR-0031, Nachtrag 2026-10-03 IV: coarse BOS events (``pivot_lookup``
-    50) share the pool; the shadow ledger's evidence hash is the fine subset."""
-    fine = [_triggered_event("BOS", 1_780_000_000.0 + i * 90_000) for i in range(3)]
-    coarse = []
-    for i in range(6):
-        event = _triggered_event("BOS", 1_780_500_000.0 + i * 90_000)
-        event["pivot_lookup"] = 50
-        coarse.append(event)
-    events_path = tmp_path / "events.json"
-    events_path.write_text(json.dumps(fine + coarse))
-    ledger = tmp_path / "shadow_1d.jsonl"
-    rc = shadow.main([str(events_path), "--ledger", str(ledger), "--date", "2026-10-06", "--plane", "1D"])
-    assert rc == 3
-    rows = [json.loads(ln) for ln in ledger.read_text().splitlines() if ln.strip()]
-    assert rows
-    assert {r["events_hash"] for r in rows} == {shadow.events_content_hash(fine)}

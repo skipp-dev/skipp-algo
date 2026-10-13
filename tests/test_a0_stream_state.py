@@ -9,7 +9,6 @@ from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
 import pytest
-from databento_dbn import OHLCVMsg, RType
 
 from open_prep.a0_contract import A0ThresholdContext, decide_core_level
 from open_prep.a0_stream import DatabentoOhlcv1sAdapter
@@ -69,27 +68,6 @@ def test_databento_adapter_preserves_event_and_receive_time() -> None:
     assert bar.sequence == 7
 
 
-def test_databento_adapter_falls_back_to_event_time_for_real_ohlcv_record() -> None:
-    event_ns = int(_OPEN.timestamp() * 1_000_000_000)
-    record = OHLCVMsg(
-        RType.OHLCV_1S,
-        1,
-        1,
-        event_ns,
-        102_500_000_000,
-        102_500_000_000,
-        102_500_000_000,
-        102_500_000_000,
-        321,
-    )
-
-    assert not hasattr(record, "ts_recv")
-    bar = DatabentoOhlcv1sAdapter().normalize(record, symbol="NVDA")
-
-    assert bar.ts_event == _OPEN.timestamp()
-    assert bar.ts_recv == bar.ts_event
-
-
 def test_duplicate_and_out_of_order_bars_do_not_double_count() -> None:
     state = A0StreamState()
     state.set_reference(_reference())
@@ -121,57 +99,6 @@ def test_mid_session_start_requires_proven_bootstrap() -> None:
     recovered = state.apply(_bar(90 * 60 + 1, volume=50, sequence=11))
     assert recovered.status is StreamApplyStatus.ACCEPTED
     assert recovered.snapshot.cumulative_regular_volume == 2_050
-
-
-def test_live_replay_from_open_proves_sparse_symbol_coverage() -> None:
-    state = A0StreamState()
-    state.set_reference(_reference())
-    state.begin_source_replay(_OPEN.timestamp())
-
-    midday = state.apply(_bar(90 * 60, volume=50, sequence=10))
-
-    assert midday.status is StreamApplyStatus.ACCEPTED
-    assert midday.gap_state is GapState.COMPLETE
-    assert midday.snapshot.cumulative_regular_volume == 50
-
-
-def test_live_replay_coverage_proves_sparse_interbar_absence() -> None:
-    state = A0StreamState(max_gap_seconds=2)
-    state.set_reference(_reference())
-    state.begin_source_replay(_OPEN.timestamp())
-
-    first = state.apply(_bar(90 * 60, volume=50, sequence=10))
-    sparse_next = state.apply(_bar(90 * 60 + 300, volume=25, sequence=11))
-
-    assert first.status is StreamApplyStatus.ACCEPTED
-    assert sparse_next.status is StreamApplyStatus.ACCEPTED
-    assert sparse_next.gap_state is GapState.COMPLETE
-    assert sparse_next.snapshot.cumulative_regular_volume == 75
-
-
-def test_live_replay_does_not_hide_a_local_drop() -> None:
-    state = A0StreamState(max_gap_seconds=2)
-    state.set_reference(_reference())
-    state.begin_source_replay(_OPEN.timestamp())
-    assert state.apply(_bar(0, sequence=1)).status is StreamApplyStatus.ACCEPTED
-
-    state.invalidate("NVDA")
-    dropped = state.apply(_bar(1, sequence=2))
-
-    assert dropped.status is StreamApplyStatus.GAP_DETECTED
-    assert dropped.gap_state is GapState.GAP_DETECTED
-    assert dropped.snapshot is None
-
-
-def test_cleared_replay_coverage_restores_fail_closed_mid_session_start() -> None:
-    state = A0StreamState()
-    state.set_reference(_reference())
-    state.begin_source_replay(_OPEN.timestamp())
-    state.clear_source_coverage()
-
-    assert state.apply(_bar(90 * 60, sequence=10)).status is (
-        StreamApplyStatus.BOOTSTRAP_REQUIRED
-    )
 
 
 def test_gap_detection_stays_fail_closed_until_bootstrap() -> None:

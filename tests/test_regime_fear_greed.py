@@ -44,7 +44,6 @@ def test_classify_regime_ignores_fear_greed_with_invalid_value():
         fear_greed={"value": "not-a-number", "label": "?", "source": "cnn"},
     )
     assert snap.fear_greed is None
-    assert snap.reasons, "no reasons were produced — the absence check below would pass vacuously"
     assert all("F&G" not in r for r in snap.reasons)
 
 

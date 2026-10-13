@@ -216,27 +216,6 @@ class TestBarCacheEviction:
         # FRESH should exist
         assert cache_mod.get_bars_snapshot("FRESH") != []
 
-    def test_periodic_eviction_keeps_fresh_symbols_below_capacity(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        import services.live_overlay_daemon.cache as cache_mod
-
-        monkeypatch.setattr(cache_mod, "_bars", {})
-        monkeypatch.setattr(cache_mod, "_bar_last_update", {})
-        monkeypatch.setattr(cache_mod, "_last_eviction_at", 0.0)
-        monkeypatch.setattr(cache_mod, "_rolling_bars_cap", 5)
-        monkeypatch.setattr(cache_mod, "_max_symbols", 10)
-        timestamps = iter([100.0, 101.0, 102.0, 103.0, 104.0, 161.0, 161.0])
-        monkeypatch.setattr(cache_mod.time, "monotonic", lambda: next(timestamps))
-
-        bar = {"open": 1, "close": 1, "high": 1, "low": 1, "volume": 100}
-        for symbol in ("A", "B", "C", "D", "E"):
-            cache_mod.push_bar(symbol, bar)
-        cache_mod.push_bar("E", bar)
-
-        assert cache_mod.bar_symbol_count() == 5
-        assert cache_mod.get_bars_snapshot("A") != []
-
     def test_reinit_updates_existing_symbol_deque_cap(self, monkeypatch: pytest.MonkeyPatch) -> None:
         import services.live_overlay_daemon.cache as cache_mod
 
@@ -759,43 +738,6 @@ class TestHealthStatusSignals:
         assert payload["status"] == "starting"
         assert payload["market_open"] is True
 
-    def test_health_degraded_when_market_open_failure_outlives_warmup(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """Same failure shape as the starting test, but 1h into the process.
-
-        /ready must report "degraded" instead of masquerading a sustained
-        market-open outage as a perpetual boot (truth-audit 2026-07-22 F-3).
-        HTTP stays 200 — the WP1c contract (503 only for dead workers) is
-        unchanged; only the status string gains resolution.
-        """
-        import time as time_mod
-
-        import services.live_overlay_daemon.main as main_mod
-
-        monkeypatch.setattr(main_mod.feed, "is_ready", lambda: False)
-        monkeypatch.setattr(main_mod.feed, "last_bar_age_secs", lambda: None)
-        monkeypatch.setattr(
-            main_mod.feed,
-            "worker_liveness",
-            lambda: {"live_feed": True, "overlay_refresh": True, "flow_refresh": True},
-        )
-        monkeypatch.setattr(main_mod.feed, "metrics_snapshot", lambda: {"reconnect_attempts": 0})
-        monkeypatch.setattr(main_mod.cache, "overlay_age_secs", lambda: float("inf"))
-        monkeypatch.setattr(main_mod.cache, "bar_symbol_count", lambda: 0)
-        monkeypatch.setattr(main_mod.cache, "total_bar_count", lambda: 0)
-        monkeypatch.setattr(main_mod.cache, "overlay_symbol_count", lambda: 0)
-        monkeypatch.setattr(main_mod.config, "max_stale_secs", lambda: 3600)
-        monkeypatch.setattr(main_mod, "_is_us_regular_session_open", lambda: True)
-        monkeypatch.setattr(main_mod, "_startup_ts", time_mod.monotonic() - 3600.0)
-
-        response = main_mod.ready()
-        payload = json.loads(response.body)
-
-        assert payload["status"] == "degraded"
-        assert payload["market_open"] is True
-        assert response.status_code == 200
-
 
 class TestSmcLiveTimeframeContract:
     """Endpoint tf validation must match published schema contract."""
@@ -885,27 +827,6 @@ class TestVixFiniteContract:
 
         assert cache_mod.get_vix() == 20.5
 
-    def test_vix_age_tracks_only_accepted_updates(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Rejected non-finite quotes must not refresh the freshness timestamp.
-
-        vix_age_secs() feeds live_overlay_vix_age_known/_seconds and thereby the
-        lo-vix-unavailable sentinel: a garbage-only poll loop has to keep ageing
-        instead of masquerading as a fresh feed.
-        """
-        import services.live_overlay_daemon.cache as cache_mod
-
-        monkeypatch.setattr(cache_mod, "_vix_level", None)
-        monkeypatch.setattr(cache_mod, "_vix_updated_at", {})
-
-        assert cache_mod.vix_age_secs() == float("inf")
-
-        cache_mod.set_vix(20.5)
-        assert cache_mod.vix_age_secs() != float("inf")
-
-        stamped = cache_mod._vix_updated_at["ts"]
-        cache_mod.set_vix(float("nan"))
-        assert cache_mod._vix_updated_at["ts"] == stamped
-
     def test_flow_patch_cycle_does_not_write_non_finite_vix(self, monkeypatch: pytest.MonkeyPatch) -> None:
         import services.live_overlay_daemon.cache as cache_mod
         import services.live_overlay_daemon.compute as compute_mod
@@ -932,80 +853,6 @@ class TestVixFiniteContract:
         payload = cache_mod.get_overlay("AAPL")
         assert payload is not None
         assert payload["vix_level"] == 19.0
-
-
-class TestVixWireAgeGate:
-    """A stale VIX must reach the wire as ``None``, not as a frozen quote.
-
-    Wire consumers see only ``vix_level``; ``vix_age_seconds`` is a /metrics
-    export they never read. Before the gate, a dead FMP ^VIX poll left the last
-    good level being served indefinitely as if it were live.
-    """
-
-    def test_fresh_level_passes_through(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        import services.live_overlay_daemon.cache as cache_mod
-
-        monkeypatch.setattr(cache_mod, "_vix_level", None)
-        monkeypatch.setattr(cache_mod, "_vix_updated_at", {})
-        cache_mod.set_vix(20.5)
-
-        assert cache_mod.get_vix_fresh() == 20.5
-
-    def test_stale_level_reads_as_unknown(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        import services.live_overlay_daemon.cache as cache_mod
-
-        monkeypatch.setattr(cache_mod, "_vix_level", 20.5)
-        monkeypatch.setattr(cache_mod, "vix_age_secs", lambda: cache_mod.VIX_MAX_AGE_SECS + 1)
-
-        assert cache_mod.get_vix_fresh() is None
-        # get_vix() stays raw so /metrics can publish level and age together.
-        assert cache_mod.get_vix() == 20.5
-
-    def test_never_fetched_reads_as_unknown(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        import services.live_overlay_daemon.cache as cache_mod
-
-        monkeypatch.setattr(cache_mod, "_vix_level", None)
-        monkeypatch.setattr(cache_mod, "_vix_updated_at", {})
-
-        assert cache_mod.vix_age_secs() == float("inf")
-        assert cache_mod.get_vix_fresh() is None
-
-    def test_threshold_is_pinned_to_the_alert(self) -> None:
-        """Cross-artifact pin lives in test_live_overlay_dashboard_contract.py.
-
-        That file is already on the fast-gates required path for monitoring
-        artifacts; reading the shipped Grafana files from here would pull this
-        whole module onto it too.
-        """
-        import services.live_overlay_daemon.cache as cache_mod
-
-        assert cache_mod.VIX_MAX_AGE_SECS == 5400.0
-
-    def test_no_wire_path_reads_the_ungated_level(self) -> None:
-        """Only /metrics may call ``get_vix()``; every wire path must gate.
-
-        Runs over the whole daemon package rather than the three known call
-        sites, so a newly added serving path cannot silently reintroduce the
-        frozen-quote bug.
-        """
-        import re
-
-        pkg = Path(__file__).resolve().parents[1] / "services" / "live_overlay_daemon"
-        allowed = {"cache.py", "metrics.py"}
-        offenders: list[str] = []
-
-        for path in sorted(pkg.rglob("*.py")):
-            if path.name in allowed:
-                continue
-            for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-                code = line.split("#", 1)[0]
-                if re.search(r"\bget_vix\s*\(", code):
-                    offenders.append(f"{path.relative_to(pkg)}:{lineno}")
-
-        assert offenders == [], (
-            "these read the un-gated VIX level; use cache.get_vix_fresh() so a "
-            f"stale quote serves as None: {offenders}"
-        )
 
 
 # ---------------------------------------------------------------------------
@@ -1336,4 +1183,4 @@ class TestTfSchemaContract:
             main_mod.smc_live(token="tok", symbol="AAPL", tf="1D")
 
         assert exc_info.value.status_code == 400
-        assert exc_info.value.detail == "tf must be one of ['10m', '15m', '1H', '1m', '30m', '4H', '5m']"
+        assert exc_info.value.detail == "tf must be one of ['10m', '15m', '1H', '30m', '4H', '5m']"

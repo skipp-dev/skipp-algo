@@ -32,7 +32,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from tests._guard_corpus import iter_production_py_files, parse_module
+from tests._guard_corpus import parse_module
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -53,7 +53,13 @@ _DIR_EXCLUDE = {
 
 
 def _iter_py_files() -> list[Path]:
-    return iter_production_py_files(_DIR_EXCLUDE)
+    out: list[Path] = []
+    for path in ROOT.rglob("*.py"):
+        rel = path.relative_to(ROOT)
+        if any(part in _DIR_EXCLUDE or part.startswith(".") for part in rel.parts):
+            continue
+        out.append(path)
+    return out
 
 
 def _globals_write_linenos(tree: ast.AST) -> set[int]:
@@ -138,7 +144,7 @@ GLOBALS_CALL_ALLOWED: set[tuple[str, int, str]] = {
     # Line shifted 2225 → 2230 (F-V8-cutover branch, 2026-05-18).
     # 2026-07-15: "read" is now the THIRD tuple element and enforced — the
     # no-mutation claim above used to be prose the collector never read.
-    ("streamlit_terminal.py", 2301, "read"),  # 2026-07-23 (News Ingest label + sidebar source lines above): 2287->2301
+    ("streamlit_terminal.py", 2158, "read"),  # 2026-07-20: remove retired TradingView UI surfaces
     # The two documented lazy-import writes (PEP 562 module __getattr__ caches
     # the resolved render fn, or None when the trader dep is absent). Pinned as
     # "write" so they stay distinguishable from a read that turned into one.

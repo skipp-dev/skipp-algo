@@ -14,10 +14,9 @@ since F-V8-cutover 2026-05-18; previously the monolithic
   several times in the past, leading to F-V5-D1's silent-warning
   regression.
 
-The supported pattern is ``actions/upload-artifact`` on the producer side plus
-the semantic ``restore_databento_export_bundle.py`` consumer helper. The helper
-uses the Actions API, validates the canonical workflow and manifest coverage,
-and rejects delta artifacts for deep-history consumers.
+The supported pattern is ``actions/upload-artifact`` on the producer
+side + ``dawidd6/action-download-artifact`` (or
+``actions/download-artifact`` with ``run-id``) on the consumer side.
 
 This guard is *bundle-handoff specific*: same-workflow cache usage with
 other prefixes (e.g. ``smc-incremental-base-seed-*`` scoped to
@@ -126,19 +125,27 @@ def test_producer_uploads_artifact() -> None:
 
 
 def test_consumer_downloads_cross_workflow_artifact() -> None:
-    """F-V5-D3: consumer must use the semantic artifact helper for hand-off.
+    """F-V5-D3: consumer must use dawidd6/action-download-artifact for hand-off.
 
     F-V8-cutover (2026-05-18): the consumer's ``with.workflow`` now points
     at the canonical sharded producer. Any path back to the deprecated
     monolith would silently miss the live cron's artifacts because the
     monolith no longer runs on a schedule.
     """
-    workflow_text = (WORKFLOWS_DIR / "smc-library-refresh.yml").read_text(encoding="utf-8")
-    assert "scripts/restore_databento_export_bundle.py" in workflow_text
-    helper = (WORKFLOWS_DIR.parent.parent / "scripts" / "restore_databento_export_bundle.py").read_text(
-        encoding="utf-8"
+    workflow = _load_workflow("smc-library-refresh.yml")
+    matched_steps: list[str] = []
+    for job_name, step in _iter_steps(workflow):
+        uses = step.get("uses") or ""
+        if not uses.startswith("dawidd6/action-download-artifact"):
+            continue
+        with_block = step.get("with") or {}
+        if str(with_block.get("workflow") or "") == CANONICAL_PRODUCER_WORKFLOW:
+            matched_steps.append(f"{job_name}:{step.get('name') or uses}")
+    assert matched_steps, (
+        "smc-library-refresh.yml must restore the Databento export bundle "
+        "via a dawidd6/action-download-artifact step whose `with.workflow` "
+        f"is `{CANONICAL_PRODUCER_WORKFLOW}` (F-V5-D3, F-V8-cutover)."
     )
-    assert f'_CANONICAL_WORKFLOW_FILE = "{CANONICAL_PRODUCER_WORKFLOW}"' in helper
 
 
 def test_consumer_does_not_target_deprecated_monolith() -> None:

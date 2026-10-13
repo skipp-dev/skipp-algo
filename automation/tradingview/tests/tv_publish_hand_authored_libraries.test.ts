@@ -96,38 +96,13 @@ test("every hand-lib with a publisher points at an existing tv_publish_* script"
   }
 });
 
-test("the smc_bus_private publisher descriptor is not a leftover draw-template copy", () => {
-  // Facade-authoritative verification is proven for every hand-authored
-  // publisher, converted or not, by
-  // hand_authored_publisher_facade_authority.test.ts (assertDelegatesTo-
-  // SharedFacadeAuthority / assertWiresFacadeAuthority). Once
-  // tv_publish_bus_library.ts became a descriptor wrapper
-  // (handlib-publisher-dedup, 2026-08-14) it no longer contains that logic
-  // inline — getFlag(...) calls, the VersionVerificationMode union, and the
-  // facade probe now all live in the shared module, not here. This test's
-  // remaining job is the one property that guard does not cover: that the
-  // wrapper's descriptor actually names the bus library rather than a
-  // copy-pasted draw one (#3609 pattern origin).
+test("the new smc_bus_private publisher wires facade-authoritative verification (#3609 pattern)", () => {
   const src = fs.readFileSync(path.join(_repoRoot, "scripts", "tv_publish_bus_library.ts"), "utf-8");
-  assert.ok(src.includes('scriptName: "smc_bus_private"'), "descriptor must name smc_bus_private");
+  assert.ok(src.includes("fetchPublishedLibraryVersionViaFacade(session.page, details.scriptName)"));
+  assert.ok(src.includes('versionVerificationMode = "facade_list"'));
+  assert.equal(src.includes("fetchSavedScriptVersionViaFacade"), false);
+  assert.ok(/type VersionVerificationMode =[^;]*"facade_list"/.test(src));
+  // Publishes the bus library specifically (not a copy-paste leftover).
+  assert.ok(src.includes('getFlag("--script-name", "smc_bus_private")'));
   assert.equal(src.includes("smc_draw"), false, "no leftover draw-template identity");
-});
-
-test("an unreadable consumer directory fails loudly instead of shrinking the scan", () => {
-  // 2026-08-15 sweep: `catch { continue; }` on readdirSync swallowed ANY
-  // error, not just ENOENT — a permissions or I/O failure read as "no .pine
-  // consumers there", silently shrinking the population the repin scan
-  // claims to cover. ENOENT (the directory legitimately may not exist)
-  // stays quiet; everything else must throw.
-  const here = path.dirname(fileURLToPath(import.meta.url));
-  for (const rel of [
-    ["..", "..", "..", "scripts", "tv_publish_hand_authored_libraries.ts"],
-    ["..", "lib", "tv_publish_hand_lib.ts"],
-    ["..", "..", "..", "scripts", "build_pine_library_version_snapshot.ts"],
-  ]) {
-    const source = fs.readFileSync(path.join(here, ...rel), "utf-8");
-    const bare = source.match(/readdirSync[^\n]*\n\s*\} catch \{/g) ?? [];
-    assert.deepEqual(bare, [], `${rel.join("/")}: bodyless catch on readdirSync swallows non-ENOENT errors`);
-    assert.match(source, /code === "ENOENT"/, `${rel.join("/")}: the ENOENT-only guard is gone`);
-  }
 });

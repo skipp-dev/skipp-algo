@@ -4,22 +4,27 @@
 //@version=6
 
 // Product role: Beginner-facing EXIT companion for SMC Mobile_Dashboard.
-// Source of truth: linked SMC Core Engine BUS v2 outputs.
+// Source of truth: linked SMC Core BUS outputs (Armed/Confirmed/Ready, Trigger, Invalidation).
 // What it adds: a local position-lifecycle state machine + alertconditions for
 //   STOP / TP1 / TP2 / DEFENSIVE EXIT — the missing piece so a manual trader
 //   can rely on TradingView phone alerts instead of staring at the chart.
-// Trigger, invalidation, stop and both targets are consumed directly from the
-// producer. Schema mismatch or an incomplete/incoherent plan fails closed.
+// Levels:
+//   R   = trigger - invalidation
+//   TP1 = trigger + tp1_r * R   (default 1.5R)
+//   TP2 = trigger + tp2_r * R   (default 3.0R)
+//   STOP = invalidation
 // No library imports — fully BUS-driven and self-contained.
 
 indicator("SMC Exit Signal", overlay = true)
 
 // ───────────────────────── Inputs ─────────────────────────
-var string g_plan = "1. Exit Behavior"
+var string g_plan = "1. Exit Plan"
 var string g_visual = "2. Visual"
 var string g_bus_state = "3. Expert Mapping - Entry States"
 var string g_bus_plan = "4. Expert Mapping - Trade Plan"
 
+tp1_r = input.float(1.5, "TP1 (R-multiple)", minval = 0.25, step = 0.25, group = g_plan, tooltip = "Take half off here. Stop should move to break-even.")
+tp2_r = input.float(3.0, "TP2 (R-multiple)", minval = 0.5, step = 0.25, group = g_plan, tooltip = "Final exit. Close remaining position.")
 move_be_after_tp1 = input.bool(true, "Move stop to break-even after TP1", group = g_plan, tooltip = "After TP1 hits, the displayed Stop bumps up to entry price. The hard-stop alert then fires at break-even instead of the original invalidation. Most-asked-for safety feature.")
 use_defensive_exit = input.bool(true, "Defensive exit on setup invalidation", group = g_plan, tooltip = "Fire EXIT if the entry-stack collapses (Armed/Confirmed/Ready all drop to false) while still in trade — before stop is hit.")
 defensive_grace_bars = input.int(2, "Defensive grace bars", minval = 0, maxval = 20, group = g_plan, tooltip = "Tolerate this many bars of state collapse before firing the defensive exit. Avoids one-bar flickers.")
@@ -29,31 +34,22 @@ show_levels = input.bool(true, "Show Stop/TP1/TP2 lines while in trade", group =
 show_labels = input.bool(true, "Show ENTER / EXIT labels", group = g_visual)
 show_table = input.bool(true, "Show status table", group = g_visual)
 
-src_schema = input.source(close, "BUS SchemaVersion", group = g_bus_state, display = display.none, tooltip = "Bind all rows to the matching SMC Long-Dip Suite BUS outputs. SchemaVersion must read 7001; otherwise the companion fails closed.")
-src_armed = input.source(close, "BUS Armed", group = g_bus_state, display = display.none)
-src_confirmed = input.source(close, "BUS Confirmed", group = g_bus_state, display = display.none)
-src_ready = input.source(close, "BUS Ready", group = g_bus_state, display = display.none)
-src_trigger = input.source(close, "BUS Trigger", group = g_bus_plan, display = display.none)
-src_invalidation = input.source(close, "BUS Invalidation", group = g_bus_plan, display = display.none)
-src_stop = input.source(close, "BUS StopLevel", group = g_bus_plan, display = display.none)
-src_target1 = input.source(close, "BUS Target1", group = g_bus_plan, display = display.none)
-src_target2 = input.source(close, "BUS Target2", group = g_bus_plan, display = display.none)
+src_armed = input.source(close, "BUS Armed", group = g_bus_state, tooltip = "Bind these to SMC Core outputs in the same order as on SMC_Long_Strategy.")
+src_confirmed = input.source(close, "BUS Confirmed", group = g_bus_state)
+src_ready = input.source(close, "BUS Ready", group = g_bus_state)
+src_trigger = input.source(close, "BUS Trigger", group = g_bus_plan, tooltip = "Trigger price (entry stop) from the linked SMC Core output.")
+src_invalidation = input.source(close, "BUS Invalidation", group = g_bus_plan, tooltip = "Invalidation price (stop level) from the linked SMC Core output.")
 
 // ───────────────────────── Helpers ─────────────────────────
 state_on(float value) =>
     not na(value) and value > 0.5
 
-float EXPECTED_SCHEMA = 7001
-bool schema_ok = not na(src_schema) and math.round(src_schema) == EXPECTED_SCHEMA
-bool armed = schema_ok and state_on(src_armed)
-bool confirmed = schema_ok and state_on(src_confirmed)
-bool ready = schema_ok and state_on(src_ready)
+bool armed = state_on(src_armed)
+bool confirmed = state_on(src_confirmed)
+bool ready = state_on(src_ready)
 bool any_state = armed or confirmed or ready
 
-bool risk_ok = schema_ok and not na(src_trigger) and not na(src_invalidation) and
-     not na(src_stop) and not na(src_target1) and not na(src_target2) and
-     src_stop <= src_invalidation and src_invalidation < src_trigger and
-     src_target1 > src_trigger and src_target2 > src_target1
+bool risk_ok = not na(src_trigger) and not na(src_invalidation) and src_trigger > src_invalidation
 
 // ───────────────────────── Position-Lifecycle State Machine ─────────────────────────
 // States:
@@ -78,30 +74,29 @@ bool eval_now = (not confirm_bars_only) or barstate.isconfirmed
 // Stays ARMED while levels exist and we're not yet in trade.
 if eval_now and pos_state == 0 and any_state and risk_ok
     pos_state := 1
-    entry_stop := src_stop
+    entry_stop := src_invalidation
     entry_price := src_trigger
-    tp1_price := src_target1
-    tp2_price := src_target2
+    tp1_price := src_trigger + (src_trigger - src_invalidation) * tp1_r
+    tp2_price := src_trigger + (src_trigger - src_invalidation) * tp2_r
 
-// While ARMED, refresh the producer-owned plan before the assumed fill.
+// While ARMED, refresh levels (operator may shift trigger/invalidation pre-fill).
 if eval_now and pos_state == 1 and risk_ok
-    entry_stop := src_stop
+    entry_stop := src_invalidation
     entry_price := src_trigger
-    tp1_price := src_target1
-    tp2_price := src_target2
+    tp1_price := src_trigger + (src_trigger - src_invalidation) * tp1_r
+    tp2_price := src_trigger + (src_trigger - src_invalidation) * tp2_r
 
 // Trigger fill: high crosses entry_price → enter IN_TRADE.
 bool just_entered = false
-if eval_now and pos_state == 1 and any_state and risk_ok and not na(entry_price) and high >= entry_price
+if eval_now and pos_state == 1 and not na(entry_price) and high >= entry_price
     pos_state := 2
     entry_bar := bar_index
     tp1_hit_already := false
     collapse_count := 0
     just_entered := true
 
-// Fail closed before fill if schema, lifecycle, or any critical plan level is
-// missing/incoherent (no exit alert — the assumed trade never opened).
-if eval_now and pos_state == 1 and (not any_state or not risk_ok)
+// Cancel ARMED if state stack disappears entirely before fill (no exit alert — never entered).
+if eval_now and pos_state == 1 and not any_state
     pos_state := 0
     entry_price := na
     entry_stop := na
@@ -185,29 +180,24 @@ if show_labels
 
 // ───────────────────────── Status table (top-right) ─────────────────────────
 if show_table and barstate.islast
-    var table tbl = table.new(position.top_right, 2, 7, frame_color = color.gray, frame_width = 1, border_color = color.gray, border_width = 1)
+    var table tbl = table.new(position.top_right, 2, 6, frame_color = color.gray, frame_width = 1, border_color = color.gray, border_width = 1)
     string state_txt = pos_state == 0 ? "FLAT" : pos_state == 1 ? "ARMED" : "IN-TRADE"
     color  state_bg  = pos_state == 0 ? color.new(color.gray, 70) : pos_state == 1 ? color.new(color.yellow, 70) : color.new(color.green, 70)
-    string bus_txt = schema_ok ? (risk_ok ? "PLAN VALID" : "WAITING PLAN") : "NOT CONNECTED"
-    color bus_bg = schema_ok ? (risk_ok ? color.new(color.green, 70) : color.new(color.yellow, 70)) : color.new(color.red, 60)
 
     table.cell(tbl, 0, 0, "SMC Exit", text_color = color.white, bgcolor = color.new(color.black, 30), text_size = size.small)
     table.cell(tbl, 1, 0, "", text_color = color.white, bgcolor = color.new(color.black, 30), text_size = size.small)
 
-    table.cell(tbl, 0, 1, "BUS", text_color = color.white, bgcolor = color.new(color.black, 50), text_size = size.small)
-    table.cell(tbl, 1, 1, bus_txt, text_color = color.white, bgcolor = bus_bg, text_size = size.small)
+    table.cell(tbl, 0, 1, "State", text_color = color.white, bgcolor = color.new(color.black, 50), text_size = size.small)
+    table.cell(tbl, 1, 1, state_txt, text_color = color.white, bgcolor = state_bg, text_size = size.small)
 
-    table.cell(tbl, 0, 2, "State", text_color = color.white, bgcolor = color.new(color.black, 50), text_size = size.small)
-    table.cell(tbl, 1, 2, state_txt, text_color = color.white, bgcolor = state_bg, text_size = size.small)
+    table.cell(tbl, 0, 2, "Entry", text_color = color.white, bgcolor = color.new(color.black, 50), text_size = size.small)
+    table.cell(tbl, 1, 2, na(entry_price) ? "—" : str.tostring(entry_price, format.mintick), text_color = color.white, bgcolor = color.new(color.aqua, 70), text_size = size.small)
 
-    table.cell(tbl, 0, 3, "Entry", text_color = color.white, bgcolor = color.new(color.black, 50), text_size = size.small)
-    table.cell(tbl, 1, 3, na(entry_price) ? "—" : str.tostring(entry_price, format.mintick), text_color = color.white, bgcolor = color.new(color.aqua, 70), text_size = size.small)
+    table.cell(tbl, 0, 3, "Stop", text_color = color.white, bgcolor = color.new(color.black, 50), text_size = size.small)
+    table.cell(tbl, 1, 3, na(entry_stop) ? "—" : str.tostring(entry_stop, format.mintick), text_color = color.white, bgcolor = color.new(color.red, 60), text_size = size.small)
 
-    table.cell(tbl, 0, 4, "Stop", text_color = color.white, bgcolor = color.new(color.black, 50), text_size = size.small)
-    table.cell(tbl, 1, 4, na(entry_stop) ? "—" : str.tostring(entry_stop, format.mintick), text_color = color.white, bgcolor = color.new(color.red, 60), text_size = size.small)
+    table.cell(tbl, 0, 4, "TP1 (" + str.tostring(tp1_r) + "R)", text_color = color.white, bgcolor = color.new(color.black, 50), text_size = size.small)
+    table.cell(tbl, 1, 4, na(tp1_price) ? "—" : str.tostring(tp1_price, format.mintick), text_color = color.white, bgcolor = color.new(color.orange, 60), text_size = size.small)
 
-    table.cell(tbl, 0, 5, "TP1", text_color = color.white, bgcolor = color.new(color.black, 50), text_size = size.small)
-    table.cell(tbl, 1, 5, na(tp1_price) ? "—" : str.tostring(tp1_price, format.mintick), text_color = color.white, bgcolor = color.new(color.orange, 60), text_size = size.small)
-
-    table.cell(tbl, 0, 6, "TP2", text_color = color.white, bgcolor = color.new(color.black, 50), text_size = size.small)
-    table.cell(tbl, 1, 6, na(tp2_price) ? "—" : str.tostring(tp2_price, format.mintick), text_color = color.white, bgcolor = color.new(color.green, 60), text_size = size.small)
+    table.cell(tbl, 0, 5, "TP2 (" + str.tostring(tp2_r) + "R)", text_color = color.white, bgcolor = color.new(color.black, 50), text_size = size.small)
+    table.cell(tbl, 1, 5, na(tp2_price) ? "—" : str.tostring(tp2_price, format.mintick), text_color = color.white, bgcolor = color.new(color.green, 60), text_size = size.small)

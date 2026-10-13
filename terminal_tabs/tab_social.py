@@ -14,14 +14,12 @@ from terminal_finnhub import (
     is_available as finnhub_available,
 )
 from terminal_newsapi import fetch_social_ranked_articles, newsapi_available
-from terminal_tabs._shared import tv_symbol_column
-from terminal_tabs.style import label, style_semantic
-from terminal_ui_helpers import safe_markdown_text, safe_url, tv_linkify_rows
+from terminal_ui_helpers import safe_markdown_text, safe_url
 
 
 def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
     """Render the Social Buzz tab."""
-    st.subheader("Social Buzz")
+    st.subheader("💬 Social Buzz")
     st.caption("Social-media sentiment — Reddit & Twitter mentions (Finnhub).")
 
     # ── Section 1: Finnhub Reddit + Twitter Sentiment ────────────
@@ -29,12 +27,12 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
         _fh_status = social_sentiment_status()
         if _fh_status == "blocked_premium":
             st.warning(
-                "Finnhub social sentiment is blocked — endpoint requires a premium plan. "
+                "⚠️ Finnhub social sentiment is blocked — endpoint requires a premium plan. "
                 "Reddit/Twitter data will not be available this session."
             )
         elif _fh_status == "rate_limited":
             st.info(
-                "Finnhub social sentiment is temporarily rate-limited. "
+                "⏳ Finnhub social sentiment is temporarily rate-limited. "
                 "Data will resume automatically after the backoff period."
             )
         else:
@@ -50,7 +48,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
             _feed_tickers = _feed_tickers[:20]  # cap at 20 lookups
 
             if _feed_tickers:
-                st.markdown("### Reddit & Twitter Sentiment")
+                st.markdown("### 📡 Reddit & Twitter Sentiment")
                 st.caption(
                     f"Live social-media mentions for {len(_feed_tickers)} trending tickers · "
                     "Source: Finnhub (free tier, real-time)."
@@ -65,7 +63,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
                     _cols = st.columns(min(5, len(_top)))
                     for _i, _s in enumerate(_top):
                         with _cols[_i]:
-                            st.markdown(f"**{_s.symbol}**")
+                            st.markdown(f"**{_s.symbol}** {_s.emoji}")
                             st.metric("Mentions", f"{_s.total_mentions:,}")
                             st.caption(
                                 f"Reddit {_s.reddit_mentions:,} · Twitter {_s.twitter_mentions:,}\n\n"
@@ -77,7 +75,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
                     for _s in _sorted:
                         _rows.append({
                             "Symbol": _s.symbol,
-                            "Sentiment": label(_s.sentiment_label),
+                            "Sentiment": _s.emoji,
                             "Total Mentions": _s.total_mentions,
                             "Reddit": _s.reddit_mentions,
                             "Twitter/X": _s.twitter_mentions,
@@ -86,12 +84,10 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
                         })
                     if _rows:
                         import pandas as pd
-                        _social_df = pd.DataFrame(tv_linkify_rows(_rows))
                         st.dataframe(
-                            style_semantic(_social_df, ["Sentiment", "Label"]),
+                            pd.DataFrame(_rows),
                             hide_index=True,
                             height=min(40 * len(_rows) + 50, 500),
-                            column_config={"Symbol": tv_symbol_column()},
                         )
                 else:
                     st.caption("No social sentiment data available for current tickers.")
@@ -102,7 +98,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
 
     # ── Section 2: NewsAPI.ai Most-Shared Articles ───────────────
     if newsapi_available():
-        st.markdown("### Most-Shared News")
+        st.markdown("### 🔥 Most-Shared News")
         articles = fetch_social_ranked_articles(count=20)
         if not articles:
             st.info("No social buzz data available.")
@@ -114,7 +110,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
                 with st.container():
                     cols = st.columns([4, 1, 1])
                     with cols[0]:
-                        st.markdown(f"**{link}**")
+                        st.markdown(f"{art.sentiment_icon} **{link}**")
                         parts: list[str] = []
                         if art.source:
                             parts.append(f"*{art.source}*")

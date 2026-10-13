@@ -38,7 +38,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from tests._guard_corpus import iter_production_py_files, parse_module
+from tests._guard_corpus import parse_module
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -80,7 +80,16 @@ _SHUTIL_BANNED = frozenset({"copy", "copyfile"})
 
 
 def _iter_first_party_py_files() -> list[Path]:
-    return iter_production_py_files(_DIR_EXCLUDE)
+    out: list[Path] = []
+    for path in ROOT.rglob("*.py"):
+        try:
+            rel_parts = path.relative_to(ROOT).parts
+        except ValueError:
+            continue
+        if any(part in _DIR_EXCLUDE for part in rel_parts):
+            continue
+        out.append(path)
+    return sorted(out)
 
 
 def _parse(path: Path) -> ast.AST | None:

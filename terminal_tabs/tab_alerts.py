@@ -11,7 +11,7 @@ from terminal_notifications import NotifyConfig
 
 def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
     """Render the Alerts tab."""
-    st.subheader("Alert Rules")
+    st.subheader("🔔 Alert Rules")
     st.caption("Notification channels configured in `.env`. Alerts fire on each poll cycle.")
 
     cfg = NotifyConfig()
@@ -19,17 +19,17 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
     # Show configured channels
     channels: list[str] = []
     if cfg.telegram_bot_token and cfg.telegram_chat_id:
-        channels.append("Telegram")
+        channels.append("✅ Telegram")
     else:
-        channels.append("Telegram (not configured)")
+        channels.append("⬜ Telegram (not configured)")
     if cfg.discord_webhook_url:
-        channels.append("Discord")
+        channels.append("✅ Discord")
     else:
-        channels.append("Discord (not configured)")
+        channels.append("⬜ Discord (not configured)")
     if cfg.pushover_app_token and cfg.pushover_user_key:
-        channels.append("Pushover")
+        channels.append("✅ Pushover")
     else:
-        channels.append("Pushover (not configured)")
+        channels.append("⬜ Pushover (not configured)")
 
     st.markdown("**Notification Channels:**")
     for ch in channels:

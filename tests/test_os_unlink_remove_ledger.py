@@ -25,7 +25,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from tests._guard_corpus import iter_production_py_files, parse_module
+from tests._guard_corpus import parse_module
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -47,7 +47,13 @@ _DIR_EXCLUDE = {
 
 
 def _iter_py_files() -> list[Path]:
-    return iter_production_py_files(_DIR_EXCLUDE)
+    out: list[Path] = []
+    for path in ROOT.rglob("*.py"):
+        rel = path.relative_to(ROOT)
+        if any(part in _DIR_EXCLUDE or part.startswith(".") for part in rel.parts):
+            continue
+        out.append(path)
+    return out
 
 
 def _os_delete_sites() -> set[tuple[str, int, str]]:
@@ -90,14 +96,14 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     ("open_prep/alerts.py", 84, "unlink"),  # 2026-07-13 (throttle-comment truth-fix +1): 83->84
     # 2026-07-03 (WP-3 holdout rescoring): helper additions shifted
     # unlink cleanup from 158 -> 480.
-    ("open_prep/candidate_weights.py", 494, "unlink"),  # 2026-07-28 (Arm-B eligible-date split): 487->494
-    ("open_prep/diff.py", 75, "unlink"),  # 2026-08-18 (Sweep-Doku-Kommentar): 71->75
+    ("open_prep/candidate_weights.py", 487, "unlink"),  # 2026-07-10: eps_surprise_pct→recent_eps_surprise_pct reconstruction swap +1 (487->488)
+    ("open_prep/diff.py", 71, "unlink"),
     # 2026-06-13 (audit-e2/aw7-reader-observability, PR #2759): _load_previous_latest
     #   DEBUG log insertion shifted unlink from 257 → 258.
     # 2026-07-15 (ops-digest truth): _DIAGNOSTIC_COUNTERS constant + the top-level
     #   counter copy in generate_report shifted unlink 259 → 279 (pure shift; the
     #   atomic-write cleanup call site itself is unchanged).
-    ("open_prep/feature_importance_report.py", 326, "unlink"),  # 2026-07-28 (dedicated EWMA recalibration status): 279->326
+    ("open_prep/feature_importance_report.py", 279, "unlink"),
     # 2026-06-11 (backfill defer-unpublished): 97→116, 539→589.
     # 2026-06-11 (eval-findings B1/B2): direction+triple-barrier code in
     # compute_pnl_from_bars + backfill loop shifted 589→668.
@@ -107,13 +113,13 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # combined — measured 125/711; outcomes.py guard shift → 161.
     # 2026-06-17 (F1 lint fix): remove unused import sys → 125→124.
     # 2026-07-05 (bug-hunt round 7): import math → 124→125.
-    ("open_prep/outcome_backfill.py", 187, "unlink"),  # 2026-07-23 (A1 horizons: docstring + horizon constants above): 147->187
+    ("open_prep/outcome_backfill.py", 147, "unlink"),  # 2026-07-18 dataset-role default
     # 2026-06-12 (Copilot #2729): main() exit-semantics docstring +6 → 717.
     # 2026-06-17 (F1 lint fix): remove unused import sys → 717→716.
     # 2026-07-05 (bug-hunt round 7): import math + non-finite entry/exit
     # price guard → 724→729.
-    ("open_prep/outcome_backfill.py", 1128, "unlink"),  # 2026-08-08 (backfill keeps a horizon's earlier label): 1115->1128
-    ("open_prep/outcomes.py", 222, "unlink"),  # 2026-07-23 (A1 horizons: module docstring above): 218->222
+    ("open_prep/outcome_backfill.py", 782, "unlink"),  # 2026-07-18 dataset-role default
+    ("open_prep/outcomes.py", 218, "unlink"),  # 2026-07-09 robustness: outcomes hardening above
     # 2026-06-11 (trend-state features): 431→449, snapshot keys +
     # FEATURE_KEYS/PASS_THROUGH block added above.
     # 2026-06-11 (eval-findings B5/B1): gap-playbook report +
@@ -127,16 +133,13 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 2026-07-02 (WP6 formula-era gate): cutoff constant block +8 → 595.
     # 2026-07-04 (market-microstructure observe-only): snapshot fields +
     # FEATURE_KEYS/PASS_THROUGH entries +16 → 632.
-    ("open_prep/outcomes.py", 868, "unlink"),  # 2026-07-28 (EWMA shadow outcome/FI field): 863->868
-    ("open_prep/realtime_signals.py", 130, "remove"),  # 2026-07-25 (databento-signal-migration): 129->130
+    ("open_prep/outcomes.py", 726, "unlink"),  # 2026-07-13 (directional-era cutoff + loader skip; _pearson_r removed): 716->726
+    ("open_prep/realtime_signals.py", 129, "remove"),  # 2026-07-16 market-session import shifted site: 128->129
     # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
     # 2783 -> 2862 and 2828 -> 2907.
     # 2026-06-28 (semantic monitoring): shifted +80/+80 lines by readiness metrics.
-    # 2026-07-26 (merge Databento source after re-qual fixes):
-    # combined branch additions shifted the two reviewed cleanup sites.
-    ("open_prep/realtime_signals.py", 4046, "unlink"),  # 2026-08-18 (railway-token guard): 3996->4020 (2026-08-19 FMP-Endpoint-Seed: 4020->4035) (2026-08-21 cisco-probe: 4035->4046)
-    ("open_prep/realtime_signals.py", 4100, "unlink"),  # 2026-08-18 (railway-token guard): 4050->4074 (2026-08-19 FMP-Endpoint-Seed: 4074->4089) (2026-08-21 cisco-probe: 4089->4100)
-
+    ("open_prep/realtime_signals.py", 3717, "unlink"),  # 2026-07-19 authenticated snapshot fallback shifted site: 3694->3717
+    ("open_prep/realtime_signals.py", 3771, "unlink"),  # 2026-07-19 authenticated snapshot fallback shifted site: 3748->3771
     # 2026-06-11 (eval-findings D7): technical_analysis import block +8
     # lines at L55 shifted all run_open_prep sites; enrichment-loop
     # real-ADX/BBW block added +15 more after L5491.
@@ -147,21 +150,21 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # extended; multiple insertion points produced non-uniform shifts.
     # 2026-06-25: feature-flag helper additions shifted 2308 -> 2312.
     # 2026-07-04 (market-microstructure observe-only): import +1 → 2313.
-    ("open_prep/run_open_prep.py", 2287, "unlink"),  # 2026-07-28 (technical-analysis imports above): 2284->2287
+    ("open_prep/run_open_prep.py", 2282, "unlink"),  # 2026-07-19 remove retired TradingView news lane
     # 2026-06-10 (#2670 W2/W4): regime_source + premarket source-disclosure
     # edits shifted the later unlink sites (+20/+20/+20/+25).
     # 2026-06-25: feature-flag helper additions shifted
     # 3131 -> 3135 and 3483 -> 3487.
     # 2026-07-04 (market-microstructure observe-only): import +1 →
     # 3136/3504.
-    ("open_prep/run_open_prep.py", 3254, "unlink"),  # 2026-07-28 (§15 + split-safe integration): 3243->3254
-    ("open_prep/run_open_prep.py", 3725, "unlink"),  # 2026-07-28 (§15 + split-safe integration): 3679->3725
+    ("open_prep/run_open_prep.py", 3132, "unlink"),  # 2026-07-19 remove retired TradingView news lane
+    ("open_prep/run_open_prep.py", 3532, "unlink"),  # 2026-07-19 remove retired TradingView news lane
     # 2026-06-11 (Copilot sweep #2688): VIX9D fail-closed guard +5;
     # 2026-06-12 (merge #2713 into #2696): net +1 → 5512/5790.
     # 2026-06-25: feature-flag helper additions shifted 5621 -> 5625.
     # 2026-07-04 (market-microstructure observe-only): import + snapshot
     # block shifted 5641 -> 5658.
-    ("open_prep/run_open_prep.py", 5939, "unlink"),  # 2026-07-28 (§15 + split-safe integration): 5880->5939
+    ("open_prep/run_open_prep.py", 5641, "unlink"),  # 2026-07-19 remove retired TradingView news lane
     # 2026-06-11 (trend-state features): 5731→5742, enrichment-loop
     # stamping + lookback comment added above; eval-findings 5742→5765.
     # 2026-06-12 (backlog-resilience): fail-loud outcome storage +9 → 5799.
@@ -169,17 +172,17 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 2026-06-25: feature-flag helper additions shifted 5916 -> 5920.
     # 2026-07-04 (market-microstructure observe-only): import + snapshot
     # block + row-loop fields shifted 5936 -> 5962.
-    ("open_prep/run_open_prep.py", 6313, "unlink"),  # 2026-07-28 (§15 + split-safe integration): 6230->6313
+    ("open_prep/run_open_prep.py", 5967, "unlink"),  # 2026-07-19 remove retired TradingView news lane
     ("open_prep/scorer.py", 156, "unlink"),
-    ("open_prep/watchlist.py", 80, "unlink"),  # 2026-07-27 (docstring persistence note above): 74->80
+    ("open_prep/watchlist.py", 74, "unlink"),
     ("smc_core/benchmark.py", 39, "unlink"),
     ("smc_core/ensemble_quality.py", 62, "unlink"),  # 2026-07-13 doc truth-fix comments shifted (58->62)
     ("smc_core/event_ledger.py", 198, "unlink"),  # 2026-07-13 schema-v1.1: label relocation shifted (163->180); schema-v1.2 rename+calibrated_prob (180->198)
     ("smc_core/scoring.py", 1276, "unlink"),  # 2026-07-13: 1225->1267 (normalize_sweep_side + calibration-honesty docstrings); 1267->1276 (frame_integrity extras in export_scoring_artifact)
     ("smc_integration/batch.py", 35, "unlink"),
-    ("smc_integration/provider_health.py", 80, "unlink"),  # 2026-07-28 (ws5 observe-only): +11 from _resolve_structure_artifact_preference helper
+    ("smc_integration/provider_health.py", 69, "unlink"),
     ("smc_integration/structure_batch.py", 43, "unlink"),  # 2026-07-13 (manifest generator provenance imports): 39->43
-    ("streamlit_terminal.py", 2321, "unlink"),  # 2026-07-23 (News Ingest label + sidebar source lines above): 2307->2321
+    ("streamlit_terminal.py", 2188, "unlink"),  # 2026-07-20: remove retired TradingView UI surfaces
     ("terminal_export.py", 186, "unlink"),
     ("terminal_export.py", 236, "unlink"),
     ("terminal_export.py", 615, "unlink"),  # 2026-07-12 (drop dead social read): 618->615

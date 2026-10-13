@@ -19,7 +19,6 @@ from pathlib import Path
 from scripts.build_families_telemetry import (
     EVENT_FAMILIES,
     load_variant_family_map,
-    load_variant_registry,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -54,9 +53,9 @@ def test_default_variant_family_map_uses_only_known_families() -> None:
 def test_default_variant_family_map_is_pure_json_object() -> None:
     raw = json.loads(DEFAULT_MAP_PATH.read_text(encoding="utf-8"))
     assert isinstance(raw, dict)
-    assert raw["schema_version"] == 2
-    assert isinstance(raw["family_variants"], dict)
-    assert isinstance(raw["non_family_variants"], dict)
+    # No metadata keys allowed — the strict loader rejects non-family values.
+    for key in raw:
+        assert not key.startswith("_"), f"meta key {key!r} would fail strict load_variant_family_map"
 
 
 def test_default_variant_family_map_includes_smc_breaker_btc() -> None:
@@ -66,9 +65,3 @@ def test_default_variant_family_map_includes_smc_breaker_btc() -> None:
     mapping = load_variant_family_map(DEFAULT_MAP_PATH)
     assert "smc_breaker_btc" in mapping
     assert mapping["smc_breaker_btc"] == "BOS"
-
-
-def test_default_registry_classifies_open_prep_as_non_family() -> None:
-    registry = load_variant_registry(DEFAULT_MAP_PATH)
-    assert "smc_orb_vwap_hold" in registry.non_family_variants
-    assert "smc_orb_vwap_hold" not in registry.family_variants

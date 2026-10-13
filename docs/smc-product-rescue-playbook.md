@@ -1,11 +1,5 @@
 # SMC Product Rescue Playbook
 
-> **Historical implementation record (2026-08-10):** This playbook documents
-> the April UI rescue and preserves its then-current naming. It is not the
-> canonical commercial identity or current customer-facing copy. Use
-> `docs/SMC_PRODUCT_IDENTITY.md`, `docs/commercial/PRODUCT_BRIEF.md` and
-> `docs/commercial/CLAIMS_REGISTRY.md` for current product decisions.
-
 ## Status
 
 Delivered
@@ -27,7 +21,7 @@ It is intentionally SMC-only. It does not cover IBKR, terminal modules, or Skipp
 ## Implementation Snapshot
 
 - `SMC_Long_Dip_Suite.pine` now ships `Focus View` as the first-run default and publishes under the `SMC Core` product name.
-- `SMC_Decision_Board.pine` now publishes under the `SMC Decision Board` product name.
+- `SMC_Long_Dip_Dashboard.pine` now publishes under the `SMC Decision Board` product name.
 - `SMC_Long_Dip_Strategy.pine` now publishes under the `SMC Execution` product name.
 - Manifest, preflight defaults, and product-facing docs now use the same naming family.
 
@@ -44,7 +38,7 @@ It is intentionally SMC-only. It does not cover IBKR, terminal modules, or Skipp
 The strategic decision for the next phase is simple:
 
 1. `SMC_Long_Dip_Suite.pine` is the only public first-run surface.
-2. `SMC_Decision_Board.pine` is a linked companion surface, not a public first-touch surface.
+2. `SMC_Long_Dip_Dashboard.pine` is a linked companion surface, not a public first-touch surface.
 3. `SMC_Long_Dip_Strategy.pine` is a pro execution surface, not an onboarding surface.
 4. Public value must be visible before the user learns any operator mechanics.
 5. Internal transport language stays out of public-facing copy.
@@ -59,9 +53,9 @@ Goal: remove first-contact friction and make the SMC mainline look and behave li
 | --- | --- | --- | --- | --- |
 | P0 | Lite becomes real default | Make the decision-first hero surface the visible first-run default instead of a hidden visual toggle. | A new user sees Action, Why now, Main risk, and Confidence without touching settings. | `SMC_Long_Dip_Suite.pine`, `docs/smc-tradingview-screen-spec.md`, `tests/test_tradingview_decision_first_ui.py` |
 | P0 | Public path no longer leaks integration mechanics | Treat Dashboard and Strategy as advanced linked surfaces in onboarding, docs, and validation flows until raw binding friction is no longer exposed. | Public demos, screenshots, and docs start with Core only. | `README.md`, `docs/smc-tradingview-r1-1-migration-and-operator-guide.md`, `docs/smc-validation-status.md`, `automation/tradingview/` |
-| P0 | Public copy stops sounding internal | Remove visible public-adjacent terms like `operator`, `BUS`, `diagnostics`, `bindings hidden`, and similar transport language from user-facing labels. | A retail trader can describe the product in trading language rather than implementation language. | `SMC_Long_Dip_Suite.pine`, `SMC_Decision_Board.pine`, `SMC_Long_Dip_Strategy.pine`, docs |
+| P0 | Public copy stops sounding internal | Remove visible public-adjacent terms like `operator`, `BUS`, `diagnostics`, `bindings hidden`, and similar transport language from user-facing labels. | A retail trader can describe the product in trading language rather than implementation language. | `SMC_Long_Dip_Suite.pine`, `SMC_Long_Dip_Dashboard.pine`, `SMC_Long_Dip_Strategy.pine`, docs |
 | P0 | Visual hierarchy becomes obvious | Enforce one hero decision, one risk block, and a lower overlay budget for first-run screenshots and default chart states. | The first screenshot reads in under 3 seconds. | `SMC_Long_Dip_Suite.pine`, validation screenshots, screen spec |
-| P1 | Dashboard becomes a brief before it becomes a table | Recast the default Dashboard surface as a short decision brief and push audit depth behind an explicit expert view. | Default Dashboard rows feel like explanation, not diagnosis. | `SMC_Decision_Board.pine`, `docs/smc-tradingview-screen-spec.md`, tests |
+| P1 | Dashboard becomes a brief before it becomes a table | Recast the default Dashboard surface as a short decision brief and push audit depth behind an explicit expert view. | Default Dashboard rows feel like explanation, not diagnosis. | `SMC_Long_Dip_Dashboard.pine`, `docs/smc-tradingview-screen-spec.md`, tests |
 | P1 | Strategy setup becomes readable | Keep visible controls to a small execution setup block and frame the rest as expert mapping only. | A user can explain the purpose of Strategy without seeing raw state wiring first. | `SMC_Long_Dip_Strategy.pine`, operator guide, tests |
 | P1 | Product validation uses product surfaces | Stop using editor-only screenshots as product evidence. Capture rendered chart states for Core, Dashboard, and Strategy. | Every release review contains real user-facing screenshots. | `automation/tradingview/`, docs, reports |
 
@@ -79,9 +73,9 @@ Goal: turn the cleaned-up product into a sharper premium system with clearer tru
 
 | Pri | Outcome | Change | Success Signal | Primary Files |
 | --- | --- | --- | --- | --- |
-| P0 | Confidence feels trustworthy | Move synthetic numeric precision out of the primary hero and lead with a confidence tier plus a plain-language explanation. | Users can answer "How much should I trust this?" without needing score semantics. | `SMC_Long_Dip_Suite.pine`, `SMC_Decision_Board.pine`, screen spec |
+| P0 | Confidence feels trustworthy | Move synthetic numeric precision out of the primary hero and lead with a confidence tier plus a plain-language explanation. | Users can answer "How much should I trust this?" without needing score semantics. | `SMC_Long_Dip_Suite.pine`, `SMC_Long_Dip_Dashboard.pine`, screen spec |
 | P0 | Brand becomes memorable | Unify public naming for the three surfaces and separate market-facing names from internal implementation names. | One consistent naming family appears in UI, docs, screenshots, and publish flows. | public labels, docs, README |
-| P1 | Dashboard earns its premium role | Give the linked companion surface a stronger explanatory point of view: context, pressure, event risk, and trade plan in trader language. | Dashboard feels like a premium explanation layer, not just a tidy row regrouping. | `SMC_Decision_Board.pine`, screen spec |
+| P1 | Dashboard earns its premium role | Give the linked companion surface a stronger explanatory point of view: context, pressure, event risk, and trade plan in trader language. | Dashboard feels like a premium explanation layer, not just a tidy row regrouping. | `SMC_Long_Dip_Dashboard.pine`, screen spec |
 | P1 | Strategy becomes a premium execution wrapper | Translate wrapper controls into execution language and make the expert mapping section visually secondary. | Strategy feels like a plan executor, not a technical add-on. | `SMC_Long_Dip_Strategy.pine` |
 | P1 | Trust and proof are aligned | Add canonical product screenshots and release evidence that show visible UX quality, not only compile and binding correctness. | Release notes can prove product quality with visuals, not only tests. | docs, release manifests, tradingview validation |
 | P2 | Differentiation is visible in 30 seconds | Document and validate the unique promise: action-first, risk-explicit, context-explained, operator depth only when requested. | External reviewer can summarize the difference from generic SMC scripts in one sentence. | docs, screenshots, onboarding copy |
@@ -349,7 +343,7 @@ This is a pro follow-up surface for users who already trust the Core decision an
 
 ### LS-1 Expert Section
 
-All source mapping stays in an explicit `Chart Link` section (named `Expert Mapping` until the 2026-08-28 vocabulary completion).
+All source mapping stays in an explicit `Expert Mapping` section.
 
 If TradingView limitations prevent full hiding, then the product documentation must keep calling this a pro linked surface rather than a general user surface.
 

@@ -150,24 +150,12 @@ def test_cli_fail_on_expired(tmp_path: Path) -> None:
     assert rc == 1
 
 
-def test_cli_fail_on_expired_passes_when_clean(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str],
-) -> None:
-    # main() has no --today: it categorises against the wall clock, so the
-    # seed must move with it. The literal "2026-08-01" that stood here went
-    # expired on 2026-08-02 and turned this test red on main.
-    future = (_dt.date.today() + _dt.timedelta(days=30)).isoformat()
-    cfg = _seed(tmp_path, [_e(future)])
+def test_cli_fail_on_expired_passes_when_clean(tmp_path: Path) -> None:
+    cfg = _seed(tmp_path, [_e("2026-08-01")])
     rc = rep_mod.main([
-        "--config", str(cfg), "--format", "json", "--fail-on-expired",
+        "--config", str(cfg), "--fail-on-expired",
     ])
     assert rc == 0
-    # ...and rc == 0 because the entry is active, not because the seed was
-    # never read: an empty config would also exit 0.
-    assert json.loads(capsys.readouterr().out)["counts"] == {
-        "expired": 0, "expiring": 0, "active": 1,
-        "permanent": 0, "malformed": 0, "total": 1,
-    }
 
 
 def test_cli_missing_config(

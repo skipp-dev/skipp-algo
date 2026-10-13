@@ -73,9 +73,6 @@ CANDIDATE_LABEL = "candidate"
 DEFAULT_MIN_SAMPLES = _MIN_TUNING_SAMPLES
 DEFAULT_MAX_DRIFT = 0.50
 DEFAULT_HOLDOUT_FRACTION = 0.20
-# At one eligible label per sample date, this still permits 200 training labels
-# after reserving the chronological 20% holdout.
-DEFAULT_LOOKBACK_DAYS = math.ceil(DEFAULT_MIN_SAMPLES / (1.0 - DEFAULT_HOLDOUT_FRACTION))
 
 
 def _normalize_iso_date(raw: Any) -> str | None:
@@ -378,7 +375,7 @@ def _now_run_id() -> tuple[str, str]:
 
 def generate_candidate(
     *,
-    lookback_days: int = DEFAULT_LOOKBACK_DAYS,
+    lookback_days: int = 30,
     min_samples: int = DEFAULT_MIN_SAMPLES,
     max_drift: float = DEFAULT_MAX_DRIFT,
 ) -> dict[str, Any]:
@@ -397,11 +394,7 @@ def generate_candidate(
     }
 
     all_dates = _collect_fi_sample_dates(lookback_days=lookback_days)
-    eligibility_report = compute_feature_importance(
-        lookback_days=lookback_days, sample_dates=all_dates or None,
-    )
-    eligible_dates = list(eligibility_report.get("labeled_sample_dates") or [])
-    train_dates, holdout_dates = _split_train_holdout_dates(eligible_dates)
+    train_dates, holdout_dates = _split_train_holdout_dates(all_dates)
     fi_report = compute_feature_importance(
         lookback_days=lookback_days,
         sample_dates=train_dates or None,
@@ -532,7 +525,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Produce candidate scorer weights with drift-gate (ENG-WS4-03).",
     )
-    parser.add_argument("--lookback", type=int, default=DEFAULT_LOOKBACK_DAYS)
+    parser.add_argument("--lookback", type=int, default=30)
     parser.add_argument("--min-samples", type=int, default=DEFAULT_MIN_SAMPLES)
     parser.add_argument("--max-drift", type=float, default=DEFAULT_MAX_DRIFT)
     parser.add_argument("--dry-run", action="store_true",

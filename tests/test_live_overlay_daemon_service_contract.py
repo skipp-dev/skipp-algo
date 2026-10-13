@@ -16,21 +16,16 @@ def _load_railway_config() -> dict:
 def test_railway_config_builds_from_dockerfile() -> None:
     config = _load_railway_config()
     assert config["build"]["builder"] == "DOCKERFILE"
-    # Root Dockerfile, not the service one: measured on the live deployment
-    # 2026-08-06 (serviceManifest.build.dockerfilePath == "/Dockerfile"), and
-    # relied on by test_live_overlay_daemon_deploy_artifact_contract.py.
-    assert config["build"]["dockerfilePath"] == "/Dockerfile"
+    assert config["build"]["dockerfilePath"] == "services/live_overlay_daemon/Dockerfile"
 
 
 def test_railway_start_command_binds_to_injected_port() -> None:
     config = _load_railway_config()
     start = config["deploy"]["startCommand"]
 
-    # Railway injects $PORT; the effective command must consume it rather than
-    # hardcode a port. Measured effective command 2026-08-06.
-    assert "uvicorn services.live_overlay_daemon.main:app" in start
-    assert "${PORT:-8000}" in start
-    assert "--port" in start
+    assert start == "python -m services.live_overlay_daemon.main"
+    assert "$PORT" not in start
+    assert "--port" not in start
 
 
 def test_railway_healthcheck_path_is_health() -> None:

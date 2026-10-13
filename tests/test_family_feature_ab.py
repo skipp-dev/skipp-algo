@@ -243,7 +243,6 @@ def test_extract_ab_samples_pairs_score_and_feature() -> None:
     bars = [
         {
             "timestamp": _T0 + i * _STEP,
-            "open": closes[i] - 0.5,
             "high": closes[i] + 1.0,
             "low": closes[i] - 1.0,
             "close": closes[i],

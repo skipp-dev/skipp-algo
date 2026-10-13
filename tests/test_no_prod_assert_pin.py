@@ -26,7 +26,7 @@ from pathlib import Path
 
 import pytest
 
-from tests._guard_corpus import iter_production_py_files, parse_module
+from tests._guard_corpus import parse_module
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -50,7 +50,13 @@ _DIR_EXCLUDE = frozenset(
 
 
 def _iter_first_party_py() -> list[Path]:
-    return iter_production_py_files(_DIR_EXCLUDE)
+    out: list[Path] = []
+    for p in sorted(_REPO_ROOT.rglob("*.py")):
+        rel_parts = p.relative_to(_REPO_ROOT).parts
+        if any(part in _DIR_EXCLUDE for part in rel_parts):
+            continue
+        out.append(p)
+    return out
 
 
 def _collect_assert_sites() -> list[tuple[str, int]]:

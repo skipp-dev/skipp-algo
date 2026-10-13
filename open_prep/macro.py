@@ -344,8 +344,8 @@ def dedupe_events(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
             continue
 
         existing = kept[key]
-        existing_score = (_event_impact_rank(existing), _to_float(existing.get("actual")) is not None)  # M4: parseable numeric actual wins the tie-break, not a non-numeric placeholder
-        new_score = (_event_impact_rank(cloned), _to_float(cloned.get("actual")) is not None)  # M4: as above
+        existing_score = (_event_impact_rank(existing), existing.get("actual") is not None)
+        new_score = (_event_impact_rank(cloned), cloned.get("actual") is not None)
         if new_score > existing_score:
             dropped[key].append(existing)
             kept[key] = cloned
@@ -367,7 +367,7 @@ def dedupe_events(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _macro_orientation(canonical_event: str) -> float:
-    if canonical_event.startswith(("cpi", "core_cpi", "ppi", "core_ppi", "pce", "core_pce", "jobless_claims", "unemployment_rate")):  # unemployment_rate = labor weakness (higher=worse) => risk-off like jobless_claims; was falling to the +1 growth default
+    if canonical_event.startswith(("cpi", "core_cpi", "ppi", "core_ppi", "pce", "core_pce", "jobless_claims")):
         return -1.0
     return 1.0
 
@@ -399,6 +399,8 @@ def _macro_weight(
     if impact_rank == 2:
         return 1.0
     if impact_rank == 1:
+        return 0.25 if allow_mid_impact else 0.0
+    if canonical_event in {"consumer_sentiment", "ism_services", "ism_manufacturing", "philadelphia_fed"}:
         return 0.25 if allow_mid_impact else 0.0
     return 1.0 if _is_high_impact_event_name(str(event.get("event") or event.get("name") or "")) else 0.0
 
@@ -1164,9 +1166,6 @@ class FMPClient:
         return rows
 
     def get_fmp_articles(self, limit: int = 250) -> list[dict[str, Any]]:
-        from open_prep.feature_flags import is_fmp_news_enabled  # 2026-10-08: FMP news off by default
-        if not is_fmp_news_enabled():
-            return []
         params: dict[str, Any] = {
             "page": 0,
             "limit": max(int(limit), 1),
@@ -1183,9 +1182,6 @@ class FMPClient:
         return list(data) if isinstance(data, list) else []
 
     def get_stock_latest_news(self, *, symbol: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
-        from open_prep.feature_flags import is_fmp_news_enabled  # 2026-10-08: FMP news off by default
-        if not is_fmp_news_enabled():
-            return []
         params: dict[str, Any] = {"limit": max(int(limit), 1)}
         if symbol:
             params["symbol"] = str(symbol).strip().upper()
@@ -1596,9 +1592,6 @@ class FMPClient:
         limit: int = 50,
     ) -> list[dict[str, Any]]:
         """FMP `/stable/news/stock-latest` (latest stock-tagged news feed)."""
-        from open_prep.feature_flags import is_fmp_news_enabled  # 2026-10-08: FMP news off by default
-        if not is_fmp_news_enabled():
-            return []
         params: dict[str, Any] = {
             "page": max(int(page), 0),
             "limit": max(int(limit), 1),

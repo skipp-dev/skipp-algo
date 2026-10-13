@@ -60,9 +60,8 @@ _RS_CALL = re.compile(r"\brequest\.security\s*\(")
 # for a defense-only scan: split on the first top-level comma after the
 # opening paren.
 
-_FROZEN_TOTAL = 4
+_FROZEN_TOTAL = 1
 _FROZEN_FILE_COUNTS: dict[str, int] = {
-    "SMC_HTF_Confluence.pine": 3,
     "SMC_Long_Dip_Suite.pine": 1,
 }
 
@@ -199,9 +198,7 @@ def _scan_calls() -> list[tuple[str, int, str | None]]:
 _PINE_FUNC_DEF = re.compile(r"^(\w+)\s*\(([^)]*)\)\s*=>")
 _PINE_CONST = re.compile(r"^\s*(?:const|var)?\s*string\s+(\w+)\s*=\s*'([^']*)'", re.M)
 _PINE_INPUT_TF = re.compile(
-    r"""^\s*(?:var\s+)?string\s+(\w+)\s*=\s*input\.timeframe\s*\(\s*
-        (\w+|"[^"]*"|'[^']*')""",
-    re.M | re.X,
+    r"^\s*(?:var\s+)?string\s+(\w+)\s*=\s*input\.timeframe\s*\(\s*(\w+)", re.M
 )
 
 
@@ -234,10 +231,7 @@ def _resolve_tf_defaults(text: str, tf: str, lineno: int) -> list[str]:
 
     def _resolve_name(name: str) -> list[str]:
         if name in inputs:  # var string X = input.timeframe(CONST, ...)
-            input_default = inputs[name]
-            if input_default.startswith(("'", '"')):
-                return [input_default.strip("'\"")]
-            const_name = input_default
+            const_name = inputs[name]
             return [consts[const_name]] if const_name in consts else []
         if name in consts:
             return [consts[name]]

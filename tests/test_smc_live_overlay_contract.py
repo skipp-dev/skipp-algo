@@ -37,21 +37,6 @@ def _load_golden() -> dict:
     return json.loads(_GOLDEN_PATH.read_text(encoding="utf-8"))
 
 
-def test_schema_has_no_duplicate_object_keys() -> None:
-    def reject_duplicates(pairs: list[tuple[str, object]]) -> dict[str, object]:
-        result: dict[str, object] = {}
-        for key, value in pairs:
-            if key in result:
-                raise ValueError(f"duplicate JSON key: {key}")
-            result[key] = value
-        return result
-
-    json.loads(
-        _SCHEMA_PATH.read_text(encoding="utf-8"),
-        object_pairs_hook=reject_duplicates,
-    )
-
-
 def test_schema_is_valid_draft_2020_12() -> None:
     schema = _load_schema()
     jsonschema.Draft202012Validator.check_schema(schema)
@@ -75,23 +60,6 @@ def test_model_round_trips_golden_sample() -> None:
 def test_flattened_payload_validates_against_schema() -> None:
     payload = LiveOverlayPayload.model_validate(_load_golden())
     jsonschema.validate(instance=flatten_overlay(payload), schema=_load_schema())
-
-
-def test_runtime_library_and_canonical_flow_fields_match_strict_contract() -> None:
-    instance = _load_golden() | {
-        "universe_member": True,
-        "universe_size": 6929,
-        "library_asof_date": "2026-07-22",
-        "library_asof_time": "2026-07-22T16:40:00Z",
-        "provider_trust_status": "degraded",
-        "provider_stale_list": "benzinga",
-        "price_candle_body_return_pct": 0.25,
-        "volume_accumulation_distribution_state": "accumulation",
-        "volume_current_bar_zscore": 1.5,
-    }
-
-    jsonschema.validate(instance=instance, schema=_load_schema())
-    assert flatten_overlay(LiveOverlayPayload.model_validate(instance)) == instance
 
 
 def test_flatten_drops_null_data_fields() -> None:
@@ -135,7 +103,7 @@ def test_missing_envelope_field_rejected_by_schema(missing: str) -> None:
         jsonschema.validate(instance=instance, schema=_load_schema())
 
 
-@pytest.mark.parametrize("bad_tf", ["1D", "5M", ""])
+@pytest.mark.parametrize("bad_tf", ["1m", "1D", "5M", ""])
 def test_invalid_timeframe_rejected_by_schema(bad_tf: str) -> None:
     instance = _load_golden()
     instance["tf"] = bad_tf

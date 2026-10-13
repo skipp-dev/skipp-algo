@@ -58,7 +58,6 @@ def _auxiliary_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "ipda_range": dict(aux.get("ipda_range", {})) if isinstance(aux.get("ipda_range"), dict) else {},
         "htf_fvg_bias": dict(aux.get("htf_fvg_bias", {})) if isinstance(aux.get("htf_fvg_bias"), dict) else {},
         "broken_fractal_signals": list(aux.get("broken_fractal_signals", [])),
-        "rejection_blocks": list(aux.get("rejection_blocks", [])),
     }
 
 
@@ -75,7 +74,6 @@ def _diagnostics_from_payload(payload: dict[str, Any], *, structure_profile_used
         "session_ranges": len(auxiliary.get("session_ranges", [])),
         "session_pivots": len(auxiliary.get("session_pivots", [])),
         "broken_fractal_signals": len(auxiliary.get("broken_fractal_signals", [])),
-        "rejection_blocks": len(auxiliary.get("rejection_blocks", [])),
     }
     warnings = list(diagnostics.get("warnings", []))
     notes = list(diagnostics.get("notes", []))

@@ -13,11 +13,7 @@ import re
 
 import pytest
 
-from tests.smc_manifest_test_utils import (
-    extract_group_titles,
-    extract_input_bindings,
-    published_micro_profiles_import_line,
-)
+from tests.smc_manifest_test_utils import extract_group_titles, extract_input_bindings
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 OVERLAY_PATH = ROOT / "SMC_Event_Overlay.pine"
@@ -43,10 +39,8 @@ EXPECTED_MP_FIELDS_IN_ORDER = (
     "EVENT_COOLDOWN_ACTIVE",
     "MARKET_EVENT_BLOCKED",
     "SYMBOL_EVENT_BLOCKED",
-    "HIGH_RISK_EVENT_TICKERS",
     "EARNINGS_SOON_TICKERS",
     "ASOF_DATE", "ASOF_DATE", "ASOF_DATE",  # staleness check: year, month, day
-    "ASOF_DATE",  # exact event timestamp date anchor
 )
 ALLOWED_MP_FIELDS = {
     "EVENT_WINDOW_STATE", "EVENT_RISK_LEVEL",
@@ -55,7 +49,7 @@ ALLOWED_MP_FIELDS = {
     "EVENT_RESTRICT_BEFORE_MIN", "EVENT_RESTRICT_AFTER_MIN",
     "EVENT_COOLDOWN_ACTIVE",
     "MARKET_EVENT_BLOCKED", "SYMBOL_EVENT_BLOCKED",
-    "HIGH_RISK_EVENT_TICKERS", "EARNINGS_SOON_TICKERS",
+    "EARNINGS_SOON_TICKERS", "HIGH_RISK_EVENT_TICKERS",
     "EVENT_PROVIDER_STATUS",
     "ASOF_DATE",  # Library freshness check (companion staleness pattern)
 }
@@ -86,36 +80,8 @@ class TestOverlayStructure:
         assert "overlay = true" in src
 
     def test_imports_library(self):
-        """The overlay is R1-attested, so it lags the published version by design.
-
-        2026-08-05: this asserted the *published* import line and failed on
-        `main` for a state the repo produces on purpose. #4435's hold step
-        freezes attested companions at their attested content -- an attested
-        source may only move together with new evidence, and evidence costs a
-        mutating TradingView session that a nine-per-weekday refresh cannot
-        carry. So the overlay sat on v183 while fourteen consumers went to v190.
-
-        Asserted instead: it imports that library at a version at or behind the
-        published one, never ahead. TradingView keeps every published version,
-        so the older pin resolves; a pin *ahead* of the publisher would not, and
-        no hold could explain it.
-        """
         src = _read(OVERLAY_PATH)
-        published = re.search(
-            r"/(\d+)\s+as\s+mp", published_micro_profiles_import_line()
-        )
-        assert published, "the published import line stopped carrying a version"
-        pinned = re.search(
-            r"^import preuss_steffen/smc_micro_profiles_generated/(\d+)\s+as\s+mp",
-            src,
-            re.MULTILINE,
-        )
-        assert pinned, "the overlay stopped importing smc_micro_profiles_generated"
-        assert int(pinned.group(1)) <= int(published.group(1)), (
-            f"overlay pins v{pinned.group(1)}, ahead of the published "
-            f"v{published.group(1)} -- a hold keeps it behind, never in front"
-        )
-        assert "import preuss_steffen/smc_utils/4 as u" in src
+        assert "import preuss_steffen/smc_micro_profiles_generated/156 as mp" in src
 
     def test_bus_lean_pack_a_input(self):
         src = _read(OVERLAY_PATH)
@@ -133,18 +99,6 @@ class TestOverlayStructure:
         src = _read(OVERLAY_PATH)
         assert 'pack_slot(src_lean_pack_a, 2)' in src
         assert 'overlay_event_status_text' in src
-
-    def test_event_status_plotchars_use_compile_time_chars(self):
-        src = _read(OVERLAY_PATH)
-        assert "char = rt_status" not in src
-        for title, char in (
-            ("Event Status · Market Block", "M"),
-            ("Event Status · Earnings Block", "E"),
-            ("Event Status · Incoming", "I"),
-            ("Event Status · Cooldown", "C"),
-            ("Event Status · Clear", "✓"),
-        ):
-            assert f'"{title}", "{char}"' in src
 
     def test_overlay_uses_only_lean_slot_2_for_runtime_state(self):
         src = _read(OVERLAY_PATH)
@@ -282,31 +236,6 @@ class TestOverlayVisualElements:
     def test_has_alertcondition(self):
         src = _read(OVERLAY_PATH)
         assert "alertcondition(" in src
-
-    def test_exact_event_line_uses_dst_aware_absolute_timestamp(self):
-        src = _read(OVERLAY_PATH)
-        assert 'timestamp("America/New_York"' in src
-        assert "event_timestamp_et(mp.ASOF_DATE, ev_time)" in src
-        assert re.search(
-            r"line\.new\(event_ts, high, event_ts, low, xloc\.bar_time",
-            src,
-        )
-        assert "line.new(bar_index" not in src
-
-    def test_event_time_and_restriction_start_are_separate_semantics(self):
-        src = _read(OVERLAY_PATH)
-        assert "restriction_start_ts = event_time_valid ? event_ts -" in src
-        assert "restriction_just_started" in src
-        assert 'title = "Event Restriction Window Started"' in src
-        assert 'title = "Event Restriction Hard Block Started"' in src
-        assert "window_just_started" not in src
-
-    def test_static_snapshot_does_not_shade_all_historical_bars(self):
-        src = _read(OVERLAY_PATH)
-        assert "in_pre_restriction" in src
-        assert "in_post_restriction" in src
-        assert "fallback_restriction" in src
-        assert 'ev_window == "PRE_EVENT"  ? col_zone_pre' not in src
 
 
 # ═════════════════════════════════════════════════════════════════

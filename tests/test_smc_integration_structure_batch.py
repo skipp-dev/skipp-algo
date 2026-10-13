@@ -501,18 +501,11 @@ class TestCanonicalStructure:
 
 class TestAuxiliaryFromPayload:
     def test_extracts_auxiliary(self) -> None:
-        payload = {
-            "auxiliary": {
-                "liquidity_lines": [1],
-                "session_ranges": [2],
-                "rejection_blocks": [{"id": "rjb:1"}],
-            }
-        }
+        payload = {"auxiliary": {"liquidity_lines": [1], "session_ranges": [2]}}
         aux = _auxiliary_from_payload(payload)
         assert aux["liquidity_lines"] == [1]
         assert aux["session_ranges"] == [2]
         assert aux["session_pivots"] == []
-        assert aux["rejection_blocks"] == [{"id": "rjb:1"}]
 
     def test_missing_auxiliary(self) -> None:
         aux = _auxiliary_from_payload({})
@@ -522,18 +515,11 @@ class TestAuxiliaryFromPayload:
 class TestCountsFromPayload:
     def test_counts(self) -> None:
         structure = {"bos": [1, 2], "orderblocks": [], "fvg": [3], "liquidity_sweeps": []}
-        auxiliary = {
-            "liquidity_lines": [1],
-            "session_ranges": [],
-            "session_pivots": [],
-            "broken_fractal_signals": [],
-            "rejection_blocks": [1, 2],
-        }
+        auxiliary = {"liquidity_lines": [1], "session_ranges": [], "session_pivots": [], "broken_fractal_signals": []}
         counts = _counts_from_payload(structure, auxiliary)
         assert counts["bos"] == 2
         assert counts["fvg"] == 1
         assert counts["liquidity_lines"] == 1
-        assert counts["rejection_blocks"] == 2
 
 
 class TestRelativeRepoPath:

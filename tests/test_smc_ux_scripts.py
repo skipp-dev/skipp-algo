@@ -8,14 +8,12 @@ from __future__ import annotations
 import pathlib
 import re
 
-from tests.smc_manifest_test_utils import published_micro_profiles_import_line
-
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 CONFLUENCE_PATH = ROOT / "SMC_Confluence_Hub.pine"
 SETUP_CHECK_PATH = ROOT / "SMC_Setup_Check.pine"
 MOBILE_PATH = ROOT / "SMC_Long_Dip_Mobile.pine"
-DASHBOARD_PATH = ROOT / "SMC_Decision_Board.pine"
+DASHBOARD_PATH = ROOT / "SMC_Long_Dip_Dashboard.pine"
 
 
 def _read(path: pathlib.Path) -> str:
@@ -91,7 +89,7 @@ def test_confluence_has_alert_conditions() -> None:
 
 def test_confluence_imports_library() -> None:
     source = _read(CONFLUENCE_PATH)
-    assert published_micro_profiles_import_line() in source
+    assert "import preuss_steffen/smc_micro_profiles_generated/156 as mp" in source
 
 
 def test_confluence_is_a_pure_consumer() -> None:
@@ -151,7 +149,7 @@ def test_mobile_is_a_pure_consumer() -> None:
 
 def test_mobile_imports_library() -> None:
     source = _read(MOBILE_PATH)
-    assert published_micro_profiles_import_line() in source
+    assert "import preuss_steffen/smc_micro_profiles_generated/156 as mp" in source
 
 
 # ── Dashboard Explain Mode ──────────────────────────────────

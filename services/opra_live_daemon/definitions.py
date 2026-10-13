@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -11,74 +10,6 @@ from databento.common.error import BentoClientError
 from newsstack_fmp.opra_uoa import OpraDefinitionRecord
 
 _MAX_LOOKBACK_DAYS = 7
-
-# Consecutive failures past which counting stops: 2**32 * any sane base delay
-# is far beyond the cap already, and the doubling overflows around 1024.
-_MAX_TRACKED_FAILURES = 32
-
-
-@dataclass
-class BootstrapPlanner:
-    """Decides when the definition bootstrap must be (re-)attempted.
-
-    Pure and clock-free — the caller passes a monotonic reading — so the two
-    production failures it exists for are testable without a live feed:
-
-    * a bootstrap that failed (Databento Historical answered 504 for hours on
-      2026-08-04) must be retried with a growing, bounded delay rather than
-      leaving the replica definition-less for the rest of the day;
-    * a UTC session roll clears ``OpraShadowState._definitions``, so the
-      bootstrap owes the NEW session a full load even though live records may
-      already have re-learned a handful of instruments.
-    """
-
-    retry_seconds: float = 30.0
-    max_retry_seconds: float = 900.0
-    _last_attempt: float | None = field(default=None, init=False)
-    _consecutive_failures: int = field(default=0, init=False)
-    _satisfied_session: str | None = field(default=None, init=False)
-    _satisfied: bool = field(default=False, init=False)
-
-    def _delay(self) -> float:
-        if self._consecutive_failures <= 0:
-            return self.retry_seconds
-        grown = self.retry_seconds * 2.0 ** (self._consecutive_failures - 1)
-        return min(grown, self.max_retry_seconds)
-
-    def _bounded(self, failures: int) -> int:
-        """Stop counting failures long after the delay has hit its cap.
-
-        Unbounded counting overflows the doubling: at ~1025 consecutive
-        failures ``2.0 ** 1024`` raises OverflowError out of ``due()``, which
-        runs OUTSIDE the caller's try — the feed would mistake it for a
-        connection fault and churn reconnects forever, never bootstrapping
-        again. Ten days of continuous failure reaches that count.
-        """
-        return min(failures, _MAX_TRACKED_FAILURES)
-
-    def due(self, now: float, *, session_date: str | None, definition_count: int) -> bool:
-        """True when a bootstrap attempt should run at *now*."""
-        rolled = (
-            session_date is not None
-            and self._satisfied_session is not None
-            and session_date != self._satisfied_session
-        )
-        if self._satisfied and definition_count > 0 and not rolled:
-            return False
-        if self._last_attempt is None:
-            return True
-        return now - self._last_attempt >= self._delay()
-
-    def record_attempt(self, now: float, *, ok: bool, session_date: str | None) -> None:
-        """Register the outcome of an attempt started for *session_date*."""
-        self._last_attempt = now
-        if ok:
-            self._consecutive_failures = 0
-            self._satisfied = True
-            self._satisfied_session = session_date
-        else:
-            self._consecutive_failures = self._bounded(self._consecutive_failures + 1)
-            self._satisfied = False
 
 
 def utc_day_window(instant: datetime) -> tuple[datetime, datetime]:

@@ -4,10 +4,6 @@ from typing import Any
 
 
 def has_live_news_provider(cfg: Any, feed: list[dict[str, Any]] | None = None) -> bool:
-    producer_url = str(getattr(cfg, "producer_feed_url", "") or "").strip()
-    producer_token = str(getattr(cfg, "producer_feed_token", "") or "").strip()
-    if producer_url and producer_token:
-        return True
     if str(getattr(cfg, "benzinga_api_key", "") or "").strip():
         return True
     return bool(getattr(cfg, "fmp_enabled", False)) and bool(
@@ -17,11 +13,6 @@ def has_live_news_provider(cfg: Any, feed: list[dict[str, Any]] | None = None) -
 
 def validate_terminal_config(cfg: Any) -> list[str]:
     problems: list[str] = []
-    producer_url = str(getattr(cfg, "producer_feed_url", "") or "").strip()
-    producer_token = str(getattr(cfg, "producer_feed_token", "") or "").strip()
-
-    if bool(producer_url) != bool(producer_token):
-        problems.append("producer_feed_url and producer_feed_token must be set together")
 
     if not str(getattr(cfg, "jsonl_path", "") or "").strip():
         problems.append("jsonl_path must not be empty")

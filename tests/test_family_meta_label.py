@@ -232,7 +232,6 @@ def _event(
         "direction": "long",
         "entry_mode": "immediate",
         "entry_price": entry,
-        "forward_opens": [entry, *closes[:-1]],
         "forward_closes": closes,
         "forward_timestamps": forward_ts,
     }

@@ -60,39 +60,6 @@ POS_HINTS = re.compile(
     r"rally|rallies|jumps?|gains?|rebounds?|soars?|rises?|rose)\b", re.I,
 )
 
-# Forward-looking preview copy is not a realised catalyst.  Provider-written
-# templates frequently contain optimistic words such as "growth" or "likely
-# beat" before results exist; treating those words as observed outcomes turns
-# ordinary earnings-calendar reminders into bullish trade directions.
-_FORWARD_LOOKING_PREVIEW_PATTERNS: tuple[re.Pattern[str], ...] = (
-    re.compile(r"\b(?:set|scheduled|due)\s+to\s+report\b", re.I),
-    re.compile(r"\breports?\s+(?:next|this)\s+(?:week|month|quarter)\b", re.I),
-    re.compile(r"\bexpected\s+to\s+(?:report|post|announce)\b", re.I),
-    re.compile(r"\b(?:wall\s+street|analysts?|the\s+market)\s+expects?\b", re.I),
-    re.compile(r"\b(?:upcoming|next)\s+(?:earnings\s+|quarterly\s+)?report\b", re.I),
-    # "ahead of <event>" is a preview only when the event noun is the near-object
-    # of "ahead of" (modified by determiner/date/adjective qualifiers). The old
-    # ".{0,80}" window also matched the realized-move idiom "<surges> ahead of
-    # <the market / rivals / peers> after earnings", wrongly neutralising a
-    # realised catalyst and suppressing the live A0 news-catalyst upgrade
-    # (realtime_signals.py:3315). 2026-07-25.
-    re.compile(
-        r"\bahead\s+of\s+"
-        r"(?:(?:the|its|their|his|her|this|next|a|an|upcoming|coming|tomorrow|today|"
-        r"\w+day|week|month|quarter|q[1-4]|fiscal|quarterly|annual|full[-\s]year|"
-        r"fy\s?\d{2,4}|\d{4}|key|big|latest|crucial|pivotal|major|closely[-\s]watched|"
-        r"highly[-\s]anticipated|much[-\s]anticipated|hotly[-\s]anticipated|"
-        r"long[-\s]awaited|much[-\s]awaited|eagerly[-\s]awaited|anticipated|awaited|"
-        r"watched|expected|pending|hotly|much|eagerly|widely|keenly|long|company|firm)"
-        r"['’]?s?\s+){0,5}"
-        r"(?:earnings|results?|report)\b",
-        re.I,
-    ),
-    re.compile(r"\b(?:earnings|results?)\s+preview\b", re.I),
-    re.compile(r"\bwhat\s+to\s+(?:expect|watch|look\s+for)\b", re.I),
-    re.compile(r"\b(?:likely|potential|possible)\s+earnings?\s+beat\b", re.I),
-)
-
 _CATEGORY_POLARITY_NOISE: dict[str, re.Pattern[str]] = {
     "halt": re.compile(r"\b(trading\s+halt|halted|resumption|resumed)\b", re.I),
     "offering": re.compile(
@@ -114,15 +81,6 @@ class ScoreResult:
     cluster_hash: str
     relevance: float  # 0.0–1.0 composite (impact*0.45 + clarity*0.30 + entity_bonus + novelty*0.15)
     entity_count: int  # tickers mentioned; read by terminal_poller -> PollItem -> feed display
-
-
-def is_forward_looking_preview(headline: str, snippet: str = "") -> bool:
-    """Return whether a headline describes expectations before an event."""
-    # Classify the headline when present.  Realised-results articles often say
-    # what Wall Street *expected* in their body; scanning that context would
-    # incorrectly turn an explicit earnings beat back into a preview.
-    text = str(headline or "").strip() or str(snippet or "").strip()
-    return any(pattern.search(text) for pattern in _FORWARD_LOOKING_PREVIEW_PATTERNS)
 
 
 def _norm(s: str) -> str:
@@ -204,7 +162,6 @@ def classify_and_score(
         chash = cluster_hash(headline, tickers)
 
     entity_count = len(tickers)
-    forward_looking_preview = is_forward_looking_preview(headline, str(snippet or ""))
 
     category = "other"
     impact = 0.10
@@ -213,16 +170,12 @@ def classify_and_score(
             category = cat
             impact = base_impact
             break
-    if forward_looking_preview and category == "earnings":
-        impact = min(impact, 0.35)
 
     # Clarity: headlines with numbers or high-impact categories are clearer
     has_number = bool(re.search(r"\b\d+(\.\d+)?\b", headline))
     clarity = 0.60 + (0.20 if has_number else 0.0)
     if category in ("halt", "offering", "mna", "fda", "insider", "ipo"):
         clarity += 0.10
-    if forward_looking_preview:
-        clarity = min(clarity, 0.55)
     clarity = min(1.0, clarity)
 
     # Polarity: use headline plus optional snippet/context text.
@@ -231,7 +184,7 @@ def classify_and_score(
     polarity_text = _sanitize_polarity_text(category, _merge_text_fragments(headline, snippet))
     pos_matches = len(POS_HINTS.findall(polarity_text))
     neg_matches = len(NEG_HINTS.findall(polarity_text))
-    if forward_looking_preview or (pos_matches == 0 and neg_matches == 0):
+    if pos_matches == 0 and neg_matches == 0:
         polarity = 0.0
     else:
         # Keyword strength: more matches → stronger signal (saturates at 4)

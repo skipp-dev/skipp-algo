@@ -2,6 +2,7 @@
 
 Validates that:
 1. ``databento_client`` contains all expected SDK-wrapper functions.
+2. ``databento_session`` contains session/window helpers and dataclass.
 3. ``databento_universe`` contains universe resolution helpers.
 4. All extracted names are still importable from the monolith (backward compat).
 5. The extracted modules can be used independently.
@@ -10,7 +11,7 @@ Validates that:
 from __future__ import annotations
 
 import os
-from datetime import UTC, date
+from datetime import UTC, date, time
 from pathlib import Path
 
 import pandas as pd
@@ -168,10 +169,85 @@ class TestDabentoClientBehavior:
         assert seen == ["/tmp/certifi.pem"]
 
 
-# ── 2. databento_session — ENTFERNT 2026-08-18 (Verdrahtungs-Sweep E5):
-#    extrahiert-nie-adoptiert; der Screener behielt seine eigenen Kopien
-#    (facade-Sektion unten prueft sie weiter), und die Re-Export-Behauptung
-#    des Modul-Docstrings war fuer 4 Konstanten falsch.
+# ── 2. databento_session surface ────────────────────────────────────────────
+
+class TestDabentoSessionSurface:
+    """All expected names are importable from databento_session."""
+
+    @pytest.mark.parametrize("name", [
+        "WindowDefinition",
+        "compute_market_relative_window",
+        "_resolve_window_for_date",
+        "build_window_definition",
+        "DEFAULT_INTRADAY_PRE_OPEN_MINUTES",
+        "DEFAULT_INTRADAY_POST_OPEN_MINUTES",
+        "DEFAULT_OPEN_WINDOW_PRE_OPEN_MINUTES",
+        "DEFAULT_OPEN_WINDOW_POST_OPEN_SECONDS",
+        "DEFAULT_CLOSE_IMBALANCE_WINDOW_START_ET",
+        "DEFAULT_CLOSE_IMBALANCE_AUCTION_TIME_ET",
+        "DEFAULT_CLOSE_IMBALANCE_WINDOW_END_ET",
+        "DEFAULT_CLOSE_IMBALANCE_AFTERHOURS_END_ET",
+        "DEFAULT_CLOSE_IMBALANCE_NEXT_DAY_OUTCOME_TIME_ET",
+    ])
+    def test_name_exists(self, name: str) -> None:
+        import databento_session
+        assert hasattr(databento_session, name)
+
+
+class TestDabentoSessionBehavior:
+    """Functional tests for session/window helpers."""
+
+    def test_compute_market_relative_window_defaults(self) -> None:
+        from databento_session import compute_market_relative_window
+        start, end = compute_market_relative_window(date(2026, 3, 10), "America/New_York")
+        assert start == time(9, 20)
+        assert end == time(10, 0)
+
+    def test_compute_market_relative_window_post_open_seconds(self) -> None:
+        from databento_session import compute_market_relative_window
+        start, end = compute_market_relative_window(
+            date(2026, 3, 10), "America/New_York",
+            pre_open_minutes=1, post_open_seconds=359,
+        )
+        assert start == time(9, 29)
+        assert end == time(9, 35, 59)
+
+    def test_build_window_definition_fields(self) -> None:
+        from databento_session import build_window_definition
+        wd = build_window_definition(
+            date(2026, 3, 10),
+            display_timezone="America/New_York",
+            window_start=time(9, 20),
+            window_end=time(10, 0),
+            premarket_anchor_et=time(9, 20),
+        )
+        assert wd.trade_date == date(2026, 3, 10)
+        assert wd.display_timezone == "America/New_York"
+        assert wd.fetch_start_utc < wd.fetch_end_utc
+
+    def test_build_window_definition_rejects_inverted(self) -> None:
+        from databento_session import build_window_definition
+        with pytest.raises(ValueError):
+            build_window_definition(
+                date(2026, 3, 10),
+                display_timezone="America/New_York",
+                window_start=time(10, 0),
+                window_end=time(9, 20),
+                premarket_anchor_et=time(9, 20),
+            )
+
+    def test_resolve_window_for_date_explicit(self) -> None:
+        from databento_session import _resolve_window_for_date
+        s, e = _resolve_window_for_date(date(2026, 3, 10), "America/New_York", time(9, 15), time(10, 30))
+        assert s == time(9, 15)
+        assert e == time(10, 30)
+
+    def test_resolve_window_for_date_defaults(self) -> None:
+        from databento_session import _resolve_window_for_date
+        s, e = _resolve_window_for_date(date(2026, 3, 10), "America/New_York", None, None)
+        assert s == time(9, 20)
+        assert e == time(10, 0)
+
 
 # ── 3. databento_universe surface ───────────────────────────────────────────
 

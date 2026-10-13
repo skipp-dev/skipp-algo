@@ -3,7 +3,7 @@ imports smc_micro_profiles_generated.
 
 Guards against the 2026-04-22 regression where only
 ``SMC_Long_Dip_Suite.pine`` got re-pinned by
-``.github/workflows/smc-library-publish.yml``, leaving 13 other
+``.github/workflows/smc-library-refresh.yml``, leaving 13 other
 top-level Pine consumers stranded on the previous library version
 and silently importing stale exports.
 """
@@ -20,27 +20,22 @@ PIN_PATTERN = re.compile(
 
 EXPECTED_CONSUMERS: set[str] = {
     "SMC_Long_Dip_Suite.pine",
-    "SMC_Decision_Board.pine",
+    "SMC_Long_Dip_Dashboard.pine",
     "SMC_Long_Dip_Mobile.pine",
     "SMC_Long_Dip_Strategy.pine",
     "SMC_Long_Dip_Alerts.pine",
     "SMC_Hold_Manager.pine",
     "SMC_Confluence_Hub.pine",
     "SMC_Structure_Context.pine",
+    "SMC_Session_Context.pine",
     "SMC_Profile_Context.pine",
     "SMC_Orderflow_Overlay.pine",
     "SMC_Liquidity_Structure.pine",
     "SMC_Liquidity_Context.pine",
     "SMC_Imbalance_Context.pine",
+    "SMC_HTF_Confluence.pine",
     "SMC_Event_Overlay.pine",
 }
-
-# 2026-07-30 (R5-REBUILD): SMC_HTF_Confluence.pine and SMC_Session_Context.pine
-# were rebuilt as stateless standalone consumers and no longer import
-# smc_micro_profiles_generated, so the version bump has nothing to re-pin in
-# them. They stay out of this set until an import is reintroduced. They remain
-# in the workflow's git-add list (pinned by test_smc_library_refresh_workflow):
-# staging an unchanged file is a no-op, and this set only has to be a subset.
 
 EXCLUDED_PARTS = {"tests", "generated", "node_modules", ".git", "pine"}
 
@@ -67,14 +62,14 @@ def test_all_pine_consumers_are_covered_by_version_bump() -> None:
     assert not new_consumers, (
         "New top-level pine consumers detected — add them to "
         "EXPECTED_CONSUMERS *and* the workflow git-add list in "
-        ".github/workflows/smc-library-publish.yml: "
+        ".github/workflows/smc-library-refresh.yml: "
         f"{sorted(new_consumers)}"
     )
 
 
 def test_workflow_git_add_lists_every_pine_consumer() -> None:
     workflow = (
-        REPO / ".github" / "workflows" / "smc-library-publish.yml"
+        REPO / ".github" / "workflows" / "smc-library-refresh.yml"
     ).read_text(encoding="utf-8")
     for name in EXPECTED_CONSUMERS:
         assert name in workflow, (
@@ -88,7 +83,7 @@ def test_workflow_uses_loop_based_pin_step() -> None:
     """Make sure the workflow no longer hard-codes the single-file
     sed path (which is the exact regression we are pinning against)."""
     workflow = (
-        REPO / ".github" / "workflows" / "smc-library-publish.yml"
+        REPO / ".github" / "workflows" / "smc-library-refresh.yml"
     ).read_text(encoding="utf-8")
     assert "Bump library version in all pine consumers" in workflow, (
         "Workflow no longer contains the loop-based version-bump "

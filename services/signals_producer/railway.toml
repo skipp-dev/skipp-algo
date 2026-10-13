@@ -8,25 +8,13 @@ dockerfilePath = "services/signals_producer/Dockerfile"
 # 2026-07-08 rt_notify push hook) silently did NOT redeploy the producer.
 # Config-as-code watchPatterns OVERRIDE the dashboard setting, so this list must
 # be complete — add any new cross-repo runtime dependency of the producer here.
-# Completeness is now enforced by
-# tests/test_signals_producer_service_contract.py::test_railway_watch_patterns_cover_every_copied_module
-# (every Dockerfile COPY source must be covered). Deeply-transitive changes can
-# still be deployed manually via
-# `railway redeploy --service smc-signals-producer --from-source`.
+# (terminal_technicals is a deferred import in realtime_signals and is
+# self-contained. Deeply-transitive changes can still be deployed manually via
+# `railway redeploy --service smc-signals-producer --from-source`.)
 watchPatterns = [
     "open_prep/**",
     "newsstack_fmp/**",
-    "terminal_fmp_insights.py",
-    "cisco_ai_defense.py",
-    "open_prep_boundary.py",
     "terminal_technicals.py",
-    "terminal_fmp_technicals.py",
-    "terminal_tradingview_news.py",
-    "databento_utils.py",
-    "smc_core/**",
-    "scripts/smc_newsapi_ai.py",
-    "scripts/smc_atomic_write.py",
-    "scripts/calibrate_signal_followthrough.py",
     "requirements.txt",
     "services/signals_producer/**",
 ]
@@ -35,27 +23,15 @@ watchPatterns = [
 # Long-running worker: the realtime signal engine polls FMP forever and serves
 # the latest signals over /signals (consumed by sibling services on the
 # private network).  The engine must bind its telemetry HTTP server to the
-# Railway-provided port so /readyz can verify the selected quote source.
+# Railway-provided port so /healthz is reachable by Railway's healthcheck.
 # The Python entrypoint reads PORT as its telemetry default; keep the command
 # free of literal "$PORT" arguments because Railway startCommand does not
 # reliably shell-expand them.
 startCommand = "python -m open_prep.realtime_signals"
-healthcheckPath = "/readyz"
-# 60s raced the engine's first successful poll (watchlist + snapshot fetch +
-# first FMP/databento poll); a spurious healthcheck FAIL on a routine main-push
-# deploy is what triggered the 2026-07-28 16:23-16:44 UTC prod outage. 300s
-# gives /readyz the same budget as the data-stall gauge (DATA_STALL_SECONDS).
-healthcheckTimeout = 300
-# ON_FAILURE left prod dead on 2026-07-28: Railway rotated the old container
-# out (SIGTERM), the engine's SIGTERM handler exits CLEANLY (code 0), and
-# ON_FAILURE does not restart clean exits -> nothing was running. A long-lived
-# producer must come back after ANY exit; deliberate stops go through
-# `railway down`, which removes the deployment and is unaffected by policy.
-restartPolicyType = "ALWAYS"
+healthcheckPath = "/healthz"
+healthcheckTimeout = 60
+restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3
 
 [[services]]
 name = "smc-signals-producer"
-
-[[services]]
-name = "smc-signals-producer-databento-shadow"

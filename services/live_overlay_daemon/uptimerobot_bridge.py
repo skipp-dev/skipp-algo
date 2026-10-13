@@ -194,17 +194,5 @@ def snapshot() -> dict[str, Any]:
 
         if fresh.get("ok") == 1 or _cached_snapshot is None:
             _cached_snapshot = fresh
-        else:
-            # Keep last-good DATA (counts/monitors + last_success timestamp)
-            # but carry the truthful last-attempt STATUS: the exporter maps
-            # bridge_scrape_success/error_info from these keys, and retaining
-            # the old ok=1/error=none froze both green during persistent
-            # failures (fail-open). A later success replaces the snapshot
-            # wholesale, clearing the override.
-            _cached_snapshot = {
-                **_cached_snapshot,
-                "last_attempt_ok": 0,
-                "last_attempt_error_code": str(fresh.get("error_code") or "unknown"),
-            }
         _cached_at_monotonic = time.monotonic()
         return dict(_cached_snapshot)

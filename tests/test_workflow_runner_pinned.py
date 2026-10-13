@@ -31,12 +31,8 @@ import yaml
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _WORKFLOWS_DIR = _REPO_ROOT / ".github" / "workflows"
 
-from tests._workflow_yaml import HOSTED_RUNS_ON_FORMS
-
-_HOSTED_RUNS_ON = HOSTED_RUNS_ON_FORMS[0]
-_HOSTED_RUNS_ON_FORMS = HOSTED_RUNS_ON_FORMS
+_HOSTED_RUNS_ON = "${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}"
 _RESOLVED_RUNS_ON = "${{ fromJson(needs.select-runner.outputs.runs_on_json) }}"
-
 _HEAVY_CI_CUSTOM_LABEL_EXPR = "${{ vars.SMC_CI_SELF_HOSTED_LABEL || vars.SMC_PRIORITY_CRON_SELF_HOSTED_LABEL || '' }}"
 _FAST_GATES_CUSTOM_LABEL_EXPR = "${{ vars.SMC_CI_SELF_HOSTED_LABEL || '' }}"
 _PRIORITY_CRON_CUSTOM_LABEL_EXPR = "${{ vars.SMC_PRIORITY_CRON_SELF_HOSTED_LABEL || vars.SMC_SELF_HOSTED_LABEL }}"
@@ -51,8 +47,6 @@ _ROUTED_WORKFLOWS = {
     "rl-research-training.yml": {"worker_jobs": {"research"}},
     "run-open-prep-daily.yml": {"worker_jobs": {"run"}},
     "smc-library-refresh.yml": {"worker_jobs": {"refresh"}},
-    # 2026-08-13: die herausgeloeste Veroeffentlichung, gleiche Routung.
-    "smc-library-publish.yml": {"worker_jobs": {"publish"}},
     "smc-measurement-benchmark.yml": {"worker_jobs": {"measurement-benchmark"}},
     "smc-measurement-benchmark-rolling.yml": {"worker_jobs": {"rolling-benchmark"}},
     "smc-databento-production-export.yml": {"worker_jobs": {"export"}},
@@ -138,19 +132,12 @@ def test_workflow_runs_on_contract(path: Path) -> None:
 
     offenders: list[str] = []
     for job_id, job in jobs.items():
-        # 2026-08-29: dieselbe Ausnahmeliste wie in
-        # test_no_bare_ubuntu_latest_runs_on — bewusst EINE Liste fuer beide
-        # Guards. Zwei Kopien haetten sich auseinanderentwickelt, und dann
-        # deckt die eine, was die andere noch verbietet.
-        if (path.name, job_id) in _LITERAL_RUNNER_EXEMPTIONS:
-            continue
-        if job.get("runs-on") not in _HOSTED_RUNS_ON_FORMS:
+        if job.get("runs-on") != _HOSTED_RUNS_ON:
             offenders.append(f"  {job_id}: runs-on = {job.get('runs-on')!r}")
     assert not offenders, (
         f"{path.name} has jobs with non-pinned hosted runs-on:\n"
         + "\n".join(offenders)
-        + f"\n\nExpected one of: {_HOSTED_RUNS_ON_FORMS!r}"
-        + f"\nBegruendete Ausnahmen: {sorted(_LITERAL_RUNNER_EXEMPTIONS)}"
+        + f"\n\nExpected exactly: {_HOSTED_RUNS_ON!r}"
     )
 
 
@@ -166,55 +153,17 @@ def test_no_stale_ubuntu_latest_tier_literals() -> None:
     )
 
 
-#: Die einzige begruendete Ausnahme von "kein blankes ubuntu-latest", 2026-08-29.
-#: `runner-label-variable-watch` prueft die WERTE der Runner-Variablen. Ein
-#: Wachposten, der selbst an einer dieser Variablen haengt, steht in genau dem
-#: Moment mit, in dem er gebraucht wird -- ein falsches Label macht Jobs nicht
-#: rot, sondern verhindert sie (`queued` UNBEFRISTET; die 24-h-Zeile der
-#: Actions-Limits gilt nur self-hosted und nur je JOB, korrigiert 2026-08-29
-#: `cancelled`). Die Immunitaet IST hier die Funktion, nicht eine Nachlaessigkeit.
-#: Als Paar gepinnt: der Job muss literal bleiben (unten), und kein zweiter Job
-#: darf sich dieselbe Schreibweise nehmen.
-_LITERAL_RUNNER_EXEMPTIONS: frozenset[tuple[str, str]] = frozenset(
-    {
-        ("runner-label-variable-watch.yml", "watch"),
-        ("stuck-run-watch.yml", "watch"),
-    }
-)
-
-
 def test_no_bare_ubuntu_latest_runs_on() -> None:
     offenders: list[str] = []
     for path in _workflow_files():
         workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
         for job_id, job in _jobs(workflow).items():
-            if job.get("runs-on") == "ubuntu-latest" and (path.name, job_id) not in _LITERAL_RUNNER_EXEMPTIONS:
+            if job.get("runs-on") == "ubuntu-latest":
                 offenders.append(f"  {path.name}:{job_id}")
     assert not offenders, (
         "Found bare ``runs-on: ubuntu-latest`` (no operator override or selector hook):\n"
         + "\n".join(offenders)
-        + f"\n\nBegruendete Ausnahmen: {sorted(_LITERAL_RUNNER_EXEMPTIONS)}"
     )
-
-
-def test_literal_runner_exemptions_are_real_and_still_literal() -> None:
-    """Die Ausnahme muss existieren UND wirken.
-
-    Zwei Ausfallarten, die ein blosser Eintrag nicht abdeckt: der Job ist weg
-    (dann ist die Ausnahme ein toter Name, der die naechste Nachlaessigkeit
-    deckt), oder er hat sich doch eine Variable geholt (dann ist die Immunitaet
-    still verloren, waehrend der Eintrag weiter Ruhe suggeriert).
-    """
-    for filename, job_id in sorted(_LITERAL_RUNNER_EXEMPTIONS):
-        path = _WORKFLOWS_DIR / filename
-        assert path.exists(), f"Ausnahme zeigt auf {filename}, die Datei gibt es nicht mehr"
-        jobs = _jobs(yaml.safe_load(path.read_text(encoding="utf-8")))
-        assert job_id in jobs, f"Ausnahme zeigt auf {filename}:{job_id}, den Job gibt es nicht mehr"
-        runs_on = jobs[job_id].get("runs-on")
-        assert runs_on == "ubuntu-latest", (
-            f"{filename}:{job_id} ist nicht mehr literal, sondern {runs_on!r} — "
-            "damit haengt der Wert-Waechter an genau der Variablen, die er prueft"
-        )
 
 
 def test_fast_gates_prefers_github_hosted_selector() -> None:
@@ -241,50 +190,10 @@ def test_heavy_ci_workflows_prefer_ci_specific_self_hosted_selector(workflow_nam
 def test_ci_validate_runs_on_github_hosted_without_self_hosted_selector() -> None:
     workflow = yaml.safe_load((_WORKFLOWS_DIR / "ci.yml").read_text(encoding="utf-8"))
     jobs = _jobs(workflow)
-    # 2026-08-29: zweiter Job zugelassen — `runner-preflight`. Was dieser
-    # Assert schuetzt, war nie "genau ein Job", sondern "kein `select-runner`
-    # Fan-out": ci.yml darf die Runner-Wahl nicht an einen Resolver-Job
-    # delegieren. Der Preflight tut das Gegenteil — er WAEHLT nichts, er
-    # PRUEFT nur den Wert von `SMC_CI_ARM_RUNNER`, bevor die vier required
-    # Shards in eine Queue laufen, aus der sie nie zurueckkehren. Die
-    # Menge bleibt geschlossen: ein dritter Job faellt weiter durch.
-    assert set(jobs) == {"runner-preflight", "validate"}, (
-        f"ci.yml-Jobmenge hat sich veraendert: {sorted(jobs)!r} — erlaubt sind "
-        "nur `validate` und der Wert-Waechter `runner-preflight`"
-    )
+    assert set(jobs) == {"validate"}
     validate = jobs["validate"]
-    # 2026-08-29: nicht mehr der blanke `_HOSTED_RUNS_ON`-String. Die Lane
-    # darf per `SMC_CI_ARM_RUNNER` auf einen arm64-Standard-Runner zeigen
-    # (-17 % je Minute), ohne die globale Variable zu bewegen. Was dieser
-    # Test schuetzt, bleibt woertlich erhalten: GitHub-hosted, KEIN
-    # self-hosted-Selektor. Deshalb wird jetzt die Struktur geprueft statt
-    # der Zeichenkette — ein `fromJson(needs.select-runner...)` oder ein
-    # self-hosted-Label faellt weiter durch.
-    runs_on = validate.get("runs-on")
-    # 2026-08-29: mit Meldung. Ohne sie faellt der wahrscheinlichste Fall —
-    # `runs-on: [self-hosted, linux, ARM64]`, genau die Schreibweise, die eine
-    # arm64-Umstellung nahelegt — mit nacktem AssertionError, und die drei
-    # aussagekraeftigen Struktur-Pruefungen darunter laufen nie.
-    assert isinstance(runs_on, str), (
-        f"validate.runs-on ist kein String mehr, sondern {type(runs_on).__name__}: {runs_on!r} — "
-        "eine Label-Liste umgeht die Struktur-Pruefungen darunter, statt an ihnen zu scheitern"
-    )
-    assert "vars.SMC_GH_HOSTED_RUNNER" in runs_on, (
-        "validate MUSS die Hosted-Variable weiter als Rueckfall tragen"
-    )
-    assert runs_on.endswith("|| 'ubuntu-latest' }}"), (
-        f"validate.runs-on endet nicht mehr auf dem Hosted-Fallback: {runs_on!r}"
-    )
-    assert "SELF_HOSTED" not in runs_on and "select-runner" not in runs_on, (
-        f"validate.runs-on hat einen self-hosted-Selektor bekommen: {runs_on!r}"
-    )
-    # 2026-08-29: genau EINE `needs`-Kante, und zwar die auf den Wert-Waechter.
-    # Der Schutzzweck war nie "gar keine Kante", sondern "keine Kante auf einen
-    # Runner-Resolver" — das pinnt die naechste Zeile (`needs.select-runner`
-    # taucht im ganzen File nicht auf) unveraendert weiter.
-    assert validate.get("needs") == "runner-preflight", (
-        f"validate.needs ist nicht mehr der Wert-Waechter, sondern {validate.get('needs')!r}"
-    )
+    assert validate.get("runs-on") == _HOSTED_RUNS_ON
+    assert "needs" not in validate
     text = (_WORKFLOWS_DIR / "ci.yml").read_text(encoding="utf-8")
     assert "required-self-hosted" not in text
     assert "needs.select-runner" not in text

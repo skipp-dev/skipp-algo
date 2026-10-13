@@ -387,6 +387,7 @@ def test_generate_pine_library_from_base_proxies_to_run_generation(
         library_owner: str,
         library_version: int,
         enrichment: Any,
+        static_control_plane: bool,
     ) -> dict[str, Path]:
         captured["schema_path"] = schema_path
         captured["input_path"] = input_path
@@ -395,6 +396,7 @@ def test_generate_pine_library_from_base_proxies_to_run_generation(
         captured["library_owner"] = library_owner
         captured["library_version"] = library_version
         captured["enrichment"] = enrichment
+        captured["static_control_plane"] = static_control_plane
         return {"pine_path": output_root / "lib.pine"}
 
     monkeypatch.setattr(runtime, "run_generation", fake_run_generation)
@@ -421,6 +423,7 @@ def test_generate_pine_library_from_base_proxies_to_run_generation(
     assert captured["library_owner"] == "custom_owner"
     assert captured["library_version"] == 7
     assert captured["enrichment"] is None
+    assert captured["static_control_plane"] is False
 
 
 def test_generate_pine_library_from_base_passes_overrides_and_enrichment(
@@ -442,9 +445,11 @@ def test_generate_pine_library_from_base_passes_overrides_and_enrichment(
         output_root=tmp_path / "out",
         overrides_path=overrides,
         enrichment=enrichment,  # type: ignore[arg-type]
+        static_control_plane=True,
     )
     assert captured["overrides_path"] == overrides
     assert captured["enrichment"] == enrichment
+    assert captured["static_control_plane"] is True
     # Defaults preserved when not overridden.
     assert captured["library_owner"] == "preuss_steffen"
     assert captured["library_version"] == 1

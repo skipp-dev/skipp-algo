@@ -10,7 +10,7 @@ the dashboard and the freeze-exit gate.
 This test is the second defence line: it rebuilds the canonical sample
 input with deterministic inputs and deepdiff-compares against the
 frozen output fixture committed under
-``docs/calibration/schemas/v1.4.0_sample_output.json``.
+``docs/calibration/schemas/v1.3.0_sample_output.json``.
 
 Drift remediation
 -----------------
@@ -49,7 +49,7 @@ FIXTURE_PATH = (
     / "docs"
     / "calibration"
     / "schemas"
-    / "v1.4.0_sample_output.json"
+    / "v1.3.0_sample_output.json"
 )
 
 _REDACTED_TIMESTAMP = "__REDACTED_TIMESTAMP__"
@@ -113,11 +113,6 @@ def _build_canonical_report() -> dict[str, Any]:
             "drift_verdict": "acceptable",
         },
     ]
-    phase1_paper_gate = {
-        "status": "BLOCKED",
-        "families_ready": ["BOS", "OB"],
-        "families_missing_closed_outcome": ["FVG", "SWEEP"],
-    }
     report = build_public_report(
         cal_payload,
         source_path=None,
@@ -126,7 +121,6 @@ def _build_canonical_report() -> dict[str, Any]:
         track_record_gate=track_record_gate,
         regime_stratified=regime_stratified,
         families=families,
-        phase1_paper_gate=phase1_paper_gate,
     )
     # generated_at is non-deterministic (datetime.now); redact so the
     # fixture stays stable across runs.

@@ -9,8 +9,6 @@ Optional vars:
   OVERLAY_REFRESH_SECS        — standard field refresh cadence, default 1800 (30 min)
   OVERLAY_FLOW_REFRESH_SECS   — flow-field fast refresh cadence, default 300 (5 min)
   OVERLAY_MAX_STALE_SECS      — threshold for marking payload stale, default 3600 (1 h)
-  OVERLAY_MAX_BAR_AGE_SECS    — threshold for BAR recency (a 60s cadence, not the
-                                compute cadence), default 180 = the feed's own stall threshold
   OVERLAY_ROLLING_BARS        — number of 1-min bars to keep per symbol, default 60
   NEWS_SNAPSHOT_PATH          — path to news snapshot JSON, default relative to repo root
   NEWS_SNAPSHOT_URL           — optional https URL fetched at runtime; takes precedence
@@ -19,9 +17,6 @@ Optional vars:
   NEWS_SNAPSHOT_URL_TOKEN     — optional bearer token for NEWS_SNAPSHOT_URL (e.g. a
                                 GitHub token for the private contents API raw endpoint)
   OVERLAY_MAX_FEED_FAILURES   — circuit-breaker threshold for feed failures, default 50
-  HOLD_MANAGER_SHADOW_ACCEPTING — explicit shadow-receiver switch, default 0
-  HOLD_MANAGER_SHADOW_WEBHOOK_TOKEN — dedicated JSON-body token, minimum 32 chars
-  HOLD_MANAGER_SHADOW_LEDGER_PATH — persistent SQLite delivery-ledger path
   PORT                        — HTTP port, default 8000
   LOG_LEVEL                   — uvicorn log level, default info
 """
@@ -124,9 +119,8 @@ def _snapshot_url_token(key: str, url: str) -> str:
     """Return a source-specific token, or reuse the repo monitor token safely.
 
     The generic workflow-monitor token is attached only to the configured
-    repository's GitHub Contents API or its exact ``raw.githubusercontent.com``
-    path.  It is never forwarded to an arbitrary custom URL or another GitHub
-    repository.
+    repository's GitHub Contents API.  It is never forwarded to an arbitrary
+    custom URL.
     """
     explicit = _optional_str(key, "")
     if explicit:
@@ -137,19 +131,11 @@ def _snapshot_url_token(key: str, url: str) -> str:
         return ""
     owner, repo = github_workflow_repo()
     expected_prefix = f"/repos/{owner}/{repo}/contents/"
-    is_own_contents_api = (
+    if (
         parsed.scheme.lower() == "https"
         and parsed.netloc.lower() == "api.github.com"
         and parsed.path.startswith(expected_prefix)
-    )
-    raw_parts = [urllib.parse.unquote(part).casefold() for part in parsed.path.split("/") if part]
-    is_own_raw_file = (
-        parsed.scheme.lower() == "https"
-        and parsed.netloc.lower() == "raw.githubusercontent.com"
-        and len(raw_parts) >= 3
-        and raw_parts[:2] == [owner.casefold(), repo.casefold()]
-    )
-    if is_own_contents_api or is_own_raw_file:
+    ):
         return github_workflow_token()
     return ""
 
@@ -191,25 +177,6 @@ def flow_refresh_secs() -> int:
 
 def max_stale_secs() -> int:
     return _clamped_int("OVERLAY_MAX_STALE_SECS", 3600, 60, 7200)
-
-
-def max_bar_age_secs() -> int:
-    """Budget for BAR recency — a different clock than ``max_stale_secs``.
-
-    ``max_stale_secs`` is sized for the compute cadence: the refresh thread
-    recomputes every ``OVERLAY_REFRESH_SECS`` (1800s default), so 3600 gives
-    two cycles of headroom before a payload counts as stale. Bars arrive on a
-    60-second cadence, so the SAME number is 60x too loose for them — measured
-    2026-08-20: the first 60 minutes of any feed freeze were served as
-    ``stale: false``, and ``_latest_bar_age_secs`` reasons in its own docstring
-    about a "60s budget" that no caller supplied.
-
-    The default is the daemon's own stall threshold
-    (``feed._STALL_MAX_BAR_AGE_SECS`` = 180): what the supervisor treats as a
-    stalled feed must not be served as fresh data. Not a duplicate constant —
-    that one decides whether to HEAL, this one decides what to SAY.
-    """
-    return _clamped_int("OVERLAY_MAX_BAR_AGE_SECS", 180, 60, 3600)
 
 
 def rolling_bars() -> int:
@@ -347,19 +314,10 @@ def experiment_snapshot_url() -> str:
 
     When set it takes precedence over :func:`experiment_snapshot_path`; on any
     fetch failure the daemon falls back to the local path.
-
-    Points at the rolling benchmark's output, which is the only producer that
-    actually measures: it runs scripts/plan_2_8_tf_family_rollup.py over the
-    day's ``scoring_<symbol>_<tf>.json`` artifacts. Until 2026-08-08 this
-    defaulted to ``artifacts/experiment/latest/``, written by the
-    scripts/plan_2_8_evaluate.py placeholder that drew its hit rates, event
-    counts and verdicts from ``random`` -- contradicting
-    :func:`experiment_snapshot_path`'s own docstring, which already named the
-    rolling path as the fresh one.
     """
     return _snapshot_url(
         "EXPERIMENT_SNAPSHOT_URL",
-        path="artifacts/ci/measurement_benchmark_rolling/latest/plan_2_8_tf_family_rollup.json",
+        path="artifacts/experiment/latest/plan_2_8_tf_family_rollup.json",
         ref="bot/live-experiment-snapshot",
     )
 
@@ -457,61 +415,6 @@ def sweep_trap_shadow_max_age_secs() -> int:
     return _clamped_int("OVERLAY_SWEEP_TRAP_SHADOW_MAX_AGE_SECS", 345600, 3600, 1209600)
 
 
-def reaction_zone_shadow_snapshot_path() -> Path:
-    """Local path to the reaction-zone shadow snapshot JSON.
-
-    Produced by ``scripts/eval_reaction_zone_shadow.py`` (the observe-only
-    reaction-zone follow-through study) so its per-direction lift + promotion
-    accrual is served as Prometheus gauges. Off-host daemons should set
-    :func:`reaction_zone_shadow_snapshot_url` to the published branch instead.
-    """
-    raw = _optional_str(
-        "REACTION_ZONE_SHADOW_SNAPSHOT_PATH",
-        str(_REPO_ROOT / "artifacts" / "monitoring" / "reaction_zone_shadow.json"),
-    )
-    return Path(raw)
-
-
-def reaction_zone_shadow_snapshot_url() -> str:
-    """Optional https URL the daemon fetches the reaction-zone shadow snapshot from.
-
-    When set it takes precedence over :func:`reaction_zone_shadow_snapshot_path`;
-    on any fetch failure the daemon falls back to the local path. Defaults to the
-    same rolling ``bot/live-sweep-trap-shadow`` branch the sweep-trap-shadow-daily
-    workflow publishes ``reaction_zone_shadow.json`` to (git add -f into
-    ``artifacts/monitoring/latest/``, alongside ``sweep_trap_shadow.json``).
-    """
-    return _snapshot_url(
-        "REACTION_ZONE_SHADOW_SNAPSHOT_URL",
-        path="artifacts/monitoring/latest/reaction_zone_shadow.json",
-        ref="bot/live-sweep-trap-shadow",
-    )
-
-
-def reaction_zone_shadow_snapshot_url_token() -> str:
-    """Optional bearer token for :func:`reaction_zone_shadow_snapshot_url`."""
-    return _snapshot_url_token(
-        "REACTION_ZONE_SHADOW_SNAPSHOT_URL_TOKEN",
-        reaction_zone_shadow_snapshot_url(),
-    )
-
-
-def reaction_zone_shadow_cache_ttl_secs() -> int:
-    """How long the daemon caches the reaction-zone shadow snapshot before reload."""
-    return _clamped_int("OVERLAY_REACTION_ZONE_SHADOW_CACHE_TTL_SECS", 900, 60, 7200)
-
-
-def reaction_zone_shadow_max_age_secs() -> int:
-    """Age (s) beyond which the reaction-zone shadow snapshot is treated as stale.
-
-    Default 96h — same weekday-cadence sizing as the sweep-trap shadow snapshot it
-    is published beside: the daily eval runs Mon-Fri, so Friday's snapshot is
-    legitimately ~89.5h old when Monday's arrives, and 96h tolerates one skipped
-    weekday run.
-    """
-    return _clamped_int("OVERLAY_REACTION_ZONE_SHADOW_MAX_AGE_SECS", 345600, 3600, 1209600)
-
-
 def provider_usage_snapshot_path() -> Path:
     """Local path to the provider API-usage snapshot JSON.
 
@@ -582,72 +485,6 @@ def pine_library_versions_snapshot_url_token() -> str:
     )
 
 
-def library_context_pine_path() -> Path:
-    """Local path to the generated Pine library the library-context bridge parses.
-
-    Fallback only. The baked copy is whatever the image was built from, which is
-    NOT the same as "the current library" — see :func:`library_context_pine_url`.
-    """
-    raw = _optional_str(
-        "LIBRARY_CONTEXT_PINE_PATH",
-        str(_REPO_ROOT / "pine" / "generated" / "smc_micro_profiles_generated.pine"),
-    )
-    return Path(raw)
-
-
-def library_context_pine_url() -> str:
-    """HTTPS URL the daemon fetches the generated Pine library from.
-
-    MEASURED 2026-09-01, the reason this exists: ``library_context_bridge`` was
-    the only bridge without a runtime source — it parsed the copy baked into the
-    container image, justified with "the daemon [...] redeploys on every main
-    push". That premise is false *by design*, which is the sharp part: this
-    service has no Railway git trigger on purpose (``deploymentTriggers`` is
-    empty, enforced by ``live-overlay-deploy-trigger-guard.yml``) and deploys
-    only through ``deploy-live-overlay-daemon.yml``, which is **path-filtered to
-    ``services/live_overlay_daemon/**`` + ``scripts/deploy_live_overlay.sh``**.
-
-    This file lives outside that filter, so a library refresh can NEVER trigger
-    a redeploy — the baked copy refreshes only by accident, when an unrelated
-    change to the service directory happens to ship. Measured consequence:
-    between the 08-21 and 08-30 deploys main moved the library **87 times**
-    while the daemon kept serving the 08-20 copy — nine days of stale
-    ``library_asof_date``/``library_asof_time`` and ``provider_trust_status``,
-    with nothing alerting.
-
-    CORRECTION (same day, by measurement): an earlier version of this note
-    claimed nine days of ``universe_member`` decided against a stale list.
-    That was FALSE — ``universe_member`` was ``None`` for every symbol since
-    the bridge was born, because the parser never matched the generator's
-    ticker declarations at all (see ``_STRING_EXPORT_RE``). The staleness
-    above is real; the universe simply was not being served. Both are fixed
-    together, and the universe is why it matters: without the runtime source
-    a refreshed universe would still take an unrelated deploy to arrive.
-
-    ``ref="main"`` because ``smc-library-refresh.yml`` lands the regenerated
-    library on main via PR (repo is SSOT, see CLAUDE.md) — there is no
-    ``bot/live-*`` branch for this file.
-    """
-    return _snapshot_url(
-        "LIBRARY_CONTEXT_PINE_URL",
-        path="pine/generated/smc_micro_profiles_generated.pine",
-        ref="main",
-    )
-
-
-def library_context_pine_url_token() -> str:
-    """Optional bearer token for :func:`library_context_pine_url`."""
-    return _snapshot_url_token(
-        "LIBRARY_CONTEXT_PINE_URL_TOKEN",
-        library_context_pine_url(),
-    )
-
-
-def library_context_cache_ttl_secs() -> int:
-    """How long a fetched library stays cached before the next fetch."""
-    return _clamped_int("OVERLAY_LIBRARY_CONTEXT_CACHE_TTL_SECS", 900, 60, 7200)
-
-
 def tradingview_bindings_snapshot_path() -> Path:
     """Local path to the actual TradingView consumer-dropdown snapshot."""
     return Path(
@@ -707,15 +544,10 @@ def experiment_history_path() -> Path:
 
 
 def experiment_history_url() -> str:
-    """Optional https URL the daemon fetches the per-day history JSONL from.
-
-    Same producer as :func:`experiment_snapshot_url`. The rolling history is the
-    one that accumulates: measured 2026-08-07 it held 133 rows against the
-    placeholder path's 1.
-    """
+    """Optional https URL the daemon fetches the per-day history JSONL from."""
     return _snapshot_url(
         "EXPERIMENT_HISTORY_URL",
-        path="artifacts/ci/measurement_benchmark_rolling/latest/plan_2_8_history.jsonl",
+        path="artifacts/experiment/latest/plan_2_8_history.jsonl",
         ref="bot/live-experiment-snapshot",
     )
 
@@ -911,34 +743,6 @@ def github_workflow_ids() -> list[str]:
     return unique_ids
 
 
-def github_workflow_expected() -> list[str]:
-    """Workflow NAMES that must keep producing runs, from a comma-separated env var.
-
-    Everything else about workflow health is *discovered* from the fetched runs
-    page, which cannot express "this flow stopped running": a workflow with no
-    runs on the page contributes no row, so its age/verdict series simply vanish
-    and every rule over them goes NoData (silent under ``noDataState: OK``). The
-    staler a flow gets, the likelier it is missing — so absence, not staleness,
-    is the signal that needs a declared expectation to compare against.
-
-    Names (not ids) because this list is maintained by hand alongside
-    ``.github/workflows/``; ids are opaque and change when a workflow is
-    recreated. Empty (the default) disables presence monitoring entirely.
-    """
-    raw = _optional_str("GITHUB_WORKFLOW_MONITOR_EXPECTED", "")
-    if not raw:
-        return []
-    seen: set[str] = set()
-    expected: list[str] = []
-    for item in raw.split(","):
-        name = item.strip()
-        if not name or name in seen:
-            continue
-        seen.add(name)
-        expected.append(name)
-    return expected
-
-
 def github_workflow_timeout_secs() -> int:
     """HTTP timeout for GitHub workflow polling requests."""
     return _clamped_int("GITHUB_WORKFLOW_MONITOR_TIMEOUT_SECS", 5, 1, 30)
@@ -949,24 +753,6 @@ def github_workflow_poll_ttl_secs() -> int:
     return _clamped_int("GITHUB_WORKFLOW_MONITOR_POLL_TTL_SECS", 30, 5, 300)
 
 
-def github_workflow_presence_ttl_secs() -> int:
-    """Cache TTL for the per-workflow PRESENCE probe (own, slower cadence).
-
-    Deliberately far above ``github_workflow_poll_ttl_secs`` (30 s): the presence
-    probe costs ONE GitHub API call per declared workflow, while the snapshot
-    costs one in total. At 30 s and 30 declared workflows that would be ~3600
-    calls/h against a 5000/h budget -- the probe would starve the daemon's other
-    GitHub traffic. At the 600 s default it is ~180/h.
-
-    Why a dedicated probe at all: the snapshot derives everything from ONE page
-    of ``/actions/runs``, and that page covered NINE hours on 2026-08-31 (five
-    on 2026-08-20 -- it shrinks with repo activity). A daily workflow is absent
-    from it for two thirds of the day, so a presence signal read off that page
-    cannot distinguish "stopped running" from "ran this morning".
-    """
-    return _clamped_int("GITHUB_WORKFLOW_PRESENCE_TTL_SECS", 600, 60, 3600)
-
-
 def github_workflow_per_page() -> int:
     """Number of workflow runs requested per poll.
 
@@ -975,10 +761,7 @@ def github_workflow_per_page() -> int:
     scrolls past the window, ``latest_success`` falls back to its provisional 0 and
     ``no-green-24h`` false-fires (seen for the databento export on a heavy main-push
     day, 2026-07-08). Defaults to the max (100) so a busy day of main pushes does not
-    bury a sparse workflow's last verdict. 100 is GitHub's per-page ceiling and this
-    value is clamped to it, so the env var can only lower it — a flow buried past one
-    page needs pagination here, not a bigger number. Until then, declare it in
-    ``github_workflow_expected`` so its disappearance alerts instead of going quiet.
+    bury a sparse workflow's last verdict; raise via env / paginate if that recurs.
     """
     return _clamped_int("GITHUB_WORKFLOW_MONITOR_PER_PAGE", 100, 1, 100)
 
@@ -995,11 +778,16 @@ def github_workflow_branch() -> str:
     return _optional_str("GITHUB_WORKFLOW_MONITOR_BRANCH", "main").strip()
 
 
-# 2026-07-28 (B-sweep): restart_cause() / LIVE_OVERLAY_RESTART_CAUSE removed.
-# The env was never set in any deploy surface (railway.toml, Dockerfile,
-# workflow), so the label was the constant "unknown" — and a statically-set
-# env var can never distinguish deploy from crash, so the documented
-# semantics ("deploy, crash, manual, …") were unreachable by construction.
+def restart_cause() -> str:
+    """Deployment/runtime restart cause label for observability dashboards.
+
+    Examples: deploy, crash, manual, autoscale, unknown.
+    """
+    raw = _optional_str("LIVE_OVERLAY_RESTART_CAUSE", "unknown").lower()
+    normalized = re.sub(r"[^a-z0-9_]+", "_", raw).strip("_")
+    return normalized or "unknown"
+
+
 def ingest_queue_max() -> int:
     """Maximum number of pending bars in feed ingest queue."""
     return _clamped_int("LIVE_OVERLAY_INGEST_QUEUE_MAX", 20000, 1000, 200000)
@@ -1014,66 +802,6 @@ def expect_market_traffic() -> bool:
     deployments do not page.
     """
     return _optional_str("LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC", "0") == "1"
-
-
-def hold_manager_shadow_webhook_token() -> str:
-    """Secret embedded in the controlled TradingView webhook URL."""
-    return _optional_str("HOLD_MANAGER_SHADOW_WEBHOOK_TOKEN", "")
-
-
-def hold_manager_shadow_accepting() -> bool:
-    """Whether the pre-registered Hold Manager shadow receiver accepts POSTs."""
-    return _optional_str("HOLD_MANAGER_SHADOW_ACCEPTING", "0") == "1"
-
-
-def hold_manager_shadow_ledger_path() -> Path | None:
-    """Persistent SQLite ledger path, or None when deliberately unconfigured."""
-    raw = _optional_str("HOLD_MANAGER_SHADOW_LEDGER_PATH", "")
-    return Path(raw).expanduser() if raw else None
-
-
-def hold_manager_shadow_contract_path() -> Path:
-    """Path to the pre-registered R2 shadow contract."""
-    raw = _optional_str(
-        "HOLD_MANAGER_SHADOW_CONTRACT_PATH",
-        str(
-            _REPO_ROOT
-            / "artifacts"
-            / "governance"
-            / "smc_hold_manager_shadow_contract.json"
-        ),
-    )
-    return Path(raw).expanduser()
-
-
-def hold_manager_shadow_max_event_age_secs() -> int:
-    """Maximum accepted age of a TradingView bar timestamp."""
-    return _clamped_int(
-        "HOLD_MANAGER_SHADOW_MAX_EVENT_AGE_SECS",
-        900,
-        60,
-        86_400,
-    )
-
-
-def hold_manager_shadow_max_future_skew_secs() -> int:
-    """Maximum accepted positive clock skew of a TradingView bar timestamp."""
-    return _clamped_int(
-        "HOLD_MANAGER_SHADOW_MAX_FUTURE_SKEW_SECS",
-        120,
-        0,
-        3_600,
-    )
-
-
-def bar_max_future_skew_secs() -> int:
-    """Maximum accepted positive clock skew of an ingested market bar."""
-    return _clamped_int(
-        "BAR_MAX_FUTURE_SKEW_SECS",
-        120,
-        0,
-        3_600,
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -1151,65 +879,3 @@ def railway_metrics_sample_secs() -> int:
 def railway_metrics_poll_ttl_secs() -> int:
     """Cache TTL for Railway metrics snapshot reuse."""
     return _clamped_int("RAILWAY_METRICS_POLL_TTL_SECS", 60, 10, 600)
-
-
-# ---------------------------------------------------------------------------
-# Railway volume-backup bridge
-# ---------------------------------------------------------------------------
-
-
-def railway_volume_backup_instances() -> dict[str, str]:
-    """Volume instances to watch, as ``{human_name: volume_instance_id}``.
-
-    Format mirrors :func:`railway_service_names` but in the readable direction,
-    because the *name* is what ends up on the Prometheus label::
-
-        RAILWAY_VOLUME_BACKUP_INSTANCES="lab-worker-volume=2ffcaeb7-...,other=..."
-
-    The list is also the opt-in: an empty value disables the bridge. There is no
-    second flag, so there is no way to "enable" it into a state where it watches
-    nothing and still reports green.
-    """
-    raw = _optional_str("RAILWAY_VOLUME_BACKUP_INSTANCES", "")
-    if not raw:
-        return {}
-    mapping: dict[str, str] = {}
-    for pair in raw.split(","):
-        pair = pair.strip()
-        if not pair or "=" not in pair:
-            continue
-        name, _sep, instance_id = pair.partition("=")
-        name = name.strip()
-        instance_id = instance_id.strip()
-        if name and instance_id:
-            mapping[name] = instance_id
-    return mapping
-
-
-def railway_volume_backup_enabled() -> bool:
-    """True iff at least one volume instance is configured and a token exists."""
-    return bool(railway_api_token() and railway_volume_backup_instances())
-
-
-def railway_volume_backup_timeout_secs() -> int:
-    """HTTP timeout for the volume-backup GraphQL requests."""
-    return _clamped_int("RAILWAY_VOLUME_BACKUP_TIMEOUT_SECS", 10, 1, 60)
-
-
-def railway_volume_backup_poll_ttl_secs() -> int:
-    """Cache TTL for the volume-backup snapshot.
-
-    Backups appear at most a few times a day, so the default is far longer than
-    the container-metrics TTL: polling faster buys nothing and spends Railway
-    API budget on every Prometheus scrape.
-    """
-    return _clamped_int("RAILWAY_VOLUME_BACKUP_POLL_TTL_SECS", 600, 30, 3600)
-
-
-def railway_volume_backup_max_age_secs() -> int:
-    """Age at which a newest backup counts as stale (exported as a gauge).
-
-    Exported rather than hard-coded in the alert rule so the threshold the
-    daemon believes in and the one Grafana compares against cannot drift apart.
-    """
-    return _clamped_int("RAILWAY_VOLUME_BACKUP_MAX_AGE_SECS", 129_600, 3600, 1_209_600)

@@ -11,10 +11,9 @@ Security model:
   be embedded in Pine source or exposed to chart users.
 
 Stale handling:
-  If the overlay cache OR the newest cached bar for the symbol is older than
-  OVERLAY_MAX_STALE_SECS (a recompute from frozen bars must not look live),
-  the response still returns 200 but with stale=true and asof_ts showing the
-  last computation time, so downstream server-side consumers can fail closed.
+  If the overlay cache is older than OVERLAY_MAX_STALE_SECS, the response
+  still returns 200 but with stale=true and asof_ts showing the last computation
+  time, so downstream server-side consumers can fail closed.
 """
 from __future__ import annotations
 
@@ -30,7 +29,7 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Path, Query, Request
 from fastapi.responses import JSONResponse, PlainTextResponse
 
-from . import cache, compute, config, feed, library_context_bridge, metrics, observability, request_hotspots
+from . import cache, compute, config, feed, metrics, observability, request_hotspots
 from .market_hours import (
     compute_daemon_health_status,
 )
@@ -74,14 +73,10 @@ async def _lifespan(app: FastAPI):
     global _startup_ts, _startup_epoch
     logger.info("Starting SMC Live Overlay Daemon …")
     observability.metric_counter("live_overlay.daemon.start_attempt")
-    # No restarts_total / restart_cause_*_total counters here: they live in
-    # process memory, so every restart reset them back to 1. Prometheus saw
-    # 1,1,1,… — no decrease, therefore no reset detected, therefore increase()
-    # and rate() were structurally 0. Measured 2026-07-23: the series read 1
-    # while changes(live_overlay_process_start_time_seconds[24h]) read 51.
-    # The restart COUNT is served truthfully by changes(process_start_time_
-    # seconds). (2026-07-28: the cause-labeled start-time gauge was removed too
-    # — its env was never set and could not distinguish deploy from crash.)
+    observability.metric_counter("live_overlay.daemon.restarts_total")  # == process starts incl. the initial boot (and failed-env boots); overcounts true restarts — read via rate()/increase(), not the absolute value
+    observability.metric_counter(
+        f"live_overlay.daemon.restart_cause.{config.restart_cause()}.total"
+    )
 
     # Validate required env vars fail-fast at startup
     with observability.trace_span("live_overlay.daemon_lifespan"):
@@ -184,7 +179,7 @@ def ready() -> JSONResponse:
         workers_healthy=workers_healthy,
         overlay_fresh=overlay_fresh,
         market_open=market_open,
-        bar_count=bar_count, uptime_secs=uptime,  # one line: compare_digest below is pinned by (file, lineno)
+        bar_count=bar_count,
     )
     observability.metric_gauge("live_overlay.health.status_ok", 1 if status == "ok" else 0)
     observability.audit_event(
@@ -292,32 +287,6 @@ def prometheus_metrics(request: Request) -> PlainTextResponse:
 # Timeframe-aware payload lookup / on-demand compute
 # ---------------------------------------------------------------------------
 
-def _latest_bar_age_secs(bars: list[dict[str, Any]]) -> float | None:
-    """Age in seconds since the newest bar CLOSED, else None.
-
-    ``ts_event`` stamps the bar OPEN. The cache holds 1-minute bars, so the
-    newest bar closes one bar-length (_BAR_LEN_SECS) after its open; measuring
-    from the open would report a fully-closed bar as a full bar-length older
-    than it is and trip ``stale`` at the boundary (e.g. a bar that opened 90s
-    ago closed 30s ago, but read as 90s old under a 60s budget).
-
-    None means "no recency evidence" — callers must treat it as stale, never
-    as fresh.
-    """
-    _BAR_LEN_SECS = 60.0  # cache stores 1-minute bars; close = open + 60s
-    valid_ts_events = [
-        ts
-        for bar in bars
-        if isinstance((ts := bar.get("ts_event")), int)
-        and not isinstance(ts, bool)
-        and ts > 0
-    ]
-    if not valid_ts_events:
-        return None
-    newest_close = max(valid_ts_events) / 1_000_000_000 + _BAR_LEN_SECS
-    return max(0.0, now - newest_close) if (now := time.time()) >= newest_close - _BAR_LEN_SECS else None
-
-
 def _get_payload_for_timeframe(sym: str, tf: str) -> dict[str, Any] | None:
     """Return overlay payload for symbol and timeframe.
 
@@ -325,7 +294,6 @@ def _get_payload_for_timeframe(sym: str, tf: str) -> dict[str, Any] | None:
     it in the overlay cache. For non-default timeframes we aggregate the cached
     1-minute bars on demand so callers still get timeframe-consistent fields.
     """
-    cache.ensure_bar_capacity(sym, compute.raw_bars_required(tf))
     if tf == "5m":
         return cache.get_overlay(sym)
 
@@ -341,12 +309,19 @@ def _get_payload_for_timeframe(sym: str, tf: str) -> dict[str, Any] | None:
     )
     # On-demand payloads should be marked stale based on bar recency, not
     # overlay cache age (which tracks only the background 5m snapshot).
-    latest_bar_age_secs = _latest_bar_age_secs(bars)
-    payload["stale"] = (
-        True
-        if latest_bar_age_secs is None
-        else latest_bar_age_secs > config.max_bar_age_secs()
-    )
+    valid_ts_events = [
+        ts
+        for bar in bars
+        if isinstance((ts := bar.get("ts_event")), int)
+        and not isinstance(ts, bool)
+        and ts > 0
+    ]
+    if not valid_ts_events:
+        payload["stale"] = True
+        return payload
+
+    latest_bar_age_secs = max(0.0, time.time() - (max(valid_ts_events) / 1_000_000_000))
+    payload["stale"] = latest_bar_age_secs > config.max_stale_secs()
     return payload
 
 
@@ -381,28 +356,16 @@ def smc_live(
                 detail=f"tf must be one of {sorted(_VALID_TFS)}",
             )
         record_latency = True
-        # Protect and size the requested symbol before reading its bars. Under
-        # ALL_SYMBOLS cap churn, recording only after the read left a narrow
-        # race where the just-requested symbol could be evicted while its
-        # expanded timeframe history was being prepared.
-        request_hotspots.record_request(sym, tf)
         payload = _get_payload_for_timeframe(sym, tf)
+        request_hotspots.record_request(sym, tf)
 
         if payload is None:
             observability.metric_counter("live_overlay.smc_live_cache_miss.total")
             observability.metric_counter("live_overlay.smc_live_stale_served.total")
             observability.audit_event("smc_live_fetch", "cache_miss", symbol=sym, tf=tf)
-            # Symbol not yet in cache — return minimal stale response.
-            # SC-LIB-001 follow-up: library context and VIX are NOT
-            # symbol-cache-derived — the library file is on disk and VIX is a
-            # market-wide poll — so a per-symbol cache miss must not blank
-            # them. Before this, a warming daemon (fresh deploy) served the
-            # sidecar an all-null payload and the panel's Chart-Kontext card
-            # read "keine Daten" although both were known.
-            cache_miss_vix = cache.get_vix_fresh()
+            # Symbol not yet in cache — return minimal stale response
             return JSONResponse(
                 {
-                    **library_context_bridge.context_for_symbol(sym),
                     "schema": "smc-live-overlay/1",
                     "symbol": sym,
                     "tf": tf,
@@ -415,15 +378,15 @@ def smc_live(
                     "squeeze_on": None,
                     "ats_state": None, "volume_accumulation_distribution_state": None,
                     "ats_zscore": None, "volume_current_bar_zscore": None,
-                    "vix_level": round(cache_miss_vix, 4) if cache_miss_vix is not None else None,
+                    "vix_level": None,
                     "tone": None,
                     "global_heat": None,
                     "event_window_state": None,
                     "event_risk_level": None,
                     "next_event_name": None,
                     "next_event_time": None,
-                    "market_event_blocked": None,
-                    "symbol_event_blocked": None,
+                    "market_event_blocked": False,
+                    "symbol_event_blocked": False,
                     "event_provider_status": "unknown",
                     "signal_level": None,
                     "signal_direction": None,
@@ -435,25 +398,11 @@ def smc_live(
             )
 
         payload = dict(payload)  # shallow-copy — do not mutate shared cache state
-        # Overlay 8-minute signals at read time; the 5m technical cache lives 30 minutes.
         if tf == "5m":
-            payload.update(compute._get_signal_fields(sym))
-        # SC-LIB-001: additive library context fails soft when its source is unavailable.
-        payload.update(library_context_bridge.context_for_symbol(sym))
-        if tf == "5m":
-            # Re-evaluate stale for cached background snapshots. Overlay age
-            # alone measures compute-thread liveness: with a dead feed the
-            # refresh thread keeps recomputing from frozen bars, so the flag
-            # must also track bar recency (the actual data flow) or the
-            # consumer-side degrade-to-fallback contract can never trigger.
+            # Re-evaluate stale for cached background snapshots.
             age = cache.overlay_age_secs()
             max_stale = config.max_stale_secs()
-            compute_stale = (age > max_stale) if age != float("inf") else True
-            bar_age = _latest_bar_age_secs(cache.get_bars_snapshot(sym))
-            # Bar recency runs on the bar clock (60s cadence), not the compute
-            # clock (1800s cadence) — see config.max_bar_age_secs.
-            data_stale = bar_age is None or bar_age > config.max_bar_age_secs()
-            payload["stale"] = compute_stale or data_stale
+            payload["stale"] = (age > max_stale) if age != float("inf") else True
         if payload.get("stale"):
             observability.metric_counter("live_overlay.smc_live_stale_served.total")
         # Inject tf into response
@@ -508,20 +457,6 @@ def _ct_eq(a: str, b: str) -> bool:
     return hmac.compare_digest(a_digest, b_digest)
 
 
-# Controlled TradingView Hold Manager shadow receiver. The route exists in the
-# daemon image but remains fail-closed until HOLD_MANAGER_SHADOW_ACCEPTING=1,
-# a strong JSON-body token, and a persistent ledger path are configured.
-try:
-    from . import hold_manager_shadow_receiver
-
-    app.include_router(hold_manager_shadow_receiver.build_router(_ct_eq))
-except ImportError as _hold_shadow_exc:  # pragma: no cover - defensive
-    logger.warning(
-        "hold_manager_shadow_receiver not mounted: %s",
-        _hold_shadow_exc,
-    )
-
-
 # Grafana alert webhook -> Composio fan-out (use case #3). Mounted here at the
 # end of the module (after every route + the pinned _ct_eq site) so it never
 # shifts an existing line anchor. Inert (HTTP 503) until GRAFANA_WEBHOOK_TOKEN
@@ -540,18 +475,6 @@ try:
     app.include_router(composio_chatops.router)
 except ImportError as _chatops_exc:  # pragma: no cover - defensive; keeps overlays serving
     logger.warning("composio_chatops not mounted: %s", _chatops_exc)
-
-# Draht A (2026-08-30): Ablauf-Ereignisse von Composio. EIGENER try-Block, kein
-# Anhaengsel an ChatOps: der ChatOps-Import zieht composio_ops nach, und ein
-# Fehlschlag DORT haette diesen Empfaenger stumm mitgerissen — genau die
-# Kopplung, gegen die er gebaut ist. Er liefert selbst nichts aus; der Befund
-# geht in Ledger + Gauge, damit der Alarmweg die ausgefallene Schicht meidet.
-try:
-    from . import composio_lifecycle_receiver
-
-    app.include_router(composio_lifecycle_receiver.router)
-except ImportError as _lifecycle_exc:  # pragma: no cover - defensive
-    logger.warning("composio_lifecycle_receiver not mounted: %s", _lifecycle_exc)
 
 
 if __name__ == "__main__":

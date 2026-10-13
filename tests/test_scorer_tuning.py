@@ -1,14 +1,9 @@
-"""Tests for Phase G — Automated Scorer Tuning (G1–G2).
-
-G3 arm-routing is tested in ``tests/test_ab_arms.py`` (run-granular,
-``open_prep/ab_arms.py``); the per-symbol ``Experiment.resolve_weight_set``
-tests that used to live here were removed 2026-07-29 together with the
-never-wired ``scripts/smc_ab_experiment.py``.
-"""
+"""Tests for Phase G — Automated Scorer Tuning (G1–G3)."""
 
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -213,3 +208,109 @@ def test_scorer_update_json_serializable() -> None:
     assert "updated_weights" in d
     assert "labeled_samples" in d
     json.dumps(d)  # must be serializable
+
+
+# ── G3: Experiment.resolve_weight_set ────────────────────────────
+
+
+def test_resolve_weight_set_treatment() -> None:
+    from scripts.smc_ab_experiment import Experiment
+
+    exp = Experiment(
+        name="scorer-ab",
+        treatment_overrides={},
+        split_pct=100,
+        treatment_weight_set="auto_tuned",
+    )
+    assert exp.resolve_weight_set("AAPL") == "auto_tuned"
+
+
+def test_resolve_weight_set_control() -> None:
+    from scripts.smc_ab_experiment import Experiment
+
+    exp = Experiment(
+        name="scorer-ab",
+        treatment_overrides={},
+        split_pct=0,
+        treatment_weight_set="auto_tuned",
+    )
+    assert exp.resolve_weight_set("AAPL") == "default"
+
+
+def test_resolve_weight_set_empty_returns_default() -> None:
+    from scripts.smc_ab_experiment import Experiment
+
+    exp = Experiment(name="no-ws", treatment_overrides={}, split_pct=100)
+    assert exp.resolve_weight_set("AAPL") == "default"
+
+
+def test_tag_includes_weight_set() -> None:
+    from scripts.smc_ab_experiment import Experiment
+
+    exp = Experiment(
+        name="scorer-ab",
+        treatment_overrides={},
+        split_pct=100,
+        treatment_weight_set="auto_tuned",
+    )
+    tag = exp.tag("AAPL")
+    assert tag["experiment_weight_set"] == "auto_tuned"
+
+
+def test_tag_omits_weight_set_when_default() -> None:
+    from scripts.smc_ab_experiment import Experiment
+
+    exp = Experiment(
+        name="scorer-ab",
+        treatment_overrides={},
+        split_pct=0,
+        treatment_weight_set="auto_tuned",
+    )
+    tag = exp.tag("AAPL")  # control arm → default weights
+    assert "experiment_weight_set" not in tag
+
+
+def test_load_experiment_with_weight_set(tmp_path: Path) -> None:
+    from scripts.smc_ab_experiment import load_experiment
+
+    spec = {
+        "name": "scorer-ws",
+        "treatment_overrides": {},
+        "salt": "ws-test",
+        "split_pct": 50,
+        "treatment_weight_set": "auto_tuned",
+    }
+    p = tmp_path / "exp.json"
+    p.write_text(json.dumps(spec), encoding="utf-8")
+
+    exp = load_experiment(p)
+    assert exp.treatment_weight_set == "auto_tuned"
+
+
+def test_load_experiment_without_weight_set(tmp_path: Path) -> None:
+    from scripts.smc_ab_experiment import load_experiment
+
+    spec = {
+        "name": "no-ws",
+        "treatment_overrides": {},
+    }
+    p = tmp_path / "exp.json"
+    p.write_text(json.dumps(spec), encoding="utf-8")
+
+    exp = load_experiment(p)
+    assert exp.treatment_weight_set == ""
+
+
+# ── G3: Experiment spec file ─────────────────────────────────────
+
+
+def test_experiment_spec_loadable() -> None:
+    from scripts.smc_ab_experiment import load_experiment
+
+    spec_path = Path("artifacts/experiments/scorer_calibrated_vs_static.json")
+    if not spec_path.exists():
+        pytest.skip("Experiment spec not committed yet")
+    exp = load_experiment(spec_path)
+    assert exp.name == "scorer-calibrated-vs-static"
+    assert exp.treatment_weight_set == "auto_tuned"
+    assert exp.split_pct == 50

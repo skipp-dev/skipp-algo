@@ -26,7 +26,6 @@
       "description": "Chart timeframe the overlay was computed for. Indicators are aggregated from 1-minute bars to this timeframe.",
       "type": "string",
       "enum": [
-        "1m",
         "5m",
         "10m",
         "15m",
@@ -43,55 +42,6 @@
     "stale": {
       "description": "Server-side freshness verdict. True means the producer already knows the payload is older than its target refresh budget; consumers must not treat its optional values as current.",
       "type": "boolean"
-    },
-    "universe_member": {
-      "description": "Generated-library universe membership for the requested symbol. Null means the loaded library does not carry a verifiable universe.",
-      "type": [
-        "boolean",
-        "null"
-      ]
-    },
-    "universe_size": {
-      "description": "Number of symbols in the generated-library universe. Null when the universe is unavailable.",
-      "type": [
-        "integer",
-        "null"
-      ],
-      "minimum": 0
-    },
-    "library_asof_date": {
-      "description": "Generator-declared library as-of date. Null when unavailable.",
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "library_asof_time": {
-      "description": "Generator-declared library as-of timestamp. Null when unavailable.",
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "provider_trust_status": {
-      "description": "Trust state derived from the generated library's provider count and stale-provider list.",
-      "type": [
-        "string",
-        "null"
-      ],
-      "enum": [
-        "ok",
-        "degraded",
-        "unavailable",
-        null
-      ]
-    },
-    "provider_stale_list": {
-      "description": "Comma-separated stale providers declared by the generated library. Null when none are declared or provider evidence is unavailable.",
-      "type": [
-        "string",
-        "null"
-      ]
     },
     "news_strength": {
       "description": "B1. Magnitude of the mean signed news score in [0,1] — |mean|, so opposing stories cancel (NOT a coverage/intensity count) (live snapshot, ~10min TTL). Null when no fresh reading is available.",
@@ -124,7 +74,7 @@
       "minimum": 0
     },
     "squeeze_on": {
-      "description": "B1. Volatility-squeeze flag from a price-volatility read: the Bollinger Bands sit FULLY INSIDE the Keltner Channel (Pine _sqOn: bbLower > kcLower and bbUpper < kcUpper), not a bare width comparison — the BB centre (SMA) and KC centre (EMA) differ, so equal widths do not imply the same channel. No volume input. (1=on, 0=off). Null when not served fresh, or when the cached history is too short for the Keltner half to warm up (ta.ema/ta.atr are recursive).",
+      "description": "B1. Volatility-squeeze flag from a price-volatility read (Bollinger-band width < Keltner-channel width; no volume input) (1=on, 0=off). Null when not served fresh.",
       "type": [
         "integer",
         "null"

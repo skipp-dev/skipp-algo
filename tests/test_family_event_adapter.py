@@ -19,11 +19,8 @@ _STEP = 86_400.0  # daily bars
 def _bars(closes: list[float], *, highs: list[float] | None = None, lows: list[float] | None = None) -> list[dict]:
     highs = highs if highs is not None else [c + 1.0 for c in closes]
     lows = lows if lows is not None else [c - 1.0 for c in closes]
-    # Every bar opens at the previous close (the first one half a point below
-    # its own close), so the open is a price inside the bar's range.
-    opens = [closes[0] - 0.5, *closes[:-1]]
     return [
-        {"timestamp": _T0 + i * _STEP, "open": opens[i], "high": highs[i], "low": lows[i], "close": closes[i]}
+        {"timestamp": _T0 + i * _STEP, "high": highs[i], "low": lows[i], "close": closes[i]}
         for i in range(len(closes))
     ]
 
@@ -45,39 +42,9 @@ def test_bos_maps_to_immediate_long_positive_return() -> None:
     assert len(event["forward_closes"]) == _BOS_LOOKAHEAD_BARS
     assert event["forward_closes"][0] == 106.0
     assert all(ts > event["anchor_ts"] for ts in event["forward_timestamps"])
-    # The opens of the SAME forward bars travel with the event: bar 6 opens at
-    # the close of bar 5.
-    assert event["forward_opens"] == [105.0 + i for i in range(_BOS_LOOKAHEAD_BARS)]
 
     ret = realized_return(event)
     assert ret is not None and ret > 0.0
-
-
-def test_bars_without_an_open_yield_an_event_that_is_not_a_trade() -> None:
-    """The return rule enters at an open. Bars that carry none produce an
-    event without ``forward_opens`` — recorded, but never a return, and no
-    other field is passed off as the open."""
-    bars = [{k: v for k, v in bar.items() if k != "open"} for bar in _bars([100.0 + i for i in range(20)])]
-    structure = {"bos": [{"id": "b1", "time": _T0 + 5 * _STEP, "price": 105.0, "dir": "UP"}]}
-
-    events = family_events_from_structure(structure, bars)
-
-    assert len(events) == 1
-    assert "forward_opens" not in events[0]
-    assert realized_return(events[0]) is None
-
-
-def test_one_forward_bar_without_an_open_drops_the_whole_list() -> None:
-    """A partial list would be shorter than the other forward arrays and
-    shift every entry by a bar."""
-    bars = _bars([100.0 + i for i in range(20)])
-    del bars[8]["open"]  # inside the forward window of an anchor at bar 5
-    structure = {"bos": [{"id": "b1", "time": _T0 + 5 * _STEP, "price": 105.0, "dir": "UP"}]}
-
-    events = family_events_from_structure(structure, bars)
-
-    assert len(events) == 1
-    assert "forward_opens" not in events[0]
 
 
 def test_family_event_carries_source_event_id() -> None:
@@ -195,19 +162,12 @@ def test_round_trip_through_build_family_metrics() -> None:
     bos_events = []
     for i in range(40):
         anchor = _T0 + (10 + i) * 60.0
-        # The level no longer enters the return; the series is not constant
-        # because the same 2-point move is a smaller percentage of a higher open.
+        # Vary the entry level so realized returns are not constant.
         bos_events.append({"id": f"b{i}", "time": anchor, "price": 100.0 + (i % 5) * 0.1, "dir": "UP"})
     # One long, rising series of bars covering every anchor + forward window.
     closes = [50.0 + 0.25 * i for i in range(400)]
     bars = [
-        {
-            "timestamp": _T0 + i * 60.0,
-            "open": closes[i] - 0.1,
-            "high": closes[i] + 0.2,
-            "low": closes[i] - 0.2,
-            "close": closes[i],
-        }
+        {"timestamp": _T0 + i * 60.0, "high": closes[i] + 0.2, "low": closes[i] - 0.2, "close": closes[i]}
         for i in range(len(closes))
     ]
     structure = {"bos": bos_events}

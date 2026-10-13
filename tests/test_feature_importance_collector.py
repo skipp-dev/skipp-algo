@@ -9,31 +9,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from open_prep.outcomes import (
-    FEATURE_KEYS,
-    FEATURE_TO_WEIGHT_KEY,
-    PASS_THROUGH_FEATURE_KEYS,
-    FeatureImportanceCollector,
-    prepare_outcome_snapshot,
-)
-
-
-def test_ewma_shadow_is_persisted_without_live_weight_mapping() -> None:
-    record = prepare_outcome_snapshot(
-        [{
-            "symbol": "AAPL",
-            "gap_pct": 1.0,
-            "volume_ratio": 2.0,
-            "score": 5.0,
-            "ewma_score_shadow": 0.73,
-        }],
-        date(2026, 7, 28),
-    )[0]
-
-    assert record["ewma_score_shadow"] == 0.73
-    assert "ewma_score_shadow" in FEATURE_KEYS
-    assert "ewma_score_shadow" in PASS_THROUGH_FEATURE_KEYS
-    assert "ewma_score_shadow" not in FEATURE_TO_WEIGHT_KEY
+from open_prep.outcomes import FeatureImportanceCollector
 
 
 def test_reset_count_starts_at_zero() -> None:

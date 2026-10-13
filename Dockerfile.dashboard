@@ -60,15 +60,6 @@ COPY terminal_tabs/tab_live_incubation.py ./terminal_tabs/tab_live_incubation.py
 COPY terminal_tabs/tab_track_record.py ./terminal_tabs/tab_track_record.py
 COPY scripts/build_dashboard_payload.py ./scripts/build_dashboard_payload.py
 COPY docs/c7_dashboard_user_guide.md ./docs/c7_dashboard_user_guide.md
-# Brand theme. Without this the image falls back to Streamlit's default
-# LIGHT theme while the trader terminal renders dark — the two Skipp
-# surfaces looked like different products. Copying the file (rather than
-# duplicating the palette into STREAMLIT_THEME_* env vars here) keeps one
-# source of truth. Safe for the slim contract: it is data, not code, so it
-# pulls in no imports, and the [server]/[browser] sections it also carries
-# lose to the ENV block below and the ENTRYPOINT flags (Streamlit precedence:
-# project config < env vars < CLI flags).
-COPY .streamlit/config.toml ./.streamlit/config.toml
 
 ENV STREAMLIT_SERVER_HEADLESS=true \
     STREAMLIT_SERVER_ADDRESS=0.0.0.0 \

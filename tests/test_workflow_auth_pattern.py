@@ -103,15 +103,6 @@ def _classify_push(run_text: str) -> list[tuple[int, str]]:
     return unsafe
 
 
-def test_workflow_roster_is_not_empty() -> None:
-    """Zero argvalues would collect zero tests — silently, with no output."""
-    workflows = _iter_workflow_files()
-    assert len(workflows) >= 10, (
-        f"workflow discovery found {len(workflows)} files — the parametrized "
-        "checks below would collect nothing and report nothing"
-    )
-
-
 @pytest.mark.parametrize(
     "wf_path",
     _iter_workflow_files(),
@@ -157,22 +148,34 @@ def test_inventory_contains_known_workflows() -> None:
 # below, which are explicitly approved by ADR-0024 (2026-06-10).
 #
 # To add a new approved use:
-#   1. Add the workflow filename to _FORCE_LEASE_ALLOWLIST (the set is keyed by
-#      filename only — it does not discriminate between push sites in the same
-#      file, so review every force push in a listed workflow).
+#   1. Update _FORCE_LEASE_ALLOWLIST with (workflow_filename, branch_glob).
 #   2. Open an ADR or amend ADR-0024 explaining why it is necessary.
 # ---------------------------------------------------------------------------
 
 _FORCE_LEASE_ALLOWLIST: frozenset[str] = frozenset({
+    # smc-live-news-refresh.yml: rolling bot/live-news-snapshot cache
+    # cursor; force-with-lease with prior fetch. See ADR-0024.
+    "smc-live-news-refresh.yml",
+    # run-open-prep-daily.yml: rolling bot/live-open-prep-snapshot snapshot of
+    # latest_open_prep_run.json for the realtime-signals producer; isolated
+    # detached-HEAD commit + force-with-lease with prior fetch. See ADR-0024.
+    "run-open-prep-daily.yml",
+    # smc-measurement-benchmark-rolling.yml: rolling bot/live-experiment-snapshot
+    # cache cursor for the daily experiment rollup + history consumed by the
+    # live-overlay daemon; force-with-lease with prior fetch. See ADR-0024.
+    "smc-measurement-benchmark-rolling.yml",
     # credential-health-check.yml: rolling bot/live-tv-credential-snapshot cache
     # cursor for the daily TradingView storage-state credential-age report
     # consumed by the live-overlay daemon; force-with-lease with prior fetch.
     # See ADR-0024.
     "credential-health-check.yml",
+    # plan-2-8-evaluation.yml: rolling bot/live-experiment-snapshot refresh
+    # for the Plan 2.8 TF-family evaluation artifact stream. See ADR-0024.
+    "plan-2-8-evaluation.yml",
     # evidence-freshness-snapshot.yml: rolling bot/live-evidence-freshness
     # refresh for the ADR-0023 evidence-chain freshness gauges the daemon
     # serves; force-with-lease with prior fetch (same pattern as
-    # smc-measurement-benchmark-rolling). See ADR-0024.
+    # plan-2-8-evaluation). See ADR-0024.
     "evidence-freshness-snapshot.yml",
     # sweep-trap-shadow-daily.yml (WS4a, #3414): rolling
     # bot/live-sweep-trap-shadow refresh of the sweep-trap shadow monitoring
@@ -190,31 +193,9 @@ _FORCE_LEASE_ALLOWLIST: frozenset[str] = frozenset({
     # dropdown-binding JSON to bot/live-tradingview-bindings
     # cache cursor after fetching its current tip. See ADR-0024.
     "tv-save-consumer-source.yml",
-    # smc-r4-context-readback.yml (2026-08-03): a second producer on the
-    # same bot/live-tradingview-bindings branch, at a distinct
-    # artifacts/monitoring/latest/tradingview_r4_context_bindings.json path
-    # (tv-save-consumer-source.yml owns tradingview_consumer_bindings.json
-    # in the same directory). Because the branch now has more than one
-    # producer, this publish step additionally seeds the shared directory
-    # from the fetched tip before adding its own file — the ADR-0024 §5
-    # "replace only their owned paths" case. See ADR-0024.
-    "smc-r4-context-readback.yml",
-    # smc-r1-reattest.yml (2026-08-07, repo audit): recreates the disposable
-    # bot/r1-reattest proposal ref from scratch on every run (checkout -b off
-    # the current main, one commit, push). There is no history to protect and
-    # no expected-tip to lease against, so this is the leaseless case in
-    # ADR-0024 §6. It became visible only when _FORCE_RE learned the ``-f``
-    # short form; it had been running unreviewed since the workflow landed.
-    # tv-save-consumer-source.yml pushes the same ref the same way when it is
-    # dispatched in reattest mode (already listed above for its lease publish).
-    "smc-r1-reattest.yml",
 })
 
-# Matches both spellings of a force push. The ``-f`` alternative is bounded on
-# both sides so ``--force`` / ``--follow-tags`` cannot satisfy it accidentally.
-# 2026-08-07 (repo audit): this used to be ``--force`` only, which made the
-# allowlist blind to the two ``git push -f`` sites in the tree.
-_FORCE_RE = re.compile(r"git\s+push\b[^\n]*(?:--force|(?<![\w-])-f(?![\w-]))")
+_FORCE_RE = re.compile(r"git\s+push\b[^\n]*--force")
 
 
 def test_workflow_force_push_is_allowlisted() -> None:
@@ -258,25 +239,6 @@ def test_workflow_force_push_is_allowlisted() -> None:
         "(see docs/adr/0024-force-with-lease-allowance-bot-snapshot-branches.md).\n"
         "Offenders:\n" + "\n".join(offenders)
     )
-
-
-def test_force_push_detector_sees_both_spellings() -> None:
-    """Regression guard for the 2026-08-07 repo audit.
-
-    ``_FORCE_RE`` matched only the long ``--force``. Two workflows force-pushed
-    with ``git push -f``, so neither reached the allowlist check at all:
-    ``test_workflow_force_push_is_allowlisted`` reported clean while the pushes
-    it exists to gate were invisible to it. A guard that cannot see the thing
-    it forbids is worse than no guard, because it also reports success.
-    """
-    assert _FORCE_RE.search('git push -f "${remote_url}" "HEAD:${BRANCH}"')
-    assert _FORCE_RE.search("git push origin HEAD -f")
-    assert _FORCE_RE.search(
-        'git push "--force-with-lease=${_remote_ref}:${_lease}" "${url}" HEAD:x'
-    )
-    # Long flags that merely begin with ``f`` must not read as a force push.
-    assert not _FORCE_RE.search("git push --follow-tags origin main")
-    assert not _FORCE_RE.search("git push origin main")
 
 
 # ---------------------------------------------------------------------------

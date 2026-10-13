@@ -376,7 +376,7 @@ These metrics are exposed via the daemon's `/metrics` endpoint and scraped by Gr
 **Long-term (automation):**
 
 1. **Schedule periodic snapshot generation:**
-   - Add cron job or GitHub Actions workflow to run Plan 2.8 evaluation daily — **DONE**, but not by the workflow named here: `plan-2-8-evaluation.yml` and its `scripts/plan_2_8_evaluate.py` were deleted in #4549 because the script generated its numbers with `random` and published them as `"measured"`. The measuring producer is `smc-measurement-benchmark-rolling.yml` running `scripts/plan_2_8_tf_family_rollup.py`; see `DASHBOARD_AUTOMATION_COMPLETE.md`
+   - Add cron job or GitHub Actions workflow to run Plan 2.8 evaluation daily — **DONE**: `plan-2-8-evaluation.yml` (cron `0 4 * * *`); see `DASHBOARD_AUTOMATION_COMPLETE.md`
    - Append results to history JSONL
    - Upload snapshots to stable URL accessible by live_overlay_daemon
 

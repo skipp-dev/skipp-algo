@@ -225,17 +225,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         drift_payload: dict[str, Any] = json.loads(
             drift_path.read_text(encoding="utf-8")
         )
-    # ZURUECKGEBAUT 2026-08-29 (#5088 -> hier): Zwischen dem 26. und 29.8. gab
-    # dieser Zweig bei fehlender Datei 78 ("kein Input heute") zurueck. Die
-    # Begruendung war eine ungepruefte Annahme: "auf einer dormanten
-    # Workstation produziert compute_live_drift kein drift_<DATE>.json".
-    # Gemessen (Laeufe 33021447055, 33216084496) stimmt das nicht —
-    # compute_live_drift LIEF NIE, und dieser Step haette gar nicht laufen
-    # duerfen. Ursache war das Skip-Leck der if-Kette (siehe
-    # c13-daily-cron.yml). Mit fail-closed Kette laeuft dieser Step nur noch,
-    # wenn drift mit rc=0 durchlief — dann MUSS die Datei da sein, und ihr
-    # Fehlen ist ein echter Defekt. Ein 78 hier waere ab jetzt der Mute des
-    # einzigen Detektors fuer ein erneutes Leck.
     except OSError as exc:
         print(f"error: cannot read --drift-json: {exc}", file=sys.stderr)
         return 1

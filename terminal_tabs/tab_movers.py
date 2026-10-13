@@ -14,10 +14,7 @@ from terminal_tabs._shared import (
     render_event_clusters_expander,
     render_forecast_expander,
     render_technicals_expander,
-    tv_symbol_column,
 )
-from terminal_tabs.style import style_table
-from terminal_ui_helpers import tv_linkify_rows
 
 
 def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
@@ -31,7 +28,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
         st.info("Set `FMP_API_KEY` and/or `BENZINGA_API_KEY` in `.env` for real-time movers.")
         return
 
-    st.subheader("Real-Time Top Movers")
+    st.subheader("🔥 Real-Time Top Movers")
     st.caption(
         f"**{session_label}** — Live gainers & losers ranked by absolute percentage change. "
         "Auto-refreshes each cycle."
@@ -60,24 +57,24 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
     n_dn = sum(1 for m in sorted_movers if m.get("chg_pct", 0) < 0)
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("Total Movers", len(sorted_movers))
-    m2.metric("Gainers", n_up)
-    m3.metric("Losers", n_dn)
+    m2.metric("🟢 Gainers", n_up)
+    m3.metric("🔴 Losers", n_dn)
     if sorted_movers:
         top = sorted_movers[0]
-        m4.metric("Top Mover", f"{top['symbol']} {top['chg_pct']:+.2f}%")
+        m4.metric("🏆 Top Mover", f"{top['symbol']} {top['chg_pct']:+.2f}%")
 
     # Build table
-    mov_rows = tv_linkify_rows(build_mover_table_rows(sorted_movers))
+    mov_rows = build_mover_table_rows(sorted_movers)
     df_mov = pd.DataFrame(mov_rows)
     df_mov.index = df_mov.index + 1
 
     st.dataframe(
-        style_table(df_mov, directional=["Dir", "Change", "Change %"]),
+        df_mov,
         width="stretch",
         height=min(800, 40 + 35 * len(df_mov)),
         column_config={
             "Dir": st.column_config.TextColumn("Dir", width="small"),
-            "Symbol": tv_symbol_column(),
+            "Symbol": st.column_config.TextColumn("Symbol", width="small"),
             "Name": st.column_config.TextColumn("Name", width="medium"),
             "Change %": st.column_config.TextColumn("Change %", width="small"),
             "Age": st.column_config.TextColumn("Age", width="small"),

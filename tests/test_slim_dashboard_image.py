@@ -83,26 +83,6 @@ def test_slim_dockerfile_uses_dashboard_requirements() -> None:
     assert "streamlit_terminal.py" not in contents
 
 
-def test_slim_dockerfile_ships_the_brand_theme() -> None:
-    """The dashboard image must carry ``.streamlit/config.toml``.
-
-    Its COPY list is an explicit allowlist, so the theme file is easy to
-    forget — and when it is missing the image silently falls back to
-    Streamlit's default LIGHT theme while the trader surface renders dark.
-    That is a cosmetic-only failure, invisible to every other guard, so pin
-    it here.
-    """
-    from pathlib import Path
-
-    repo_root = Path(__file__).resolve().parents[1]
-    contents = (repo_root / "Dockerfile.dashboard").read_text(encoding="utf-8")
-    assert "COPY .streamlit/config.toml ./.streamlit/config.toml" in contents
-
-    # The file it ships must actually define a theme, not just exist.
-    config = (repo_root / ".streamlit" / "config.toml").read_text(encoding="utf-8")
-    assert "[theme]" in config
-
-
 def test_run_dashboard_sh_native_mode_runs_streamlit_dashboard() -> None:
     """C-sprint deep-review C7 fix: native mode of ``run_dashboard.sh``
     previously launched ``streamlit_terminal.py`` (the live news /

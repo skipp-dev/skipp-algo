@@ -126,26 +126,6 @@ class A0StreamState:
         self._states: dict[str, _SymbolState] = {}
         self._references: dict[str, StreamReference] = {}
         self._invalidated_symbols: set[str] = set()
-        self._source_coverage_started_at: float | None = None
-
-    def begin_source_replay(self, coverage_started_at: float) -> None:
-        """Reset stream state for a source replay that proves later absence.
-
-        A Databento Live subscription with ``start`` yields every OHLCV record
-        from that timestamp before transitioning to real time.  When the
-        timestamp precedes a regular-session open, the first bar for a sparse
-        symbol is therefore complete even when it occurs well after 09:30.
-        """
-        started_at = float(coverage_started_at)
-        if started_at <= 0:
-            raise ValueError("coverage_started_at must be a positive epoch")
-        self._source_coverage_started_at = started_at
-        self._states.clear()
-        self._invalidated_symbols.clear()
-
-    def clear_source_coverage(self) -> None:
-        """Remove the completeness claim after the source disconnects."""
-        self._source_coverage_started_at = None
 
     def set_reference(self, reference: StreamReference) -> None:
         self._references[reference.symbol.strip().upper()] = reference
@@ -212,16 +192,6 @@ class A0StreamState:
         forced_gap = symbol in self._invalidated_symbols
         if state is None or state.session_date != session_date:
             seconds_from_open = (minute - _OPEN_MINUTES) * 60 + event_et.second
-            session_open = event_et.replace(
-                hour=9,
-                minute=30,
-                second=0,
-                microsecond=0,
-            ).timestamp()
-            replay_proves_coverage = (
-                self._source_coverage_started_at is not None
-                and self._source_coverage_started_at <= session_open
-            )
             state = _SymbolState(
                 session_date=session_date,
                 cumulative_volume=0,
@@ -232,7 +202,7 @@ class A0StreamState:
                     if forced_gap
                     else
                     GapState.COMPLETE
-                    if replay_proves_coverage or seconds_from_open <= self._max_gap_seconds
+                    if seconds_from_open <= self._max_gap_seconds
                     else GapState.BOOTSTRAP_REQUIRED
                 ),
             )
@@ -246,15 +216,7 @@ class A0StreamState:
                 return StreamApplyResult(StreamApplyStatus.DUPLICATE, state.gap_state, None)
             if bar.ts_event <= state.last_ts_event:
                 return StreamApplyResult(StreamApplyStatus.OUT_OF_ORDER, state.gap_state, None)
-            # OHLCV-1s is sparse: Databento emits a bar only when trades occur.
-            # While one uninterrupted replay/live subscription proves source
-            # coverage, elapsed wall-clock seconds therefore do not imply lost
-            # records.  A local buffer drop still sets ``forced_gap`` below,
-            # and disconnect handling clears source coverage before reconnect.
-            if (
-                self._source_coverage_started_at is None
-                and bar.ts_event - state.last_ts_event > self._max_gap_seconds
-            ):
+            if bar.ts_event - state.last_ts_event > self._max_gap_seconds:
                 state.gap_state = GapState.GAP_DETECTED
             if forced_gap:
                 state.gap_state = GapState.GAP_DETECTED

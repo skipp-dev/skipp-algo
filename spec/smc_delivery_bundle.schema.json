@@ -101,7 +101,7 @@
         },
         "contracts": {
           "type": "object",
-          "required": ["engine", "executable", "liteSurface", "lite", "proOnly", "dashboardBindings", "strategyBindings", "holdManagerBindings", "eventOverlayBindings", "exitSignalBindings", "contextOverlayBindings", "mobileBindings", "alertsBindings", "setupCheckBindings", "breakoutOverlayBindings", "confluenceHubBindings"],
+          "required": ["engine", "executable", "liteSurface", "lite", "proOnly", "dashboardBindings", "strategyBindings"],
           "additionalProperties": false,
           "properties": {
             "engine": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
@@ -110,21 +110,12 @@
             "lite": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
             "proOnly": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
             "dashboardBindings": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
-            "strategyBindings": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
-            "holdManagerBindings": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
-            "eventOverlayBindings": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
-            "exitSignalBindings": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
-            "contextOverlayBindings": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
-            "mobileBindings": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
-            "alertsBindings": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
-            "setupCheckBindings": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
-            "breakoutOverlayBindings": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
-            "confluenceHubBindings": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } }
+            "strategyBindings": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } }
           }
         },
         "preflightScopes": {
           "type": "object",
-          "required": ["smcCoreDashboard", "smcMainline", "smcDecisionFirst", "smcHoldManagerShadow", "smcR1Companions", "smcR4ContextShadow", "smcR5HtfSession"],
+          "required": ["smcCoreDashboard", "smcMainline", "smcDecisionFirst"],
           "additionalProperties": false,
           "properties": {
             "smcCoreDashboard": {
@@ -141,10 +132,9 @@
                   "addToChart": { "type": "boolean" },
                   "minInputs": { "type": "integer", "minimum": 0 },
                   "savedScriptName": { "type": "string", "minLength": 1 },
-                  "bindingContractKey": { "type": "string", "enum": ["dashboardBindings", "strategyBindings", "holdManagerBindings", "eventOverlayBindings", "exitSignalBindings", "contextOverlayBindings"] },
+                  "bindingContractKey": { "type": "string", "enum": ["dashboardBindings", "strategyBindings"] },
                   "bindingContractName": { "type": "string", "minLength": 1 },
-                  "bindingConsumerRole": { "type": "string", "enum": ["dashboard_companion", "execution_wrapper", "overlay_companion", "exit_companion", "context_companion"] },
-                  "allowFreshDraftOnMissingExisting": { "type": "boolean" },
+                  "bindingConsumerRole": { "type": "string", "enum": ["dashboard_companion", "execution_wrapper"] },
                   "bindingContractLabels": {
                     "type": "array",
                     "minItems": 1,
@@ -247,18 +237,6 @@
                   }
                 }
               }
-            },
-            "smcHoldManagerShadow": {
-              "$ref": "#/properties/product_cut/properties/preflightScopes/properties/smcCoreDashboard"
-            },
-            "smcR1Companions": {
-              "$ref": "#/properties/product_cut/properties/preflightScopes/properties/smcCoreDashboard"
-            },
-            "smcR4ContextShadow": {
-              "$ref": "#/properties/product_cut/properties/preflightScopes/properties/smcCoreDashboard"
-            },
-            "smcR5HtfSession": {
-              "$ref": "#/properties/product_cut/properties/preflightScopes/properties/smcCoreDashboard"
             }
           }
         },

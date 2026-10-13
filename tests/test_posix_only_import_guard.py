@@ -37,8 +37,6 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from tests._guard_corpus import iter_production_py_files
-
 ROOT = Path(__file__).resolve().parents[1]
 
 _POSIX_MODULES = frozenset({"fcntl", "termios", "grp", "pwd", "resource"})
@@ -70,7 +68,13 @@ _POSIX_ONLY_FILES: frozenset[str] = frozenset(
 
 
 def _iter_py_files() -> list[Path]:
-    return iter_production_py_files(_DIR_EXCLUDE)
+    out: list[Path] = []
+    for path in ROOT.rglob("*.py"):
+        rel = path.relative_to(ROOT)
+        if any(part in _DIR_EXCLUDE or part.startswith(".") for part in rel.parts):
+            continue
+        out.append(path)
+    return out
 
 
 def _bare_posix_import_sites(py_file: Path) -> list[tuple[str, int, str]]:

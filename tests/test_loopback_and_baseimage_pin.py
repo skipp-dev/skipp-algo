@@ -12,10 +12,9 @@ A. Loopback ledger
 
 B. Dockerfile FROM form-sanity
    ---------------------------
-   Base-image discipline: every ``FROM`` line must have an explicit tag and
-   must NOT use ``:latest``. The current ledger is exactly two FROM lines: a
-   pinned Go builder for the access proxy and the Python runtime. Any addition
-   is gated by this test.
+   Single base-image discipline: every ``FROM`` line must have an explicit
+   tag and must NOT use ``:latest``. The current ledger is exactly one FROM
+   line (``python:3.12-slim AS base``); any addition is gated by this test.
 
 Defense-only, no production code changes.
 """
@@ -27,8 +26,6 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
-
-from tests._guard_corpus import iter_production_py_files
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -52,7 +49,10 @@ _DIR_EXCLUDE = frozenset(
 
 
 def _iter_prod_py() -> Iterator[Path]:
-    return iter_production_py_files(_DIR_EXCLUDE)
+    for p in ROOT.rglob("*.py"):
+        if any(part in _DIR_EXCLUDE for part in p.relative_to(ROOT).parts):
+            continue
+        yield p
 
 
 # ---------------------------------------------------------------------------
@@ -66,9 +66,6 @@ _LOOPBACK = re.compile(r"localhost|127\.0\.0\.1", re.IGNORECASE)
 _FROZEN_LOOPBACK_COUNTS: dict[str, int] = {
     "streamlit_terminal_alerts.py": 1,
     "streamlit_terminal.py": 1,
-    # 2026-07-20: the producer-feed client permits loopback for local tests;
-    # production bearer egress is otherwise restricted to *.railway.internal.
-    "terminal_internal_feed.py": 1,
     # 2026-07-02: SSRF path/query hardening added private/local hint checks
     # (e.g., 127.0.0.1 token detection) in alerts URL validation.
     "open_prep/alerts.py": 2,
@@ -170,10 +167,8 @@ def test_dockerfile_exists() -> None:
 
 def test_dockerfile_from_count_frozen() -> None:
     lines = _from_lines()
-    # 2026-07-20: 1->2 for the version-pinned terminal access-proxy builder;
-    # the compiled binary is copied into the existing Python runtime image.
-    assert len(lines) == 2, (
-        f"Dockerfile FROM count drifted (expected 2, got {len(lines)}): {lines}. "
+    assert len(lines) == 1, (
+        f"Dockerfile FROM count drifted (expected 1, got {len(lines)}): {lines}. "
         "Multi-stage builds need an explicit ledger bump."
     )
 

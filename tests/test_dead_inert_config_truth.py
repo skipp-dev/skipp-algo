@@ -3,7 +3,7 @@
 - ``SMC_CONFLUENCE_POINTS_PER_SIGNAL`` / ``ConfluenceScoreConfig`` was removed
   (RESERVED/UNWIRED — read nowhere).
 - ``SIGNAL_QUALITY_MODEL=v2.1`` is an alias for ``v2`` (no distinct model).
-- ``ENABLE_SMT_DIVERGENCE`` / ``SMC_SMT_DIVERGENCE_HEURISTIC_SCORE`` are productively
+- ``ENABLE_SMT_DIVERGENCE`` / ``SMC_SMT_DIVERGENCE_CONFIDENCE`` are productively
   inert: the detector returns neutral for every production event because no
   producer builds ``correlated_context``.
 """
@@ -28,12 +28,7 @@ _ENR = {
 
 @pytest.fixture(autouse=True)
 def _clean(monkeypatch: pytest.MonkeyPatch) -> None:
-    for k in (
-        "SIGNAL_QUALITY_MODEL",
-        "ENABLE_SMT_DIVERGENCE",
-        "SMC_SMT_DIVERGENCE_HEURISTIC_SCORE",
-        "SMC_SMT_DIVERGENCE_CONFIDENCE",
-    ):
+    for k in ("SIGNAL_QUALITY_MODEL", "ENABLE_SMT_DIVERGENCE", "SMC_SMT_DIVERGENCE_CONFIDENCE"):
         monkeypatch.delenv(k, raising=False)
 
 
@@ -65,7 +60,7 @@ def test_smt_neutral_without_correlated_context_even_when_enabled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("ENABLE_SMT_DIVERGENCE", "1")
-    monkeypatch.setenv("SMC_SMT_DIVERGENCE_HEURISTIC_SCORE", "99")
+    monkeypatch.setenv("SMC_SMT_DIVERGENCE_CONFIDENCE", "99")
     # Production-shaped enrichment: NO correlated_context block.
     result = smt_divergence.detect_smt_divergence(enrichment=_ENR)
     assert result["SMT_DIVERGENCE_DETECTED"] is False
