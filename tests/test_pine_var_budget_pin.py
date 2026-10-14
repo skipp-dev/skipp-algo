@@ -64,15 +64,10 @@ _FROZEN_LEDGER: dict[str, int] = {
     # 34 → 35: +1 group label (g_bus_blockers). The former "Diagnostic Support"
     # group held two disjoint BUS plot ranges (14-16 and 40-43) and was split so
     # the binding panel walks the dropdown order 0..63 without scrolling back up.
-    # 35 → 36 (2026-08-12): +1 group label (g_operator_ops). The three
-    # internal-operations controls moved out of "1. Product Surface" so the
-    # customer's first group holds only controls a customer can act on.
-    "SMC_Decision_Board.pine": 36,
+    "SMC_Long_Dip_Dashboard.pine": 35,
     "SMC_Event_Overlay.pine": 13,
     "SMC_Exit_Signal.pine": 13,
-    # 2026-07-30 R5 rebuild: snapshot-era state removed; only the fixed status
-    # table persists in the confirmed three-frame implementation.
-    "SMC_HTF_Confluence.pine": 1,
+    "SMC_HTF_Confluence.pine": 8,
     # 2026-07-03 correctness lane: +1 var latch to detect the Arm Long
     # input toggle on the last bar; history indexing cannot see input edges.
     "SMC_Hold_Manager.pine": 11,
@@ -83,14 +78,9 @@ _FROZEN_LEDGER: dict[str, int] = {
     # 9 → 16 (2026-04-30, commit 68e1aac0): Trade-Mgmt rows feature added
     # 7 var declarations to track per-row state. Ledger re-frozen.
     "SMC_Long_Dip_Mobile.pine": 16,
-    # 10 → 15 (2026-08-16): opt-in real footprint delta (Jan-2026
-    # request.footprint) added one group string + four inputs (toggle,
-    # ticks/row, value-area %, imbalance %). Ledger re-frozen.
-    "SMC_Orderflow_Overlay.pine": 15,
+    "SMC_Orderflow_Overlay.pine": 10,
     "SMC_Profile_Context.pine": 11,
-    # 2026-07-30 R5 rebuild: 17 declarations own confirmed session/range/VWAP/
-    # MSS state locally. This replaces, rather than shadows, frozen mp.* data.
-    "SMC_Session_Context.pine": 17,
+    "SMC_Session_Context.pine": 11,
     "SMC_Setup_Check.pine": 2,
     "SMC_Structure_Context.pine": 10,
     "SMC_Regime_and_News.pine": 1,  # retired compatibility notice; no data ingress
@@ -99,10 +89,6 @@ _FROZEN_LEDGER: dict[str, int] = {
     # Alert companion: only the persistent status table needs `var` — the group
     # labels are plain consts, so the budget stays at 1.
     "SMC_Long_Dip_Alerts.pine": 1,
-    # R4 Context BUS: one input-group label plus confirmed-epoch transport
-    # state. The overlay holds seven group labels and one fixed summary table.
-    "SMC_Context_Bus.pine": 2,
-    "SMC_Context_Overlay.pine": 8,
     "pine/legacy/BFI-Reversal.pine": 37,
     "pine/legacy/BTC 3m EV Scalper BALANCED (Harmonized).pine": 6,
     "pine/legacy/Breakout_Finder_Intelligent.pine": 6,
@@ -115,10 +101,6 @@ _FROZEN_LEDGER: dict[str, int] = {
     "pine/legacy/REV-BUY.pine": 3,
     "pine/legacy/REV-Ladder-CHoCH.pine": 7,
     "pine/legacy/REV-Ladder.pine": 14,
-    # 2026-07-30 R5 rebuild: immutable snapshot-era rollback references. Their
-    # state counts are frozen and they are excluded from active product paths.
-    "pine/legacy/SMC_HTF_Confluence_v1_snapshot.pine": 8,
-    "pine/legacy/SMC_Session_Context_v1_snapshot.pine": 11,
     "pine/legacy/USI-CHOCH.pine": 13,
     "pine/legacy/USI_Strategy.pine": 2,
     "pine/legacy/VWAP_Long_Reclaim_Indicator.pine": 12,
@@ -132,35 +114,10 @@ _FROZEN_LEDGER: dict[str, int] = {
     # 2026-07-09: +3 (P_ENTRY/P_STOP/P_TGT — official C13 levels from the
     # date-matched setups join).
     "pine/generated/openprep_daily_panel.pine": 23,
-    # 2026-07-27: generated, test-only Hold Manager R2.4 harness. Persistent
-    # state is the canonical runtime plus six cumulative pulse diagnostics and
-    # one test-only readback table for immutable replay screenshots.
-    "tests/fixtures/pine/smc_hold_manager_r2_4_fixture.pine": 10,
-    # 2026-07-29: generated, test-only Exit Signal R1 replay harness. It keeps
-    # the canonical 13 persistent declarations plus six cumulative alert-edge
-    # counters used by the immutable 11-case TradingView replay evidence.
-    "tests/fixtures/pine/smc_exit_signal_r1_fixture.pine": 19,
-    # 2026-07-29: generated, test-only R3 runtime harness. These are the
-    # canonical context library's 40 persistent declarations, source-derived
-    # without adding a second detector implementation.
-    # 2026-07-31: 40 -> 42 — previous_session_top/bottom vars added to the
-    # session seam for the session-MSS channels (deliberate, see the v3
-    # contract); the fixture is generated from that source.
-    "tests/fixtures/pine/smc_context_engine_r3_fixture.pine": 42,
-    # 2026-07-30: R5 HTF spike uses one persistent input-group label. All
-    # requested ContextFrame state remains owned by the imported private /4
-    # library rather than duplicated in the fixture.
-    "tests/fixtures/pine/smc_htf_context_r5_spike.pine": 1,
-    # 2026-08-01: generated, test-only R4 Context readback harness. The two
-    # canonical declarations plus ONE table for the structure/zone parity
-    # readback. No detector state is duplicated: every rendered value is the
-    # canonical plot expression, lifted verbatim by the generator.
-    "tests/fixtures/pine/smc_context_bus_r4_readback_fixture.pine": 3,
     "test_div.pine": 2,
 }
 
-# 2026-08-01: 1068 -> 1071 (+3 for the R4 Context readback fixture above).
-_TOTAL_BUDGET = 1071
+_TOTAL_BUDGET = 1008  # 2026-07-16: retired HTTP consumer; bridge reduced to tombstone (-6 total).
 
 
 def _iter_pine() -> list[Path]:

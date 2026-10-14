@@ -7,19 +7,6 @@ provides ≥ 90 days of real outcome data
 (`scripts/c9_threshold_replay.py::CALIBRATION_SOURCE` flips
 `"synthetic"` → `"live"` in that PR).
 
-**Target lock-in:** 2026-12-31 (extended 2026-07-25 → 2026-08-16 → 2026-09-30 →
-2026-12-31; each time the C8 backfill had not yet accrued ≥ 90 days of live
-outcomes, and the deadline was moved rather than recording a false
-`Status: locked`. The 2026-10-01 extension measured the gap instead of
-estimating it: `python -m scripts.check_c12_trigger` reported 0 of 4 families
-live-qualified, each at 0 live days and 0 trades, so 90 days cannot be reached
-before 2026-12-30. The
-2026-08-25 extension also sharpened the anchor test: its substring match had
-been vacuously green against exactly this paragraph's self-quote since the
-08-16 deadline passed — it now requires a real status LINE). Tracked by
-`tests/test_c9_threshold_lock_status.py`; the substantive, event-driven
-criterion is `tests/test_c9_threshold_finalisation_anchor.py` (see below).
-
 ## What this is
 
 `scripts/c9_threshold_replay.py` replays a labelled episode bank

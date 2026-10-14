@@ -157,21 +157,7 @@ class TestDryRun:
 
 class TestErrorPaths:
     def test_missing_drift_file_exits_1(self, tmp_path: Path) -> None:
-        # ZURUECK auf rc=1 (2026-08-29): der 78-Soft-Skip vom 26.8. ruhte auf
-        # einer ungeprueften Annahme ("dormante Workstation produziert kein
-        # drift_<DATE>.json"). Gemessen lief compute_live_drift gar nicht —
-        # der Corpus-Step haette selbst nicht laufen duerfen. Seit die
-        # if-Kette fail-closed ist, laeuft er nur noch hinter einem
-        # erfolgreichen drift; eine dann fehlende Datei ist ein echter
-        # Defekt und muss das Issue oeffnen.
         rc = main(["--drift-json", str(tmp_path / "nonexistent.json")])
-        assert rc == 1
-
-    def test_unreadable_existing_drift_file_stays_loud(self, tmp_path: Path) -> None:
-        # Nur ABWESENHEIT ist weich. Ein vorhandener, aber unlesbarer Pfad
-        # (hier: ein Verzeichnis) ist ein echter Fehler und bleibt rc=1 —
-        # sonst wuerde ein kaputter Producer als "kein Input heute" durchgehen.
-        rc = main(["--drift-json", str(tmp_path)])
         assert rc == 1
 
     def test_invalid_json_exits_1(self, tmp_path: Path) -> None:

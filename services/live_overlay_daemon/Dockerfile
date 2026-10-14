@@ -13,11 +13,6 @@ COPY services/live_overlay_daemon/requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
 COPY services/live_overlay_daemon/ /app/services/live_overlay_daemon/
-# feed.py imports this repo-ROOT module at module level, so without it the
-# image raises ModuleNotFoundError on start. `docker build` cannot see that —
-# it proves the image BUILDS, never that it STARTS. Pinned by
-# tests/test_live_overlay_daemon_deploy_artifact_contract.py.
-COPY databento_usage.py /app/databento_usage.py
 COPY artifacts/smc_microstructure_exports/smc_live_news_snapshot.json /app/artifacts/smc_microstructure_exports/smc_live_news_snapshot.json
 
 # Run as non-root user for security (D1)

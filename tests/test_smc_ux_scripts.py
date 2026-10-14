@@ -15,7 +15,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 CONFLUENCE_PATH = ROOT / "SMC_Confluence_Hub.pine"
 SETUP_CHECK_PATH = ROOT / "SMC_Setup_Check.pine"
 MOBILE_PATH = ROOT / "SMC_Long_Dip_Mobile.pine"
-DASHBOARD_PATH = ROOT / "SMC_Decision_Board.pine"
+DASHBOARD_PATH = ROOT / "SMC_Long_Dip_Dashboard.pine"
 
 
 def _read(path: pathlib.Path) -> str:

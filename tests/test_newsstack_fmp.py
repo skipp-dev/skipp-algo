@@ -132,47 +132,6 @@ class TestAtexitCleanup(unittest.TestCase):
         _cleanup_singletons()
 
 
-# ── WP-A2: future-dated naive stamps self-heal as UTC ───────────
-
-
-class TestFutureDatedSelfHealing:
-    """A naive stamp that is 'future' under the provider's assumed zone but
-    plausible as UTC was mis-zoned upstream (observed live 2026-07-21: FMP
-    feeds emitting naive UTC while the normalizer localized to ET, nuking
-    every article of the last ~4 RTH hours to epoch 0)."""
-
-    def test_naive_utc_stamp_mislocalized_as_et_self_heals(self):
-        import time as _time
-        from datetime import UTC as _UTC
-        from datetime import datetime as _dt
-        from zoneinfo import ZoneInfo
-
-        from newsstack_fmp.normalize import _to_epoch
-        now = _time.time()
-        stamp = _dt.fromtimestamp(now - 1800, tz=_UTC).strftime("%Y-%m-%d %H:%M:%S")
-        result = _to_epoch(stamp, naive_tz=ZoneInfo("America/New_York"))
-        assert abs(result - (now - 1800)) < 2.0
-
-    def test_genuinely_future_stamp_still_returns_epoch_zero(self):
-        import time as _time
-        from datetime import datetime as _dt
-        from zoneinfo import ZoneInfo
-
-        from newsstack_fmp.normalize import _to_epoch
-        zone = ZoneInfo("America/New_York")
-        stamp = _dt.fromtimestamp(_time.time() + 21600, tz=zone).strftime("%Y-%m-%d %H:%M:%S")
-        assert _to_epoch(stamp, naive_tz=zone) == 0.0
-
-    def test_aware_future_stamp_is_not_reinterpreted(self):
-        import time as _time
-        from datetime import UTC as _UTC
-        from datetime import datetime as _dt
-
-        from newsstack_fmp.normalize import _to_epoch
-        stamp = _dt.fromtimestamp(_time.time() + 21600, tz=_UTC).isoformat()
-        assert _to_epoch(stamp) == 0.0
-
-
 # ── R-5: _to_epoch logs on parse failure ────────────────────────
 
 
@@ -4209,13 +4168,3 @@ class TestFmpExtras(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
-
-# 2026-10-08: FMP news is off by default (ENABLE_FMP_NEWS). This module tests the
-# FMP news paths themselves, so it runs them switched on -- the pre-change behaviour.
-import pytest as _pytest_fmp_news
-
-
-@_pytest_fmp_news.fixture(autouse=True)
-def _fmp_news_on(monkeypatch):
-    monkeypatch.setenv("ENABLE_FMP_NEWS", "1")

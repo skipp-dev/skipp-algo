@@ -30,10 +30,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
         with:
           python-version: "3.12"
           cache: pip
@@ -77,7 +77,6 @@ jobs:
           python scripts/run_smc_release_gates.py \
             --ci-mode \
             --skip-publish-contract \
-            --measurement-baseline-summary reports/smc_measurement_baseline_summary.json \
             --output artifacts/ci/smc_deeper_measurement_report.json
 
       - name: "⚠️ Warn: Run deeper measurement lane export"
@@ -189,76 +188,3 @@ jobs:
             artifacts/ci/smc_deeper_measurement_report.json
             artifacts/ci/smc_deeper_evidence_summary.json
             artifacts/ci/smc_e2e_smoke_output.txt
-
-  # Rolls the fresh evidence summary into the committed measurement baseline
-  # (reports/smc_measurement_baseline_summary.json) so the gate invocations'
-  # --measurement-baseline-summary flag has real cross-run history to read.
-  # Wired 2026-07-28 (B-sweep): before this job the flag had NO feeder and no
-  # persistence path existed, so the regression half of the measurement-shadow
-  # governance (MEASUREMENT_*_REGRESSION codes, history-tightened ceilings)
-  # could never fire. Schedule-only: push-triggered runs never commit, so the
-  # bot PR cannot start a commit loop. Job-level contents:write keeps the
-  # gates job itself read-only. Success-gated (default `needs` semantics):
-  # only healthy scheduled runs contribute history rows.
-  measurement-baseline-commit:
-    needs: deeper-gates
-    if: github.event_name == 'schedule'
-    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
-    timeout-minutes: 10
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-
-      - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
-        with:
-          python-version: "3.12"
-
-      - name: Download evidence summary from this run
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: smc-deeper-gate-evidence
-          path: artifacts/ci/
-
-      - name: Merge into committed baseline
-        run: |
-          python scripts/update_measurement_baseline_summary.py \
-            --current artifacts/ci/smc_deeper_evidence_summary.json \
-            --baseline reports/smc_measurement_baseline_summary.json \
-            --out reports/smc_measurement_baseline_summary.json
-
-      - name: Commit baseline via auto-merge PR
-        # Same GH_PAT discipline as run-open-prep-daily / ats-baseline-daily:
-        # GITHUB_TOKEN-created events would leave the required fast-gates
-        # check "expected" forever.
-        env:
-          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          git add reports/smc_measurement_baseline_summary.json
-          if git diff --staged --quiet; then
-            echo "Baseline unchanged — nothing to commit."
-            exit 0
-          fi
-          BRANCH="bot/measurement-baseline-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          git checkout -b "$BRANCH"
-          git commit -m "chore(governance): roll measurement baseline ${GITHUB_RUN_ID}"
-          git push -u origin "$BRANCH"
-          if ! gh pr create \
-            --base main \
-            --head "$BRANCH" \
-            --label automated \
-            --title "chore(governance): roll measurement baseline ${GITHUB_RUN_ID}" \
-            --body "Automated roll-up of the scheduled deeper-gates evidence summary into the committed measurement-shadow baseline (run ${GITHUB_RUN_ID}). Read back by every run_smc_release_gates invocation via --measurement-baseline-summary."; then
-            echo "::error file=.github/workflows/smc-deeper-integration-gates.yml::gh pr create failed for ${BRANCH} — see step log for stderr"
-            exit 1
-          fi
-          # CONTINUE-ON-ERROR-INTENTIONAL: enabling auto-merge can race with
-          # branch-protection evaluation; the PR itself is already open.
-          gh pr merge "$BRANCH" --auto --squash --delete-branch \
-            || echo "::warning::auto-merge enable failed for ${BRANCH} (PR is open and reviewable)"

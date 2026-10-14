@@ -7,20 +7,6 @@ on:
     paths:
       - services/live_overlay_daemon/infra/grafana/dashboard.json
       - services/live_overlay_daemon/infra/grafana/dashboard-signals-experiments.json
-      - services/live_overlay_daemon/infra/grafana/dashboard-pre-a0.json
-      - scripts/build_pre_a0_dashboard.py
-      # 2026-08-30: die beiden Skripte, die das Publizieren TUN, fehlten hier —
-      # getriggert wurde nur auf den Generator. Ein Umbau der Publish-Logik
-      # erreichte die Produktion damit nie von selbst (gleiche Klasse wie bei den
-      # Grafana-Upserts, #5204). Abgeleitet und gepinnt in
-      # tests/test_publish_triggers_follow_their_script.py.
-      - scripts/publish_overlay_dashboard.py
-      - scripts/update_overlay_dashboard.py
-      # Transitiv: build_pre_a0_dashboard importiert atomic_write_text von hier.
-      # Bewusst aufgenommen statt eine unscharfe Ausnahme fuer 'generische
-      # Hilfsmodule' zu erfinden — ein Dashboard-Republish ist idempotent, die
-      # Kosten sind Rauschen, der Gewinn eine Regel ohne Ermessensspielraum.
-      - scripts/smc_atomic_write.py
   workflow_dispatch:
     inputs:
       dry_run:
@@ -56,7 +42,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           persist-credentials: false
 
@@ -76,7 +62,6 @@ jobs:
           python scripts/update_overlay_dashboard.py \
             services/live_overlay_daemon/infra/grafana/dashboard-signals-experiments.json \
             --check
-          python scripts/build_pre_a0_dashboard.py --check
 
       - name: Publish dashboards (or dry-run)
         env:
@@ -89,9 +74,8 @@ jobs:
 
           HOST="${INPUT_HOST:-bronzeporridge977.grafana.net}"
           DASHBOARDS=(
-            "services/live_overlay_daemon/infra/grafana/dashboard.json|cfpozahbhfzswc"
-            "services/live_overlay_daemon/infra/grafana/dashboard-signals-experiments.json|cfpozahbhfzswc"
-            "services/live_overlay_daemon/infra/grafana/dashboard-pre-a0.json|bfshrlee72tc0d"
+            "services/live_overlay_daemon/infra/grafana/dashboard.json"
+            "services/live_overlay_daemon/infra/grafana/dashboard-signals-experiments.json"
           )
 
           # push -> always publish (mutating workflow);
@@ -111,14 +95,13 @@ jobs:
           # mutating anything (audit P2 LOW). Without this, a failure on the
           # 2nd dashboard after the 1st is already published leaves Grafana
           # half-updated.
-          for dashboard in "${DASHBOARDS[@]}"; do
-            IFS="|" read -r DASHBOARD_PATH FOLDER_UID <<< "${dashboard}"
+          for DASHBOARD_PATH in "${DASHBOARDS[@]}"; do
             echo "Preflight dry-run: validating payload for ${DASHBOARD_PATH} (no network publish)."
             python scripts/publish_overlay_dashboard.py \
               "${DASHBOARD_PATH}" \
               --host "${HOST}" \
               --namespace stacks-1697741 \
-              --folder "${FOLDER_UID}" \
+              --folder cfpozahbhfzswc \
               --dry-run \
               --token "dry-run-token" \
               --no-keychain
@@ -135,13 +118,12 @@ jobs:
           }
 
           # All dashboards passed preflight — now publish them.
-          for dashboard in "${DASHBOARDS[@]}"; do
-            IFS="|" read -r DASHBOARD_PATH FOLDER_UID <<< "${dashboard}"
+          for DASHBOARD_PATH in "${DASHBOARDS[@]}"; do
             echo "Publishing ${DASHBOARD_PATH} to ${HOST}."
             python scripts/publish_overlay_dashboard.py \
               "${DASHBOARD_PATH}" \
               --host "${HOST}" \
               --namespace stacks-1697741 \
-              --folder "${FOLDER_UID}" \
+              --folder cfpozahbhfzswc \
               --no-keychain
           done

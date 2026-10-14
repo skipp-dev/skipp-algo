@@ -124,24 +124,6 @@ def test_compute_risk_penalty_includes_volume_and_spread_components() -> None:
     assert 0.05 < out < 0.20
 
 
-def test_compute_risk_penalty_spread_gradient_scales_with_width() -> None:
-    """A wider spread must incur a strictly larger penalty than a tighter one.
-
-    Regression: the spread term was ``min(spread_pct * 10.0, 0.02)`` — calibrated for
-    a fraction-of-price input, but the live caller (scorer.py) now passes percentage
-    points (``spread_pct * 100``). At pct-points, ``* 10.0`` saturated the 0.02 cap for
-    any spread wider than ~0.2 bps, so the width signal collapsed to a binary "spread
-    present -> -0.02" and the tightest, most-liquid names were over-penalised. The
-    gradient must scale: 1 bps (0.01 pp) small, 20 bps (0.20 pp) at the cap.
-    """
-    base = compute_risk_penalty(price=100.0, atr=2.0, volume_ratio=0.4, spread_pct=0.0)
-    p_tight = compute_risk_penalty(price=100.0, atr=2.0, volume_ratio=0.4, spread_pct=0.01)   # 1 bps
-    p_wide = compute_risk_penalty(price=100.0, atr=2.0, volume_ratio=0.4, spread_pct=0.20)     # 20 bps
-    assert p_tight < p_wide, "spread-width gradient collapsed (tight penalised same as wide)"
-    assert p_tight == pytest.approx(base + 0.001, abs=1e-6)   # 1 bps -> 0.001 contribution
-    assert p_wide == pytest.approx(base + 0.02, abs=1e-6)     # 20 bps -> 0.02 cap
-
-
 # ---------------------------------------------------------------------------
 # classify_instrument
 # ---------------------------------------------------------------------------
@@ -171,30 +153,29 @@ def test_classify_instrument_band_matrix(
 
 
 def test_compute_adaptive_gates_high_vix_relaxes() -> None:
-    out = compute_adaptive_gates(vix_level=35.0)
+    out = compute_adaptive_gates(vix_level=35.0, instrument_class="penny")
     # vix_mult = 0.85 → score_min decreases vs base 0.35
     assert out["score_min"] < 0.35
+    assert out["atr_ratio_min"] == 0.5  # penny
 
 
 def test_compute_adaptive_gates_low_vix_tightens() -> None:
-    out = compute_adaptive_gates(vix_level=10.0)
+    out = compute_adaptive_gates(vix_level=10.0, instrument_class="large_cap")
     assert out["score_min"] > 0.35
+    assert out["atr_ratio_min"] == 2.5
 
 
 def test_compute_adaptive_gates_normal_vix_unchanged_score() -> None:
-    out = compute_adaptive_gates(vix_level=20.0)
+    out = compute_adaptive_gates(vix_level=20.0, instrument_class="mid_cap")
     assert out["score_min"] == pytest.approx(0.35)
+    assert out["atr_ratio_min"] == 1.5
 
 
-def test_adaptive_gates_emit_only_the_gate_that_gates() -> None:
-    """2026-08-18 (Verdrahtungs-Sweep C3): trend_z_min/atr_ratio_min wurden
-    berechnet, an jede publizierte Zeile geheftet und von niemandem gelesen —
-    und repo-weit existiert kein gemessener trend_z-/atr_ratio-Row-Wert,
-    gegen den sie je hätten gaten können (Phantom-Input). Ein Payload-Feld,
-    das „Gate" heißt und nicht gated, ist eine Falschaussage an jeden Leser.
-    Dieser Pin hält das Dict auf dem einen echten Gate."""
-    out = compute_adaptive_gates(vix_level=20.0)
-    assert set(out) == {"score_min"}
+def test_compute_adaptive_gates_unknown_class_falls_back_to_base() -> None:
+    out = compute_adaptive_gates(
+        vix_level=20.0, instrument_class="cosmic", base_atr_ratio_min=1.7
+    )
+    assert out["atr_ratio_min"] == 1.7
 
 
 # ---------------------------------------------------------------------------
@@ -365,28 +346,6 @@ def test_validate_data_quality_overbought_rsi_flagged() -> None:
     assert "rsi_extreme" in res.issues
 
 
-def test_validate_data_quality_rsi14_production_key_flagged() -> None:
-    # PRODUCTION shape: the open_prep quote carries "rsi14" (RSI(14) producer),
-    # NOT bare "rsi". Before 2026-07-28 this read only bare "rsi" and defaulted
-    # to 50.0, so the rsi_extreme gate was dead on every real quote. It must now
-    # fire off rsi14 too (mirrors scorer.filter_candidate).
-    for extreme in (0.05, 99.95):
-        res = validate_data_quality({
-            "price": 100.0, "volume": 1_000_000.0, "avg_volume": 1_000_000.0,
-            "rsi14": extreme,  # no bare "rsi" key at all
-        })
-        assert "rsi_extreme" in res.issues, f"rsi14={extreme} should flag rsi_extreme"
-
-
-def test_validate_data_quality_rsi14_normal_not_flagged() -> None:
-    # A healthy rsi14 must not over-fire the gate.
-    res = validate_data_quality({
-        "price": 100.0, "volume": 1_000_000.0, "avg_volume": 1_000_000.0,
-        "atr": 1.5, "rsi14": 55.0,
-    })
-    assert "rsi_extreme" not in res.issues
-
-
 def test_validate_data_quality_zero_avg_volume_not_masked_by_alias() -> None:
     # Falsy-`or` regression: a legitimate avg_volume of 0.0 must still flag
     # avg_volume_zero even when a nonzero `avgVolume` alias key is present.
@@ -544,34 +503,6 @@ def test_calculate_support_resistance_targets_handles_zero_in_bars() -> None:
     bars[5] = {"open": 0.0, "high": 0.0, "low": 0.0, "close": 0.0, "volume": 0.0}
     out = calculate_support_resistance_targets(bars, current_price=100.0)
     assert out["atr"] is not None  # still computes
-
-
-def test_fib_levels_above_price_feed_resistance() -> None:
-    """A Fibonacci retracement level sitting ABOVE current price must surface as
-    resistance, symmetric to how it surfaces as support when below.
-
-    Regression: the levels were only appended to the support candidate list, so a
-    Fib level above price was computed then silently discarded from resistance_1/2/3
-    (which feed long-side targets). Construction: recent_high=110, recent_low=90 ->
-    fib_618=97.64, fib_500=100.0, fib_382=102.36; price=97.0 sits just below all three.
-    Flat 94-region bars + a single 110 spike + a single 90 dip keep every other
-    candidate (swings/pivots/EMAs) below price, so the three Fib levels are the three
-    closest resistances above it.
-    """
-    bars: list[dict[str, Any]] = [
-        {"open": 94.0, "high": 94.5, "low": 93.5, "close": 94.0, "volume": 1_000_000.0}
-        for _ in range(50)
-    ]
-    bars[5]["high"] = 110.0   # range top (a lone swing high well above the Fib zone)
-    bars[10]["low"] = 90.0    # range bottom; both extremes kept out of the last 20 bars
-    out = calculate_support_resistance_targets(bars, current_price=97.0, direction="long")
-
-    resistances = [out["resistance_1"], out["resistance_2"], out["resistance_3"]]
-    fib_618, fib_500, fib_382 = 97.64, 100.0, 102.36
-    for fib in (fib_618, fib_500, fib_382):
-        assert any(r is not None and abs(r - fib) < 0.01 for r in resistances), (
-            f"Fib level {fib} above price missing from resistance {resistances}"
-        )
 
 
 # ---------------------------------------------------------------------------

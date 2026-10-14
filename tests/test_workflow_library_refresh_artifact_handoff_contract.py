@@ -98,14 +98,40 @@ def test_reject_stale_fallback_requires_non_dispatch_event() -> None:
     )
 
 
-def test_reject_stale_fallback_requires_semantic_fallback_mode() -> None:
-    """Guard fires only when the semantic restore selected a fallback day."""
+def test_reject_stale_fallback_requires_today_artifact_missing() -> None:
+    """Guard fires only when today's artifact was NOT found."""
     job = _refresh_job(_load())
     step = _find_step(job, "reject_stale_export_fallback")
     assert step is not None, "Step not found"
     condition: str = str(step.get("if", ""))
-    assert "steps.restore_export_bundle.outputs.artifact_mode" in condition
-    assert re.search(r"artifact_mode\s*==\s*['\"]fallback['\"]", condition)
+    assert "restore_export_bundle_today" in condition, (
+        "Condition must reference restore_export_bundle_today step output."
+    )
+    assert re.search(
+        r"found_artifact.*!=\s*['\"]true['\"]|found_artifact.*==\s*['\"]false[\"']",
+        condition,
+    ), (
+        "Condition must assert that today's artifact was NOT found "
+        "(found_artifact != 'true' or found_artifact == 'false')."
+    )
+
+
+def test_reject_stale_fallback_requires_fallback_artifact_present() -> None:
+    """Guard fires only when the fallback artifact IS present — otherwise there is nothing to reject."""
+    job = _refresh_job(_load())
+    step = _find_step(job, "reject_stale_export_fallback")
+    assert step is not None, "Step not found"
+    condition: str = str(step.get("if", ""))
+    assert "restore_export_bundle_fallback" in condition, (
+        "Condition must reference restore_export_bundle_fallback step output."
+    )
+    assert re.search(r"found_artifact.*==\s*['\"]true['\"]|", condition) or re.search(
+        r"found_artifact.*==\s*['\"]true[\"']", condition
+    ), (
+        "Condition must assert that the FALLBACK artifact was found "
+        "(found_artifact == 'true') — rejecting only when a stale artifact was "
+        "actually resolved."
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -120,11 +146,14 @@ def _step_index(job: dict, step_id: str) -> int:
     return -1
 
 
-def test_reject_step_comes_after_semantic_restore_step() -> None:
-    """reject_stale_export_fallback must follow the semantic restore."""
+def test_reject_step_comes_after_both_restore_steps() -> None:
+    """reject_stale_export_fallback must follow both restore steps."""
     job = _refresh_job(_load())
-    restore_idx = _step_index(job, "restore_export_bundle")
+    today_idx = _step_index(job, "restore_export_bundle_today")
+    fallback_idx = _step_index(job, "restore_export_bundle_fallback")
     reject_idx = _step_index(job, "reject_stale_export_fallback")
-    assert restore_idx != -1, "restore_export_bundle step not found"
+    assert today_idx != -1, "restore_export_bundle_today step not found"
+    assert fallback_idx != -1, "restore_export_bundle_fallback step not found"
     assert reject_idx != -1, "reject_stale_export_fallback step not found"
-    assert reject_idx > restore_idx, "reject step must come after restore_export_bundle"
+    assert reject_idx > today_idx, "reject step must come after restore_export_bundle_today"
+    assert reject_idx > fallback_idx, "reject step must come after restore_export_bundle_fallback"

@@ -1,12 +1,10 @@
 # C13 Phase-A — local IBKR launchd jobs
 
-These LaunchAgents (ten plists, see table) drive the local jobs that **cannot** run on
-the GitHub-hosted cron: the C13 jobs require a live TWS / IB Gateway
-session, and the Hold-Manager shadow capture needs the receiver token from
-the local login Keychain. The unattended GH cron
-(`.github/workflows/c13-daily-cron.yml`) consumes whatever artefacts the
-local jobs commit + push into `cache/imbalance/` and `cache/wsh/`; absence
-is treated as a soft skip.
+These LaunchAgents (eight plists, see table) drive the local jobs that **cannot** run on
+the GitHub-hosted cron because they require a live TWS / IB Gateway
+session. The unattended GH cron (`.github/workflows/c13-daily-cron.yml`)
+consumes whatever artefacts the local jobs commit + push into
+`cache/imbalance/` and `cache/wsh/`; absence is treated as a soft skip.
 
 ## Jobs
 
@@ -15,14 +13,11 @@ is treated as a soft skip.
 | `com.skippalgo.c13.collect-imbalance.plist` | 09:28 ET (Mon-Fri) | `scripts.collect_opening_imbalances` | `cache/imbalance/<DATE>.jsonl` |
 | `com.skippalgo.c13.wsh-earnings.plist` | 16:30 ET (Mon-Fri) | `scripts.wsh_earnings_calendar` | `cache/wsh/<DATE>.jsonl` |
 | `com.skippalgo.c13.phase-a-export.plist` | 09:18 ET (Mon-Fri) | `scripts.export_open_prep_lists` | `reports/open_prep_trade_cards_<TS>.csv` |
-| `com.skippalgo.c13.phase-a.plist` | 09:28 ET (Mon-Fri) | portfolio snapshot + `scripts.build_phase_a_inputs` + `scripts.run_smc_live_incubation --phase paper --place-paper-orders` | local `cache/live/portfolio_before_<DATE>.json`, setups/gates and `incubation_<DATE>.jsonl`; no submit occurs if the before snapshot cannot be captured |
+| `com.skippalgo.c13.phase-a.plist` | 09:28 ET (Mon-Fri) | `scripts.build_phase_a_inputs` + `scripts.run_smc_live_incubation --phase paper --place-paper-orders` | `cache/live/setups_<DATE>.jsonl`, `cache/live/gate_status.json`, `cache/live/incubation_<DATE>.jsonl` (bracket sets submitted to the PAPER TWS) |
 | `com.skippalgo.c13.ibkr-smoke.plist` | **08:00 ET (Mon-Fri)** | `scripts.smoke_smc_to_ibkr_adapter --mode live` | `cache/live/smoke_<DATE>.jsonl`; writes `cache/live/smoke_HALT` on failure |
-| `com.skippalgo.c13.reconcile.plist` | 23:05 local (Mon-Fri) | execution-fill reconcile + after snapshot + portfolio reconcile | updates `incubation_<DATE>.jsonl` (and `incubation_commercial_<DATE>.jsonl` when present); keeps raw before/after snapshots, account IDs and execution fills local; publishes only the audit and sanitized `artifacts/portfolio/reconciliation_<DATE>.monitoring.json` |
-| `com.skippalgo.c13.commercial-shadow.plist` | ~6× intraday RTH (Mon-Fri, wide ET gate) | `run-c13-commercial-shadow.sh`: Databento PIT pull + `scripts.run_commercial_shadow_campaign` (audit-only); paper stage dormant behind `configs/commercial_paper_submission.json` enabled **AND** campaign `observation_gate PASS` | `cache/live/commercial_campaign/` (attempts, strict audit, `campaign_report.json` — report pushed to the data branch); after the flip additionally `incubation_commercial_<DATE>.jsonl` via `--place-paper-orders` (Phase-1 commercial families; weekly review 2026-08-16, P0) |
-| `com.skippalgo.c13.tws-autostart.plist` | **07:30 ET (Mon-Fri)** | `run-c13-tws-autostart.sh` (IBC + login Keychain `skipp.ibkr.paper`, no venv) | starts the paper TWS 30 min before the 08:00 ET smoke so the day's fills chain has a listening 7497; writes `cache/live/.tws_autostart_status_<DATE>`. Idempotent when TWS is already up. The credentials never reach a command line — see the script header. |
+| `com.skippalgo.c13.reconcile.plist` | 23:05 local (Mon-Fri) | `scripts.reconcile_incubation_fills` | stamps `fill_price`/`close_price`/`close_action`/`size_usd` + PnL/R onto `cache/live/incubation_<DATE>.jsonl` and publishes it (Phase-B execution-promotion fills — NOT the ADR-0023 §5 gate) |
 | `com.skippalgo.c13.tws-reminder.plist` | **07:45 ET** + 22:50 local (Mon-Fri) | `run-c13-tws-reminder.sh` (system tools + ET-gate lib, no venv) | macOS notification 15 min before the day's first TWS-bound window (08:00 ET ibkr-smoke; also covers 09:28 ET phase-a) and before the 23:05 local reconcile — posts ONLY when nothing listens on the paper port |
 | `com.skippalgo.c13.audit-push.plist` | 17:30 ET (Mon-Fri) | `git push origin data/phase-a-audit` | n/a (commits today's audit artefacts to the dedicated, unprotected `data/phase-a-audit` branch, bootstrapped on first run) |
-| `com.skippalgo.hold-manager-shadow-daily.plist` | 16:15 ET (Mon-Fri) | `run-hold-manager-shadow-daily.sh` (curl + Keychain token `skipp.hold-manager-shadow`, no TWS) | dated receiver-state snapshot under `~/Library/Application Support/skipp-algo/hold-manager-shadow/` + `reconcile --check` verdict + macOS notification reminding the operator to record the day's R2 session row |
 
 `collect-imbalance`, `wsh-earnings` and the smoke use the rotating
 clientId allocator (`scripts.ib_client_id`) so they never collide with
@@ -53,15 +48,6 @@ The fills chain requires the paper TWS to be RUNNING at 09:28 ET
 (reconcile); a down TWS surfaces as
 `action="submit_failed"` records resp. a red reconcile job — never
 silently.
-
-Immediately before a real paper submit, the phase-a driver captures
-`portfolio_before_<DATE>.json` from TWS and passes it to the shadow portfolio
-gate. Capture failure or an empty file stops that day's submit. If TWS exposes
-multiple managed accounts, set `C13_IBKR_ACCOUNT` in the LaunchAgent environment;
-the driver does not guess. At 23:05 the reconcile job exports only executions
-belonging to that day's incubation, captures `portfolio_after_<DATE>.json`, and
-proves the signed position delta. A mismatch remains a failed evidence record;
-it does not enable enforcement or get hidden by a larger tolerance.
 
 Known limitation: the WSH earnings filter is structurally empty until
 the watchlist rows carry IBKR conIds (`wsh_earnings_calendar` skips
@@ -118,20 +104,6 @@ done
 launchctl kickstart -k "gui/$(id -u)/com.skippalgo.c13.phase-a-export"
 ```
 
-The Hold-Manager shadow capture uses its own label (not `c13.*`) and needs
-the receiver token in the login Keychain once (`security add-generic-password
--U -a operator -s skipp.hold-manager-shadow -w '<token>'` — never store the
-token in the repo or shell history; fetch it from the Railway service vars):
-
-```bash
-REPO="$(pwd)"
-sed -e "s|__REPO_PATH__|${REPO}|g" -e "s|__HOME__|${HOME}|g" \
-    "automation/launchd/com.skippalgo.hold-manager-shadow-daily.plist" \
-    > "${HOME}/Library/LaunchAgents/com.skippalgo.hold-manager-shadow-daily.plist"
-launchctl bootstrap "gui/$(id -u)" \
-    "${HOME}/Library/LaunchAgents/com.skippalgo.hold-manager-shadow-daily.plist"
-```
-
 ## Uninstall
 
 ```bash
@@ -166,11 +138,10 @@ rm cache/live/smoke_HALT
 ```
 
 Note: `run-c13-audit-push.sh` pushes only `incubation_<DATE>.jsonl`,
-`setups_<DATE>.jsonl`, `gate_status.json` and checkout freshness. The 23:05
-reconcile job separately publishes the updated incubation audit plus the
-sanitized portfolio monitoring report. Smoke JSONL, raw portfolio snapshots,
-account identifiers, positions and individual execution IDs stay local; inspect
-them on the workstation during incident triage.
+`setups_<DATE>.jsonl` and `gate_status.json` — the smoke JSONL stays local
+(`cache/live/smoke_<DATE>.jsonl`); inspect it on the workstation when
+triaging a `smoke_HALT`. (Corrected 2026-07-08 — this section previously
+claimed audit-push also shipped the smoke files.)
 
 ## Timezone (ET) scheduling
 

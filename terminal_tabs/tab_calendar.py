@@ -9,7 +9,6 @@ import pandas as pd
 import streamlit as st
 
 from terminal_tabs._shared import cached_econ_calendar
-from terminal_tabs.style import style_semantic
 
 
 def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
@@ -21,7 +20,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
         st.info("Set `FMP_API_KEY` in `.env` for the economic calendar.")
         return
 
-    st.subheader("Economic Calendar")
+    st.subheader("📅 Economic Calendar")
     st.caption("Upcoming macro events from FMP (7-day window).")
 
     today = datetime.now(UTC).date()
@@ -44,11 +43,17 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
         estimate = ev.get("estimate", ev.get("forecast", ""))
         previous = ev.get("previous", "")
 
+        impact_icon = {
+            "High": "🔴", "high": "🔴",
+            "Medium": "🟡", "medium": "🟡",
+            "Low": "🟢", "low": "🟢",
+        }.get(str(impact), "⚪")
+
         rows.append({
             "Date": date_str,
             "Event": event_name[:60],
             "Country": country,
-            "Impact": impact,
+            "Impact": f"{impact_icon} {impact}",
             "Actual": actual,
             "Estimate": estimate,
             "Previous": previous,
@@ -56,7 +61,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
 
     df = pd.DataFrame(rows)
     st.dataframe(
-        style_semantic(df, ["Impact"]),
+        df,
         width="stretch",
         height=min(600, 40 + 35 * len(df)),
         hide_index=True,

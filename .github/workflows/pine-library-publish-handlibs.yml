@@ -37,28 +37,8 @@ permissions:
   pull-requests: write
 
 concurrency:
-  # 2026-08-01: one AUTOMATED browser session at a time — CI against CI only.
-  # This group does NOT serialise the account: the operator's own browser is
-  # a second, unserialised writer on the same layouts, and TradingView
-  # autosaves from it (operator-confirmed 2026-08-01: autosave active, and a
-  # chart tab on this account was open all day while runs mutated layouts —
-  # nothing here knew). No mechanism detects or excludes that session;
-  # mutating runs coordinate with the operator by convention, not by code.
-  # Every workflow below drives the SAME external account, and until now each
-  # one only serialised against itself — two of these blocks already said
-  # "TradingView is a single shared external target" while keeping a private
-  # group, so the guarantee was stated but never implemented. Measured trigger:
-  # a manual tv-save-consumer-source dispatch ran while an R4 readback was
-  # being prepared; nothing in CI would have stopped them overlapping.
-  # cancel-in-progress stays false everywhere: these runs save layouts and
-  # publish scripts, so a queued run must wait, never pre-empt.
-  group: tradingview-session
+  group: pine-library-publish-handlibs
   cancel-in-progress: false
-  # 2026-08-06: cancel-in-progress governs only the RUNNING run, so `false`
-  # never protected the waiter. Under the default `queue: single` a group holds
-  # exactly one pending run and the next entrant CANCELS it -- that is what
-  # dropped dispatches here. `queue: max` queues up to 100 runs FIFO instead.
-  queue: max
 
 defaults:
   run:
@@ -74,13 +54,13 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 1
           persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: "20"
           cache: "npm"
@@ -100,7 +80,7 @@ jobs:
 
       - name: Restore Playwright browsers cache
         id: pw_cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-browsers-${{ steps.pw_version.outputs.version }}
@@ -140,176 +120,14 @@ jobs:
         env:
           TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
         run: |
-          # `set +e` FIRST, and it is load-bearing. The `defaults:` block near
-          # the top of this file sets `run: shell: bash`, so Actions runs this
-          # block as `bash --noprofile --norc -eo pipefail {0}` — -e is already
-          # on before the first line executes, and `set -uo pipefail` below adds
-          # -u without clearing it. The failing pipeline would then end the step
-          # immediately.
-          #
-          # Measured 2026-08-04 under that exact invocation: with -e left on and
-          # the publish failing, the step exits with the publish's own rc and
-          # $GITHUB_OUTPUT stays EMPTY. Neither rc= nor changed= is ever
-          # written, so `Open repin PR` reads an empty `changed`, skips, and the
-          # repins that already succeeded are lost. The partial-progress
-          # behaviour the comment below promises could not run on a single one
-          # of the runs it exists for.
-          #
-          # This step must never fail on a verdict it reached. Failing the run
-          # is the job of `Fail the run if a publish failed` at the end, which
-          # reads BOTH statuses this step publishes.
-          # silent-skip-ok: -e is off only so the two pipeline statuses reach
-          # $GITHUB_OUTPUT; the dedicated final step ends the run red on a
-          # non-zero rc, a non-zero log_rc, and on an empty rc.
-          set +e
           set -uo pipefail
           npm run tv:publish-handlibs | tee /tmp/handlib_publish.log
-          # ONE capture, both members. A plain assignment resets PIPESTATUS to
-          # (0) — measured 2026-08-04 — so reading [1] on the line after
-          # `rc=${PIPESTATUS[0]}` yields nothing at all, and under `set -u` that
-          # unbound reference would end the step at exactly the point this fix
-          # exists to keep alive.
-          status=("${PIPESTATUS[@]}")
-          rc=${status[0]}
-          log_rc=${status[1]}
+          rc=${PIPESTATUS[0]}
           echo "rc=${rc}" >> "$GITHUB_OUTPUT"
-          # With -e off, a `tee` that dies (unwritable or full /tmp) no longer
-          # ends the step — and its status is NOT the publish's. Unpublished it
-          # would finish the run GREEN with no log, while every error message
-          # here points at a `handlib-publish-log` artifact that was never
-          # written. Under -e that case failed the run; publishing log_rc is
-          # what keeps it failing.
-          echo "log_rc=${log_rc}" >> "$GITHUB_OUTPUT"
-          # The changed-set is measured in the R1-hold step below, AFTER the
-          # attested companions are restored — measured here it would count
-          # diffs the hold is about to take back, and a run whose only edit
-          # was an attested companion would open an empty PR.
-
-      # Customer-surface hold (pin-only door), BEFORE the R1 hold measures
-      # the changed-set the PR will carry: `repinAllConsumers` rewrites every
-      # consumer .pine and the PR step stages '*.pine' wholesale from a
-      # checkout that is publish-chain-old by now — the same stale-tree
-      # revert class the refresh paid for on 2026-08-12 (#4646). Classified
-      # against a fresh fetch of main: identical/pin-only passes, anything
-      # else is restored to current-main content (that file then advances
-      # with the next publish). The R1 companions are excluded — their
-      # stricter hold below owns them. Roster, classifier, fail-closed floor:
-      # scripts/hold_customer_surfaces.py, executed by
-      # tests/test_hold_customer_surfaces_wiring.py.
-      - name: Hold customer surfaces unless the change is pin-only
-        id: surface_hold
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
-        run: |
-          set -euo pipefail
-          # Explicit-token fetch (persist-credentials: false strips origin's
-          # auth); BUMP_REMOTE is the refresh chain's test seam, unset in CI.
-          git fetch --quiet "${BUMP_REMOTE:-https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git}" main
-          SURFACE_BASE="${RUNNER_TEMP}/surface-hold-base"
-          rm -rf "${SURFACE_BASE}"
-          # Same enumeration as the refresh chain's hold: every root .pine
-          # carrying ANY owner import pin, read from the JUST-fetched main.
-          # repinAllConsumers rewrites every `import preuss_steffen/<lib>/<n>`
-          # line, so hand-lib-only surfaces (SMC_Breakout_Overlay.pine) are
-          # candidates too — under the old generated-library pattern they
-          # were rewritten without ever being enumerated (the #5145 gap).
-          # SMC++ library SOURCES are excluded: not customer surfaces; the
-          # dedicated SMC++ hold in the next step owns their mid-run seam
-          # (scripts/hold_smcpp_sources.py — until 2026-08-28 nothing did,
-          # the #5148 gap: the R1 hold covers only the attested root
-          # sources). Coverage is derived and executed by
-          # tests/test_hold_customer_surfaces_wiring.py. No mapfile — the
-          # executing test runs this block under whatever bash the developer
-          # has, including 3.2.
-          SURFACE_CANDIDATES=()
-          while IFS= read -r f; do
-            SURFACE_CANDIDATES+=("$f")
-          done < <(git grep -lE '^import[[:space:]]+preuss_steffen/' FETCH_HEAD -- \
-            '*.pine' \
-            ':(exclude)tests/**' \
-            ':(exclude)pine/**' \
-            ':(exclude)node_modules/**' \
-            ':(exclude)SMC++/**' | sed 's|^FETCH_HEAD:||' | sort -u)
-          if [ ${#SURFACE_CANDIDATES[@]} -eq 0 ]; then
-            echo "::error::no customer-surface candidates on current main — refusing to report an all-clear over nothing"
-            exit 1
-          fi
-          for f in "${SURFACE_CANDIDATES[@]}"; do
-            mkdir -p "${SURFACE_BASE}/$(dirname "$f")"
-            git show "FETCH_HEAD:$f" > "${SURFACE_BASE}/$f"
-          done
-          python3 -m scripts.hold_customer_surfaces --base-dir "${SURFACE_BASE}" --repo . "${SURFACE_CANDIDATES[@]}"
-
-      # SMC++ library-source hold (pin-only door), same base and same
-      # classifier as the customer-surface hold above. The PR step stages
-      # '*.pine' + 'SMC++'/*.pine wholesale from the run-start checkout,
-      # and the publisher rewrites pin lines IN the stale working-tree
-      # copies (repinAllConsumers + the per-library own-dep repins), so an
-      # SMC++ source whose pin moved this run carries the run-start base
-      # underneath — a merge into that source mid-run would be committed
-      # back out of the stale tree (#4646's class, for library sources —
-      # the #5148 gap: the surface hold excludes SMC++/** by design and
-      # the R1 hold covers only the attested root sources, so these files
-      # were held by NOTHING). Base is a FRESH fetch of main, never the
-      # run-start HEAD (#5141: a stale base would revert the mid-run merge
-      # itself). identical/pin-only passes — the run's own repins stay
-      # pin-only against fresh main — anything else is restored to
-      # current-main content and advances its pin with the next publish.
-      # Candidates are ALL of SMC++/*.pine on fresh main (ls-tree, not an
-      # import grep: four sources carry no import at all and the publisher
-      # scans every SMC++ file). Roster, attested exclusion, fail-closed
-      # floor: scripts/hold_smcpp_sources.py, executed by
-      # tests/test_hold_smcpp_sources_wiring.py.
-      - name: Hold SMC++ library sources unless the change is pin-only
-        id: smcpp_hold
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
-        run: |
-          set -euo pipefail
-          # Same explicit-token fetch seam as the surface hold (persist-
-          # credentials: false strips origin's auth); BUMP_REMOTE is the
-          # same test seam, unset in CI.
-          git fetch --quiet "${BUMP_REMOTE:-https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git}" main
-          SMCPP_BASE="${RUNNER_TEMP}/smcpp-hold-base"
-          rm -rf "${SMCPP_BASE}"
-          SMCPP_CANDIDATES=()
-          while IFS= read -r f; do
-            SMCPP_CANDIDATES+=("$f")
-          done < <(git ls-tree -r --name-only FETCH_HEAD -- SMC++/ | grep -E '\.pine$' | sort -u)
-          if [ ${#SMCPP_CANDIDATES[@]} -eq 0 ]; then
-            echo "::error::no SMC++ library sources on current main — refusing to report an all-clear over nothing"
-            exit 1
-          fi
-          for f in "${SMCPP_CANDIDATES[@]}"; do
-            mkdir -p "${SMCPP_BASE}/$(dirname "$f")"
-            git show "FETCH_HEAD:$f" > "${SMCPP_BASE}/$f"
-          done
-          python3 -m scripts.hold_smcpp_sources --base-dir "${SMCPP_BASE}" --repo . "${SMCPP_CANDIDATES[@]}"
-
-      - name: Hold R1-attested sources at their attested content
-        id: r1_hold
-        run: |
-          set -euo pipefail
-          # Same sanctioned door as the refresh (smc-library-publish.yml
-          # step "Hold R1-attested sources"): repinAllConsumers rewrites
-          # every consumer .pine, including the R1-attested companions, and
-          # an attested source may not change while the registered evidence
-          # still describes the previous content. Until 2026-08-14 this
-          # writer path did not know the hold — the next smc_utils bump in
-          # the Sunday run would have killed the R1 evidence exactly the way
-          # #4284/#4371 did from the refresh path before it learned this
-          # step. The module derives the roster from the live rollout
-          # contract (no second list) and fails closed on an empty roster,
-          # and a failure here fails the JOB: better no repin PR at all than
-          # one that de-attests a companion.
-          python3 -m scripts.hold_r1_attested_sources
-          # The changed-set, measured on the tree the PR would actually
-          # carry. The release manifest is part of it on purpose: the FIRST
-          # verified run writes manifest entries even when no library
-          # content changed (idempotent publishes still observe the live
-          # version), and a porcelain check scoped to '*.pine' alone would
-          # read that run as changed=false — no PR, observation lost.
-          if git status --porcelain -- '*.pine' artifacts/tradingview/handlib_release_manifest.json | grep -q .; then
+          # A non-zero rc means a publish/verify failed mid-chain; still capture
+          # any repins already made so the PR shows partial progress, but mark
+          # the run failed at the end.
+          if git status --porcelain -- '*.pine' | grep -q .; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "changed=false" >> "$GITHUB_OUTPUT"
@@ -325,51 +143,14 @@ jobs:
           retention-days: 14
 
       - name: Open repin PR
-        # r1_hold's changed, not publish's: only the post-hold tree tells the
-        # truth about what this PR would carry.
-        if: steps.r1_hold.outputs.changed == 'true'
+        if: steps.publish.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
-          PUBLISH_RC: ${{ steps.publish.outputs.rc }}
-          R1_HELD: ${{ steps.r1_hold.outputs.held }}
-          SURFACE_HELD: ${{ steps.surface_hold.outputs.held }}
-          SMCPP_HELD: ${{ steps.smcpp_hold.outputs.held }}
         run: |
           set -euo pipefail
           if [ -z "${GH_TOKEN:-}" ]; then
-            echo "::warning::GH_PAT not configured; cannot open the repin PR. The publishes that succeeded happened but their repins are not captured — run tv:publish-handlibs locally and commit."
+            echo "::warning::GH_PAT not configured; cannot open the repin PR. The publishes happened but the repins are not captured — run tv:publish-handlibs locally and commit."
             exit 0
-          fi
-          # Since 2026-08-04 this step also runs when the publish FAILED
-          # mid-chain, which is the whole point of the partial-progress path.
-          # The reviewer of that PR must not be told the chain completed: the
-          # helper stops at the first failure and only repins what it published
-          # AND verified, so the diff is consistent but PARTIAL, and the run
-          # that produced it is red.
-          if [ "${PUBLISH_RC:-}" = "0" ]; then
-            _title="chore(pine): repin consumers after scheduled hand-lib publish"
-            _summary="The ordered publish+repin helper published the changed hand-authored SMC++ libraries (facade-verified) and repinned their consumers to the real published versions."
-          else
-            _title="chore(pine): PARTIAL repin — hand-lib publish exited ${PUBLISH_RC:-<empty>}"
-            _summary="**PARTIAL — the run that produced this is RED.** \`tv:publish-handlibs\` exited \`${PUBLISH_RC:-<empty>}\`: a publish or its facade verification failed mid-chain. The helper stops at the first failure and repins only libraries it published AND verified, so this diff is consistent but INCOMPLETE — the libraries after the failure point are untouched and the monitor's drift alert will stay lit for them. Fix the failure and re-run before treating the chain as reconciled."
-          fi
-          # The reviewer must learn that companions were held OUT of this diff
-          # — a repin PR that silently omits two consumers reads as a bug, and
-          # the omission is the R1 policy working as designed.
-          if [ -n "${R1_HELD:-}" ] && [ "${R1_HELD}" != "[]" ]; then
-            _summary="${_summary} **R1 hold:** the attested companion(s) ${R1_HELD} were restored to their attested content and are NOT repinned here; they advance only through the automated re-attestation chain (smc-r1-reattest.yml)."
-          fi
-          # A held customer surface reads as a missing repin in the diff; say
-          # it was held on purpose (change beyond the pin, restored to
-          # current-main content — scripts/hold_customer_surfaces.py).
-          if [ -n "${SURFACE_HELD:-}" ] && [ "${SURFACE_HELD}" != "[]" ]; then
-            _summary="${_summary} **Customer-surface hold:** ${SURFACE_HELD} changed beyond their import pins during this run and were restored to current-main content; their pins advance with the next publish."
-          fi
-          # Same for a held SMC++ library source: the diff omits its repin
-          # on purpose (change beyond the pin — committing the stale copy
-          # would revert a mid-run merge; scripts/hold_smcpp_sources.py).
-          if [ -n "${SMCPP_HELD:-}" ] && [ "${SMCPP_HELD}" != "[]" ]; then
-            _summary="${_summary} **SMC++ source hold:** ${SMCPP_HELD} changed beyond their import pins during this run and were restored to current-main content; their pins advance with the next publish run."
           fi
           branch="bot/handlib-repin-${GITHUB_RUN_ID}"
           _remote_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
@@ -377,11 +158,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -b "${branch}"
-          # Manifest and pins travel in ONE commit: the manifest claims "TV
-          # holds /N", the pins claim "consumers use /N" — split across two
-          # commits, the currency gate (tests/test_handlib_release_manifest.py)
-          # would be red between them by construction.
-          git add -- '*.pine' 'SMC++'/*.pine artifacts/tradingview/handlib_release_manifest.json
+          git add -- '*.pine' 'SMC++'/*.pine
           git commit -m "chore(pine): repin consumers after scheduled hand-lib publish (run ${GITHUB_RUN_ID})"
           # Push to a fresh per-run branch (never main); a unique branch never
           # needs a force-push. Wrap so a push failure warns instead of
@@ -393,27 +170,10 @@ jobs:
             if ! gh pr create \
               --base main \
               --head "${branch}" \
-              --title "${_title}" \
-              --body "Automated by \`pine-library-publish-handlibs.yml\` (run ${GITHUB_RUN_ID}). ${_summary} Review the pin diff, then merge to clear the monitor drift alert. See the run's \`handlib-publish-log\` artifact for the publish output."; then
+              --title "chore(pine): repin consumers after scheduled hand-lib publish" \
+              --body "Automated by \`pine-library-publish-handlibs.yml\` (run ${GITHUB_RUN_ID}). The ordered publish+repin helper published the changed hand-authored SMC++ libraries (facade-verified) and repinned their consumers to the real published versions. Review the pin diff, then merge to clear the monitor drift alert. See the run's \`handlib-publish-log\` artifact for the publish output."; then
               echo "::error file=.github/workflows/pine-library-publish-handlibs.yml::gh pr create failed for ${branch} — see step log for stderr. The publishes happened; open the PR manually from ${branch}."
               exit 1
-            fi
-            # Operator decision 2026-08-15: the CLEAN weekly observation PR
-            # auto-merges, consistent with the refresh's repin PRs (#4435).
-            # Every Sunday run rewrites publishedAt for all ten verified
-            # libraries, so even a zero-pin-movement week produces this PR —
-            # reviewing a timestamp diff by hand carries no information, and
-            # unmerged observation PRs would pile up on per-run branches.
-            # DELIBERATELY rc-gated: a PARTIAL repin (publish failed
-            # mid-chain, run ends red) keeps requiring human eyes — its diff
-            # is consistent but incomplete, and auto-landing it would clear
-            # half the drift while looking like all of it. Failure to arm
-            # auto-merge only warns: the PR exists either way, and fast-gates
-            # still gates the actual merge.
-            if [ "${PUBLISH_RC:-}" = "0" ]; then
-              if ! gh pr merge "${branch}" --auto --squash; then
-                echo "::warning::auto-merge could not be armed for ${branch}; merge it manually once fast-gates is green."
-              fi
             fi
           else
             echo "::error::push failed for ${branch}; the publishes happened but repins were not captured — push ${branch} manually."
@@ -422,43 +182,10 @@ jobs:
 
       - name: Fail the run if a publish failed
         if: always()
-        # Through `env:`, not expanded into the `run:` block. Both values are
-        # step outputs and the repo already fixed this class twice for the same
-        # reason (smc-r4-context-readback.yml, smc-library-refresh.yml): an
-        # expansion becomes CODE before bash parses the line, while an env var
-        # is only ever data. Measured 2026-08-04 with the pinned zizmor 1.25.2:
-        # this file reports two `template-injection` findings on the expanded
-        # form and none on this one. They are informational, so the fast-gates
-        # ratchet (high/medium only) never counted them — which is exactly how
-        # a known-bad pattern spreads.
-        env:
-          RC: ${{ steps.publish.outputs.rc }}
-          LOG_RC: ${{ steps.publish.outputs.log_rc }}
         run: |
-          rc="${RC:-}"
-          log_rc="${LOG_RC:-}"
-          # An EMPTY rc is a different failure from a non-zero one, and saying
-          # so is the difference between a legible run and "exited " with no
-          # number. It means the publish step never reached its output writes —
-          # the shape this workflow shipped with until 2026-08-04, where -e
-          # ended that step on the failing pipeline. `${rc:-1}` below already
-          # fails the run in that case, so this only names it; the gate was
-          # never fail-open.
-          if [ -z "${rc}" ]; then
-            echo "::error::the publish step produced no rc at all — it exited before writing its outputs, so any repins it made were not captured. Check the handlib-publish-log artifact and the 'Ordered publish + repin' step log."
-            exit 1
-          fi
+          rc="${{ steps.publish.outputs.rc }}"
           if [ "${rc:-1}" != "0" ]; then
             echo "::error::tv:publish-handlibs exited ${rc} — a publish/verify failed. See the handlib-publish-log artifact."
-            exit 1
-          fi
-          # The publish succeeded but its LOG pipeline did not. Under the old
-          # -e this ended the step; with -e off it would otherwise finish green
-          # while `Upload publish log` warns (if-no-files-found: warn) and every
-          # message above points at an artifact that does not exist. A run whose
-          # evidence was never written is not a green run.
-          if [ "${log_rc:-1}" != "0" ]; then
-            echo "::error::the publish succeeded but the log pipeline (tee) exited ${log_rc:-<empty>} — /tmp/handlib_publish.log was not written or is truncated, so the handlib-publish-log artifact this run points at is missing its evidence."
             exit 1
           fi
           echo "All hand-authored libraries published/verified in order."

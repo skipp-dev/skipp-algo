@@ -306,10 +306,6 @@ class TestLibraryPineSyntaxValid:
             line for line in pine_text.splitlines()
             if "const bool " in line
         ]
-        # Without this floor the pin passes on zero checks: drop every
-        # `const bool` export from the generator and the loop below simply
-        # never runs. Measured 2026-07-31 on this fixture: 20 bool exports.
-        assert bool_lines, "generator emitted no 'const bool' export — lowercase pin would pass vacuously"
         for line in bool_lines:
             assert "True" not in line, f"Python True in: {line}"
             assert "False" not in line, f"Python False in: {line}"

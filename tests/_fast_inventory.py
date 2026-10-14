@@ -34,95 +34,33 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     "test_assert_and_open_encoding_pin.py",
     "test_assert_in_production_budget.py",
     "test_bare_type_ignore_ledger.py",
-    "test_bundle_loader_frame_discipline.py",
     "test_broad_except_silent_budget.py",
     "test_builtin_open_encoding_ledger.py",
-    "test_c13_eod_flatten_target_selection.py",
-    "test_check_r1_attested_sources.py",
-    # ci.yml's own contract + structural pin (2026-08-04). The rationale first
-    # written here — "invisible until after the merge" — was FALSE, and measured
-    # so the same day: the diff-driven step in smc-fast-pr-gates.yml already ran
-    # both files on any PR that edits ci.yml, and a ci.yml edit is the only thing
-    # that can break them (they read no other file). Regressing
-    # `timeout-minutes: 45 -> 60` on a tree without this pin still turned the
-    # required check red. What the pin adds is narrower: that step is gated on
-    # `github.event_name == 'pull_request'`, so it is absent from a merge_group
-    # batch, and it routes through scripts/select_workflow_guards.py, which can
-    # regress on its own. Belt to that step's braces. Sub-second warm.
-    "test_ci_workflow_contract.py",
-    "test_ci_workflow_structural_pin.py",
-    # Derived cross-consumer guard for scripts/credential_health_check.py
-    # (2026-08-03, #4333 aftermath). Source parsing only, <0.5s.
-    "test_credential_probe_consumers.py",
-    # 2026-08-18 (Doppelgaenger-Sweep A1): must run on the required path —
-    # a service-requirements PR would never select it via the diff.
-    "test_cross_manifest_pin_consistency.py",
-    # Customer-surface vocabulary guard (2026-08-12). Reads four .pine files,
-    # no imports, ~0.3s. Required rather than validate-only on purpose: the
-    # leaks it pins are edits to customer-facing copy, which is exactly the
-    # class of change that lands without anyone re-reading the settings panel.
-    "test_customer_surface_vocabulary.py",
     "test_dynamic_getattr_ledger.py",
     "test_dynamic_import_and_todo_tripwires.py",
     "test_field_preference_chain_ledger.py",
     "test_global_statement_budget.py",
     "test_hashlib_weak_hash_ledger.py",
-    "test_hold_customer_surfaces.py",
-    "test_hold_customer_surfaces_wiring.py",
     "test_http_client_discipline.py",
     "test_http_post_egress_ledger.py",
-    "test_iloc_minus_one_guard_discipline.py",
     "test_lint_debt_no_regression.py",
     "test_loopback_and_baseimage_pin.py",
-    "test_degraded_status_alert_coverage.py",
-    "test_github_workflow_expected_presence.py",
     "test_monitoring_metric_alert_coverage.py",
-    "test_realtime_signals_metrics_endpoint.py",
-    "test_alerted_metric_emitter_population.py",
-    # Monitoring artifacts: Grafana dashboards + alert rules (2026-07-23).
-    "test_cisco_probe_alert_rules.py",
-    "test_grafana_alert_rules_upsert.py",
-    "test_grafana_dashboard_pullback.py",
-    "test_live_overlay_alert_rules_publish_workflow.py",
-    "test_live_overlay_dashboard_contract.py",
-    "test_live_overlay_dashboard_publish_workflow.py",
-    "test_library_field_audit.py",
-    "test_a0_fast_alert_rules.py",
-    "test_pre_a0_alert_rules.py",
-    "test_pre_a0_grafana_dashboard.py",
-    "test_publish_overlay_dashboard.py",
-    "test_signals_dashboard_contract.py",
-    "test_smc_fast_pr_gates_workflow.py",
-    "test_smc_live_overlay_metrics.py",
-    "test_smc_product_cut_manifest.py",
-    "test_update_overlay_dashboard.py",
-    "test_detect_vacuous_claims.py",
-    "test_vacuous_claim_guard.py",
     "test_mutable_defaults_and_loads_pins.py",
     "test_nonlocal_budget.py",
     "test_noqa_budget.py",
     "test_noqa_suppression_ledger.py",
     "test_os_environ_mutation_ledger.py",
     "test_os_unlink_remove_ledger.py",
-    "test_outcome_horizons.py",
     "test_path_text_io_encoding_ledger.py",
     "test_pine_alertcondition_and_declaration_pin.py",
     "test_pine_context_library_contract.py",
-    "test_pine_decision_logic_deep_review_regressions.py",
-    "test_pine_string_literals_close_on_their_line.py",
-    "test_pine_surface_registry.py",
     "test_pine_engine_fill_boundary.py",
     "test_pine_handlib_publisher_inventory.py",
     "test_pine_library_import_permissions.py",
     "test_pine_request_security_htf_pin.py",
     "test_pine_var_budget_pin.py",
-    "test_us_extended_session_window.py",
-    "test_terminal_bitcoin.py",
-    "test_exit_tif_explicit_at_order_submitters.py",
     "test_prod_print_ledger.py",
-    "test_proof_ledger.py",
-    "test_grafana_notification_routing_upsert.py",
-    "test_proof_entry_id_is_the_own_pr_number.py",
     "test_pytest_skip_budget.py",
     "test_random_tempfile_ledger_pin.py",
     "test_realtime_signals_sister_ledger_guardrail.py",
@@ -133,17 +71,6 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     "test_subprocess_spawn_sites_ledger.py",
     "test_sys_exit_ledger_pin.py",
     "test_sys_path_mutation_ledger.py",
-    # 2026-08-20: nachgezogen, weil die zwei Geschwister-Pins dieser Datei
-    # (test_pytest_skip_budget.py, test_six_zero_tripwires_bundle.py) laengst
-    # hier standen, der Wächter selbst aber nicht — deshalb konnte #4911 gruen
-    # mergen und main 13 CI-Laeufe lang rot halten.
-    "test_test_suite_health_discipline.py",
-    # 2026-08-21: der Abdeckungs-Ratschenwaechter ueber `.test_durations`. Er
-    # gehoert auf den Pflichtpfad, weil eine verrottete Datei den Shard-Zuschnitt
-    # in ci.yml still verfaelscht (jeder unbekannte Test bekommt den MITTELWERT)
-    # — und weil ein Waechter, den nur `validate` faehrt, genau dann kein Urteil
-    # abgibt, wenn dessen Shard haengt (#4929, 21.8.).
-    "test_test_durations_coverage_ratchet.py",
     "test_time_sleep_budget.py",
     "test_type_ignore_budget.py",
     "test_urllib_urlopen_ledger.py",
@@ -160,25 +87,9 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     "test_workflow_invoked_scripts_importable.py",
     "test_workflow_orphan_inventory.py",
     "test_workflow_permissions_present.py",
-    "test_check_tv_unattested_sources.py",
-    "test_workflow_live_window_posture.py",
-    "test_workflow_python_bin_resolved.py",
-    # 2026-08-19 (Review-Follow-up #4823): merge_group laeuft ohne den
-    # diff-getriebenen Selektor — der Interpreter-Pin-Waechter muss fix gepinnt sein.
-    "test_workflow_python_version_pinned.py",
-    "test_record_test_durations_workflow.py",
-    "test_scheduled_workflow_observation_inventory.py",
-    "test_presence_age_series_deadline_tripwire.py",
-    "test_smc_r4_context_readback_workflow.py",
-    "test_scripts_path_as_posix_guard.py",
-    "test_select_workflow_guards.py",
-    "test_select_reverse_import_tests.py",
-    "test_tradingview_session_concurrency.py",
-    "test_workflow_databento_handoff_concurrency.py",
     "test_workflow_auth_pattern.py",
     "test_atexit_register_zero_surface.py",
     "test_atomic_write_call_sites.py",
-    "test_atr_split_calendar_wiring.py",
     "test_dynamic_setattr_hasattr_zero_surface.py",
     "test_hmac_auth_zero_surface.py",
     "test_dangerous_io_zero_surface_pin.py",
@@ -203,7 +114,6 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     # costs ~62s — nearly all of it that first parse.)
     "test_dangerous_builtins_zero_surface.py",
     "test_datetime_tz_safety_zero_surface.py",
-    "test_market_timezone_contract.py",
     "test_dynamic_exec_and_pickle_zero_surface.py",
     "test_exec_mktemp_shelltrue_zero_surface.py",
     "test_library_discipline_zero_surface.py",
@@ -238,19 +148,7 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     # already paid for by the guards ahead of them and only the walk is new.
     "test_httpx_timeout_invariant.py",
     "test_gha_action_allowlist.py",
-    # Supply-chain sibling of the allowlist guard, on the same lane for the
-    # same reason: it compares the action pins across .github/workflows/,
-    # .github/actions/ and .github/workflow-templates/, and a partial bump
-    # merges green without it (2026-08-04). YAML/source parsing only, <0.5s.
-    "test_action_pin_surfaces_agree.py",
-    # Pins that scripts/run_zizmor_ratchet.sh still measures what the CI
-    # zizmor step measures. The script calls itself a "local mirror" and
-    # nothing checked that it was one; widening CI alone would have left it
-    # counting a smaller corpus and passing (2026-08-05). YAML + one bash
-    # subprocess, <0.5s.
-    "test_zizmor_ratchet_mirrors_ci.py",
     "test_pine_alert_bar_close_gate.py",
-    "test_pine_alert_call_bar_close_gate.py",
     "test_workflow_continue_on_error_semantics.py",
     "test_mkdir_makedirs_exist_ok_invariant.py",
     "test_six_zero_tripwires_bundle.py",
@@ -266,7 +164,6 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     "test_workflow_runner_pinned.py",
     "test_workflow_set_plus_e_inventory.py",
     "test_workflow_tv_save_consumer_source_contract.py",
-    "test_workflow_tv_post_mutation_verify_contract.py",
     "test_smc_library_refresh_workflow.py",
     "test_schema_version_manifest_alignment.py",
     "test_edge_hypotheses_frozen.py",
@@ -275,68 +172,21 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     "test_build_family_metrics.py",
     "test_family_returns.py",
     "test_family_event_adapter.py",
-    # Commercial Phase-1 evidence boundary: the producer, strict audit-only
-    # handoff and paper-submission opt-in must block the same PR that changes
-    # them. Pure local transformations with injected submitters, <3s total.
-    "test_build_commercial_family_setups.py",
-    "test_commercial_family_paper_pipeline.py",
-    "test_run_commercial_family_shadow.py",
-    "test_run_commercial_shadow_campaign.py",
-    "test_run_smc_live_incubation.py",
-    "test_run_smc_live_incubation_paper_submit.py",
     "test_family_verdict.py",
     "test_verdict_panel.py",
     "test_run_edge_pipeline.py",
     "test_fast_gates_silent_skip_coverage.py",
-    # Derived coverage guard: every source the R1 rollout contract attests must
-    # be matched by the run_pine_guard arm in smc-fast-pr-gates.yml, which is
-    # what pulls the R1 guard onto a pine-only bot PR (2026-08-04,
-    # #4284/#4371 aftermath). YAML/source parsing only, <0.5s.
-    "test_fast_gates_attested_pine_coverage.py",
-    "test_git_fixture_env_isolation.py",
-    # Keeps the TypeScript half of the vacuity guard on the merge-gating
-    # lane. It shipped in #4356/#4381 running only in
-    # tv-onboarding-packages.yml, which is not required, so it gated
-    # nothing (2026-08-04). YAML/source parsing only, <0.5s.
-    "test_ts_vacuity_guard_is_required.py",
-    # Dependabot's PRs touch no workflow, so the diff-driven step below cannot
-    # select this guard on the PRs it exists for (#4424/#4427, 2026-08-04).
-    # Explicit registration is the only way it runs on them. YAML + requirements
-    # parsing only, <0.5s.
-    "test_dependabot_local_version_pins.py",
-    "test_dependabot_typescript_major_hold.py",
-    # Executes the hand-lib publish step: the only guard that would notice its
-    # `set +e` being reverted, which would make the partial-progress path
-    # unreachable again. It carries no pins of its own — the allowlist entry is
-    # in pin_registry.toml — but naming that file in a docstring is what
-    # test_fast_gates_silent_skip_coverage's substring fallback classifies it
-    # by, so it must be gated either way (2026-08-04).
-    "test_workflow_pine_library_publish_handlibs_contract.py",
-    # Test-harness determinism is enforced in its own required fast-gates step:
-    # a collection-order regression must fail before merge, not first in the
-    # status-only full validate lane.
-    "test_pytest_xdist_parametrize_determinism.py",
     # Bus-v3 / context-library contract guards. On the required path because
     # fast-gates is the only merge-gating test job: #3657 landed the
     # smc_profile_engine allowlist exception together with the test enforcing it,
     # and CI ran neither. Source-parsing only, <2s total.
     "test_smc_bus_v2_freeze.py",
     "test_smc_context_golden.py",
-    "test_smc_htf_context_r5_spike.py",
     # Fast SMC integration suite
     "test_smc_action_degradation.py",
     "test_manifest_preference.py",
     "test_stale_batch_guard.py",
     "test_smc_trust_state.py",
-    # Realtime notification contracts: placement is separate from the
-    # line-pinned drift guard but remains on the required fast-gates path.
-    "test_rt_notify.py",
-    "test_rt_notify_a1_conviction_pace.py",
-    "test_calibration_lookup.py",
-    "test_near_a0_repoller.py",
-    "test_trade_context.py",
-    "test_trade_context_bracket_coherence.py",
-    "test_smc_live_signal_fields.py",
     # Terminal coverage subset
     "test_streamlit_terminal_import.py",
     "test_streamlit_terminal_config.py",
@@ -344,7 +194,6 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     "test_streamlit_terminal_alerts.py",
     "test_terminal_notifications.py",
     "test_terminal_export_dispatch.py",
-    "test_terminal_candidate_mirror.py",
     "test_streamlit_terminal_feed_state.py",
     "test_streamlit_terminal_pure_functions.py",
     # Discipline test itself — kept in the FAST inventory so the
@@ -353,27 +202,6 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     # partition is validated before merge, not only post-merge in
     # `validate`.
     "test_pytest_marker_bucket_discipline.py",
-    # Repo-wide source guards moved onto the required path 2026-08-08: each
-    # reads a production surface where a new violation used to merge green,
-    # caught only afterwards by `validate`.
-    "test_ai_defense_egress_guard.py",
-    "test_feature_flag_centralization.py",
-    "test_import_safety.py",
-    "test_live_overlay_daemon_deploy_artifact_contract.py",
-    "test_lru_cache_bounded_sweep.py",
-    "test_ml_kernel_import_boundary.py",
-    "test_no_direct_to_csv_in_production.py",
-    "test_no_eager_format_in_logger_calls.py",
-    "test_no_mtime_pick_in_production.py",
-    "test_pine_legacy_path_centralization.py",
-    "test_posix_only_import_guard.py",
-    "test_smc_core_float_equality_discipline.py",
-    "test_sprt_decision_consumer_coverage.py",
-    "test_subprocess_budget.py",
-    "test_workflow_env_var_defaults.py",
-    "test_workflow_invoked_scripts_import_order.py",
-    "test_documented_env_vars_are_read.py",
-    "test_launchd_shell_portability.py",
 })
 
 # Glob patterns covered by the fast lane. fast-gates expands

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import threading
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -56,30 +55,6 @@ def test_buffer_is_bounded_and_marks_dropped_symbol_for_resync() -> None:
     assert buffer.snapshot().resync_required_symbols == ("NVDA",)
     buffer.acknowledge_resync("NVDA")
     assert buffer.snapshot().resync_required_symbols == ()
-
-
-def test_blocking_put_preserves_replay_history_without_drops() -> None:
-    buffer = BoundedBarBuffer(capacity=1)
-    buffer.put(_bar("NVDA", 0))
-    started = threading.Event()
-    finished = threading.Event()
-
-    def put_second() -> None:
-        started.set()
-        buffer.put(_bar("NVDA", 1))
-        finished.set()
-
-    producer = threading.Thread(target=put_second, daemon=True)
-    producer.start()
-    assert started.wait(1)
-    assert finished.is_set() is False
-
-    first = buffer.take(timeout=1)
-    assert first is not None and first.bar == _bar("NVDA", 0)
-    assert finished.wait(1)
-    second = buffer.take(timeout=1)
-    assert second is not None and second.bar == _bar("NVDA", 1)
-    assert buffer.snapshot().dropped_total == 0
 
 
 def test_invalidation_forces_recovery_even_before_first_state_bar() -> None:

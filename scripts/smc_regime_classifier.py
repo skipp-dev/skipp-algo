@@ -50,12 +50,6 @@ def _clamp(value: float, low: float, high: float) -> float:
 def _market_pe_modifier(market_pe_forward: float | None) -> tuple[float, str]:
     if market_pe_forward is None or market_pe_forward <= 0:
         return 0.0, "UNKNOWN"
-    # The two divisors are INTENTIONALLY asymmetric (÷10 vs ÷5): each band normalises
-    # to ±MAX_PE_ADJUSTMENT at its own plausible extreme, not at a mirror distance.
-    # Forward PE is floored near 0, so the CHEAP band's realistic extreme (PE≈5) sits
-    # only ~10 pts below PE_CHEAP → ÷5 reaches +MAX there, while the wider EXPENSIVE
-    # band (PE≈45) sits ~20 pts above PE_EXPENSIVE → ÷10 reaches −MAX there. Per-band
-    # scaling by design (offline Pine-overlay regime input), not a typo.
     if market_pe_forward > PE_EXPENSIVE:
         penalty = -0.1 * (market_pe_forward - PE_EXPENSIVE) / 10.0
         return max(penalty, -MAX_PE_ADJUSTMENT), "EXPENSIVE"

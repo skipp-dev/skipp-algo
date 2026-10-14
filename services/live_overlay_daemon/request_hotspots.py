@@ -75,20 +75,3 @@ def reset() -> None:
         _tf_counts.clear()
         _symbol_seen.clear()
         _tf_seen.clear()
-
-
-def requested_symbols() -> frozenset[str]:
-    """Symbols an authenticated consumer has actually asked for.
-
-    Retention signal for the bar cache: with an ``ALL_SYMBOLS`` feed the
-    per-symbol bar-arrival timestamps are near-uniform (every symbol ticks
-    once a minute), so evicting by arrival recency is effectively random and
-    drops the handful of symbols someone is watching just as readily as the
-    thousands nobody reads. Demand is the meaningful signal — this exposes it
-    without leaking counts or ordering.
-
-    Already bounded by ``_MAX_TRACKED_KEYS``, so the returned set cannot grow
-    without limit.
-    """
-    with _lock:
-        return frozenset(_symbol_counts)

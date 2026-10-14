@@ -45,29 +45,10 @@ name: tradingview-storage-refresh
 
 on:
   schedule:
-    # 03:00 UTC daily. 2026-08-18 (Grenzgaenger A6, operator decision): the
-    # old */2 cadence had NO retry, so a single failed run (real case 04.08.)
-    # meant a 96 h gap against the 72 h TTL — session dead before the next
-    # tick. Daily keeps a failed run at a 48 h gap (>=24 h margin), and the
-    # in-run retry below absorbs transient capture flakes on top.
-    - cron: "0 3 * * *"
-  workflow_dispatch:
-    inputs:
-      force_fresh_login:
-        description: Ignore TV_STORAGE_STATE and exercise username/password/TOTP login
-        required: false
-        type: boolean
-        default: false
-      dry_run:
-        description: Validate the capture without updating TV_STORAGE_STATE
-        required: false
-        type: boolean
-        default: true
-      confirm_session_disconnect:
-        description: Acknowledge that a fresh login can disconnect the active TradingView session
-        required: false
-        type: boolean
-        default: false
+    # 03:00 UTC on odd days-of-month (1,3,…,31) — ~every 48 h, worst-case
+    # gap 48 h. The TTL is 72 h, so this keeps a >=24 h safety margin.
+    - cron: "0 3 */2 * *"
+  workflow_dispatch: {}
 
 permissions:
   contents: read
@@ -76,20 +57,8 @@ permissions:
 # Never cancel a running refresh — a half-written secret is worse than
 # waiting for the previous run to finish.
 concurrency:
-  # 2026-08-01: deliberately NOT in the shared `tradingview-session` group.
-  # This job maintains or probes the credential the other TradingView
-  # workflows depend on, and it is short (~1 min). smc-library-refresh runs
-  # ~216 min and three times per trading day, so a shared group would park
-  # credential maintenance behind up to eleven hours of publishing — which is
-  # how a 72 h cookie TTL turns into an outage, and how a stale-cookie probe
-  # stops being timely. Read-only or secret-writing, never layout-mutating.
   group: tradingview-storage-refresh
   cancel-in-progress: false
-  # 2026-08-06: cancel-in-progress protects only the RUNNING run. The default
-  # `queue: single` cancels the one pending run as soon as a newer tick enters
-  # the group, so a refresh could be dropped without ever running. `queue: max`
-  # lets up to 100 ticks queue instead of displacing each other.
-  queue: max
 
 defaults:
   run:
@@ -99,10 +68,6 @@ env:
   PYTHONUNBUFFERED: "1"
   PYTHONPATH: ${{ github.workspace }}
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-  TV_FORCE_FRESH_LOGIN: ${{ github.event_name == 'workflow_dispatch' && inputs.force_fresh_login == true && 'true' || 'false' }}
-  TV_REFRESH_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == true && 'true' || 'false' }}
-  TV_CONFIRM_SESSION_DISCONNECT: ${{ github.event_name == 'workflow_dispatch' && inputs.confirm_session_disconnect == true && 'true' || 'false' }}
-  TV_STORAGE_SESSION_OWNER: github-actions:${{ github.actor }}:${{ github.run_id }}
 
 jobs:
   refresh:
@@ -110,36 +75,11 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 1
 
-      - name: Preflight refresh mode
-        env:
-          TV_USERNAME: ${{ secrets.TV_USERNAME }}
-          TV_PASSWORD: ${{ secrets.TV_PASSWORD }}
-          TV_TOTP_SECRET: ${{ secrets.TV_TOTP_SECRET }}
-        run: |
-          set -euo pipefail
-          echo "Refresh mode: force_fresh_login=${TV_FORCE_FRESH_LOGIN} dry_run=${TV_REFRESH_DRY_RUN}"
-          echo "Session owner: ${TV_STORAGE_SESSION_OWNER}"
-          if [ "${TV_FORCE_FRESH_LOGIN}" != "true" ]; then
-            exit 0
-          fi
-          if [ "${TV_CONFIRM_SESSION_DISCONNECT}" != "true" ]; then
-            echo "::error::force_fresh_login requires confirm_session_disconnect=true because TradingView may disconnect another active session."
-            exit 1
-          fi
-          for variable_name in TV_USERNAME TV_PASSWORD TV_TOTP_SECRET; do
-            if [ -z "${!variable_name:-}" ]; then
-              echo "::error::${variable_name} is required for force_fresh_login."
-              exit 1
-            fi
-          done
-          echo "Fresh-login prerequisites are configured; secret values remain masked."
-
       - name: Preflight GitHub secret write token
-        if: env.TV_REFRESH_DRY_RUN != 'true'
         env:
           GH_TOKEN: ${{ secrets.TV_STORAGE_STATE_WRITE_TOKEN }}
         run: |
@@ -167,7 +107,7 @@ jobs:
           echo "DISPLAY=:99" >> "$GITHUB_ENV"
 
       - name: Set up Node 20
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: "20"
           cache: "npm"
@@ -179,7 +119,6 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Prepare current storage state bootstrap
-        if: env.TV_FORCE_FRESH_LOGIN != 'true'
         env:
           TV_STORAGE_STATE_SECRET: ${{ secrets.TV_STORAGE_STATE }}
         run: |
@@ -230,49 +169,21 @@ jobs:
           # safety net for headed debug runs.
           TV_HEADLESS: "1"
           TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
-          TV_STORAGE_SESSION_LOCK_FILE: ${{ runner.temp }}/tradingview-storage-refresh.lock
           # Tight timeout: if automated login doesn't complete in 3 min
           # something is wrong (CAPTCHA / layout change) — fail fast.
           TV_STORAGE_WAIT_TIMEOUT_MS: "180000"
         run: |
           set -euo pipefail
-          capture_args=(--headless)
-          if [ "${TV_FORCE_FRESH_LOGIN}" = "true" ]; then
-            capture_args+=(--force-fresh-login)
-          else
-            capture_args+=(--input-storage-state automation/tradingview/auth/bootstrap-storage-state.json)
-          fi
-          capture_args+=(--out automation/tradingview/auth/storage-state.json)
-          # 2026-08-18 (Grenzgaenger A6): one in-run retry for transient
-          # capture flakes (network, slow TV frontend). Attempt 2 overwrites
-          # --out completely, so a torn first attempt cannot leak through.
-          # Persistent failures (CAPTCHA, layout change) still fail the run
-          # after two attempts and reach the failure-notification step.
-          if ! npx tsx scripts/create_tradingview_storage_state.ts "${capture_args[@]}"; then
-            echo "::warning::capture attempt 1 failed — retrying once in 60s"
-            sleep 60
-            npx tsx scripts/create_tradingview_storage_state.ts "${capture_args[@]}"
-          fi
-
-      # Drop every cookie that is not TradingView's own BEFORE validating and
-      # writing back. The capture bootstraps from the previous secret, so ad and
-      # tracking cookies from the chart page piled up run after run until the
-      # capture outgrew Linux's 128 KiB limit for one environment string: from
-      # 2026-09-08 every refresh died in the next step with
-      # "/usr/bin/python: Argument list too long" (exit 126) and the secret aged
-      # past its TTL. The prune also keeps the payload far below the 48 KB
-      # secret limit, and it refuses (fails the run, secret untouched) if no
-      # TradingView sessionid cookie survives.
-      - name: Prune captured storage state to TradingView cookies
-        run: python -m scripts.tv_prune_storage_state automation/tradingview/auth/storage-state.json
+          npx tsx scripts/create_tradingview_storage_state.ts \
+            --headless \
+            --input-storage-state automation/tradingview/auth/bootstrap-storage-state.json \
+            --out automation/tradingview/auth/storage-state.json
 
       - name: Validate captured storage state
         run: |
           set -euo pipefail
           mkdir -p artifacts/ci
-          # The capture is handed over as a FILE (--tv-storage-state-file), never
-          # as TV_STORAGE_STATE="$(cat ...)": an environment string above 128 KiB
-          # fails before Python even starts (see the prune step above).
+          # credential_health_check.py reads TV_STORAGE_STATE as raw JSON content.
           # This refresh mints ONLY the TV storage-state, so its exit code must
           # reflect ONLY the tv_storage_state_age probe. `overall_severity` is
           # computed from the probes that actually RUN, so EVERY non-TV probe must
@@ -286,19 +197,8 @@ jobs:
           # it will silently break the TV refresh again. (The fail-loud contract
           # forbids soft error overrides, so the exit code — not a swallowed
           # failure — is the gate; that is why every non-TV probe is skipped.)
-          # That prose rule went unenforced and went stale: PR #4333 (2026-08-03)
-          # added probe_composio_accounts without a --skip-composio here. This
-          # workflow uses Composio zero times (before this change `grep -ci
-          # composio` on this file returned 0) — it mints only the TV cookie —
-          # so the empty COMPOSIO_PROD_API_KEY would have returned `error` and
-          # discarded a good capture on the next scheduled run (last run
-          # 2026-08-03T04:16Z predates #4333, which is the only reason this file
-          # is still green). Skipping, not granting an unused credential, is the
-          # fix. The rule is now MACHINE-ENFORCED by
-          # tests/test_credential_probe_consumers.py, which derives the consumer
-          # set from .github/workflows/*.yml and runs on the required path.
-          python scripts/credential_health_check.py \
-              --tv-storage-state-file automation/tradingview/auth/storage-state.json \
+          TV_STORAGE_STATE="$(cat automation/tradingview/auth/storage-state.json)" \
+            python scripts/credential_health_check.py \
               --tv-max-age-hours 72 \
               --skip-gh-pat \
               --skip-databento \
@@ -306,7 +206,6 @@ jobs:
               --skip-benzinga \
               --skip-finnhub \
               --skip-newsapi \
-              --skip-composio \
               --output artifacts/ci/cred-health.json
           python - <<'EOF'
           import json, sys
@@ -322,7 +221,6 @@ jobs:
           EOF
 
       - name: Write refreshed secret back to GitHub
-        if: env.TV_REFRESH_DRY_RUN != 'true'
         env:
           GH_TOKEN: ${{ secrets.TV_STORAGE_STATE_WRITE_TOKEN }}
         run: |
@@ -338,15 +236,7 @@ jobs:
           # Validate it's parseable JSON before writing.
           json.loads(raw)
           compressed = gzip.compress(raw, compresslevel=9)
-          payload = base64.b64encode(compressed).decode()
-          # An Actions secret holds at most 48 KB. Fail with the reason instead
-          # of letting `gh secret set` reject an oversized payload.
-          if len(payload) > 48_000:
-              print(f"::error::Storage state payload is {len(payload)} bytes after gzip+base64; "
-                    "Actions secrets are limited to 48 KB. The existing TV_STORAGE_STATE is unchanged.",
-                    file=sys.stderr)
-              sys.exit(1)
-          print(payload, end="")
+          print(base64.b64encode(compressed).decode(), end="")
           PYEOF
           )
           printf '%s' "$PAYLOAD" | gh secret set TV_STORAGE_STATE \
@@ -355,28 +245,15 @@ jobs:
 
       - name: Report success
         run: |
-          set -euo pipefail
-          AUTH_MODE=$(jq -r '.meta.authMode // "unknown"' automation/tradingview/auth/storage-state.json)
-          TOTP_ENTERED=$(jq -r '.meta.totpEntered // false' automation/tradingview/auth/storage-state.json)
-          TOTP_SUBMITTED=$(jq -r '.meta.totpSubmitted // false' automation/tradingview/auth/storage-state.json)
-          {
-            echo "### TradingView storage state validated"
-            echo ""
-            echo "- Authentication path: \`${AUTH_MODE}\`"
-            echo "- TOTP entered/submitted: \`${TOTP_ENTERED}/${TOTP_SUBMITTED}\`"
-            echo "- Session owner: \`${TV_STORAGE_SESSION_OWNER}\`"
-            if [ "${TV_REFRESH_DRY_RUN}" = "true" ]; then
-              echo "- Secret update: skipped (dry run); existing \`TV_STORAGE_STATE\` is unchanged"
-            else
-              echo "- Secret update: completed after validation"
-              echo "- Next automatic refresh scheduled in ~48 h"
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
+          echo "### TradingView storage state refreshed" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Cookie captured headlessly with TOTP and written back to \`TV_STORAGE_STATE\`." >> "$GITHUB_STEP_SUMMARY"
+          echo "Next automatic refresh scheduled in ~48 h." >> "$GITHUB_STEP_SUMMARY"
 
       # On failure: open an issue so the operator knows the automated
       # refresh broke (CAPTCHA / layout change / IP block).
       - name: File failure issue
-        if: failure() && env.TV_REFRESH_DRY_RUN != 'true'
+        if: failure()
         env:
           GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
         run: |

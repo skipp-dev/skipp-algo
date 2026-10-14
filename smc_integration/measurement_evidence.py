@@ -17,7 +17,6 @@ from databento_reference import get_reference_event_risk_snapshot
 # so the magnitude shadow workflow can consume them without re-running
 # the detection pipeline.
 from governance.family_event_adapter import family_events_from_structure as _family_events_from_structure
-from governance.family_returns import BAR_GRID, COARSE_EVENT_ID_SUFFIX, COARSE_PIVOT_LOOKUP, PIVOT_LOOKUP
 from scripts.explicit_structure_from_bars import build_explicit_structure_from_bars, resample_bars_to_timeframe
 from scripts.load_databento_export_bundle import load_export_bundle
 from scripts.smc_event_risk_builder import build_event_risk
@@ -252,46 +251,6 @@ def _load_source_bars(symbol: str, timeframe: str, resolved_inputs: dict[str, An
     canonical_tf = str(timeframe).strip()
     daily = is_daily_timeframe(canonical_tf)
 
-    # ADR-0023 issue #3872: opt-in long-history override for the DAILY frame.
-    # The rolling bundle's daily_bars spans only ~21 trading days — shorter
-    # than 1D warmup + label horizons (FVG=20 daily bars), so the bundle-first
-    # order below starves the 1D slice structurally. The rolling-bench
-    # workflow points this env at the long-history workbook written by
-    # scripts/fetch_benchmark_daily_history.py, so 1D detection (structure
-    # exporter --workbook) and labeling (these bars) see the SAME long frame.
-    # Strictly opt-in: env absent, file missing, or symbol not covered falls
-    # through to the unchanged resolution order.
-    if daily:
-        override_raw = os.environ.get("SMC_DAILY_BARS_WORKBOOK_OVERRIDE", "").strip()
-        if override_raw:
-            override_path = Path(override_raw)
-            override_bars = pd.DataFrame()
-            if override_path.exists():
-                try:
-                    override_frame = read_daily_bars(override_path)
-                except Exception as exc:
-                    logger.warning(
-                        "daily-bars override workbook unreadable for symbol=%s path=%s: %s",
-                        symbol_name,
-                        override_path,
-                        exc,
-                    )
-                    override_frame = pd.DataFrame()
-                if not override_frame.empty:
-                    override_frame["symbol"] = (
-                        override_frame.get("symbol", "").astype(str).str.strip().str.upper()
-                    )
-                    filtered = override_frame.loc[override_frame["symbol"].eq(symbol_name)].copy()
-                    override_bars = _normalize_numeric_bars(filtered, timestamp_column="trade_date")
-            else:
-                logger.warning(
-                    "daily-bars override set but missing for symbol=%s path=%s; using default resolution",
-                    symbol_name,
-                    override_path,
-                )
-            if not override_bars.empty:
-                return override_bars.reset_index(drop=True), "workbook_override"
-
     bundle_load_failed = False
     if export_bundle_root is not None:
         # Frame-integrity audit 2026-07-13: intraday resolution prefers a
@@ -314,14 +273,6 @@ def _load_source_bars(symbol: str, timeframe: str, resolved_inputs: dict[str, An
                     export_bundle_root,
                     required_frames=required_frames,
                     manifest_prefix="databento_volatility_production_",
-                    only_frames=(
-                        # Behaviour-preserving: after the load this module reads
-                        # daily_bars OR opportunistically BOTH intraday frames,
-                        # regardless of which single frame the attempt required.
-                        "daily_bars",
-                        "benchmark_universe_ohlcv_1m",
-                        "full_universe_second_detail_open",
-                    ),
                 )
                 break
             except FileNotFoundError as exc:
@@ -771,7 +722,7 @@ def _session_context_light_for_event(
         score += 2
     elif normalized_bias == "NEUTRAL" and expected_direction != "NEUTRAL":
         score += 1
-    if family in {"BOS", "OB", "FVG", "SWEEP"}:  # 2026-07-25: SWEEP was omitted (all 4 _FAMILIES score uniformly)
+    if family in {"BOS", "OB", "FVG"}:
         score += 1
 
     compression_regime = {
@@ -1792,49 +1743,6 @@ def _evaluate_sweep_event(
     }, scored_event
 
 
-def _coarse_bos_family_events(
-    raw_bars: pd.DataFrame,
-    resampled_bars: pd.DataFrame,
-    *,
-    symbol: str,
-    timeframe: str,
-    structure_profile: str,
-    warnings: list[str],
-) -> list[dict[str, Any]]:
-    """BOS/CHoCH FamilyEvents on the coarse grain (``COARSE_PIVOT_LOOKUP``).
-
-    Runs the explicit structure build once more with the coarse pivot and
-    keeps only its BOS list; OB, FVG and SWEEP do not depend on the grain and
-    are already emitted on the fine pass. Each event is stamped with its grain
-    and its ``event_id`` gets ``COARSE_EVENT_ID_SUFFIX``, so a coarse break on
-    the same bar and level as a fine one stays a distinct pool entry. Empty on
-    daily timeframes and on any failure (reported in ``warnings``).
-    """
-    if is_daily_timeframe(timeframe):
-        return []
-    try:
-        payload = build_explicit_structure_from_bars(
-            raw_bars,
-            symbol=symbol,
-            timeframe=timeframe,
-            pivot_lookup=COARSE_PIVOT_LOOKUP,
-            structure_profile=structure_profile,
-        )
-        events = _family_events_from_structure(
-            {"bos": payload.get("bos", [])},
-            resampled_bars.to_dict("records"),
-        )
-    except Exception as exc:
-        warnings.append(f"coarse BOS pass (pivot_lookup={COARSE_PIVOT_LOOKUP}) unavailable: {exc}")
-        return []
-    for event in events:
-        event["bar_grid"] = BAR_GRID
-        event["pivot_lookup"] = COARSE_PIVOT_LOOKUP
-        if event.get("event_id"):
-            event["event_id"] = f"{event['event_id']}{COARSE_EVENT_ID_SUFFIX}"
-    return list(events)
-
-
 def build_measurement_evidence(
     symbol: str,
     timeframe: str,
@@ -2010,8 +1918,10 @@ def build_measurement_evidence(
     bias_verdict = merge_bias(htf_context or None, session_context or None)
     vol_regime = compute_vol_regime(resampled_bars)
     details["bias_direction"] = bias_verdict.direction
-    # Fixed-table conviction weight, not a probability. The legacy
-    # ``bias_confidence`` alias was removed after the four-week close window.
+    # Dual-write (confidence-vocabulary program): bias_conviction_score is the
+    # honest name (fixed-table conviction weight, not a probability);
+    # bias_confidence stays as the legacy alias until the close-window cleanup.
+    details["bias_confidence"] = bias_verdict.confidence
     details["bias_conviction_score"] = bias_verdict.confidence
     # Disclose which inputs actually fed the merged bias (htf+session vs.
     # single-source vs. none) — mirrors vol_regime_model_source (audit #2670 W6).
@@ -2387,29 +2297,8 @@ def build_measurement_evidence(
             effective_structure,
             resampled_bars.to_dict("records"),
         )
-        # These bars come from ``resample_bars_to_timeframe`` a few lines up,
-        # so the events sit on the exchange-aligned grid. The stamp is what
-        # lets the pool and the ledgers refuse events of the previous grid.
-        for family_event in family_events:
-            family_event["bar_grid"] = BAR_GRID
-            family_event["pivot_lookup"] = PIVOT_LOOKUP
     except Exception as exc:
         logger.warning("family_events_from_structure failed: %s", exc)
         family_events = []
-
-    # ADR-0031, Nachtrag 2026-10-03 IV: the same BOS/CHoCH detector on the Pine
-    # engine's swing size, as a second record. Intraday only — a 50-bar pivot
-    # needs 101 bars to confirm, more than the 22-day daily window holds.
-    coarse_events = _coarse_bos_family_events(
-        raw_bars,
-        resampled_bars,
-        symbol=str(symbol).strip().upper(),
-        timeframe=timeframe,
-        structure_profile=str(contract.get("structure_profile_used", "hybrid_default")),
-        warnings=warnings,
-    )
-    details["coarse_bos_event_count"] = len(coarse_events)
-    details["warnings"] = list(warnings)
-    family_events = list(family_events) + coarse_events
 
     return MeasurementEvidence(events_by_family, stratified_events, scored_events, details, warnings, family_events)

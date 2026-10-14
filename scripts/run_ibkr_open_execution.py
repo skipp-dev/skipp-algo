@@ -289,10 +289,6 @@ def _main_with_resolved_client_id(args: argparse.Namespace, client_id: int) -> N
     )
     execution_cfg = IBKRExecutionConfig(
         tif=args.tif,
-        # exit_tif=None ist hier ENTSCHEIDUNG, nicht Vergessen: dieser Runner
-        # haelt eine stehende Session (supervise_open_execution) und flacht per
-        # time_stop_after selbst — Entry und Exits sterben gemeinsam am Bell.
-        exit_tif=None,
         outside_rth=args.outside_rth,
         exit_mode=args.exit_mode,
         cancel_unfilled_after=_normalize_schedule_value(args.cancel_unfilled_after),

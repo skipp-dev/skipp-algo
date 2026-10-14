@@ -24,7 +24,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from tests._guard_corpus import iter_production_py_files, parse_module
+from tests._guard_corpus import parse_module
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -62,27 +62,15 @@ HMAC_ALLOWED: set[tuple[str, int, str]] = {
     # ac7a83e5a (the /signals.json|/signals and the /metrics bearer check, each still
     # guarded by `if _auth_token:`), and the file still holds exactly 2 compare_digest
     # sites — the same count as when last reviewed. main.py compare unchanged at 457.
-    ("open_prep/realtime_signals.py", 1417, "compare_digest"),  # 2026-07-25 (databento-signal-migration): 1375->1399 (2026-08-18 railway-token guard) (2026-08-19 FMP-Endpoint-Seed: 1399->1414) (2026-08-21 cisco-probe: 1414->1417)
-    ("open_prep/realtime_signals.py", 1451, "compare_digest"),  # 2026-07-25 (databento-signal-migration): 1409->1433 (2026-08-18 railway-token guard) (2026-08-19 FMP-Endpoint-Seed: 1433->1448) (2026-08-21 cisco-probe: 1448->1451)
-    # 2026-07-22 (stale-flag data-freshness helper + 5m block): 457->476
-    # 2026-07-22 (SC-LIB-001 library-context payload merge): 476->481
-    # 2026-07-22 (cache-miss context+VIX served): 481->489
-    # 2026-07-24 (S2 stale close-based recency: _latest_bar_age_secs helper grew
-    # +8 lines ABOVE this block): pure line drift, unchanged constant-time compare,
-    # still exactly one main.py compare_digest site: 493->501
-    ("services/live_overlay_daemon/main.py", 508, "compare_digest"),  # 2026-07-25 TF-history sizing: 501->506; 2026-08-20 bar-age budget: 506->508
+    ("open_prep/realtime_signals.py", 1311, "compare_digest"),  # 2026-07-20 private producer feed shifted site: 1307->1311
+    ("open_prep/realtime_signals.py", 1345, "compare_digest"),  # 2026-07-20 private producer feed shifted site: 1339->1345
+    ("services/live_overlay_daemon/main.py", 457, "compare_digest"),
     # 2026-07-13 (security review): Composio ChatOps webhook token check. Constant-
     # time compare of the URL-path token vs COMPOSIO_CHATOPS_WEBHOOK_TOKEN; the
     # endpoint raises 503 when the secret is unset (no empty-secret bypass) and 401
     # on mismatch. Added when the Composio-ops webhook landed without updating this
     # (ungated) ledger.
     ("services/live_overlay_daemon/composio_chatops.py", 133, "compare_digest"),
-    # 2026-08-30, Draht A: identisches Muster wie die Zeile darueber —
-    # konstantzeitiger Vergleich des Pfad-Tokens gegen
-    # COMPOSIO_LIFECYCLE_WEBHOOK_TOKEN, auf bytes, damit ein
-    # nicht-ASCII-Token nicht wirft. Kein neues Primitiv, keine neue
-    # Vertrauensgrenze: derselbe Empfangsweg, dieselbe Secret-Klasse.
-    ("services/live_overlay_daemon/composio_lifecycle_receiver.py", 168, "compare_digest"),
 }
 
 _DIR_EXCLUDE = {
@@ -103,7 +91,16 @@ _DIR_EXCLUDE = {
 
 
 def _iter_py_files() -> list[Path]:
-    return iter_production_py_files(_DIR_EXCLUDE)
+    out: list[Path] = []
+    for p in ROOT.rglob("*.py"):
+        rel_parts = p.relative_to(ROOT).parts
+        # Exclude dot-directories and any path segment matching an
+        # excluded directory name. Single check covers both nested
+        # and top-level cases.
+        if any(part in _DIR_EXCLUDE or part.startswith(".") for part in rel_parts):
+            continue
+        out.append(p)
+    return out
 
 
 def _hmac_calls() -> set[tuple[str, int, str]]:

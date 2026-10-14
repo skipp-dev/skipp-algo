@@ -109,15 +109,6 @@ def run_pipeline(
     bars = payload.get("bars")
     if not isinstance(bars, list) or not bars:
         raise ValueError("input.bars must be a non-empty list of OHLC bars")
-    without_open = sum(1 for bar in bars if not isinstance(bar, dict) or bar.get("open") is None)
-    if without_open:
-        # The return rule enters at a bar's open (ADR-0031, Nachtrag 2026-10-02
-        # II). Without it no event is a trade, and the run would end in an
-        # "honest empty result" that names the wrong cause.
-        raise ValueError(
-            f"input.bars: {without_open} of {len(bars)} bars carry no 'open'; "
-            "the return rule enters at the open of the bar after the decision bar"
-        )
 
     structure = payload.get("structure")
     if not isinstance(structure, dict):

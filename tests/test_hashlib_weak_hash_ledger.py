@@ -29,7 +29,7 @@ from pathlib import Path
 
 import pytest
 
-from tests._guard_corpus import iter_production_py_files, parse_module
+from tests._guard_corpus import parse_module
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -69,13 +69,12 @@ _FROZEN_SITES: dict[str, dict[str, frozenset[int]]] = {
     "newsstack_fmp/normalize.py": {
         # 2026-07-09: +1/+9 shift — html-unescape import + Massive-shape chains.
         # 2026-07-11: +8 below quantified normalizer real-schema mapping.
-        # 2026-07-21: +13 — WP-A2 UTC self-heal for future-dated naive stamps.
-        "md5": frozenset({159, 298}),
-        "sha1": frozenset({379, 465, 503, 547}),
+        "md5": frozenset({146, 285}),
+        "sha1": frozenset({366, 452, 490, 534}),
     },
-    # 2026-07-25: narrowing the forward-looking "ahead of … earnings" preview
-    # pattern shifted the non-security cluster-key fingerprint; algo unchanged. 150->167
-    "newsstack_fmp/scoring.py": {"sha1": frozenset({167})},
+    # 2026-07-20: forward-looking earnings-preview patterns shifted the
+    # non-security cluster-key fingerprint; algorithm and use are unchanged.
+    "newsstack_fmp/scoring.py": {"sha1": frozenset({150})},
     "newsstack_fmp/shared_fetch.py": {
         "md5": frozenset({114}),  # 2026-07-19 (provider telemetry helper shift): 117->114
         "sha1": frozenset({225}),  # 2026-07-19 (provider telemetry helper shift): 226->225
@@ -83,8 +82,7 @@ _FROZEN_SITES: dict[str, dict[str, frozenset[int]]] = {
     "open_prep/dirty_flag_manager.py": {"md5": frozenset({74})},
     # 2026-06-25: shifted 1250 -> 1331 by AsyncNewsstackPoller telemetry additions.
     # 2026-06-28 (semantic monitoring): shifted +53 lines by readiness metrics / _extract_snapshot_epoch.
-    "open_prep/realtime_signals.py": {"md5": frozenset({1955})},  # 2026-08-18 (railway-token startup guard): 1913->1937 (2026-08-19 FMP-Endpoint-Seed: 1937->1952) (2026-08-21 cisco-probe: 1952->1955)
-
+    "open_prep/realtime_signals.py": {"md5": frozenset({1822})},  # 2026-07-20 private AI endpoint shifted site: 1815->1822
     # #2334: offline simulation script mirrors build_cache_path's digest
     # computation to re-key probe paths. Non-security cache-fingerprint use.
     "scripts/simulate_cache_redesign_2334.py": {"sha1": frozenset({49})},
@@ -97,7 +95,16 @@ _FROZEN_TOTAL = sum(
 
 
 def _iter_first_party_py_files() -> list[Path]:
-    return iter_production_py_files(_DIR_EXCLUDE)
+    out: list[Path] = []
+    for path in ROOT.rglob("*.py"):
+        try:
+            rel_parts = path.relative_to(ROOT).parts
+        except ValueError:
+            continue
+        if any(part in _DIR_EXCLUDE for part in rel_parts):
+            continue
+        out.append(path)
+    return sorted(out)
 
 
 def _scan_weak_hashes(tree: ast.AST) -> list[tuple[str, int]]:

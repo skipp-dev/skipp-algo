@@ -140,13 +140,6 @@ def _load_symbol_bars_from_canonical_exports(symbol: str, timeframe: str, export
                 export_dir,
                 required_frames=required_frames,
                 manifest_prefix="databento_volatility_production_",
-                only_frames=(
-                    # Behaviour-preserving: reads daily_bars plus, for intraday
-                    # timeframes, both members of _INTRADAY_BAR_FRAMES.
-                    "daily_bars",
-                    "benchmark_universe_ohlcv_1m",
-                    "full_universe_second_detail_open",
-                ),
             )
             break
         except FileNotFoundError as exc:
@@ -307,7 +300,6 @@ def _counts_from_payload(structure: dict[str, Any], auxiliary: dict[str, Any]) -
         "session_ranges": len(auxiliary.get("session_ranges", [])),
         "session_pivots": len(auxiliary.get("session_pivots", [])),
         "broken_fractal_signals": len(auxiliary.get("broken_fractal_signals", [])),
-        "rejection_blocks": len(auxiliary.get("rejection_blocks", [])),
     }
 
 

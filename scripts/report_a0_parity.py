@@ -11,7 +11,6 @@ from typing import Any
 
 from open_prep.a0_parity import (
     ShadowDecision,
-    build_engine_parity_report,
     build_parity_report,
     match_shadow_decisions,
 )
@@ -47,12 +46,11 @@ def build_daily_report(
         stream_health_by_symbol=stream_health_by_symbol,
     )
     return {
-        "schema_version": 2,
+        "schema_version": 1,
         "session_date": session_date,
         "matching_window_seconds": float(matching_window_seconds),
         "input_counts": {"fast": len(fast), "fmp": len(fmp)},
-        "engine_parity": build_engine_parity_report([*fast, *fmp]),
-        "source_equivalence": build_parity_report(matches),
+        **build_parity_report(matches),
     }
 
 
@@ -112,9 +110,7 @@ def main() -> None:
     atomic_write_json(report, args.output, indent=2, sort_keys=True, fsync=True)
     print(
         f"A0 parity {report['session_date']}: "
-        f"engine={report['engine_parity']['parity_rate']} "
-        f"source={report['source_equivalence']['matched_same_direction']}/"
-        f"{report['source_equivalence']['total']} matched"
+        f"{report['matched_same_direction']}/{report['total']} matched"
     )
 
 

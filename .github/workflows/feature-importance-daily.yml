@@ -6,12 +6,10 @@ name: feature-importance-daily
 # Runs the recurring feature-importance report (read-only over the raw
 # daily samples in artifacts/open_prep/outcomes/feature_importance/ —
 # those are written by open-prep-outcome-backfill's --feature-importance
-# flag, not here). Corrected 2026-07-27: this workflow CANNOT keep the
-# tracked report dir fresh — it has contents: read and uploads reports as
-# Actions artifacts only (see below). The committed report in
-# artifacts/open_prep/feature_importance/ is refreshed by the
-# open-prep-outcome-backfill workflow (generate + git add). This cron is
-# the read-only daily evaluation surface for G1/G2/G3.
+# flag, not here) so the generated report in
+# artifacts/open_prep/feature_importance/ stays fresh. Without this cron
+# the FI feedback loop stays stale and G1/G2/G3 in the Q3/Q4 plan
+# cannot start.
 #
 # This workflow is fail-soft: status=no_data and status=insufficient_labels
 # are annotations, not job failures, so the run stays green even on
@@ -65,7 +63,7 @@ jobs:
       matched_runner_name: ${{ steps.resolve.outputs.matched_runner_name }}
     steps:
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           persist-credentials: false
 
@@ -95,7 +93,7 @@ jobs:
           echo "matched_runner_name=${{ needs.select-runner.outputs.matched_runner_name }}"
 
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Set up pinned Python (GitHub-hosted)
         if: needs.select-runner.outputs.runner_environment == 'github-hosted'

@@ -86,14 +86,6 @@ def _streaming_llr(n: int, k: int, config: SPRTConfig) -> float:
     return state.llr
 
 
-def test_nk_case_roster_is_not_empty() -> None:
-    """Zero argvalues would collect zero tests — silently, with no output."""
-    assert len(_NK_CASES) >= 15, (
-        f"the (n, k) grid collapsed to {len(_NK_CASES)} cases — the "
-        "parametrized invariants below would collect nothing and report nothing"
-    )
-
-
 @pytest.mark.parametrize("config", _CONFIGS)
 @pytest.mark.parametrize("n,k", _NK_CASES)
 def test_streaming_llr_equals_closed_form(

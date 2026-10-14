@@ -68,7 +68,6 @@ No authentication required. **Readiness/diagnostics** endpoint with worker and d
   "workers_healthy": true,
   "worker_liveness": {"live_feed": true, "ingest_processor": true, "overlay_refresh": true, "flow_refresh": true, "supervisor": true},
   "feed_metrics": {"reconnect_attempts": 0, "bento_errors": 0, "unexpected_errors": 0, "circuit_breakers": 0, "partial_restarts": 0},
-  "market_open": true,
   "overlay_fresh": true,
   "last_bar_age_secs": 12.3,
   "uptime_secs": 406,
@@ -80,16 +79,10 @@ No authentication required. **Readiness/diagnostics** endpoint with worker and d
 }
 ```
 
-> `status` is market-aware and can be `"ok"`, `"starting"`, `"degraded"`, or
+> `status` is market-aware and can be `"ok"`, `"starting"`, or
 > `"idle_market_closed"` (outside US regular session while otherwise healthy).
-> `"degraded"` means the US session is open and an unhealthy dependency has
-> persisted for at least 15 minutes after process start.
-> The response also carries `market_open` (US regular-session gauge).
 > `feed_healthy` becomes `false` after `stop()` or if bars are stale beyond `max_stale_secs`.
-> `workers_healthy` is `false` if any of the five background threads
-> (feed, ingest, refresh, flow, supervisor) is dead — and the endpoint then
-> returns **HTTP 503** (WP1c: a dead worker is a genuine zombie a restart
-> fixes; idle states stay 200 so market-closed nights never restart-loop).
+> `workers_healthy` is `false` if any of the four background threads (feed, ingest, refresh, flow) is dead.
 > `overlay_fresh` is `false` when overlay_symbols == 0 or overlay_age > max_stale_secs.
 > `HEAD` requests return only headers (body stripped by Starlette automatically).
 
@@ -145,7 +138,7 @@ Returns **404** on wrong token (does not leak route existence).
 | Param    | Required | Example | Notes |
 |----------|----------|---------|-------|
 | `symbol` | ✅ | `NVDA` | Case-insensitive, max 10 chars |
-| `tf`     | ❌ | `5m` | One of `1m`, `5m`, `10m`, `15m`, `30m`, `1H`, `4H`. The `1m` view uses native Databento minute bars; `1H` and `4H` use the US-equity 09:30-16:00 `America/New_York` regular session (including US DST). Returns 400 for unknown values. |
+| `tf`     | ❌ | `5m` | One of `1m`, `5m`, `10m`, `15m`, `30m`, `1H`, `4H`. The `1m` view uses native Databento minute bars. Returns 400 for unknown values. |
 
 #### Response fields
 
@@ -155,19 +148,13 @@ Returns **404** on wrong token (does not leak route existence).
 | `symbol` | str | e.g. `"NVDA"` | Uppercased |
 | `tf` | str | e.g. `"5m"` | Echo of `tf` query param |
 | `asof_ts` | int | Unix-Epoch seconds | Time of last compute cycle |
-| `stale` | bool | | True when the symbol's newest source-bar age exceeds `max_bar_age_secs` (bar clock, default 180s = the feed's own stall threshold). For `5m` the overlay compute age against `max_stale_secs` (compute clock, default 3600s) is ORed in. Two clocks on purpose: bars arrive every 60s, the refresh thread recomputes every 1800s. |
-| `universe_member` | bool \| null | | Membership in the loaded generated-library universe; null when the universe is unavailable |
-| `universe_size` | int \| null | ≥ 0 | Size of the loaded generated-library universe |
-| `library_asof_date` | str \| null | | Generator-declared library date |
-| `library_asof_time` | str \| null | | Generator-declared library timestamp |
-| `provider_trust_status` | str \| null | `ok` \| `degraded` \| `unavailable` | Trust derived from library provider evidence |
-| `provider_stale_list` | str \| null | | Comma-separated stale providers declared by the library |
+| `stale` | bool | | True when overlay_age > max_stale_secs |
 | `news_strength` | float \| null | [0.0, 1.0] | Composite news sentiment |
 | `news_bias` | str \| null | `"BULLISH"` \| `"BEARISH"` \| `"NEUTRAL"` | Uppercase |
 | `flow_rel_vol` | float \| null | ≥ 0 | volume(N bars) / avg_volume(window) |
 | `flow_delta_proxy_pct` | float \| null | deprecated | Compatibility name for `(close−open)/open × 100`; not order-flow delta. |
 | `price_candle_body_return_pct` | float \| null | canonical | `(close−open)/open × 100`; no order-flow claim |
-| `squeeze_on` | int \| null | `0` \| `1` | 1 if the Bollinger Bands sit fully inside the Keltner Channel (Pine `_sqOn` edge containment, not a width comparison); null when unfresh or the history is too short to warm up ta.ema/ta.atr — **always null at `4H`**: the per-symbol cap of 9,600 retained 1m bars yields at most 49 RTH 4H candles, and the warm-up needs 67 |
+| `squeeze_on` | int \| null | `0` \| `1` | 1 if Bollinger width < ATR threshold |
 | `ats_state` | str \| null | deprecated | Compatibility name for accumulation/distribution, not average trade size |
 | `volume_accumulation_distribution_state` | str \| null | canonical | Price direction × current-bar volume z-score |
 | `ats_zscore` | float \| null | deprecated | Compatibility name for current-bar volume z-score, not average trade size |
@@ -187,10 +174,7 @@ Returns **404** on wrong token (does not leak route existence).
 
 (symbol not yet in cache — pre-market or feed not connected)
 
-Symbol-derived numeric, signal, news, and event fields are `null`, and
-`stale: true`. Event-block booleans remain `null` (unknown). Market-wide VIX
-and library context can remain populated because they do not depend on the
-missing symbol cache entry.
+All numeric fields are `null`, all bool fields are `false`, `stale: true`.
 
 ---
 
@@ -200,18 +184,12 @@ missing symbol cache entry.
 |----------|----------|---------|-------|
 | `DATABENTO_API_KEY` | ✅ | — | Set in Railway env vars |
 | `OVERLAY_SECRET_TOKEN` | ✅ | — | Path auth for `/smc_live`; also legacy metrics auth |
-| `HOLD_MANAGER_SHADOW_ACCEPTING` | ❌ | `0` | Fail-closed kill switch for the private Hold Manager shadow receiver; leave `0` through deploy and receiver verification |
-| `HOLD_MANAGER_SHADOW_WEBHOOK_TOKEN` | ❌ | *(unset)* | Dedicated random token, minimum 32 characters. TradingView sends it as `authToken` in the JSON body; never place it in the URL or tracked templates |
-| `HOLD_MANAGER_SHADOW_LEDGER_PATH` | ❌ | *(unset)* | SQLite delivery ledger. Production uses `/app/data/smc-hold-manager-shadow.sqlite3` on the service's existing persistent volume; an unset path rejects requests |
-| `HOLD_MANAGER_SHADOW_CONTRACT_PATH` | ❌ | `artifacts/governance/smc_hold_manager_shadow_contract.json` | Source-pinned R2 shadow contract |
-| `HOLD_MANAGER_SHADOW_MAX_EVENT_AGE_SECS` | ❌ | `900` (code default), **production runs `86400`** | Maximum accepted TradingView bar age in seconds (range 60–86400). Production deliberately runs the ceiling so a 1D TV layout stays acceptable; `lo-hold-manager-shadow-rejected` reasons about that window. The effective value is exported as `live_overlay_hold_manager_shadow_max_event_age_secs` — read it there, never from this table |
-| `HOLD_MANAGER_SHADOW_MAX_FUTURE_SKEW_SECS` | ❌ | `120` | Maximum accepted future clock skew in seconds (range 0–3600) |
 | `PORT` | ✅ (production) | `8000` (code default), production pin `8080` | Pin explicitly in Railway for stable private host:port contracts |
 | `LOG_LEVEL` | ❌ | `info` | Uvicorn-compatible level (`critical`,`error`,`warning`,`info`,`debug`,`trace`) |
 | `OVERLAY_REFRESH_SECS` | ❌ | `1800` | Full overlay compute cycle interval (seconds) |
 | `OVERLAY_FLOW_REFRESH_SECS` | ❌ | `300` | Flow-patch cycle interval (seconds) |
-| `OVERLAY_ROLLING_BARS` | ❌ | `60` | Baseline 1-minute history per symbol (range 1–500). Authenticated requests expand up to 32 active symbols to the timeframe-specific requirement (up to 9,600 bars). |
-| `OVERLAY_MAX_STALE_SECS` | ❌ | `3600` | Overlay age **or** newest-bar age before `stale: true` (range 60–7200) |
+| `OVERLAY_ROLLING_BARS` | ❌ | `60` | Rolling window size for flow/ATS computations (range 1–500) |
+| `OVERLAY_MAX_STALE_SECS` | ❌ | `3600` | Overlay age before `stale: true` (range 60–7200) |
 | `OVERLAY_MAX_SYMBOLS` | ❌ | `2000` | Hard cap on tracked symbols in bar cache (range 100–50 000) |
 | `OVERLAY_NEWS_CACHE_TTL_SECS` | ❌ | `600` | News snapshot cache TTL in seconds (range 60–3600) |
 | `NEWS_SNAPSHOT_URL` | ❌ | *(unset)* | Optional HTTPS URL for news snapshot; takes precedence over local path |
@@ -235,13 +213,13 @@ missing symbol cache entry.
 | `PROVIDER_USAGE_SNAPSHOT_PATH` | ❌ | *(repo root)*`/artifacts/monitoring/provider_usage.json` | Local provider-usage snapshot |
 | `PROVIDER_USAGE_SNAPSHOT_URL` | ❌ | canonical `bot/live-open-prep-snapshot` URL | HTTPS URL for the provider-usage snapshot; set explicitly empty to disable remote loading |
 | `PROVIDER_USAGE_SNAPSHOT_URL_TOKEN` | ❌ | repo monitor token for canonical URL | Optional explicit bearer token for `PROVIDER_USAGE_SNAPSHOT_URL` |
-| `PINE_LIBRARY_VERSIONS_SNAPSHOT_PATH` | ❌ | *(repo root)*`/artifacts/monitoring/pine_library_versions.json` | Local Repo↔TradingView Pine-library snapshot (import-pin drift plus generated-library `ASOF_DATE` age gauges) |
+| `PINE_LIBRARY_VERSIONS_SNAPSHOT_PATH` | ❌ | *(repo root)*`/artifacts/monitoring/pine_library_versions.json` | Local Repo↔TradingView Pine-library version snapshot (per-consumer import-pin drift gauges) |
 | `PINE_LIBRARY_VERSIONS_SNAPSHOT_URL` | ❌ | canonical `bot/live-pine-library-versions` URL | HTTPS URL for the Pine-library version snapshot; set explicitly empty to disable remote loading |
 | `PINE_LIBRARY_VERSIONS_SNAPSHOT_URL_TOKEN` | ❌ | repo monitor token for canonical URL | Optional explicit bearer token for `PINE_LIBRARY_VERSIONS_SNAPSHOT_URL` |
-| `TRADINGVIEW_BINDINGS_SNAPSHOT_PATH` | ❌ | *(repo root)*`/artifacts/monitoring/tradingview_consumer_bindings.json` | Last measured saved-source SHA-256 comparisons and `input.source` dropdown assignments |
+| `TRADINGVIEW_BINDINGS_SNAPSHOT_PATH` | ❌ | *(repo root)*`/artifacts/monitoring/tradingview_consumer_bindings.json` | Last measured `input.source` dropdown assignments |
 | `TRADINGVIEW_BINDINGS_SNAPSHOT_URL` | ❌ | canonical `bot/live-tradingview-bindings` URL | HTTPS URL for the binding snapshot; set explicitly empty to disable remote loading |
 | `TRADINGVIEW_BINDINGS_SNAPSHOT_URL_TOKEN` | ❌ | repo monitor token for canonical URL | Optional explicit bearer token for the binding snapshot URL |
-| `EXPERIMENT_HISTORY_PATH` | ❌ | *(repo root)*`/artifacts/live_overlay/plan_2_8_history.jsonl` | Local per-day experiment history JSONL |
+| `EXPERIMENT_HISTORY_PATH` | ❌ | *(repo root)*`/artifacts/ci/measurement_benchmark_rolling/latest/plan_2_8_history.jsonl` | Local per-day experiment history JSONL |
 | `EXPERIMENT_HISTORY_URL` | ❌ | canonical `bot/live-experiment-snapshot` URL | HTTPS URL for per-day experiment history JSONL; set explicitly empty to disable remote loading |
 | `EXPERIMENT_HISTORY_URL_TOKEN` | ❌ | repo monitor token for canonical URL | Optional explicit bearer token for `EXPERIMENT_HISTORY_URL` |
 | `OVERLAY_EXPERIMENT_CACHE_TTL_SECS` | ❌ | `900` | Experiment snapshot/history cache TTL in seconds (range 60–7200) |
@@ -254,17 +232,18 @@ missing symbol cache entry.
 | `OVERLAY_MAX_FEED_FAILURES` | ❌ | `50` | Circuit-breaker threshold for consecutive feed failures (range 1–1000) |
 | `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC` | ❌ | `0` | Set to `1` only when a real external `/smc_live` consumer is deployed and expected during US market-open windows; arms the first-zero traffic alert |
 | `UPTIMEROBOT_API_KEY` | ❌ | *(unset)* | Enables optional UptimeRobot API bridge metrics in `/metrics` |
-| `UPTIMEROBOT_MONITOR_IDS` | ❌ | *(all monitors)* | Comma-separated monitor IDs to include in bridge poll; production allowlist: `803309701,803341452,803343155,803343156,803362511,803555263,803555264` |
+| `UPTIMEROBOT_MONITOR_IDS` | ❌ | *(all monitors)* | Comma-separated monitor IDs to include in bridge poll; production allowlist: `803309701,803341452,803343155,803343156,803362511` |
 | `UPTIMEROBOT_TIMEOUT_SECS` | ❌ | `5` | UptimeRobot API timeout in seconds (range 1–30) |
 | `UPTIMEROBOT_POLL_TTL_SECS` | ❌ | `30` | In-process cache TTL for UptimeRobot snapshot (range 5–300) |
 | `GITHUB_WORKFLOW_MONITOR_TOKEN` | ❌ | *(unset)* | Enables optional GitHub Actions workflow bridge metrics in `/metrics` |
 | `GITHUB_WORKFLOW_MONITOR_REPO` | ❌ | `skipp-dev/skipp-algo` | Target repository in `owner/repo` format (validated; invalid values fall back to default) |
 | `GITHUB_WORKFLOW_MONITOR_IDS` | ❌ | *(all workflows)* | Comma-separated workflow IDs to include |
-| `GITHUB_WORKFLOW_MONITOR_EXPECTED` | ❌ | *(none)* | Comma-separated workflow **names** that must keep producing runs. Each gets a `live_overlay_github_workflow_expected_present` series that reads `0` when the flow has no run on the fetched page, so `lo-workflow-expected-missing` can fire. Without it, a workflow that stops running simply loses all its series and alerts go silent. |
 | `GITHUB_WORKFLOW_MONITOR_TIMEOUT_SECS` | ❌ | `5` | GitHub API timeout in seconds (range 1–30) |
 | `GITHUB_WORKFLOW_MONITOR_POLL_TTL_SECS` | ❌ | `30` | In-process cache TTL for workflow snapshot (range 5–300) |
-| `GITHUB_WORKFLOW_MONITOR_PER_PAGE` | ❌ | `100` | Number of workflow runs fetched per API poll (range 1–100). 100 is GitHub's page ceiling and the value is clamped to it, so this can only *lower* coverage; a sparse flow buried past one page needs pagination in the bridge, not a larger value. |
+| `GITHUB_WORKFLOW_MONITOR_PER_PAGE` | ❌ | `30` | Number of workflow runs fetched per API poll (range 1–100) |
+| `LIVE_OVERLAY_RESTART_CAUSE` | ❌ | `unknown` | Restart cause label (`deploy`, `crash`, `manual`, …) for restart observability |
 | `LIVE_OVERLAY_INGEST_QUEUE_MAX` | ❌ | `20000` | Max pending bars in feed ingest queue before drops (range 1000–200000) |
+| `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC` | ❌ | `0` | Set to `1` only for a verified external `/smc_live` consumer. Keep `0` while no supported consumer exists. |
 | `NEWS_SNAPSHOT_PATH` | ❌ | *(repo root)*`/artifacts/live_overlay/news_snapshot.json` | Absolute path to news JSON file (resolved relative to repo root) |
 
 ### Config validation
@@ -415,45 +394,6 @@ curl "http://localhost:8000/mysecret/metrics"
 curl "http://localhost:8000/mysecret/smc_live?symbol=NVDA&tf=5m"
 ```
 
-### Controlled Hold Manager shadow receiver
-
-The daemon contains a dedicated, source-pinned receiver for
-`R2-SHADOW-CUTOVER`:
-
-- `POST /tradingview/hold-manager-shadow` accepts only the six registered Hold
-  Manager channels and only when `HOLD_MANAGER_SHADOW_ACCEPTING=1`. The token
-  travels as `authToken` in the JSON body and the payload names the source by
-  `sourceSha256`. This is the **legacy** shape, kept as the rollback path until
-  `alertWireShape.cutOver` in the contract flips to true.
-- `POST /{token}/tradingview/hold-manager-shadow` accepts the same six channels
-  and the same accepting switch, but the token travels in the path and the
-  payload names the source by `sourceBuild`. A Pine script cannot state its own
-  hash, so the build number is what the source can emit about itself; the
-  receiver resolves the hash from the contract and stores that. Adopted so the
-  alert body stops being a hand-copied duplicate of a value the repository
-  already computes — see
-  `docs/superpowers/specs/2026-08-13-hold-manager-alert-decoupling-design.md`.
-- `GET /tradingview/hold-manager-shadow/state` returns aggregate unique,
-  attempted, and duplicate delivery counts. It requires
-  `X-Hold-Manager-Shadow-Token`.
-- Neither transport puts the token into a log. The body-borne token is invisible
-  to access logs by construction; the path-borne one is protected because
-  `main.py` runs uvicorn with `access_log=False` precisely so that `/{token}/…`
-  paths never reach stdout or the Railway logs, which is the same protection
-  `/{token}/smc_live`, `/{token}/metrics`, `/{token}/composio-chatops` and
-  `/{token}/grafana-webhook` already rely on. In both cases the token is
-  excluded from the SQLite row and the audit fields.
-- The receiver also rejects weak/unconfigured tokens, missing persistent
-  storage, stale/future timestamps, unknown fields, and any source, script,
-  layout, producer, schema, mode, or channel mismatch.
-
-The checked-in messages in
-`artifacts/governance/smc_hold_manager_shadow_alert_templates.json` contain a
-literal `<HOLD_MANAGER_SHADOW_WEBHOOK_TOKEN>` placeholder. Substitute the
-secret only inside the private TradingView alert UI; do not write a rendered
-message to the repository or logs. Merely deploying this code does not start
-the shadow: the default switch is off and no alerts are created by the daemon.
-
 ---
 
 ## Monitoring
@@ -493,6 +433,8 @@ observability.py (structured log lines + in-process counters)
 | `live_overlay_smc_live_latency_ms_bucket` | histogram | metrics.py (classic histogram buckets) |
 | `live_overlay_smc_live_latency_ms_sum` | histogram | metrics.py (classic histogram sum) |
 | `live_overlay_smc_live_latency_ms_count` | histogram | metrics.py (classic histogram count) |
+| `live_overlay_smc_live_latency_p95_ms` | gauge | metrics.py (derived from histogram buckets, deprecated) |
+| `live_overlay_smc_live_latency_p99_ms` | gauge | metrics.py (derived from histogram buckets, deprecated) |
 | `live_overlay_overlay_age_known` | gauge | metrics.py (1 when overlay_age_seconds is meaningful) |
 | `live_overlay_last_bar_age_known` | gauge | metrics.py (1 when last_bar_age_seconds is meaningful) |
 | `live_overlay_last_bar_age_seconds` | gauge | feed.py |
@@ -502,6 +444,7 @@ observability.py (structured log lines + in-process counters)
 | `live_overlay_market_us_open` | gauge | market_hours.py |
 | `live_overlay_market_europe_open` | gauge | market_hours.py |
 | `live_overlay_market_asia_open` | gauge | market_hours.py |
+| `live_overlay_daemon_restart_cause_<cause>_total` | counter | main.py/config.py |
 | `live_overlay_hotspot_symbols_tracked` | gauge | request_hotspots.py |
 | `live_overlay_hotspot_timeframes_tracked` | gauge | request_hotspots.py |
 | `live_overlay_hotspot_symbol_<symbol>_requests_total` | counter | request_hotspots.py |
@@ -562,8 +505,6 @@ observability.py (structured log lines + in-process counters)
 | `live_overlay_experiment_family_*` | gauge | metrics.py per-family experiment series (`hit_rate`, `n_events`) |
 | `live_overlay_experiment_verdict_*` | gauge | metrics.py verdict series (`status_code`, `delta_hr`, `underpowered`, optional `p_value`) |
 | `live_overlay_experiment_day_family_*` | gauge | metrics.py per-day history timeline/backfill series (`hit_rate`, `n_events`) |
-| `live_overlay_uptimerobot_monitors_total` | gauge | UptimeRobot monitors returned by the current API poll |
-| `live_overlay_uptimerobot_monitors_expected` | gauge | configured `UPTIMEROBOT_MONITOR_IDS` allowlist size |
 | `live_overlay_uptimerobot_monitors_*_total` | gauge | uptimerobot_bridge.py (`_total` suffix reflects a count, but value is a snapshot) |
 | `live_overlay_uptimerobot_monitor_<id>_*` | gauge | uptimerobot_bridge.py |
 | `live_overlay_github_workflow_runs_*_total` | gauge | github_workflow_bridge.py (`_total` suffix reflects a count, but value is a snapshot) |
@@ -587,8 +528,7 @@ observability.py (structured log lines + in-process counters)
 > The exporter always emits the full default bucket set on every scrape, carrying
 > the previous bucket's cumulative count forward for missing buckets, so
 > `histogram_quantile()` results are stable. Derived `*_p95_ms` / `*_p99_ms`
-> gauges were removed; dashboards must derive percentiles from the histogram.
-> Age and staleness
+> gauges remain for backward compatibility but are deprecated. Age and staleness
 > panels/alerts gate on companion `*_age_known` gauges rather than treating an
 > absent or zero-valued age series as meaningful.
 | `live_overlay_railway_service_memory_limit_gb{service,service_id}` | gauge | metrics.py Railway per-service memory limit |
@@ -618,42 +558,52 @@ observability.py (structured log lines + in-process counters)
 | `overlay_age_seconds > max_stale_secs` | high | Compute not running |
 | `overlay_symbols == 0` after 10 min | critical | No symbols computed |
 
-### Grafana dashboard layout
+### Grafana dashboard layout (v43)
 
 The operations dashboard `services/live_overlay_daemon/infra/grafana/dashboard.json`
-is organized for 3-a.m. incident triage. The row order below is a production
-contract — `tests/test_live_overlay_dashboard_contract.py` (`SECTION_ORDER`)
-pins it, so this list changes only together with that test:
+is organized for 3-a.m. incident triage:
 
-1. **Status at a Glance** — `Overall Health`, `Active Alerts`, the
-   `Incident Triage Guide`, the root-cause stat row (`Feed Healthy`,
-   `Overlay Fresh`, `Workers Healthy`, …), market sessions, and the
-   user-impact/SLO block (`Success Rate (%)`, `External Consumer Traffic`,
-   `Market Data Freshness`, `Core Metrics Present`, latency/error-budget).
-   `CLOSED` sessions and `IDLE (MARKET CLOSED)` states render gray, not
-   red/orange, because a closed market is not an incident — while a dead
-   exporter renders red `NO DATA`, never a benign closed-market state.
-2. **Trading Evidence and Promotion Readiness** — evidence-chain freshness,
-   fills/incubation, promotion-gate posture.
-3. **Live Data Chain (Feed → Overlay → Pine)** — feed/bar/overlay ages,
-   compute cycles, trading-signals snapshot state.
-4. **Overlay API Reliability** — request rate, failure mix, latency
-   histogram, traffic-alert arming.
-5. **Daemon Operations** — worker liveness, restarts, ingest queue
-   backpressure/lag, process memory.
-6. **External Checks and Automation** — UptimeRobot, GitHub workflow runs,
-   bridge scrape health (`UptimeRobot Monitor States` lives here).
-7. **Providers (Feeds, News & Credentials)** — per-provider news state,
-   ingest freshness, credential-health probes.
-8. **Infrastructure (Railway / Collector)** — Railway service resources and
-   alloy/signals_producer/live_overlay scrape targets.
-9. **Pine Library ↔ TradingView Versions** — repo↔TV version-drift rollup.
-10. **TradingView Dropdown Bindings** — read-only binding verification.
+- **Impact first** — pinned top section with `Overall Health`,
+  `Active Alerts`, and an `Incident Triage Guide` that speaks in user-impact
+  terms (feed, workers, overlay freshness, external checks) instead of raw
+  metric names.
+- **Root causes next** — a clean stat row (`Feed Healthy`, `Overlay Fresh`,
+  `Workers Healthy`, `External Checks`, `Market Status`, `Last Bar Age`) with
+  no grid overlaps so an on-call engineer can read the health story at a glance.
+- **User-impact / SLO block** — immediately after the root-cause row:
+  `Success Rate (%)`, `External Consumer Traffic`, `Market Data Freshness`,
+  `Core Metrics Present`, `Request Latency Against 500 ms Target`, and `Error Budget Burn Rate`
+  are promoted to the top so SLO pages require no scrolling.
+- **Context after health** — `Service Status`, `Uptime`, symbol counts,
+  `Process Resident Memory`, and `Global Market Sessions` follow below.
+  `CLOSED` sessions and `IDLE (MARKET CLOSED)` states are shown in gray, not
+  red/orange, because a closed market is not an incident.
+- **Incident Overview** — compact triage row containing only the pinned health
+  story: `Overall Health`, `Active Alerts`, `Incident Triage Guide`, the
+  root-cause stat row, market sessions, and the user-impact/SLO block.
+  Drill-down detail panels live below a dedicated `Operational Drill-down`
+  row so the first screen does not overwhelm a 3-a.m. on-call engineer.
+- **Operational Drill-down** — root-cause detail placed after the incident
+  overview: `Request Rate`, `Overlay & Bar Age`, `Compute Cycle Errors`,
+  `Feed Health Counters`, `Worker Liveness`, `Failure Mix`,
+  `Readiness Components Timeline`, and related restart/backpressure stats.
+- **External Integrations** — UptimeRobot, GitHub workflow, and bridge health.
+  `UptimeRobot Monitor States` lives here, not inside the Incident Overview.
+- **Reliability Drill-down** — restart causes, hotspots, ingest queue
+  backpressure and lag; renamed from `SLO & Reliability` to reflect that the
+  top-level SLO panels have been promoted to the user-impact block above.
+- **Provider Health** — service-owner detail: live news provider state and ingest status.
+- **Collector / Scrape Targets** — service-owner detail: alloy/signals_producer/live_overlay scrape
+  health and collector memory, separated from provider/GitHub detail panels to
+  avoid grid collisions.
+- **Railway Resources** — service-owner detail: Railway service metrics and bridge health.
 
-Row headers carry descriptions that explain their purpose, reducing ambiguity
-for on-call engineers and stakeholders; the service-owner detail rows
-(providers, infrastructure) are explicitly labeled as secondary during the
-first minutes of triage.
+Row headers (`Incident Overview`, `Operational Drill-down`,
+`Collector / Scrape Targets`, `Railway Resources`) carry descriptions that
+explain their purpose, reducing ambiguity for on-call engineers and
+stakeholders. The service-owner detail rows (`Provider Health`,
+`Collector / Scrape Targets`, `Railway Resources`) are explicitly labeled as
+such so stakeholders know they are secondary during the first minutes of triage.
 `Freshness SLO (Market Open, 1h)` was renamed to
 `Market Data Freshness` with the SLO moved into the description so the title
 is stakeholder-friendly. Top incident tiles (`External Checks`,
@@ -684,17 +634,14 @@ Operational UX additions:
   `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=0`, and the
   `lo-expected-traffic-not-armed` reminder stays paused. Set the gauge to `1`
   only after a real external consumer has been deployed and verified.
-- Alert rules guard the UptimeRobot API monitor count against the configured
-  allowlist, any UptimeRobot monitors down, Railway memory-used ratio (`75%` warning, `90%`
+- Alert rules guard the UptimeRobot production monitor count (`5`), any
+  UptimeRobot monitors down, Railway memory-used ratio (`75%` warning, `90%`
   critical), and Alloy remote-write failures.
 - The `$job` template variable is hidden (`hide: 2`) and labeled
   `Prometheus job (advanced)`; it defaults to `live_overlay` and keeps the UI
   approachable for stakeholders.
-- The `Active Alerts` list shows every alert state, including `no_data`:
-  after the truthfulness audit a NoData row is a signal (a series stopped
-  existing), not noise, and must stay visible during incidents. (An earlier
-  revision claimed no_data was filtered out; the panel never shipped that
-  filter and the guard test for it only skipped — both removed.)
+- Alert-list `no_data` state is intentionally filtered out to avoid ambiguous
+  `unknown/no_data` UI noise during incidents.
 - A dedicated alert rule (`lo-news-snapshot-series-missing`) captures missing
   news snapshot metric series via explicit `absent(...)` checks.
 - Provider drill-down query excludes aggregate health series so per-provider
@@ -816,7 +763,6 @@ Railway/UptimeRobot.
 | File | Purpose |
 |------|---------|
 | `main.py` | FastAPI app, lifespan, `/health`, `/{token}/smc_live` |
-| `hold_manager_shadow_receiver.py` | Fail-closed, source-pinned TradingView webhook receiver and persistent delivery ledger |
 | `feed.py` | `db.Live()` consumer background thread with reconnect loop |
 | `cache.py` | Thread-safe bar + overlay cache (`threading.Lock`) |
 | `compute.py` | Overlay field computation (16 fields, news/flow/squeeze/ATS/events) |

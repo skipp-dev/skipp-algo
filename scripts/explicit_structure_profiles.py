@@ -66,7 +66,6 @@ def _empty_result() -> ProfileResult:
             "session_ranges": 0,
             "session_pivots": 0,
             "broken_fractal_signals": 0,
-            "rejection_blocks": 0,
         },
         "warnings": [],
         "notes": [],
@@ -102,7 +101,6 @@ def _diagnostics_counts(
     session_ranges: list[dict[str, Any]],
     session_pivots: list[dict[str, Any]],
     broken_fractals: list[dict[str, Any]],
-    rejection_blocks: list[dict[str, Any]],
 ) -> dict[str, int]:
     return {
         "bos": len(bos),
@@ -113,7 +111,6 @@ def _diagnostics_counts(
         "session_ranges": len(session_ranges),
         "session_pivots": len(session_pivots),
         "broken_fractal_signals": len(broken_fractals),
-        "rejection_blocks": len(rejection_blocks),
     }
 
 
@@ -217,7 +214,6 @@ def _compose_common(
                 session_ranges=session_ranges,
                 session_pivots=session_pivots,
                 broken_fractals=broken_fractals,
-                rejection_blocks=rejection_blocks,
             ),
             "warnings": [],
             "notes": [],
@@ -290,7 +286,6 @@ def build_structure_profile(
             session_ranges=list(base.auxiliary.get("session_ranges", [])),
             session_pivots=list(base.auxiliary.get("session_pivots", [])),
             broken_fractals=list(base.auxiliary.get("broken_fractal_signals", [])),
-            rejection_blocks=list(base.auxiliary.get("rejection_blocks", [])),
         )
         return base
 
@@ -308,7 +303,6 @@ def build_structure_profile(
             session_ranges=list(base.auxiliary.get("session_ranges", [])),
             session_pivots=list(base.auxiliary.get("session_pivots", [])),
             broken_fractals=list(base.auxiliary.get("broken_fractal_signals", [])),
-            rejection_blocks=list(base.auxiliary.get("rejection_blocks", [])),
         )
         return base
 
@@ -324,6 +318,5 @@ def build_structure_profile(
         session_ranges=list(base.auxiliary.get("session_ranges", [])),
         session_pivots=list(base.auxiliary.get("session_pivots", [])),
         broken_fractals=list(base.auxiliary.get("broken_fractal_signals", [])),
-        rejection_blocks=list(base.auxiliary.get("rejection_blocks", [])),
     )
     return base

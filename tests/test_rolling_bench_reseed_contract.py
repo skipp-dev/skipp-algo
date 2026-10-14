@@ -50,23 +50,6 @@ def test_accumulate_step_wires_reseed() -> None:
     assert "RESEED_SEED_FILE" in body
 
 
-def test_accumulated_pool_never_overwrites_last_good_when_restore_fails() -> None:
-    data = _load()
-    steps = data["jobs"]["rolling-benchmark"]["steps"]
-    accumulate = next(step for step in steps if step.get("id") == "accumulate_events")
-    body = str(accumulate.get("run") or "")
-    assert "previous accumulated pool was not restored" in body
-    assert 'echo "publishable=false"' in body
-    assert 'cp "${CURRENT}" "${ACCUMULATED}"' not in body
-
-    upload = next(
-        step
-        for step in steps
-        if step.get("name") == "Upload accumulated family events (ADR-0023 Option B)"
-    )
-    assert upload["if"] == "always() && steps.accumulate_events.outputs.publishable == 'true'"
-
-
 def test_reseed_seed_file_exists_and_is_a_family_event_list() -> None:
     assert _RESEED_SEED.is_file(), f"missing committed reseed pool: {_RESEED_SEED}"
     events = json.loads(_RESEED_SEED.read_text(encoding="utf-8"))

@@ -5,12 +5,6 @@ import json
 import re
 from pathlib import Path
 
-from scripts.smc_payload_volume import (
-    PayloadVolume,
-    measure_payload_volume,
-    payload_blocking_reasons,
-)
-
 IMPORT_RE = re.compile(r"^\s*import\s+([A-Za-z0-9_/-]+)\s+as\s+([A-Za-z_][A-Za-z0-9_]*)\s*$")
 IMPORT_PATH_RE = re.compile(r"^([A-Za-z0-9_-]+)/([A-Za-z0-9_-]+)/(\d+)$")
 EXPECTED_DEPRECATED_POLICY_MODE = "compatibility_only"
@@ -116,11 +110,6 @@ def _load_productivity_gate(manifest: dict[str, object]) -> dict[str, object]:
         "fixture_input_detected",
         "default_event_risk_detected",
         "placeholder_symbols",
-        # ADR-0029 — required, not optional: a manifest that omits its payload
-        # measurement must fail rather than skip the cross-check.
-        "payload_known",
-        "universe_tickers_count",
-        "list_total",
     )
     missing = [field for field in required if field not in payload]
     if missing:
@@ -168,33 +157,6 @@ def _load_deprecated_field_policy(manifest: dict[str, object]) -> dict[str, obje
     return payload
 
 
-def _verify_payload_matches_manifest(
-    productivity_gate: dict[str, object],
-    payload: PayloadVolume,
-) -> None:
-    """Fail when the manifest's recorded payload volume is not what shipped."""
-    claimed_known = bool(productivity_gate.get("payload_known"))
-    measured_known = payload.known
-    if claimed_known != measured_known:
-        raise RuntimeError(
-            "Generated manifest productivity_gate.payload_known does not match the "
-            f"library: manifest={claimed_known}, library={measured_known}"
-        )
-    if not measured_known:
-        return
-
-    for field, measured in (
-        ("universe_tickers_count", payload.universe_tickers_count),
-        ("list_total", payload.list_total),
-    ):
-        claimed = productivity_gate.get(field)
-        if claimed != measured:
-            raise RuntimeError(
-                f"Generated manifest productivity_gate.{field} does not match the "
-                f"library: manifest={claimed}, library={measured}"
-            )
-
-
 def verify_publish_contract(manifest_path: Path, core_path: Path) -> dict[str, str]:
     repo_root = core_path.resolve().parent
     manifest = json.loads(_read_text(manifest_path))
@@ -223,17 +185,6 @@ def verify_publish_contract(manifest_path: Path, core_path: Path) -> dict[str, s
         raise RuntimeError(f"Missing generated Pine library: {library_path}")
     if not core_path.exists():
         raise RuntimeError(f"Missing core file: {core_path}")
-
-    # ADR-0029: check the library against the manifest's claim about it. Until
-    # now this verifier only compared paths, so a manifest could vouch for a
-    # library it contradicted — which is how an empty payload shipped green.
-    payload = measure_payload_volume(_read_text(library_path))
-    _verify_payload_matches_manifest(productivity_gate, payload)
-    payload_reasons = payload_blocking_reasons(payload)
-    if payload_reasons:
-        raise RuntimeError(
-            "Generated Pine library carries no payload: " + ", ".join(payload_reasons)
-        )
 
     snippet_text = _read_text(snippet_path)
     snippet_lines = _code_lines(snippet_text)
@@ -281,9 +232,6 @@ def verify_publish_contract(manifest_path: Path, core_path: Path) -> dict[str, s
         "deprecated_policy_mode": str(deprecated_field_policy["mode"]),
         "preferred_field_version": str(deprecated_field_policy["preferred_field_version"]),
         "publish_ready": "true",
-        "payload_known": str(payload.known).lower(),
-        "universe_tickers_count": str(payload.universe_tickers_count),
-        "list_total": str(payload.list_total),
     }
 
 

@@ -40,7 +40,6 @@ import logging
 logger = logging.getLogger(__name__)
 
 import argparse
-import re
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -99,15 +98,6 @@ _REQUIRED_TRADES_COLUMNS = ("price", "size", "side")
 # The OPRA aggressor convention is INVERSE of equities (A=bullish buyer +,
 # B=bearish seller -); that sign flip lives in
 # :func:`aggregate_signed_uoa_notional`, not here.
-#
-# The ECONOMIC sign additionally depends on the contract direction: an
-# aggressively BOUGHT put is a bearish bet even though the aggressor is a
-# buyer. The option type is parsed from the OSI ``symbol`` column the parent-
-# symbology ``to_df()`` mapping attaches to every print (measured 2026-08-04:
-# 685/685 records of a 10 s SPY ``tcbbo`` probe parse as C/P), so no
-# ``definition`` join is needed for it either. A print whose type cannot be
-# recovered stays honest-unsigned like an ``N`` aggressor -- assuming "call"
-# would silently re-open the call/put blind spot this parse closes.
 _OPRA_DATASET = "OPRA.PILLAR"
 _OPRA_TRADES_SCHEMA = "tcbbo"
 _OPRA_PARENT_STYPE = "parent"
@@ -118,12 +108,6 @@ _REQUIRED_OPRA_TRADES_COLUMNS = ("price", "size", "side")
 # the raw ``side`` enum is passed through unchanged for back-compat.
 _OPRA_BID_PX_COL = "bid_px_00"
 _OPRA_ASK_PX_COL = "ask_px_00"
-# OSI option symbol column attached by the Databento symbology mapping, e.g.
-# ``SPY   260803C00755000`` (6-char padded root + yymmdd + C/P + 8-digit
-# strike in mills). The single C/P character before the strike digits is the
-# option type; anything that does not match stays "" (unknown -> unsigned).
-_OPRA_SYMBOL_COL = "symbol"
-_OSI_OPTION_TYPE_RE = r"([CP])\d{8}$"
 
 
 def normalize_ohlcv_frame(raw: pd.DataFrame, *, symbol: str) -> pd.DataFrame:
@@ -263,14 +247,11 @@ def _quote_rule_opra_aggressor(
 def normalize_opra_trades_frame(raw: pd.DataFrame, *, underlying: str) -> pd.DataFrame:
     """Coerce a raw OPRA ``tcbbo`` frame into the signed-UOA-notional schema.
 
-    Returns a frame with columns ``underlying, timestamp, price, size, side,
-    option_type`` where ``timestamp`` is epoch **seconds** (matching
-    :func:`normalize_ohlcv_frame` so option-print buckets and OHLCV bars share
-    one clock), ``price`` is the per-contract premium (dollars), ``size`` the
-    contract count, ``side`` the upper-cased Databento enum ``{"A", "B", "N"}``
-    and ``option_type`` the contract direction ``{"C", "P", ""}`` parsed from
-    the OSI ``symbol`` column (``""`` = unknown -> the aggregator leaves the
-    print unsigned; assuming call would re-open the call/put blind spot).
+    Returns a frame with columns ``underlying, timestamp, price, size, side``
+    where ``timestamp`` is epoch **seconds** (matching :func:`normalize_ohlcv_
+    frame` so option-print buckets and OHLCV bars share one clock), ``price`` is
+    the per-contract premium (dollars), ``size`` the contract count, and ``side``
+    the upper-cased Databento enum ``{"A", "B", "N"}``.
 
     Because OPRA trades are pulled via parent symbology (``{underlying}.OPT``),
     every print already belongs to the requested underlying; the ``underlying``
@@ -317,26 +298,12 @@ def normalize_opra_trades_frame(raw: pd.DataFrame, *, underlying: str) -> pd.Dat
         )
     else:
         side = frame["side"].astype(str).str.strip().str.upper()
-    # Contract direction from the OSI symbol (the single C/P before the 8
-    # strike digits). Missing symbol column or a non-OSI value -> "" so the
-    # aggregator keeps the print honest-unsigned instead of guessing "call".
-    if _OPRA_SYMBOL_COL in frame.columns:
-        option_type = (
-            frame[_OPRA_SYMBOL_COL]
-            .astype(str)
-            .str.strip()
-            .str.extract(_OSI_OPTION_TYPE_RE, expand=False)
-            .fillna("")
-        )
-    else:
-        option_type = pd.Series("", index=frame.index, dtype="object")
     out = pd.DataFrame(
         {
             "timestamp": epoch_seconds,
             "price": price,
             "size": pd.to_numeric(frame["size"], errors="coerce").astype("float64"),
             "side": side,
-            "option_type": option_type,
         }
     )
     out["underlying"] = str(underlying).strip().upper()
@@ -349,13 +316,12 @@ def normalize_opra_trades_frame(raw: pd.DataFrame, *, underlying: str) -> pd.Dat
 def aggregate_signed_volume(trades: pd.DataFrame, timeframe: str) -> pd.DataFrame:
     """Bucket signed trade volume onto the same grid the OHLCV bars use.
 
-    Reuses the resampler's ``bucket_end`` rule for start-stamped sources
+    Reuses the resampler's exact ``bucket_end`` rule
     (``scripts.explicit_structure_from_bars.resample_bars_to_timeframe``):
-    ``bucket_end = ts.floor(freq) + freq``. A trade at ``T`` belongs to the bar
-    ``[floor(T), floor(T) + freq)`` — the same bar as the 1m candle that
-    contains it — so the emitted ``timestamp`` joins one-to-one onto the
-    resampled bar timestamps. (Until 2026-10-02 a trade exactly on a boundary
-    went to the bar ENDING there, mirroring the resampler's old rule.)
+    ``floored = ts.floor(freq)``; ``bucket_end = floored`` when the trade lands
+    exactly on the boundary, else ``floored + freq``. This left-open /
+    right-closed labelling is identical to the OHLCV resample, so the emitted
+    ``timestamp`` joins one-to-one onto the resampled bar timestamps.
 
     Per bucket: ``signed_volume`` = ``sum(size)`` over buy aggressors (``side``
     ``B``) minus sell aggressors (``side`` ``A``); ``N`` (auction / non-displayed
@@ -376,7 +342,7 @@ def aggregate_signed_volume(trades: pd.DataFrame, timeframe: str) -> pd.DataFram
 
     ts = pd.to_datetime(trades["timestamp"], unit="s", utc=True)
     floored = ts.dt.floor(freq)
-    bucket_end = floored + offset
+    bucket_end = floored.where(ts.eq(floored), floored + offset)
 
     size = pd.to_numeric(trades["size"], errors="coerce").astype("float64").fillna(0.0)
     side = trades["side"].astype(str).str.strip().str.upper()
@@ -456,23 +422,16 @@ def aggregate_signed_uoa_notional(
 
     ``opra_trades`` is an OPRA ``trades`` frame already mapped to the underlying
     (one row per option print) with columns ``timestamp`` (epoch seconds),
-    ``size`` (contracts), ``price`` (per-contract premium, dollars), ``side``
-    (``A`` / ``B`` / ``N``) and ``option_type`` (``C`` / ``P`` / ``""``). Per
-    print the notional premium is ``price * size * 100`` (the OCC multiplier).
+    ``size`` (contracts), ``price`` (per-contract premium, dollars) and ``side``
+    (``A`` / ``B`` / ``N``). Per print the notional premium is
+    ``price * size * 100`` (the OCC multiplier).
 
     The OPRA aggressor convention is the **inverse** of the equity tape: ``A``
-    (trade hit the ask) is the aggressive **buyer**; ``B`` (hit the bid) is the
-    aggressive **seller**; ``N`` (cross / unknown) contributes ``0`` to the
-    signed sum but is still counted in ``uoa_trade_count`` and
-    ``uoa_abs_notional``. NB: OPPOSITE letters to raw-side
+    (trade hit the ask) is the aggressive **buyer** -> ``+`` (bullish); ``B``
+    (hit the bid) is the aggressive **seller** -> ``-`` (bearish); ``N``
+    (cross / unknown) contributes ``0`` to the signed sum but is still counted in
+    ``uoa_trade_count`` and ``uoa_abs_notional``. NB: OPPOSITE letters to raw-side
     ``newsstack_fmp.opra_uoa._side_to_aggressor`` (A=sell, #3355); + = buying on both.
-
-    The ECONOMIC sign is aggressor x contract direction: bought calls and sold
-    puts are bullish (+); bought puts and sold calls are bearish (-). A print
-    whose ``option_type`` is unknown (``""`` / column absent, e.g. a frame that
-    never carried an OSI symbol) is honest-unsigned like ``N`` -- treating it
-    as a call would silently restore the pre-2026-08-04 call/put blind spot
-    where an aggressive put buy counted as bullish flow.
 
     Per bucket: ``uoa_signed_notional`` = signed premium sum;
     ``uoa_abs_notional`` = total premium sum over **all** prints (the imbalance
@@ -495,7 +454,7 @@ def aggregate_signed_uoa_notional(
 
     ts = pd.to_datetime(opra_trades["timestamp"], unit="s", utc=True)
     floored = ts.dt.floor(freq)
-    bucket_end = floored + offset
+    bucket_end = floored.where(ts.eq(floored), floored + offset)
 
     # float64 cast is load-bearing: Databento delivers ``size`` as uint32, and a
     # signed subtraction on an unsigned dtype underflows (see aggregate_signed_
@@ -504,19 +463,9 @@ def aggregate_signed_uoa_notional(
     price = pd.to_numeric(opra_trades["price"], errors="coerce").astype("float64").fillna(0.0)
     notional = size * price * float(_OCC_CONTRACT_MULTIPLIER)
     side = opra_trades["side"].astype(str).str.strip().str.upper()
-    # INVERSE of equity: ask-side (A) is the aggressive buyer, bid-side (B)
-    # the aggressive seller; anything else (N/blank) is unsigned.
-    aggressor_sign = pd.Series(0.0, index=side.index)
-    aggressor_sign = aggressor_sign.mask(side.eq("A"), 1.0).mask(side.eq("B"), -1.0)
-    # Contract direction: call +1, put -1, unknown 0 (honest-unsigned; an
-    # assumed "call" would re-open the call/put blind spot). Economic sign =
-    # aggressor x direction, so a bought put counts bearish (-).
-    if "option_type" in opra_trades.columns:
-        opt = opra_trades["option_type"].astype(str).str.strip().str.upper()
-    else:
-        opt = pd.Series("", index=side.index, dtype="object")
-    direction_sign = opt.map({"C": 1.0, "P": -1.0}).astype("float64").fillna(0.0)
-    signed = notional * aggressor_sign * direction_sign
+    # INVERSE of equity: ask-side (A) is the aggressive buyer (+), bid-side (B)
+    # the aggressive seller (-); anything else (N/blank) is unsigned.
+    signed = notional.where(side.eq("A"), 0.0) - notional.where(side.eq("B"), 0.0)
 
     work = pd.DataFrame(
         {
@@ -693,59 +642,6 @@ def structure_and_bars_to_pipeline_input(
     return payload
 
 
-_AVAILABLE_END_PATTERN = re.compile(r"available up to '([^']+)'")
-
-
-def _get_range_clamped_to_available_end(
-    get_range: Any,
-    client: Any,
-    *,
-    context: str,
-    **kwargs: Any,
-) -> Any:
-    """Call the retrying ``get_range``, clamping ``end`` once on a 422
-    ``data_end_after_available_end``.
-
-    Intraday, Databento historical availability trails the wall clock by a
-    few minutes (measured 2026-08-17: XNAS.ITCH served up to 14:00:00Z at a
-    14:05:00Z request — while ``metadata.get_dataset_range`` still reported
-    the T-1 04:00Z boundary, so the advertised range is useless as a
-    proactive clamp source). The 422 error text carries the authoritative
-    intraday available end; retry exactly once with that end. ``as_of``
-    stays honest automatically because the payload derives it from the last
-    delivered bar.
-    """
-    # Imported lazily so the pure transform path carries no databento dependency.
-    from databento.common.error import BentoClientError
-
-    try:
-        return get_range(client, context=context, **kwargs)
-    except BentoClientError as exc:
-        if "data_end_after_available_end" not in str(exc):
-            raise
-        match = _AVAILABLE_END_PATTERN.search(str(exc))
-        if match is None:
-            raise
-        # Normalise to a T-separated ISO string before retrying: the 422 text
-        # carries a SPACE separator ('2026-08-17 23:30:00+00:00') and the raw
-        # string loses that space in transit, which the API then rejects as
-        # 400 data_invalid_datetime_string '2026-08-1723:30:00+00:00' (real
-        # first-flight failure, 2026-08-17 23:40Z). Unparseable text re-raises
-        # the original 422 rather than retrying blind into the same 400.
-        try:
-            clamped_end = datetime.fromisoformat(match.group(1)).isoformat()
-        except ValueError:
-            raise exc from None
-        logger.warning(
-            "Databento end %s is past the intraday available range; "
-            "retrying with the advertised available end %s.",
-            kwargs.get("end"),
-            clamped_end,
-        )
-        kwargs["end"] = clamped_end
-        return get_range(client, context=context, **kwargs)
-
-
 def fetch_ohlcv_frame(
     symbol: str,
     *,
@@ -771,8 +667,7 @@ def fetch_ohlcv_frame(
     )
 
     client = _make_databento_client(api_key)
-    store = _get_range_clamped_to_available_end(
-        _databento_get_range_with_retry,
+    store = _databento_get_range_with_retry(
         client,
         context="pull_databento_edge_input",
         dataset=dataset,
@@ -806,8 +701,7 @@ def fetch_trades_frame(
     )
 
     client = _make_databento_client(api_key)
-    store = _get_range_clamped_to_available_end(
-        _databento_get_range_with_retry,
+    store = _databento_get_range_with_retry(
         client,
         context="pull_databento_edge_input_trades",
         dataset=dataset,
@@ -848,8 +742,7 @@ def fetch_opra_trades_frame(
 
     client = _make_databento_client(api_key)
     underlying = str(symbol).strip().upper()
-    store = _get_range_clamped_to_available_end(
-        _databento_get_range_with_retry,
+    store = _databento_get_range_with_retry(
         client,
         context="pull_databento_edge_input_opra",
         dataset=_OPRA_DATASET,
@@ -878,13 +771,6 @@ def _coerce_as_of_arg(value: str | None) -> float | str | None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    # 2026-08-17: like the sibling databento_* CLIs — under launchd the
-    # environment carries no secrets, so the CLI resolves DATABENTO_API_KEY
-    # from the checkout's .env itself (run-c13-commercial-shadow.sh relies
-    # on this; a bare launchd env otherwise fails every pull).
-    from dotenv import load_dotenv
-
-    load_dotenv(Path(__file__).resolve().parents[1] / ".env")
     parser = argparse.ArgumentParser(
         description=(
             "EV-13: pull real Databento OHLCV and emit a run_edge_pipeline "

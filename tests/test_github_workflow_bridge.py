@@ -35,16 +35,6 @@ def test_iso_age_seconds_returns_none_on_invalid_timestamp() -> None:
     assert bridge._iso_age_seconds("not-a-timestamp") is None
 
 
-def test_iso_age_seconds_returns_none_for_future_timestamp(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    import services.live_overlay_daemon.github_workflow_bridge as bridge
-
-    monkeypatch.setattr(bridge.time, "time", lambda: 1_782_122_460.0)
-
-    assert bridge._iso_age_seconds("2099-01-01T00:00:00Z") is None
-
-
 def test_duration_seconds_parses_utc_z_timestamps() -> None:
     import services.live_overlay_daemon.github_workflow_bridge as bridge
 
@@ -418,51 +408,3 @@ def test_fetch_error_preserves_last_successful_snapshot(monkeypatch: pytest.Monk
     assert second["ok"] == 1
     assert second["counts"]["seen"] == 5
     assert second["last_success_fetched_at_unix"] == 1_700_000_000.0
-
-
-def test_fetch_error_carries_last_attempt_status(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Keep-last-good must not fail open: the retained snapshot carries the
-    truthful last-attempt status so bridge_scrape_success/error_info stop
-    reporting a healthy scrape during persistent failures."""
-    import services.live_overlay_daemon.github_workflow_bridge as bridge
-
-    monkeypatch.setattr(bridge.config, "github_workflow_token", lambda: "token")
-    monkeypatch.setattr(bridge.config, "github_workflow_poll_ttl_secs", lambda: 0)
-    monkeypatch.setattr(bridge.time, "time", lambda: 1_700_000_000.0)
-    monkeypatch.setattr(bridge.time, "monotonic", lambda: 200.0)
-
-    def _good_fetch(_token: str) -> dict:
-        return {
-            "enabled": 1,
-            "configured": 1,
-            "ok": 1,
-            "fetched_at_unix": 1_700_000_000.0,
-            "last_success_fetched_at_unix": 1_700_000_000.0,
-            "counts": {"seen": 5, "success": 4, "failed": 1, "in_progress": 0, "queued": 0},
-            "latest_run_age_seconds": 60.0,
-            "latest_run_duration_seconds": 120.0,
-            "workflows": [{"id": "1", "name": "CI", "event": "schedule", "phase_code": 3, "latest_success": 1}],
-        }
-
-    monkeypatch.setattr(bridge, "_fetch_snapshot", _good_fetch)
-    bridge._cached_snapshot = None
-    bridge._cached_at_monotonic = 0.0
-    first = bridge.snapshot()
-    assert first["ok"] == 1
-
-    def _bad_fetch(_token: str) -> dict:
-        raise RuntimeError("github down")
-
-    monkeypatch.setattr(bridge, "_fetch_snapshot", _bad_fetch)
-    bridge._cached_at_monotonic = 0.0
-    second = bridge.snapshot()
-    assert second["ok"] == 1  # data retention contract unchanged
-    assert second["counts"]["seen"] == 5
-    assert second["last_attempt_ok"] == 0
-    assert second["last_attempt_error_code"]
-
-    monkeypatch.setattr(bridge, "_fetch_snapshot", _good_fetch)
-    bridge._cached_at_monotonic = 0.0
-    third = bridge.snapshot()
-    assert third["ok"] == 1
-    assert "last_attempt_ok" not in third

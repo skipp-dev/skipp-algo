@@ -23,7 +23,6 @@ from dashboard.decision_first_panel import (
     load_decisions_from_report,
     render_panel,
 )
-from governance.family_returns import RETURN_RULE
 from scripts.build_promotion_gate_bundle import main as build_bundle_main
 from scripts.run_promotion_gate import main as run_gate_main
 
@@ -145,7 +144,6 @@ def _ledger_row(
         "family": family,
         "status": status,
         "magnitude_auc": auc,
-        "return_rule": RETURN_RULE,
     }
 
 
@@ -342,7 +340,6 @@ def _tier1_events(
                 "direction": "UP",
                 "entry_mode": "immediate",
                 "entry_price": 100.0,
-                "forward_opens": [100.0, *closes[:-1]],
                 "forward_closes": closes,
                 "forward_highs": [c + 1.0 for c in closes],
                 "forward_lows": [c - 1.0 for c in closes],
@@ -385,7 +382,7 @@ def test_bundle_fills_tier1_direction_metrics_from_events_pool(tmp_path: Path) -
     assert bos["fdr_pvalue"] is not None
     assert bos["extras"]["n_triggered_returns"] == 35.0
     assert bos["provenance"]["measurement_plane"] == "1D"
-    assert bos["provenance"]["tier1_return_rule"] == RETURN_RULE == "next_open_then_horizon_close"
+    assert bos["provenance"]["tier1_return_rule"] == "touch_then_horizon_close"
     # Families absent from the pool stay honestly unmeasured.
     ob = next(e for e in bundle if e["family"] == "OB")
     assert ob["psr"] is None

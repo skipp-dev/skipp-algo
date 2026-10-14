@@ -1,4 +1,4 @@
-# live-window: mutating-on-cron  # 14:00 UTC Mon-Fri — typically after smc-measurement-benchmark-rolling (workflow_run-driven off the 12:00 UTC producer; 16:30 UTC safety-net cron) and before f2-promotion-gate-daily (14:30 UTC Mon-Fri); fail-soft on missing artifact. ADR-0031 (2026-07-29): commits gate/regime artifacts to docs/calibration/gates/ via bot auto-merge PR → contents/pull-requests write, posture raised from off-hours-only
+# live-window: off-hours-only  # 14:00 UTC Mon-Fri — typically after smc-measurement-benchmark-rolling (workflow_run-driven off the 12:00 UTC producer; 16:30 UTC safety-net cron) and before f2-promotion-gate-daily (14:30 UTC Mon-Fri); fail-soft on missing artifact
 name: promotion-gate-daily
 
 # Sprint W1.b — daily PromotionGate evaluation.
@@ -59,14 +59,12 @@ on:
         default: "false"
 
 permissions:
-  contents: write  # ADR-0031: push bot/promotion-gates-* branches (gate + regime artifacts)
-  pull-requests: write  # ADR-0031: open the auto-merge PR for those artifacts
+  contents: read
   actions: read  # gh run list/download against the rolling-bench workflow
 
 concurrency:
   group: promotion-gate-daily
   cancel-in-progress: false
-  queue: max  # F-V5-C2: without this the next tick cancels the PENDING run
 
 env:
   PYTHONUNBUFFERED: "1"
@@ -82,7 +80,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Setup Python (pinned 3.12)
         uses: ./.github/actions/setup-python-pinned
@@ -170,17 +168,12 @@ jobs:
       # Fail-soft: a miss leaves the Tier-1 fields None ("not measured").
       - name: Download accumulated family events (Tier-1 direction input)
         if: steps.download.outputs.status == 'ready'
-        uses: dawidd6/action-download-artifact@d63b86af1b34672e53c440b1b83979861906bad7 # v24
+        uses: dawidd6/action-download-artifact@b6e2e70617bc3265edd6dab6c906732b2f1ae151 # v21
         with:
           workflow: smc-measurement-benchmark-rolling.yml
           name: scored-family-events-accumulated
           path: artifacts/ci/scored_family_events_accumulated
           workflow_conclusion: success
-          # 2026-07-29: search back for the newest run that carries the pool
-          # (the newest rolling-bench run alone may predate today's upload or
-          # sit in a chain gap) — otherwise Tier-1 direction metrics and the
-          # ADR-0031 gate/regime artifacts silently degrade to "not measured".
-          search_artifacts: true
           if_no_artifact_found: warn
 
       - name: Build FamilyMetrics bundle
@@ -196,11 +189,6 @@ jobs:
           # a family reaches MIN_OOS), a different, unproven plane — feeding it
           # here would wrongly flip the gate's magnitude fields to "not
           # measured". Read the 15m proof. Fail-soft when absent/empty.
-          # 2026-10-02 (ADR-0031 Nachtrag II): the proof was graded under
-          # Variant-A returns. The bundle takes move-size snapshots only from
-          # rows of the CURRENT return rule, so the seed's rows no longer
-          # reach the gate and the armed families read "not measured" — which
-          # under the new rule is the truth, not the mistake described above.
           # Guard the find on the dir: the events download is if_no_artifact_found:warn,
           # so on a thin day (no accumulated pool yet) the dir is absent and an
           # unguarded `find <missing> | head` exits non-zero -> pipefail + set -e
@@ -213,24 +201,11 @@ jobs:
           # carries universe_survivorship_bias_risk so the gate refuses to promote
           # a survivorship-biased run without --universe-trade-date. Fail-soft glob.
           UNIV_MANIFEST="$(ls -1t "${{ steps.download.outputs.scoring_root }}"/databento_volatility_production_*_manifest.json 2>/dev/null | head -1)"
-          if [ -z "${UNIV_MANIFEST}" ]; then
-            # 2026-08-15 sweep: fail-soft ist hier gewollt (der Export kann
-            # legitim fehlen), aber STUMM war er zu viel -- ohne diese Zeile
-            # verschwand der Survivorship-Refusal-Input aus einer
-            # Promote-Entscheidung ohne jede Logzeile, waehrend der
-            # EVENTS_POOL-Zwilling darueber laengst warnt.
-            echo "::warning title=promotion-gate-daily::no databento export manifest in the staged artifact -- the bundle carries no survivorship provenance and the gate cannot refuse a survivorship-biased run on it."
-          fi
-          # --plane 1D (issue #3872 follow-up): the accumulated pool is
-          # multi-TF since #2667 (5m-dominated by 2026-07-16), so unfiltered
-          # Tier-1 direction metrics silently measured a plane governance
-          # never chose. Mirror the shadow daily's governed-plane filter.
           python scripts/build_promotion_gate_bundle.py \
             --scoring-root     "${{ steps.download.outputs.scoring_root }}" \
             --output           "${BUNDLE}" \
             --date             "${{ steps.date.outputs.value }}" \
             --magnitude-ledger artifacts/governance/magnitude_resolution_shadow_15m_seed.jsonl \
-            --plane            1D \
             ${EVENTS_POOL:+--events "${EVENTS_POOL}"} \
             ${UNIV_MANIFEST:+--universe-manifest "${UNIV_MANIFEST}"}
           echo "path=${BUNDLE}" >> "$GITHUB_OUTPUT"
@@ -298,314 +273,6 @@ jobs:
               print(f"| {d.get('family')} | {d.get('promoted')} | {d.get('posture')} | {len(blockers)} |")
           PY
 
-      - name: Calibrate ADR-0023 §5 execution costs from the paper ledgers
-        # 2026-08-18 (Verdrahtungs-Sweep D2): both links of the §5 empirical
-        # cost chain (incubation_to_execution_sessions ->
-        # calibrate_execution_costs) existed with NO scheduler — 6/6 epnl
-        # gate artifacts carried cost_source=flat_default while the ADR-0023
-        # handover described the empirical bar in the present tense. The
-        # incubation ledgers live on data/phase-a-audit (pushed reconciled
-        # by run-c13-reconcile.sh); fetch read-only, convert, calibrate.
-        # Calibrator rc=2 (produced but UNMEASURABLE: too few fills) keeps
-        # the disclosed flat_default path — the flag is only exported on
-        # rc=0, because the gate hard-errors on an unmeasurable calibration
-        # by design (no silent fallback).
-        if: steps.download.outputs.status == 'ready'
-        run: |
-          set -euo pipefail
-          echo "COST_FLAG=" >> "$GITHUB_ENV"
-          if ! git fetch origin data/phase-a-audit 2>/dev/null; then
-            echo "::notice::no data/phase-a-audit branch — §5 stays on flat_default"
-            exit 0
-          fi
-          git checkout origin/data/phase-a-audit -- cache/live 2>/dev/null || true
-          shopt -s nullglob
-          ledgers=(cache/live/incubation_*.jsonl)
-          if [ ${#ledgers[@]} -eq 0 ]; then
-            echo "::notice::no incubation ledgers on the data branch — §5 stays on flat_default"
-            exit 0
-          fi
-          mkdir -p artifacts/execution_sessions
-          python -m scripts.incubation_to_execution_sessions "${ledgers[@]}" \
-            --out-dir artifacts/execution_sessions
-          sessions=(artifacts/execution_sessions/*.json)
-          if [ ${#sessions[@]} -eq 0 ]; then
-            echo "::notice::ledgers carry no reconciled fills yet — §5 stays on flat_default"
-            exit 0
-          fi
-          CAL_RC=0
-          python -m scripts.calibrate_execution_costs "${sessions[@]}" \
-            --out artifacts/cost_calibration.json || CAL_RC=$?
-          if [ "${CAL_RC}" -eq 0 ]; then
-            echo "COST_FLAG=--cost-calibration artifacts/cost_calibration.json" >> "$GITHUB_ENV"
-            echo "ADR-0023 §5: empirical cost calibration is MEASURABLE — the gate consumes it"
-          elif [ "${CAL_RC}" -eq 2 ]; then
-            echo "::notice::§5 cost calibration produced but not yet measurable (thin fills) — flat_default stays disclosed"
-          else
-            echo "::error title=promotion-gate-daily::calibrate_execution_costs failed rc=${CAL_RC}"
-            exit "${CAL_RC}"
-          fi
-
-      # ADR-0031: persist the Variant-A per-trade returns series and derive
-      # the C6/C7 track-record-gate verdict + the C5 regime-stratified
-      # report from it. This is the "persisted returns source" edge the
-      # gate was blocked on — same trade definition the bundle above
-      # already grades (extract_family_returns, plane 1D), now written
-      # down instead of discarded with the runner.
-      - name: Build returns series + economic gates + regime report (ADR-0023/0031)
-        if: steps.download.outputs.status == 'ready'
-        id: gates
-        run: |
-          set -euo pipefail
-          DATE="${{ steps.date.outputs.value }}"
-          GATES_DIR="docs/calibration/gates"
-          mkdir -p "${GATES_DIR}"
-          SERIES="${GATES_DIR}/returns_series_${DATE}.json"
-          EVENTS_POOL=""
-          if [ -d artifacts/ci/scored_family_events_accumulated ]; then
-            EVENTS_POOL="$(find artifacts/ci/scored_family_events_accumulated -name 'accumulated_family_events.json' -type f 2>/dev/null | head -1)"
-          fi
-          if [ -z "${EVENTS_POOL}" ]; then
-            echo "::warning title=promotion-gate-daily::no accumulated events pool — skipping ADR-0031 gate/regime artifacts for ${DATE}"
-            echo "produced=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          python -m scripts.build_returns_series \
-            --events "${EVENTS_POOL}" \
-            --plane 1D \
-            --date "${DATE}" \
-            --output "${SERIES}"
-          EPNL_RC=0
-          # ${COST_FLAG} kommt aus dem §5-Kalibrierungs-Step (leer, solange
-          # keine messbare Kalibrierung existiert — dann flat_default,
-          # ehrlich als cost_source im Artefakt ausgewiesen).
-          # shellcheck disable=SC2086
-          python -m scripts.run_epnl_after_cost_gate \
-            "${EVENTS_POOL}" \
-            --plane 1D \
-            ${COST_FLAG:-} \
-            --out "${GATES_DIR}/epnl_after_cost_${DATE}.json" \
-            || EPNL_RC=$?
-          case "${EPNL_RC}" in
-            0) echo "ADR-0023 §5: at least one candidate passed E[PnL] after cost" ;;
-            2) echo "::warning title=promotion-gate-daily::ADR-0023 §5 candidates measured but none passed E[PnL] after cost" ;;
-            3) echo "::notice title=promotion-gate-daily::ADR-0023 §5 candidates remain below the measurement floor" ;;
-            *) echo "::error title=promotion-gate-daily::ADR-0023 §5 gate failed with rc=${EPNL_RC}"; exit "${EPNL_RC}" ;;
-          esac
-          N_TRADES="$(python -c "import json; print(json.load(open('${SERIES}'))['n_trades'])")"
-          if [ "${N_TRADES}" -gt 0 ]; then
-            python -m scripts.build_track_record_gate \
-              --returns "${SERIES}" \
-              --output "${GATES_DIR}/track_record_gate_${DATE}.json"
-          else
-            # The gate refuses zero-trade/zero-variance series by design
-            # (broken-feed tripwire) — no verdict file is the honest state.
-            echo "::warning title=promotion-gate-daily::returns series empty (n_trades=0) — no track_record_gate_${DATE}.json emitted"
-          fi
-          python -m scripts.build_regime_stratified_report \
-            --series "${SERIES}" \
-            --date "${DATE}" \
-            --output "${GATES_DIR}/regime_stratified_${DATE}.json"
-          # Retention: keep the newest 90 of each artifact family so the
-          # committed drop-zone stays bounded (mirrors HISTORY_RETENTION).
-          for prefix in returns_series epnl_after_cost track_record_gate regime_stratified; do
-            ls -1 "${GATES_DIR}/${prefix}_"*.json 2>/dev/null | sort | head -n -90 | while read -r old; do
-              rm -f "${old}"
-              echo "pruned ${old} (retention 90)"
-            done
-          done
-          echo "produced=true" >> "$GITHUB_OUTPUT"
-
-      # ADR-0031, Nachtrag 2026-10-01 — zwei Ergaenzungen NEBEN der governten
-      # 1D-Serie des Schritts darueber; an ihr aendert sich nichts.
-      #
-      # (1) 15m-BEOBACHTUNGSSERIE. Dieselbe Variante-A-Regel, derselbe Pool,
-      #     nur der Ebenen-Filter ist ein anderer. Sie ist KEIN Gate: kein
-      #     §5-Urteil auf 15m (das bindende E[PnL]-Gate bleibt 1D), keine
-      #     Wirkung auf Arming, Stage oder Claim-Tier, kein Einbetten in den
-      #     Public-Report. Committet werden nur die beiden URTEILE des
-      #     30-Tage-Fensters unter docs/calibration/gates/15m/; das
-      #     Unterverzeichnis haelt sie aus jedem Glob der 1D-Konsumenten
-      #     heraus (c13 Step 5a `returns_series_*.json`, der Emitter
-      #     `<prefix>_*.json`, die Retention darueber) — alle nicht rekursiv.
-      #     Die Fenster-SERIE selbst bleibt Lauf-Artefakt: gemessen 94 KB bei
-      #     551 Trades, sie wuerde jeden Tag dieselben ~30 Tage wiederholen,
-      #     die das Ledger unten je Trade genau einmal haelt.
-      #
-      # (2) WACHSENDES LEDGER unter docs/calibration/gates/ledger/, je Ebene
-      #     eine JSONL. Der Pool ist ein rollendes 30-Tage-Fenster, die
-      #     Tagesserie damit auch; ein Trade, der aus dem Pool altert, war
-      #     bisher weg. Das Ledger haengt jeden abgeschlossenen Trade genau
-      #     einmal an (Schluessel = event_id) und schreibt nie um. Darauf laeuft
-      #     dasselbe Track-Record-Gate noch einmal — kumulativ, als
-      #     track_record_gate_<Ebene>.json (ueberschrieben; die Historie ist
-      #     das Ledger selbst).
-      #     15m traegt `--evidence-start 2026-10-01`: die Ebene wurde an dem Tag
-      #     festgelegt, NACHDEM ein Schnappschuss ueber alle Ebenen gesehen
-      #     war. Aeltere 15m-Trades bleiben im Ledger, zaehlen aber nicht ins
-      #     kumulative Urteil.
-      #
-      # (3) ZWEITE MESS-DEFINITION (ADR-0031, Nachtrag 2026-10-03 IV): BOS auf
-      #     dem groben Korn der Pine-Engine (pivot_lookup 50). Der Benchmark
-      #     legt diese Events mit Stempel `pivot_lookup` und Id-Suffix `:p50`
-      #     in denselben Pool; jeder Leser oben haelt sich an das feine Korn.
-      #     Hier bekommen sie ihre EIGENE Fenster-Serie, ihr eigenes Urteil
-      #     (docs/calibration/gates/15m_p50/) und ihr eigenes Ledger
-      #     (ledger/returns_ledger_15m_p50.jsonl). Nie mit der 15m-Bilanz
-      #     poolen: andere Definition, andere Bilanz. Nur 15m — ein 50er-Pivot
-      #     braucht 101 Kerzen, mehr als das 22-Tage-Fenster auf 1D hat.
-      #
-      # Haengt an `produced == 'true'`: dann existiert der Pool, und die
-      # 1D-Artefakte des Tages liegen schon vor. `find` statt `ls` in der
-      # Retention: `ls` auf einen Glob ohne Treffer endet unter pipefail rot
-      # (die latente Falle des Schritts darueber), `find` nicht.
-      - name: Build 15m observation series + cumulative returns ledger (ADR-0031 Nachtrag)
-        if: steps.download.outputs.status == 'ready' && steps.gates.outputs.produced == 'true'
-        id: ledger
-        env:
-          DATE: ${{ steps.date.outputs.value }}
-        run: |
-          set -euo pipefail
-          GATES_DIR="docs/calibration/gates"
-          # Guard the find on the dir (same idiom as the bundle step): on a
-          # missing dir an unguarded `find | head` dies under pipefail before
-          # the error below could say why.
-          EVENTS_POOL=""
-          if [ -d artifacts/ci/scored_family_events_accumulated ]; then
-            EVENTS_POOL="$(find artifacts/ci/scored_family_events_accumulated -name 'accumulated_family_events.json' -type f 2>/dev/null | head -1)"
-          fi
-          if [ -z "${EVENTS_POOL}" ]; then
-            echo "::error title=promotion-gate-daily::gates step reported produced=true but the events pool is gone"
-            exit 1
-          fi
-
-          OBS_DIR="${GATES_DIR}/15m"
-          mkdir -p "${OBS_DIR}" artifacts/ledger
-          OBS_SERIES="artifacts/ledger/returns_series_window_15m_${DATE}.json"
-          python -m scripts.build_returns_series \
-            --events "${EVENTS_POOL}" \
-            --plane 15m \
-            --date "${DATE}" \
-            --output "${OBS_SERIES}"
-          OBS_TRADES="$(python -c "import json, sys; print(json.load(open(sys.argv[1]))['n_trades'])" "${OBS_SERIES}")"
-          if [ "${OBS_TRADES}" -gt 0 ]; then
-            python -m scripts.build_track_record_gate \
-              --returns "${OBS_SERIES}" \
-              --output "${OBS_DIR}/track_record_gate_${DATE}.json"
-          else
-            echo "::warning title=promotion-gate-daily::15m observation series empty (n_trades=0) — no 15m/track_record_gate_${DATE}.json emitted"
-          fi
-          python -m scripts.build_regime_stratified_report \
-            --series "${OBS_SERIES}" \
-            --date "${DATE}" \
-            --output "${OBS_DIR}/regime_stratified_${DATE}.json"
-
-          # (3) coarse grain, 15m only — own series, own verdict.
-          P50_DIR="${GATES_DIR}/15m_p50"
-          mkdir -p "${P50_DIR}"
-          P50_SERIES="artifacts/ledger/returns_series_window_15m_p50_${DATE}.json"
-          python -m scripts.build_returns_series \
-            --events "${EVENTS_POOL}" \
-            --plane 15m \
-            --pivot-lookup 50 \
-            --date "${DATE}" \
-            --output "${P50_SERIES}"
-          P50_TRADES="$(python -c "import json, sys; print(json.load(open(sys.argv[1]))['n_trades'])" "${P50_SERIES}")"
-          if [ "${P50_TRADES}" -gt 0 ]; then
-            python -m scripts.build_track_record_gate \
-              --returns "${P50_SERIES}" \
-              --output "${P50_DIR}/track_record_gate_${DATE}.json"
-          else
-            echo "::warning title=promotion-gate-daily::15m coarse-grain (pivot_lookup 50) series empty (n_trades=0) — no 15m_p50/track_record_gate_${DATE}.json emitted"
-          fi
-
-          LEDGER_DIR="${GATES_DIR}/ledger"
-          mkdir -p "${LEDGER_DIR}" artifacts/ledger
-          # <plane>[:<pivot_lookup>]; the ledger file name carries the grain
-          # suffix so the two 15m definitions never share a file.
-          for RECORD in 1D 15m 15m:50; do
-            PLANE="${RECORD%%:*}"
-            GRAIN_ARGS=()
-            SUFFIX=""
-            if [ "${RECORD}" != "${PLANE}" ]; then
-              GRAIN_ARGS=(--pivot-lookup "${RECORD#*:}")
-              SUFFIX="_p${RECORD#*:}"
-            fi
-            # The script never starts earlier than the return rule's own
-            # evidence start (RETURN_RULE_EVIDENCE_START, 2026-10-05, both
-            # planes); the 15m date below is older and no longer binding.
-            START_ARGS=()
-            if [ "${PLANE}" = "15m" ]; then
-              START_ARGS=(--evidence-start 2026-10-01)
-            fi
-            CUMULATIVE="artifacts/ledger/returns_series_cumulative_${PLANE}${SUFFIX}.json"
-            python -m scripts.accumulate_returns_ledger \
-              --events "${EVENTS_POOL}" \
-              --plane "${PLANE}" \
-              --date "${DATE}" \
-              --ledger "${LEDGER_DIR}/returns_ledger_${PLANE}${SUFFIX}.jsonl" \
-              --series-output "${CUMULATIVE}" \
-              ${GRAIN_ARGS[@]+"${GRAIN_ARGS[@]}"} \
-              ${START_ARGS[@]+"${START_ARGS[@]}"}
-            CUM_TRADES="$(python -c "import json, sys; print(json.load(open(sys.argv[1]))['n_trades'])" "${CUMULATIVE}")"
-            if [ "${CUM_TRADES}" -gt 0 ]; then
-              python -m scripts.build_track_record_gate \
-                --returns "${CUMULATIVE}" \
-                --output "${LEDGER_DIR}/track_record_gate_${PLANE}${SUFFIX}.json"
-            else
-              echo "::notice title=promotion-gate-daily::cumulative ${PLANE}${SUFFIX} series still empty — no ledger/track_record_gate_${PLANE}${SUFFIX}.json yet"
-            fi
-            echo "ledger_trades_${PLANE}${SUFFIX}=${CUM_TRADES}" >> "$GITHUB_OUTPUT"
-          done
-
-          for dir in "${OBS_DIR}" "${P50_DIR}"; do
-            for prefix in track_record_gate regime_stratified; do
-              find "${dir}" -maxdepth 1 -name "${prefix}_*.json" | sort | head -n -90 | while read -r old; do
-                rm -f "${old}"
-                echo "pruned ${old} (retention 90)"
-              done
-            done
-          done
-
-      # `!cancelled()`: die Beobachtungs-/Ledger-Stufe darueber darf die
-      # governten 1D-Artefakte des Tages nicht mitreissen. Scheitert sie, bleibt
-      # der Lauf ROT (ein gescheiterter Schritt), aber was `gates` produziert
-      # hat, landet trotzdem. Scheitert dagegen ein Schritt VOR `gates`, ist
-      # `produced` leer und dieser Schritt laeuft wie bisher nicht.
-      - name: Commit gate + regime artifacts via auto-merge PR
-        if: ${{ !cancelled() && steps.download.outputs.status == 'ready' && steps.gates.outputs.produced == 'true' }}
-        env:
-          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          git add docs/calibration/gates/ || true
-          if git diff --staged --quiet; then
-            echo "No new gate artifacts to commit."
-            exit 0
-          fi
-          BRANCH="bot/promotion-gates-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          git checkout -b "$BRANCH"
-          git commit -m "chore(governance): economic gate artifacts ${{ steps.date.outputs.value }}"
-          git push -u origin "$BRANCH"
-          if ! gh pr create \
-            --base main \
-            --head "$BRANCH" \
-            --label automated \
-            --title "chore(governance): economic gate artifacts ${{ steps.date.outputs.value }}" \
-            --body "Automated ADR-0023/ADR-0031 artifacts from \`promotion-gate-daily\` (run ${GITHUB_RUN_ID}): 1D E[PnL]-after-cost verdict, Variant-A returns series, C6/C7 track-record-gate verdict and C5 regime-stratified report. The 22:00 UTC c13-daily-cron run (Step 5b) embeds the newest ADR-0031 artifacts into the public report."; then
-            echo "::error file=.github/workflows/promotion-gate-daily.yml::gh pr create failed for ${BRANCH} — see step log for stderr"
-            exit 1
-          fi
-          # CONTINUE-ON-ERROR-INTENTIONAL: enabling auto-merge can race with
-          # branch-protection / required-status-check evaluation; the PR itself
-          # is already open and reviewable, so we surface as warning rather
-          # than failing the job.
-          gh pr merge "$BRANCH" --auto --squash --delete-branch \
-            || echo "::warning::auto-merge enable failed for ${BRANCH} (PR is open and reviewable)"
-
       - name: Upload promotion-gate artifacts
         if: steps.download.outputs.status == 'ready' && always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -615,17 +282,5 @@ jobs:
             artifacts/promotion_decisions.json
             artifacts/reports/promotion_gate_${{ steps.date.outputs.value }}.json
             artifacts/promotion_gate_bundle_${{ steps.date.outputs.value }}.json
-            docs/calibration/gates/returns_series_${{ steps.date.outputs.value }}.json
-            docs/calibration/gates/epnl_after_cost_${{ steps.date.outputs.value }}.json
-            docs/calibration/gates/track_record_gate_${{ steps.date.outputs.value }}.json
-            docs/calibration/gates/regime_stratified_${{ steps.date.outputs.value }}.json
-            artifacts/ledger/returns_series_window_15m_${{ steps.date.outputs.value }}.json
-            docs/calibration/gates/15m/track_record_gate_${{ steps.date.outputs.value }}.json
-            docs/calibration/gates/15m/regime_stratified_${{ steps.date.outputs.value }}.json
-            artifacts/ledger/returns_series_window_15m_p50_${{ steps.date.outputs.value }}.json
-            docs/calibration/gates/15m_p50/track_record_gate_${{ steps.date.outputs.value }}.json
-            artifacts/ledger/returns_series_cumulative_1D.json
-            artifacts/ledger/returns_series_cumulative_15m.json
-            artifacts/ledger/returns_series_cumulative_15m_p50.json
           retention-days: 45
           if-no-files-found: warn

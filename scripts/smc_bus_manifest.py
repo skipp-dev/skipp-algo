@@ -3,27 +3,6 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Any
 
-from scripts.smc_context_bus_manifest import (
-    CONTEXT_BUS_CHANNELS,
-    TRADINGVIEW_PLOT_LIMIT,
-)
-from scripts.smc_context_bus_manifest import (
-    SCHEMA_VERSION as CONTEXT_BUS_SCHEMA_VERSION,
-)
-
-# The engine (v2) BUS schema, as declared by the producer itself in
-# `plot(7001, 'BUS SchemaVersion')`. It had no name in Python and lived as a
-# bare literal in four fixture/replay modules, so nothing tied the registry's
-# view of the contract to the source that defines it.
-ENGINE_BUS_SCHEMA_VERSION = 7001
-
-# Which schema each BUS family speaks. `bus_dependencies` names the family a
-# surface CONSUMES; producers declare their own family below.
-BUS_SCHEMA_BY_FAMILY: dict[str, int] = {
-    'engine_v2': ENGINE_BUS_SCHEMA_VERSION,
-    'context_v3': CONTEXT_BUS_SCHEMA_VERSION,
-}
-
 
 @dataclass(frozen = True)
 class BusBinding:
@@ -41,20 +20,6 @@ class SurfaceDefinition:
     consumer_role: str
     validation_target: bool = False
     notes: tuple[str, ...] = ()
-    lifecycle: str = 'active'
-    deployment_mode: str = 'none'
-    rollout_state: str = 'not_deployed'
-    compile_expectation: str = 'required'
-    bus_dependencies: tuple[str, ...] = ()
-    # The BUS schema this surface SPEAKS — whether it produces or consumes it.
-    # `bus_dependencies` names only the family a surface consumes, which left
-    # the producers (Suite, Context Bus) with no recorded version at all and
-    # tied nothing in the registry to the number the Pine source declares.
-    # None means the surface participates in no BUS.
-    bus_schema: int | None = None
-    archive_state: str = 'none'
-    chart_instance_name: str | None = None
-    known_missing_mp_fields: tuple[str, ...] = ()
 
 
 @dataclass(frozen = True)
@@ -66,7 +31,6 @@ class PreflightTarget:
     min_inputs: int | None = None
     saved_script_name: str | None = None
     binding_contract_key: str | None = None
-    allow_fresh_draft_on_missing_existing: bool = False
 
 
 @dataclass(frozen = True)
@@ -116,48 +80,7 @@ CONSUMER_ROLE_VALUES: tuple[str, ...] = (
     'alert_companion',
 )
 
-LIFECYCLE_VALUES: tuple[str, ...] = (
-    'active',
-    'planned',
-    'replacement_pending',
-    'retirement_pending',
-    'retired_tombstone',
-    'archived',
-)
-
-DEPLOYMENT_MODE_VALUES: tuple[str, ...] = (
-    'standard',
-    'optional',
-    'shadow',
-    'none',
-)
-
-ROLLOUT_STATE_VALUES: tuple[str, ...] = (
-    'deployed',
-    'planned',
-    'not_deployed',
-)
-
-COMPILE_EXPECTATION_VALUES: tuple[str, ...] = (
-    'required',
-    'deferred',
-    'known_broken',
-    'excluded',
-)
-
-BUS_DEPENDENCY_VALUES: tuple[str, ...] = (
-    'engine_v2',
-    'context_v3',
-)
-
-ARCHIVE_STATE_VALUES: tuple[str, ...] = (
-    'none',
-    'pending',
-    'replace_in_place_pending',
-    'archived',
-)
-
-PRODUCT_CUT_MANIFEST_VERSION = 3
+PRODUCT_CUT_MANIFEST_VERSION = 2
 PRODUCT_CUT_ARTIFACT_RELATIVE_PATH = 'artifacts/tradingview/smc_product_cut_manifest.json'
 PRODUCT_CUT_SOURCE = 'scripts/smc_bus_manifest.py'
 VALIDATION_EVIDENCE_CAPTURE_MODE = 'rendered_chart_only'
@@ -172,86 +95,6 @@ DEPRECATED_FIELD_POLICY: dict[str, Any] = {
     'deprecatedGroups': [],
 }
 
-KNOWN_MISSING_MP_FIELDS_BY_FILE: dict[str, tuple[str, ...]] = {
-    'SMC_Imbalance_Context.pine': (
-        'BEAR_FVG_ACTIVE',
-        'BEAR_FVG_BOTTOM',
-        'BEAR_FVG_COUNT',
-        'BEAR_FVG_FULL_MITIGATION',
-        'BEAR_FVG_MITIGATION_PCT',
-        'BEAR_FVG_PARTIAL_MITIGATION',
-        'BEAR_FVG_TOP',
-        'BPR_ACTIVE',
-        'BPR_BOTTOM',
-        'BPR_TOP',
-        'BULL_FVG_ACTIVE',
-        'BULL_FVG_BOTTOM',
-        'BULL_FVG_COUNT',
-        'BULL_FVG_FULL_MITIGATION',
-        'BULL_FVG_MITIGATION_PCT',
-        'BULL_FVG_PARTIAL_MITIGATION',
-        'BULL_FVG_TOP',
-        'IMBALANCE_STATE',
-        'LIQ_VOID_BEAR_ACTIVE',
-        'LIQ_VOID_BOTTOM',
-        'LIQ_VOID_BULL_ACTIVE',
-        'LIQ_VOID_TOP',
-    ),
-    'SMC_Liquidity_Context.pine': (
-        'ACTIVE_RESISTANCE_COUNT',
-        'ACTIVE_SUPPORT_COUNT',
-        'ACTIVE_ZONE_COUNT',
-        'PRIMARY_RESISTANCE_LEVEL',
-        'PRIMARY_RESISTANCE_STRENGTH',
-        'PRIMARY_SUPPORT_LEVEL',
-        'PRIMARY_SUPPORT_STRENGTH',
-        'RESISTANCE_MITIGATION_PCT',
-        'RESISTANCE_SWEEP_COUNT',
-        'SUPPORT_MITIGATION_PCT',
-        'SUPPORT_SWEEP_COUNT',
-        'ZONE_CONTEXT_BIAS',
-        'ZONE_LIQUIDITY_IMBALANCE',
-    ),
-    'SMC_Liquidity_Structure.pine': (
-        'POOL_IMBALANCE',
-        'POOL_MAGNET_DIRECTION',
-        'POOL_QUALITY_SCORE',
-        'RECENT_BEAR_SWEEP',
-        'RECENT_BULL_SWEEP',
-        'SWEEP_QUALITY_SCORE',
-        'SWEEP_RECLAIM_ACTIVE',
-        'SWEEP_TYPE',
-    ),
-    'SMC_Profile_Context.pine': (
-        'PROFILE_AH_QUALITY',
-        'PROFILE_AVG_SPREAD_BPS',
-        'PROFILE_CLEAN_SCORE',
-        'PROFILE_CONTEXT_SCORE',
-        'PROFILE_MIDDAY_EFFICIENCY',
-        'PROFILE_PM_QUALITY',
-        'PROFILE_RTH_DOMINANCE_PCT',
-        'PROFILE_SESSION_BIAS',
-        'PROFILE_SPREAD_REGIME',
-        'PROFILE_TICKER_GRADE',
-        'PROFILE_VWAP_DISTANCE_PCT',
-        'PROFILE_VWAP_POSITION',
-        'PROFILE_WICKINESS',
-    ),
-    'SMC_Structure_Context.pine': (
-        'ACTIVE_RESISTANCE',
-        'ACTIVE_SUPPORT',
-        'BOS_BEAR',
-        'BOS_BULL',
-        'CHOCH_BEAR',
-        'CHOCH_BULL',
-        'RESISTANCE_ACTIVE',
-        'STRUCTURE_BEAR_ACTIVE',
-        'STRUCTURE_BULL_ACTIVE',
-        'STRUCTURE_STATE',
-        'SUPPORT_ACTIVE',
-    ),
-}
-
 SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
     SurfaceDefinition(
         file = 'SMC_Long_Dip_Suite.pine',
@@ -259,10 +102,6 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         surface_role = 'lite_primary',
         contract_tier = 'lite_and_pro',
         consumer_role = 'producer',
-        bus_schema = ENGINE_BUS_SCHEMA_VERSION,
-        deployment_mode = 'standard',
-        rollout_state = 'deployed',
-        chart_instance_name = 'SMC Long-Dip Suite',
         validation_target = True,
         notes = (
             'Primary Focus View surface for the Lite rollout.',
@@ -270,16 +109,11 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         ),
     ),
     SurfaceDefinition(
-        file = 'SMC_Decision_Board.pine',
-        script_name = 'SMC Decision Board',
+        file = 'SMC_Long_Dip_Dashboard.pine',
+        script_name = 'SMC Long-Dip Dashboard',
         surface_role = 'pro_primary',
         contract_tier = 'pro',
         consumer_role = 'dashboard_companion',
-        deployment_mode = 'standard',
-        rollout_state = 'deployed',
-        bus_dependencies = ('engine_v2',),
-        bus_schema = ENGINE_BUS_SCHEMA_VERSION,
-        chart_instance_name = 'SMC Decision Board',
         validation_target = True,
         notes = (
             'Primary linked decision companion surface.',
@@ -292,11 +126,6 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         surface_role = 'pro_primary',
         contract_tier = 'execution',
         consumer_role = 'execution_wrapper',
-        deployment_mode = 'standard',
-        rollout_state = 'deployed',
-        bus_dependencies = ('engine_v2',),
-        bus_schema = ENGINE_BUS_SCHEMA_VERSION,
-        chart_instance_name = 'SMC Long-Dip Strategy',
         validation_target = True,
         notes = (
             'Primary execution surface on the frozen 8-channel executable contract.',
@@ -309,14 +138,8 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         surface_role = 'companion_operator_only',
         contract_tier = 'pro',
         consumer_role = 'overlay_companion',
-        deployment_mode = 'standard',
-        rollout_state = 'deployed',
-        bus_dependencies = ('engine_v2',),
-        bus_schema = ENGINE_BUS_SCHEMA_VERSION,
-        chart_instance_name = 'SMC Event Overlay',
-        validation_target = True,
         notes = (
-            'Pro-only event-risk companion deployed in the private Simple Management layout.',
+            'Pro-only event-risk companion.',
         ),
     ),
     SurfaceDefinition(
@@ -325,11 +148,8 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         surface_role = 'companion_operator_only',
         contract_tier = 'pro',
         consumer_role = 'overlay_companion',
-        lifecycle = 'retirement_pending',
-        compile_expectation = 'required',
-        archive_state = 'pending',
         notes = (
-            'Static daily snapshot whose live-orderflow role moves to Railway/Databento.',
+            'Pro-only orderflow companion.',
         ),
     ),
     SurfaceDefinition(
@@ -338,12 +158,8 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         surface_role = 'companion_operator_only',
         contract_tier = 'pro',
         consumer_role = 'context_companion',
-        lifecycle = 'replacement_pending',
-        compile_expectation = 'known_broken',
-        archive_state = 'replace_in_place_pending',
-        known_missing_mp_fields = KNOWN_MISSING_MP_FIELDS_BY_FILE['SMC_Liquidity_Context.pine'],
         notes = (
-            'Snapshot-era source awaiting replacement by Context BUS v3.',
+            'Pro-only liquidity context companion.',
         ),
     ),
     SurfaceDefinition(
@@ -352,22 +168,8 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         surface_role = 'companion_operator_only',
         contract_tier = 'pro',
         consumer_role = 'context_companion',
-        lifecycle = 'active',
-        deployment_mode = 'optional',
-        # 2026-07-31: deployed on the owner's instruction after all 11
-        # R5-REBUILD cases passed and the Pro HTF preset decision (#4257)
-        # put this companion in. Deployment target: the optional Pro HTF
-        # layout; the certified private script identity is the one the
-        # R5 preflight saved and hash-verified the same day.
-        rollout_state = 'deployed',
-        # Measured legend title on the validation chart — the same identity
-        # every R5 legend probe matched on 2026-07-31.
-        chart_instance_name = 'SMC HTF Confluence',
-        compile_expectation = 'required',
-        archive_state = 'none',
         notes = (
-            'Confirmed live 15m/1h/4h companion; R5-REBUILD validated 2026-07-31 '
-            '(all 11 cases), member of the optional Pro HTF preset per #4257.',
+            'Pro-only HTF context companion.',
         ),
     ),
     SurfaceDefinition(
@@ -376,12 +178,8 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         surface_role = 'companion_operator_only',
         contract_tier = 'pro',
         consumer_role = 'context_companion',
-        lifecycle = 'replacement_pending',
-        compile_expectation = 'known_broken',
-        archive_state = 'replace_in_place_pending',
-        known_missing_mp_fields = KNOWN_MISSING_MP_FIELDS_BY_FILE['SMC_Imbalance_Context.pine'],
         notes = (
-            'Snapshot-era source awaiting replacement by Context BUS v3.',
+            'Pro-only imbalance context companion.',
         ),
     ),
     SurfaceDefinition(
@@ -390,12 +188,8 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         surface_role = 'companion_operator_only',
         contract_tier = 'pro',
         consumer_role = 'context_companion',
-        lifecycle = 'replacement_pending',
-        compile_expectation = 'known_broken',
-        archive_state = 'replace_in_place_pending',
-        known_missing_mp_fields = KNOWN_MISSING_MP_FIELDS_BY_FILE['SMC_Structure_Context.pine'],
         notes = (
-            'Snapshot-era source awaiting replacement by Context BUS v3.',
+            'Pro-only structure context companion.',
         ),
     ),
     SurfaceDefinition(
@@ -404,20 +198,8 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         surface_role = 'companion_operator_only',
         contract_tier = 'pro',
         consumer_role = 'context_companion',
-        lifecycle = 'active',
-        deployment_mode = 'optional',
-        # 2026-07-31: stays not_deployed BY DECISION, not by pending work.
-        # R5-REBUILD validated it the same day as HTF Confluence, but #4257
-        # kept it out of every preset: its session surface is already served
-        # by Context BUS -> Context Overlay, nothing in the repo consumes its
-        # outputs, and its real role is the R5 gate's measurement instrument.
-        rollout_state = 'not_deployed',
-        compile_expectation = 'required',
-        archive_state = 'none',
         notes = (
-            'Confirmed IANA-timezone session companion; R5-REBUILD validated '
-            '2026-07-31 but in no preset per #4257 — operator measurement '
-            'instrument for the R5 validation layout.',
+            'Pro-only session context companion.',
         ),
     ),
     SurfaceDefinition(
@@ -426,12 +208,8 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         surface_role = 'companion_operator_only',
         contract_tier = 'pro',
         consumer_role = 'context_companion',
-        lifecycle = 'replacement_pending',
-        compile_expectation = 'known_broken',
-        archive_state = 'replace_in_place_pending',
-        known_missing_mp_fields = KNOWN_MISSING_MP_FIELDS_BY_FILE['SMC_Profile_Context.pine'],
         notes = (
-            'Snapshot-era source awaiting replacement by the consolidated context architecture.',
+            'Pro-only profile context companion.',
         ),
     ),
     SurfaceDefinition(
@@ -440,12 +218,8 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         surface_role = 'companion_operator_only',
         contract_tier = 'pro',
         consumer_role = 'context_companion',
-        lifecycle = 'replacement_pending',
-        compile_expectation = 'known_broken',
-        archive_state = 'replace_in_place_pending',
-        known_missing_mp_fields = KNOWN_MISSING_MP_FIELDS_BY_FILE['SMC_Liquidity_Structure.pine'],
         notes = (
-            'Snapshot-era source awaiting replacement by Context BUS v3.',
+            'Pro-only liquidity-structure companion.',
         ),
     ),
     SurfaceDefinition(
@@ -454,11 +228,6 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         surface_role = 'companion_operator_only',
         contract_tier = 'lite_and_pro',
         consumer_role = 'setup_utility',
-        deployment_mode = 'standard',
-        rollout_state = 'deployed',
-        bus_dependencies = ('engine_v2',),
-        bus_schema = ENGINE_BUS_SCHEMA_VERSION,
-        chart_instance_name = 'SMC Setup Check',
         notes = (
             'BUS connection validator — guides new users through initial setup.',
             'Reads 6 critical BUS channels and shows connection status with next-step instructions.',
@@ -470,11 +239,6 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         surface_role = 'companion_operator_only',
         contract_tier = 'lite_and_pro',
         consumer_role = 'mobile_companion',
-        deployment_mode = 'standard',
-        rollout_state = 'deployed',
-        bus_dependencies = ('engine_v2',),
-        bus_schema = ENGINE_BUS_SCHEMA_VERSION,
-        chart_instance_name = 'SMC Long-Dip Mobile',
         notes = (
             'Mobile-first dashboard — 4-row table, no overlays.',
             'Traffic light + levels + market context + quality score.',
@@ -486,11 +250,6 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         surface_role = 'pro_primary',
         contract_tier = 'pro',
         consumer_role = 'confluence_hub',
-        deployment_mode = 'standard',
-        rollout_state = 'deployed',
-        bus_dependencies = ('engine_v2',),
-        bus_schema = ENGINE_BUS_SCHEMA_VERSION,
-        chart_instance_name = 'SMC Confluence Hub',
         notes = (
             'Multi-signal confluence aggregator (SMC BUS + trend + momentum + mean-reversion).',
             'Produces 0-100 confluence score with traffic-light overlay.',
@@ -502,10 +261,38 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         surface_role = 'internal',
         contract_tier = 'internal',
         consumer_role = 'bridge',
-        lifecycle = 'retired_tombstone',
-        compile_expectation = 'excluded',
         notes = (
             'Retired, network-inert compatibility notice; no live-overlay data ingress.',
+        ),
+    ),
+    SurfaceDefinition(
+        file = 'SMC++.pine',
+        script_name = 'SMC++',
+        surface_role = 'legacy',
+        contract_tier = 'legacy',
+        consumer_role = 'legacy_monolith',
+        notes = (
+            'Historical monolith kept for reference, not for the active product cut.',
+        ),
+    ),
+    SurfaceDefinition(
+        file = 'SMC_Core_Zones.pine',
+        script_name = 'SMC Core OLD',
+        surface_role = 'legacy',
+        contract_tier = 'legacy',
+        consumer_role = 'legacy_split',
+        notes = (
+            'Deprecated split prototype.',
+        ),
+    ),
+    SurfaceDefinition(
+        file = 'SMC Core + Zones.pine',
+        script_name = 'SMC Core OLD',
+        surface_role = 'legacy',
+        contract_tier = 'legacy',
+        consumer_role = 'legacy_split',
+        notes = (
+            'Deprecated split prototype.',
         ),
     ),
     # New companion surfaces shipped 2026-04-30 (commit 68e1aac0):
@@ -520,11 +307,6 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         surface_role = 'companion_operator_only',
         contract_tier = 'pro',
         consumer_role = 'overlay_companion',
-        deployment_mode = 'standard',
-        rollout_state = 'deployed',
-        bus_dependencies = ('engine_v2',),
-        bus_schema = ENGINE_BUS_SCHEMA_VERSION,
-        chart_instance_name = 'SMC Breakout Overlay',
         notes = (
             'LonesomeTheBlue-style breakout/breakdown box renderer. Three-tier '
             'structure source: (1) imports smc_engine_private and runs the same '
@@ -543,49 +325,23 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         surface_role = 'companion_operator_only',
         contract_tier = 'lite_and_pro',
         consumer_role = 'exit_companion',
-        deployment_mode = 'standard',
-        rollout_state = 'deployed',
-        bus_dependencies = ('engine_v2',),
-        bus_schema = ENGINE_BUS_SCHEMA_VERSION,
-        chart_instance_name = 'SMC Exit Signal',
-        validation_target = True,
         notes = (
             'Beginner-facing exit companion: STOP / TP1 / TP2 / DEFENSIVE '
             'EXIT alerts driven by linked SMC Core BUS outputs. No '
-            'library import — fully BUS-driven. Deployed as the sole '
-            'actionable exit mode in the private Simple Management layout.',
+            'library import — fully BUS-driven.',
         ),
     ),
     SurfaceDefinition(
         file = 'SMC_Hold_Manager.pine',
-        script_name = 'SMC Hold Manager',
+        script_name = 'SMC Hold-Manager v1',
         surface_role = 'companion_operator_only',
         contract_tier = 'lite_and_pro',
         consumer_role = 'exit_companion',
-        lifecycle = 'planned',
-        deployment_mode = 'standard',
-        rollout_state = 'planned',
-        bus_dependencies = ('engine_v2',),
-        bus_schema = ENGINE_BUS_SCHEMA_VERSION,
         notes = (
-            'Read-only hold-management overlay with Engine BUS v2 as its '
-            'fail-closed primary plan, explicit manual fallback, '
-            'ATR-Chandelier trail, BE-after-T1, optional Simple-Mode, '
-            'time-stop, and confirmed-history state reconstruction.',
-            # The three state fields above read like nothing is running, which
-            # is why this sentence exists: the R2 shadow window HAS been open
-            # since 2026-07-28 and only the traceability artifact, the
-            # activation evidence and the architecture doc said so. A reader of
-            # the canonical registry alone could not tell. deployment_mode
-            # records the TARGET tier (never a phase — it has never once been
-            # changed on any surface), and rollout_state stays 'planned' by the
-            # decision taken when the window opened, so neither field can carry
-            # this fact. Pinned against the evidence by
-            # test_pine_surface_registry so the date cannot drift.
-            'R2 shadow observation window open since 2026-07-28T22:41:34Z '
-            '(evidence: artifacts/governance/'
-            'smc_hold_manager_shadow_activation_2026-07-28.json); rollout_state '
-            "stays 'planned' until the window and the rollback drill pass.",
+            'Read-only hold-management overlay with ATR-Chandelier trail, '
+            'BE-after-T1, optional Simple-Mode, and time-stop. Imports '
+            'skippALGO/smc_micro_profiles_generated (separate namespace '
+            'from preuss_steffen — not auto-pinned by library refresh).',
         ),
     ),
     SurfaceDefinition(
@@ -594,11 +350,6 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         surface_role = 'companion_operator_only',
         contract_tier = 'lite_and_pro',
         consumer_role = 'alert_companion',
-        deployment_mode = 'standard',
-        rollout_state = 'deployed',
-        bus_dependencies = ('engine_v2',),
-        bus_schema = ENGINE_BUS_SCHEMA_VERSION,
-        chart_instance_name = 'SMC Long-Dip Alerts',
         notes = (
             'Alert companion for the Suite. Restores the 16 lifecycle / structure '
             '/ trust / risk events as individually-selectable alertcondition() '
@@ -614,55 +365,9 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         surface_role = 'companion_operator_only',
         contract_tier = 'pro',
         consumer_role = 'overlay_companion',
-        lifecycle = 'planned',
-        deployment_mode = 'optional',
-        rollout_state = 'planned',
         notes = (
             'Visible-Range Volume Profile companion: histogram + '
             'multi-POC + VAH/VAL. No library import — fully self-contained.',
-        ),
-    ),
-    SurfaceDefinition(
-        file = 'SMC_Context_Bus.pine',
-        script_name = 'SMC Context Bus',
-        surface_role = 'internal',
-        contract_tier = 'internal',
-        consumer_role = 'producer',
-        bus_schema = CONTEXT_BUS_SCHEMA_VERSION,
-        lifecycle = 'active',
-        deployment_mode = 'shadow',
-        rollout_state = 'not_deployed',
-        compile_expectation = 'required',
-        notes = (
-            # Derived, never typed: this sentence said "60 ... four reserved"
-            # while the contract had moved to 62/2 (#4263 spent two reserved
-            # slots on the session-MSS channels). The budget test was updated,
-            # this note was not — so the canonical registry disagreed with the
-            # module it describes. Counting at import time makes that
-            # impossible rather than merely unlikely.
-            f'Context BUS v3 producer; schema {CONTEXT_BUS_SCHEMA_VERSION} exposes '
-            f'{len(CONTEXT_BUS_CHANNELS)} direct domain channels with '
-            f'{TRADINGVIEW_PLOT_LIMIT - len(CONTEXT_BUS_CHANNELS)} TradingView plot '
-            'slots reserved. Source exists locally but remains non-deployed until '
-            'private compile, publish, binding and shadow evidence pass.',
-        ),
-    ),
-    SurfaceDefinition(
-        file = 'SMC_Context_Overlay.pine',
-        script_name = 'SMC Context Overlay',
-        surface_role = 'companion_operator_only',
-        contract_tier = 'pro',
-        consumer_role = 'context_companion',
-        lifecycle = 'active',
-        deployment_mode = 'shadow',
-        rollout_state = 'not_deployed',
-        compile_expectation = 'required',
-        bus_dependencies = ('context_v3',),
-        bus_schema = CONTEXT_BUS_SCHEMA_VERSION,
-        notes = (
-            'Consolidated fail-closed Context BUS v3 consumer. Source exists '
-            'locally but remains shadow-only and non-gating until private '
-            'compile, all-source binding, performance and parity evidence pass.',
         ),
     ),
 )
@@ -753,8 +458,6 @@ def validate_surface_definitions() -> list[str]:
     - surface_role values are from SURFACE_ROLE_VALUES
     - contract_tier values are from CONTRACT_TIER_VALUES
     - consumer_role values are from CONSUMER_ROLE_VALUES
-    - lifecycle, deployment, rollout, compile, BUS and archive values are valid
-    - deployed chart instances and known-broken snapshot declarations are coherent
     - No duplicate files
     - Mainline hierarchy: exactly 1 lite_primary, at least 1 pro_primary
     """
@@ -768,51 +471,6 @@ def validate_surface_definitions() -> list[str]:
             errors.append(f"{surface.file}: invalid contract_tier '{surface.contract_tier}'")
         if surface.consumer_role not in CONSUMER_ROLE_VALUES:
             errors.append(f"{surface.file}: invalid consumer_role '{surface.consumer_role}'")
-        if surface.lifecycle not in LIFECYCLE_VALUES:
-            errors.append(f"{surface.file}: invalid lifecycle '{surface.lifecycle}'")
-        if surface.deployment_mode not in DEPLOYMENT_MODE_VALUES:
-            errors.append(f"{surface.file}: invalid deployment_mode '{surface.deployment_mode}'")
-        if surface.rollout_state not in ROLLOUT_STATE_VALUES:
-            errors.append(f"{surface.file}: invalid rollout_state '{surface.rollout_state}'")
-        if surface.compile_expectation not in COMPILE_EXPECTATION_VALUES:
-            errors.append(
-                f"{surface.file}: invalid compile_expectation "
-                f"'{surface.compile_expectation}'"
-            )
-        invalid_bus_dependencies = sorted(
-            set(surface.bus_dependencies) - set(BUS_DEPENDENCY_VALUES)
-        )
-        if invalid_bus_dependencies:
-            errors.append(
-                f"{surface.file}: invalid bus_dependencies "
-                f"{invalid_bus_dependencies}"
-            )
-        if len(surface.bus_dependencies) != len(set(surface.bus_dependencies)):
-            errors.append(f"{surface.file}: duplicate bus_dependencies")
-        if surface.archive_state not in ARCHIVE_STATE_VALUES:
-            errors.append(f"{surface.file}: invalid archive_state '{surface.archive_state}'")
-        if surface.rollout_state == 'deployed' and not surface.chart_instance_name:
-            errors.append(f"{surface.file}: deployed surface requires chart_instance_name")
-        if surface.rollout_state != 'deployed' and surface.chart_instance_name:
-            errors.append(
-                f"{surface.file}: non-deployed surface cannot declare chart_instance_name"
-            )
-        if (
-            surface.compile_expectation == 'known_broken'
-            and not surface.known_missing_mp_fields
-        ):
-            errors.append(
-                f"{surface.file}: known_broken surface requires known_missing_mp_fields"
-            )
-        if (
-            surface.compile_expectation != 'known_broken'
-            and surface.known_missing_mp_fields
-        ):
-            errors.append(
-                f"{surface.file}: known_missing_mp_fields requires known_broken compile expectation"
-            )
-        if len(surface.known_missing_mp_fields) != len(set(surface.known_missing_mp_fields)):
-            errors.append(f"{surface.file}: duplicate known_missing_mp_fields")
         if surface.file in seen_files:
             errors.append(f"{surface.file}: duplicate entry")
         seen_files.add(surface.file)
@@ -835,103 +493,16 @@ def validate_surface_definitions() -> list[str]:
 # script's input bindings.
 PREFLIGHT_CORE_DASHBOARD_TARGETS: tuple[PreflightTarget, ...] = (
     PreflightTarget('SMC_Long_Dip_Suite.pine', 'SMC Long-Dip Suite', False, False),
-    PreflightTarget('SMC_Decision_Board.pine', 'SMC Decision Board', True, True, 58, 'SMC Decision Board', 'dashboardBindings'),
+    PreflightTarget('SMC_Long_Dip_Dashboard.pine', 'SMC Long-Dip Dashboard', True, True, 58, 'SMC Long-Dip Dashboard', 'dashboardBindings'),
 )
 
 PREFLIGHT_MAINLINE_TARGETS: tuple[PreflightTarget, ...] = (
     PreflightTarget('SMC_Long_Dip_Suite.pine', 'SMC Long-Dip Suite', False, False),
-    PreflightTarget('SMC_Decision_Board.pine', 'SMC Decision Board', True, True, 58, 'SMC Decision Board', 'dashboardBindings'),
+    PreflightTarget('SMC_Long_Dip_Dashboard.pine', 'SMC Long-Dip Dashboard', True, True, 58, 'SMC Long-Dip Dashboard', 'dashboardBindings'),
     PreflightTarget('SMC_Long_Dip_Strategy.pine', 'SMC Long-Dip Strategy', True, True, 8, 'SMC Long-Dip Strategy', 'strategyBindings'),
 )
 
 PREFLIGHT_DECISION_FIRST_TARGETS: tuple[PreflightTarget, ...] = PREFLIGHT_MAINLINE_TARGETS
-
-PREFLIGHT_HOLD_MANAGER_SHADOW_TARGETS: tuple[PreflightTarget, ...] = (
-    PreflightTarget(
-        'SMC_Long_Dip_Suite.pine',
-        'SMC Long-Dip Suite',
-        False,
-        False,
-    ),
-    PreflightTarget(
-        'SMC_Hold_Manager.pine',
-        'SMC Hold Manager',
-        True,
-        True,
-        13,
-        None,  # 2026-08-16: operator renamed the saved doc to its declaration
-        'holdManagerBindings',
-    ),
-)
-
-PREFLIGHT_R1_COMPANION_TARGETS: tuple[PreflightTarget, ...] = (
-    PreflightTarget(
-        'SMC_Long_Dip_Suite.pine',
-        'SMC Long-Dip Suite',
-        False,
-        False,
-    ),
-    PreflightTarget(
-        'SMC_Event_Overlay.pine',
-        'SMC Event Overlay',
-        True,
-        True,
-        1,
-        'SMC Event Overlay',
-        'eventOverlayBindings',
-        allow_fresh_draft_on_missing_existing = True,
-    ),
-    PreflightTarget(
-        'SMC_Exit_Signal.pine',
-        'SMC Exit Signal',
-        True,
-        True,
-        9,
-        'SMC Exit Signal',
-        'exitSignalBindings',
-        allow_fresh_draft_on_missing_existing = True,
-    ),
-)
-
-PREFLIGHT_R4_CONTEXT_SHADOW_TARGETS: tuple[PreflightTarget, ...] = (
-    PreflightTarget(
-        'SMC_Context_Bus.pine',
-        'SMC Context Bus',
-        False,
-        True,
-        saved_script_name = 'SMC Context Bus',
-        allow_fresh_draft_on_missing_existing = True,
-    ),
-    PreflightTarget(
-        'SMC_Context_Overlay.pine',
-        'SMC Context Overlay',
-        True,
-        True,
-        60,
-        'SMC Context Overlay',
-        'contextOverlayBindings',
-        allow_fresh_draft_on_missing_existing = True,
-    ),
-)
-
-PREFLIGHT_R5_HTF_SESSION_TARGETS: tuple[PreflightTarget, ...] = (
-    PreflightTarget(
-        'SMC_HTF_Confluence.pine',
-        'SMC HTF Confluence',
-        False,
-        True,
-        saved_script_name = 'SMC HTF Confluence',
-        allow_fresh_draft_on_missing_existing = True,
-    ),
-    PreflightTarget(
-        'SMC_Session_Context.pine',
-        'SMC Session Context',
-        False,
-        True,
-        saved_script_name = 'SMC Session Context',
-        allow_fresh_draft_on_missing_existing = True,
-    ),
-)
 
 VALIDATION_EVIDENCE_CAPTURES: tuple[ValidationEvidenceCapture, ...] = (
     ValidationEvidenceCapture(
@@ -947,8 +518,8 @@ VALIDATION_EVIDENCE_CAPTURES: tuple[ValidationEvidenceCapture, ...] = (
     ),
     ValidationEvidenceCapture(
         key = 'dashboard_decision_brief',
-        file = 'SMC_Decision_Board.pine',
-        script_name = 'SMC Decision Board',
+        file = 'SMC_Long_Dip_Dashboard.pine',
+        script_name = 'SMC Long-Dip Dashboard',
         report_label = 'Dashboard Decision Brief',
         runbook_label_en = 'rendered Dashboard screen in `Decision Brief`',
         runbook_label_de = 'gerenderter Dashboard-Screen in `Decision Brief`',
@@ -958,8 +529,8 @@ VALIDATION_EVIDENCE_CAPTURES: tuple[ValidationEvidenceCapture, ...] = (
     ),
     ValidationEvidenceCapture(
         key = 'dashboard_audit_view',
-        file = 'SMC_Decision_Board.pine',
-        script_name = 'SMC Decision Board',
+        file = 'SMC_Long_Dip_Dashboard.pine',
+        script_name = 'SMC Long-Dip Dashboard',
         report_label = 'Dashboard Audit View',
         runbook_label_en = 'rendered Dashboard screen in `Audit View`',
         runbook_label_de = 'gerenderter Dashboard-Screen in `Audit View`',
@@ -983,20 +554,8 @@ VALIDATION_EVIDENCE_CAPTURES: tuple[ValidationEvidenceCapture, ...] = (
 
 def _surface_payload(surface: SurfaceDefinition) -> dict[str, Any]:
     payload = asdict(surface)
-    payload['bus_dependencies'] = list(surface.bus_dependencies)
-    payload['known_missing_mp_fields'] = list(surface.known_missing_mp_fields)
     payload['notes'] = list(surface.notes)
-    # Optional fields are OMITTED when unset, never emitted as null. This was a
-    # special case for `chart_instance_name`; generalising it is what keeps the
-    # next optional field from repeating the bug `bus_schema` just caused.
-    #
-    # The consumer that forces it: `smc_core.serialization.snapshot_to_dict`
-    # runs the payload through `_drop_nones` before embedding it in a delivery
-    # bundle, while the bundle also carries the raw payload. A null in one and
-    # not the other makes those two copies unequal, and
-    # `test_delivery_bundle_snapshot_dashboard_pine_alignment` fails on the
-    # difference — in fast-gates, which the local ledger guard does not run.
-    return {key: value for key, value in payload.items() if value is not None}
+    return payload
 
 
 def _preflight_target_payload(target: PreflightTarget) -> dict[str, Any]:
@@ -1016,8 +575,6 @@ def _preflight_target_payload(target: PreflightTarget) -> dict[str, Any]:
         payload['bindingConsumerRole'] = BINDING_CONTRACT_CONSUMER_ROLES[target.binding_contract_key]
         payload['bindingContractLabels'] = [binding.label for binding in BINDING_CONTRACT_BINDINGS[target.binding_contract_key]]
         payload['bindingLabelGroups'] = _binding_label_group_payload(target.binding_contract_key)
-    if target.allow_fresh_draft_on_missing_existing:
-        payload['allowFreshDraftOnMissingExisting'] = True
     return payload
 
 
@@ -1202,15 +759,14 @@ C9_STABLE_PRO_BUS_LABELS: tuple[str, ...] = tuple(f'BUS {channel}' for channel i
 # Ordered so the settings panel walks the engine's BUS plot order 0..63 from top
 # to bottom. TradingView renders a source study's outputs as ONE FLAT list in
 # plot order and knows nothing about these groups, so a group whose plot range is
-# out of sequence forces a scroll back up in the dropdown. Every group therefore
-# covers one contiguous range; 'Blocker Codes' was split out of what is now
-# 'Context Signals', which previously held two disjoint ranges (14-16, 40-43).
-# Renamed 2026-08-12: the panel prefix went from 'Operator Only' to 'Chart Link'.
+# out of sequence forces the operator to scroll back up in the dropdown. Every
+# group therefore covers one contiguous range; 'Blocker Codes' was split out of
+# 'Diagnostic Support', which previously held two disjoint ranges (14-16, 40-43).
 DASHBOARD_GROUP_TITLES: tuple[str, ...] = (
-    'Decision State',       # plots 0-13
-    'Context Signals',      # plots 14-16
+    'Lifecycle BUS',        # plots 0-13
+    'Diagnostic Support',   # plots 14-16
     'Trade Plan',           # plots 17-19
-    'Context Rows',         # plots 20-39
+    'Diagnostic Rows',      # plots 20-39
     'Blocker Codes',        # plots 40-43
     'Detail Surface',       # plots 44-56
     'Lean Surface',         # plots 57-58
@@ -1223,10 +779,10 @@ STRATEGY_GROUP_TITLES: tuple[str, ...] = (
 )
 
 DASHBOARD_GROUP_TITLES_BY_KEY: dict[str, str] = {
-    'g_bus_lifecycle': 'Decision State',
-    'g_bus_diag': 'Context Signals',
+    'g_bus_lifecycle': 'Lifecycle BUS',
+    'g_bus_diag': 'Diagnostic Support',
     'g_bus_plan': 'Trade Plan',
-    'g_bus_diag_rows': 'Context Rows',
+    'g_bus_diag_rows': 'Diagnostic Rows',
     'g_bus_blockers': 'Blocker Codes',
     'g_bus_detail': 'Detail Surface',
     'g_bus_lean': 'Lean Surface',
@@ -1236,72 +792,6 @@ DASHBOARD_GROUP_TITLES_BY_KEY: dict[str, str] = {
 STRATEGY_GROUP_TITLES_BY_KEY: dict[str, str] = {
     'g_bus_entry': 'Entry States',
     'g_bus_plan': 'Trade Plan',
-}
-
-# 2026-08-28 (#4639 completion): the 'Chart Link' rename reaches every
-# onboarding consumer. Single-group consumers carry ONE canonical label (the
-# Alerts form, splitter-compatible with the `split(' - ', 1)[1]` helper in
-# tests/test_smc_bus_manifest_contract.py); multi-group consumers use the
-# numbered Dashboard form 'N. Chart Link - <suffix>' in Pine and store only
-# the suffix here, exactly like DASHBOARD/STRATEGY_GROUP_TITLES_BY_KEY.
-CHART_LINK_SUITE_GROUP_TITLE = 'Chart Link - SMC Long-Dip Suite'
-
-# NOT renamed 2026-08-28: SMC_Hold_Manager.pine is frozen by its shadow lane —
-# the deployed receiver rejects any payload whose sourceBuild differs from
-# contract.source.build, the live TradingView alerts emit build 3, and the
-# build-history contract forces every source edit to mint a new build. The
-# Chart-Link rename must ride the lane's next build-advance sitting (source
-# transfer + 13-input rebinding + alert swap), like build 3 did on 2026-08-16.
-# Tripwire: test_hold_manager_rename_rides_the_next_build in
-# tests/test_customer_surface_vocabulary.py fires when the lane mints build 4.
-HOLD_MANAGER_GROUP_TITLES_BY_KEY: dict[str, str] = {
-    'gBus': 'Engine BUS v2 (Expert Mapping)',
-}
-
-EVENT_OVERLAY_GROUP_TITLES_BY_KEY: dict[str, str] = {
-    'g_ev': 'Event Overlay',
-}
-
-# NOT renamed 2026-08-28: SMC_Exit_Signal.pine is R1-attested — its source
-# hash is frozen against artifacts/governance/smc_r1_live_rollout_evidence_*
-# and scripts/check_r1_attested_sources.py fails any PR that moves it. The
-# Chart-Link rename of this consumer must ride the next mutating TradingView
-# re-attestation session together with fresh evidence. Tripwire:
-# test_exit_signal_rename_rides_the_next_reattestation in
-# tests/test_customer_surface_vocabulary.py fires when the source moves.
-EXIT_SIGNAL_GROUP_TITLES_BY_KEY: dict[str, str] = {
-    'g_bus_state': 'Expert Mapping - Entry States',
-    'g_bus_plan': 'Expert Mapping - Trade Plan',
-}
-
-MOBILE_GROUP_TITLES_BY_KEY: dict[str, str] = {
-    'g_bus': CHART_LINK_SUITE_GROUP_TITLE,
-}
-
-ALERTS_GROUP_TITLES_BY_KEY: dict[str, str] = {
-    'g_bus': CHART_LINK_SUITE_GROUP_TITLE,
-}
-
-SETUP_CHECK_GROUP_TITLES_BY_KEY: dict[str, str] = {
-    'g_bus': CHART_LINK_SUITE_GROUP_TITLE,
-}
-
-BREAKOUT_OVERLAY_GROUP_TITLES_BY_KEY: dict[str, str] = {
-    'g_bus': CHART_LINK_SUITE_GROUP_TITLE,
-}
-
-CONFLUENCE_HUB_GROUP_TITLES_BY_KEY: dict[str, str] = {
-    'g_bus': f'2. {CHART_LINK_SUITE_GROUP_TITLE}',
-}
-
-CONTEXT_OVERLAY_GROUP_TITLES_BY_KEY: dict[str, str] = {
-    'g_meta': 'Context BUS · Meta',
-    'g_structure': 'Context BUS · Structure',
-    'g_imbalance': 'Context BUS · Imbalance',
-    'g_zone': 'Context BUS · Zones',
-    'g_sweep': 'Context BUS · Sweeps',
-    'g_pool': 'Context BUS · Pools',
-    'g_session': 'Context BUS · Session',
 }
 
 
@@ -1383,142 +873,9 @@ STRATEGY_BUS_BINDINGS: tuple[BusBinding, ...] = (
     BusBinding('BUS QualityScore', 'g_bus_plan'),
 )
 
-HOLD_MANAGER_BUS_BINDINGS: tuple[BusBinding, ...] = (
-    BusBinding('BUS SchemaVersion', 'gBus', 'critical'),
-    BusBinding('BUS ZoneActive', 'gBus', 'critical'),
-    BusBinding('BUS Armed', 'gBus', 'critical'),
-    BusBinding('BUS Confirmed', 'gBus', 'critical'),
-    BusBinding('BUS Ready', 'gBus', 'critical'),
-    BusBinding('BUS Trigger', 'gBus', 'critical'),
-    BusBinding('BUS Invalidation', 'gBus', 'critical'),
-    BusBinding('BUS QualityScore', 'gBus', 'critical'),
-    BusBinding('BUS SourceKind', 'gBus', 'critical'),
-    BusBinding('BUS StateCode', 'gBus', 'critical'),
-    BusBinding('BUS StopLevel', 'gBus', 'critical'),
-    BusBinding('BUS Target1', 'gBus', 'critical'),
-    BusBinding('BUS Target2', 'gBus', 'critical'),
-)
-
-EVENT_OVERLAY_BUS_BINDINGS: tuple[BusBinding, ...] = (
-    BusBinding('BUS LeanPackA', 'g_ev', 'critical'),
-)
-
-EXIT_SIGNAL_BUS_BINDINGS: tuple[BusBinding, ...] = (
-    BusBinding('BUS SchemaVersion', 'g_bus_state', 'critical'),
-    BusBinding('BUS Armed', 'g_bus_state', 'critical'),
-    BusBinding('BUS Confirmed', 'g_bus_state', 'critical'),
-    BusBinding('BUS Ready', 'g_bus_state', 'critical'),
-    BusBinding('BUS Trigger', 'g_bus_plan', 'critical'),
-    BusBinding('BUS Invalidation', 'g_bus_plan', 'critical'),
-    BusBinding('BUS StopLevel', 'g_bus_plan', 'critical'),
-    BusBinding('BUS Target1', 'g_bus_plan', 'critical'),
-    BusBinding('BUS Target2', 'g_bus_plan', 'critical'),
-)
-
-# 2026-08-28: the remaining onboarding consumers, registered so the registry —
-# not the Pine files alone — is the catalogue of every BUS-binding surface.
-# Row order mirrors each file's input.source declarations, which in turn walk
-# the Suite's BUS plot order (bind top-to-bottom without scrolling back up).
-MOBILE_BUS_BINDINGS: tuple[BusBinding, ...] = (
-    BusBinding('BUS SchemaVersion', 'g_bus', 'critical'),
-    BusBinding('BUS Armed', 'g_bus', 'critical'),
-    BusBinding('BUS Confirmed', 'g_bus', 'critical'),
-    BusBinding('BUS Ready', 'g_bus', 'critical'),
-    BusBinding('BUS Trigger', 'g_bus', 'critical'),
-    BusBinding('BUS Invalidation', 'g_bus', 'critical'),
-    BusBinding('BUS QualityScore', 'g_bus', 'critical'),
-    BusBinding('BUS StateCode', 'g_bus', 'critical'),
-)
-
-ALERTS_BUS_BINDINGS: tuple[BusBinding, ...] = (
-    BusBinding('BUS SchemaVersion', 'g_bus', 'critical'),
-    BusBinding('BUS ZoneActive', 'g_bus', 'critical'),
-    BusBinding('BUS Armed', 'g_bus', 'critical'),
-    BusBinding('BUS StateCode', 'g_bus', 'critical'),
-)
-
-SETUP_CHECK_BUS_BINDINGS: tuple[BusBinding, ...] = (
-    BusBinding('BUS SchemaVersion', 'g_bus', 'critical'),
-    BusBinding('BUS Armed', 'g_bus', 'critical'),
-    BusBinding('BUS Trigger', 'g_bus', 'critical'),
-    BusBinding('BUS Invalidation', 'g_bus', 'critical'),
-    BusBinding('BUS QualityScore', 'g_bus', 'critical'),
-    BusBinding('BUS StateCode', 'g_bus', 'critical'),
-)
-
-# First four rows are required for the engine tier; the rest are the optional
-# enrichment channels (real zone boxes, real risk plan, quality filter).
-BREAKOUT_OVERLAY_BUS_BINDINGS: tuple[BusBinding, ...] = (
-    BusBinding('BUS SchemaVersion', 'g_bus', 'critical'),
-    BusBinding('BUS ZoneActive', 'g_bus', 'critical'),
-    BusBinding('BUS Trigger', 'g_bus', 'critical'),
-    BusBinding('BUS Invalidation', 'g_bus', 'critical'),
-    BusBinding('BUS QualityScore', 'g_bus', 'diagnostic'),
-    BusBinding('BUS StopLevel', 'g_bus', 'diagnostic'),
-    BusBinding('BUS Target1', 'g_bus', 'diagnostic'),
-    BusBinding('BUS Target2', 'g_bus', 'diagnostic'),
-    BusBinding('BUS ZoneObTop', 'g_bus', 'diagnostic'),
-    BusBinding('BUS ZoneObBottom', 'g_bus', 'diagnostic'),
-    BusBinding('BUS ZoneFvgTop', 'g_bus', 'diagnostic'),
-    BusBinding('BUS ZoneFvgBottom', 'g_bus', 'diagnostic'),
-)
-
-CONFLUENCE_HUB_BUS_BINDINGS: tuple[BusBinding, ...] = (
-    BusBinding('BUS SchemaVersion', 'g_bus', 'critical'),
-    BusBinding('BUS Armed', 'g_bus', 'critical'),
-    BusBinding('BUS Trigger', 'g_bus', 'critical'),
-    BusBinding('BUS Invalidation', 'g_bus', 'critical'),
-    BusBinding('BUS QualityScore', 'g_bus', 'critical'),
-    BusBinding('BUS StateCode', 'g_bus', 'critical'),
-)
-
-_CONTEXT_GROUP_KEYS: dict[str, str] = {
-    'meta': 'g_meta',
-    'aggregate': 'g_meta',
-    'structure': 'g_structure',
-    'imbalance': 'g_imbalance',
-    'zone': 'g_zone',
-    'sweep': 'g_sweep',
-    'pool': 'g_pool',
-    'session': 'g_session',
-}
-
-CONTEXT_OVERLAY_BUS_BINDINGS: tuple[BusBinding, ...] = tuple(
-    BusBinding(
-        channel.label,
-        _CONTEXT_GROUP_KEYS[channel.group],
-        'critical' if channel.required else 'diagnostic',
-    )
-    for channel in CONTEXT_BUS_CHANNELS
-)
-
 
 DASHBOARD_BUS_LABELS: tuple[str, ...] = tuple(binding.label for binding in DASHBOARD_BUS_BINDINGS)
 STRATEGY_BUS_LABELS: tuple[str, ...] = tuple(binding.label for binding in STRATEGY_BUS_BINDINGS)
-HOLD_MANAGER_BUS_LABELS: tuple[str, ...] = tuple(
-    binding.label for binding in HOLD_MANAGER_BUS_BINDINGS
-)
-EVENT_OVERLAY_BUS_LABELS: tuple[str, ...] = tuple(
-    binding.label for binding in EVENT_OVERLAY_BUS_BINDINGS
-)
-EXIT_SIGNAL_BUS_LABELS: tuple[str, ...] = tuple(
-    binding.label for binding in EXIT_SIGNAL_BUS_BINDINGS
-)
-MOBILE_BUS_LABELS: tuple[str, ...] = tuple(
-    binding.label for binding in MOBILE_BUS_BINDINGS
-)
-ALERTS_BUS_LABELS: tuple[str, ...] = tuple(
-    binding.label for binding in ALERTS_BUS_BINDINGS
-)
-SETUP_CHECK_BUS_LABELS: tuple[str, ...] = tuple(
-    binding.label for binding in SETUP_CHECK_BUS_BINDINGS
-)
-BREAKOUT_OVERLAY_BUS_LABELS: tuple[str, ...] = tuple(
-    binding.label for binding in BREAKOUT_OVERLAY_BUS_BINDINGS
-)
-CONFLUENCE_HUB_BUS_LABELS: tuple[str, ...] = tuple(
-    binding.label for binding in CONFLUENCE_HUB_BUS_BINDINGS
-)
 
 DASHBOARD_CRITICAL_BINDINGS: tuple[BusBinding, ...] = tuple(
     b for b in DASHBOARD_BUS_BINDINGS if b.tier == 'critical'
@@ -1529,74 +886,25 @@ DASHBOARD_DIAGNOSTIC_BINDINGS: tuple[BusBinding, ...] = tuple(
 
 DASHBOARD_BUS_CHANNELS: tuple[str, ...] = tuple(label.removeprefix('BUS ') for label in DASHBOARD_BUS_LABELS)
 STRATEGY_BUS_CHANNELS: tuple[str, ...] = tuple(label.removeprefix('BUS ') for label in STRATEGY_BUS_LABELS)
-HOLD_MANAGER_BUS_CHANNELS: tuple[str, ...] = tuple(
-    label.removeprefix('BUS ') for label in HOLD_MANAGER_BUS_LABELS
-)
 
 BINDING_CONTRACT_BINDINGS: dict[str, tuple[BusBinding, ...]] = {
     'dashboardBindings': DASHBOARD_BUS_BINDINGS,
     'strategyBindings': STRATEGY_BUS_BINDINGS,
-    'holdManagerBindings': HOLD_MANAGER_BUS_BINDINGS,
-    'eventOverlayBindings': EVENT_OVERLAY_BUS_BINDINGS,
-    'exitSignalBindings': EXIT_SIGNAL_BUS_BINDINGS,
-    'contextOverlayBindings': CONTEXT_OVERLAY_BUS_BINDINGS,
-    'mobileBindings': MOBILE_BUS_BINDINGS,
-    'alertsBindings': ALERTS_BUS_BINDINGS,
-    'setupCheckBindings': SETUP_CHECK_BUS_BINDINGS,
-    'breakoutOverlayBindings': BREAKOUT_OVERLAY_BUS_BINDINGS,
-    'confluenceHubBindings': CONFLUENCE_HUB_BUS_BINDINGS,
-}
-
-# Which Pine file each binding contract binds. Single source for deriving the
-# consumer role below from SURFACE_DEFINITIONS instead of a second hand-kept
-# role catalogue (2026-08-28).
-BINDING_CONTRACT_FILES: dict[str, str] = {
-    'dashboardBindings': 'SMC_Decision_Board.pine',
-    'strategyBindings': 'SMC_Long_Dip_Strategy.pine',
-    'holdManagerBindings': 'SMC_Hold_Manager.pine',
-    'eventOverlayBindings': 'SMC_Event_Overlay.pine',
-    'exitSignalBindings': 'SMC_Exit_Signal.pine',
-    'contextOverlayBindings': 'SMC_Context_Overlay.pine',
-    'mobileBindings': 'SMC_Long_Dip_Mobile.pine',
-    'alertsBindings': 'SMC_Long_Dip_Alerts.pine',
-    'setupCheckBindings': 'SMC_Setup_Check.pine',
-    'breakoutOverlayBindings': 'SMC_Breakout_Overlay.pine',
-    'confluenceHubBindings': 'SMC_Confluence_Hub.pine',
 }
 
 BINDING_CONTRACT_NAMES: dict[str, str] = {
     'dashboardBindings': 'dashboard companion BUS bindings',
     'strategyBindings': 'execution wrapper BUS bindings',
-    'holdManagerBindings': 'Hold Manager BUS bindings',
-    'eventOverlayBindings': 'Event Overlay BUS bindings',
-    'exitSignalBindings': 'Exit Signal BUS bindings',
-    'contextOverlayBindings': 'Context Overlay schema-8001 bindings',
-    'mobileBindings': 'Mobile companion BUS bindings',
-    'alertsBindings': 'Alerts companion BUS bindings',
-    'setupCheckBindings': 'Setup Check BUS bindings',
-    'breakoutOverlayBindings': 'Breakout Overlay BUS bindings',
-    'confluenceHubBindings': 'Confluence Hub BUS bindings',
 }
 
-# Derived, never typed: the registry already classifies every surface, so the
-# role a binding contract belongs to comes from SURFACE_DEFINITIONS.
 BINDING_CONTRACT_CONSUMER_ROLES: dict[str, str] = {
-    key: SURFACE_DEFINITIONS_BY_FILE[file].consumer_role
-    for key, file in BINDING_CONTRACT_FILES.items()
+    'dashboardBindings': 'dashboard_companion',
+    'strategyBindings': 'execution_wrapper',
 }
 
 BINDING_CONTRACT_GROUP_TITLES: dict[str, dict[str, str]] = {
     'dashboardBindings': DASHBOARD_GROUP_TITLES_BY_KEY,
     'strategyBindings': STRATEGY_GROUP_TITLES_BY_KEY,
-    'holdManagerBindings': HOLD_MANAGER_GROUP_TITLES_BY_KEY,
-    'eventOverlayBindings': EVENT_OVERLAY_GROUP_TITLES_BY_KEY,
-    'exitSignalBindings': EXIT_SIGNAL_GROUP_TITLES_BY_KEY,
-    'contextOverlayBindings': CONTEXT_OVERLAY_GROUP_TITLES_BY_KEY,
-    'mobileBindings': MOBILE_GROUP_TITLES_BY_KEY,
-    'alertsBindings': ALERTS_GROUP_TITLES_BY_KEY,
-    'setupCheckBindings': SETUP_CHECK_GROUP_TITLES_BY_KEY,
-    'breakoutOverlayBindings': BREAKOUT_OVERLAY_GROUP_TITLES_BY_KEY,
-    'confluenceHubBindings': CONFLUENCE_HUB_GROUP_TITLES_BY_KEY,
 }
 
 
@@ -1642,26 +950,11 @@ def build_product_cut_manifest_payload() -> dict[str, Any]:
             'proOnly': list(PRO_ONLY_BUS_LABELS),
             'dashboardBindings': list(DASHBOARD_BUS_LABELS),
             'strategyBindings': list(STRATEGY_BUS_LABELS),
-            'holdManagerBindings': list(HOLD_MANAGER_BUS_LABELS),
-            'eventOverlayBindings': list(EVENT_OVERLAY_BUS_LABELS),
-            'exitSignalBindings': list(EXIT_SIGNAL_BUS_LABELS),
-            'contextOverlayBindings': [
-                binding.label for binding in CONTEXT_OVERLAY_BUS_BINDINGS
-            ],
-            'mobileBindings': list(MOBILE_BUS_LABELS),
-            'alertsBindings': list(ALERTS_BUS_LABELS),
-            'setupCheckBindings': list(SETUP_CHECK_BUS_LABELS),
-            'breakoutOverlayBindings': list(BREAKOUT_OVERLAY_BUS_LABELS),
-            'confluenceHubBindings': list(CONFLUENCE_HUB_BUS_LABELS),
         },
         'preflightScopes': {
             'smcCoreDashboard': [_preflight_target_payload(target) for target in PREFLIGHT_CORE_DASHBOARD_TARGETS],
             'smcMainline': [_preflight_target_payload(target) for target in PREFLIGHT_MAINLINE_TARGETS],
             'smcDecisionFirst': [_preflight_target_payload(target) for target in PREFLIGHT_DECISION_FIRST_TARGETS],
-            'smcHoldManagerShadow': [_preflight_target_payload(target) for target in PREFLIGHT_HOLD_MANAGER_SHADOW_TARGETS],
-            'smcR1Companions': [_preflight_target_payload(target) for target in PREFLIGHT_R1_COMPANION_TARGETS],
-            'smcR4ContextShadow': [_preflight_target_payload(target) for target in PREFLIGHT_R4_CONTEXT_SHADOW_TARGETS],
-            'smcR5HtfSession': [_preflight_target_payload(target) for target in PREFLIGHT_R5_HTF_SESSION_TARGETS],
         },
         'validationEvidence': {
             'captureMode': VALIDATION_EVIDENCE_CAPTURE_MODE,

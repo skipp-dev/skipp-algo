@@ -9,9 +9,9 @@
 // SMC Event Overlay — lightweight optional companion to SMC Core
 //
 // Draws three visual elements for relevant macro/earnings events:
-//   1. Vertical line at the exact event time (America/New_York, DST-aware)
-//   2. Separate pre/post-event restriction zone (bgcolor shading)
-//   3. Compact event label with name + impact + published event time
+//   1. Vertical event line at the expected event bar
+//   2. Pre-event / post-event restriction zone (bgcolor shading)
+//   3. Compact event label with name + impact
 //
 // Does NOT duplicate any core logic. Reads:
 //   • smc_micro_profiles_generated library — static event metadata
@@ -22,13 +22,12 @@
 
 indicator("SMC Event Overlay", overlay = true, max_labels_count = 50, max_lines_count = 50, max_boxes_count = 50)
 
-import preuss_steffen/smc_micro_profiles_generated/569 as mp
-import preuss_steffen/smc_utils/4 as u
+import preuss_steffen/smc_micro_profiles_generated/158 as mp
 
 // ── Inputs ──────────────────────────────────────────────────────
 
 var g_ev = "Event Overlay"
-var bool show_event_line       = input.bool(true,  "Show exact event-time line", group = g_ev, tooltip = "Draws NEXT_EVENT_TIME at its absolute America/New_York timestamp. This is not the start of the restriction window.")
+var bool show_event_line       = input.bool(true,  "Show event vertical line",   group = g_ev)
 var bool show_event_zone       = input.bool(true,  "Show pre/post event zone",   group = g_ev)
 var bool show_event_label      = input.bool(true,  "Show event label",           group = g_ev)
 var bool high_impact_only      = input.bool(true,  "High-impact events only",    group = g_ev, tooltip = "When enabled, only HIGH and ELEVATED impact events are shown.")
@@ -53,8 +52,7 @@ int    ev_after_min   = mp.EVENT_RESTRICT_AFTER_MIN
 bool   ev_cooldown    = mp.EVENT_COOLDOWN_ACTIVE
 bool   ev_mkt_block   = mp.MARKET_EVENT_BLOCKED
 bool   ev_sym_block   = mp.SYMBOL_EVENT_BLOCKED
-string ev_risk_tickers = mp.HIGH_RISK_EVENT_TICKERS
-string ev_earnings_tickers = mp.EARNINGS_SOON_TICKERS
+string ev_earnings    = mp.EARNINGS_SOON_TICKERS
 
 // Library freshness check (shared pattern across all companions)
 var label stale_badge = na
@@ -75,129 +73,96 @@ if barstate.islast
 // ── BUS decode helpers ──────────────────────────────────────────
 
 pack_slot(float packed_value, int slot) =>
-    int packed = int(math.round(nz(packed_value, 0.0)))
-    if slot == 0
-        int(math.floor(packed / 1000000000.0))
-    else if slot == 1
-        int(math.floor(packed / 1000000.0)) % 1000
-    else if slot == 2
-        int(math.floor(packed / 1000.0)) % 1000
-    else
-        packed % 1000
+     int packed = int(math.round(nz(packed_value, 0.0)))
+     if slot == 0
+          int(math.floor(packed / 1000000000.0))
+     else if slot == 1
+          int(math.floor(packed / 1000000.0)) % 1000
+     else if slot == 2
+          int(math.floor(packed / 1000.0)) % 1000
+     else
+          packed % 1000
 
 row_status(int row_code) =>
-    int(math.floor(row_code / 100)) - 1
+     int(math.floor(row_code / 100)) - 1
 
 row_reason(int row_code) =>
-    row_code % 100
+     row_code % 100
 
 lean_erl_row_code() =>
-    pack_slot(src_lean_pack_a, 2)
+     pack_slot(src_lean_pack_a, 2)
 
 overlay_event_status_text(int lean_row_code) =>
-    int lean_state = row_status(lean_row_code)
-    int lean_reason = row_reason(lean_row_code)
-    if lean_state == -1 and lean_reason == 1
-        "🚫 Mkt Block"
-    else if lean_state == -1 and lean_reason == 6
-        "🚫 Earn Block"
-    else if lean_state == 2 and lean_reason == 3
-        "⏳ Incoming"
-    else if lean_state == 3 and lean_reason == 4
-        "❄ Cooldown"
-    else
-        "✓ Clear"
-
-event_timestamp_et(string asof_date, string event_time) =>
-    float event_year = str.tonumber(str.substring(asof_date, 0, 4))
-    float event_month = str.tonumber(str.substring(asof_date, 5, 7))
-    float event_day = str.tonumber(str.substring(asof_date, 8, 10))
-    float event_hour = str.tonumber(str.substring(event_time, 0, 2))
-    float event_minute = str.tonumber(str.substring(event_time, 3, 5))
-    bool valid_parts = not na(event_year) and not na(event_month) and not na(event_day) and
-         not na(event_hour) and not na(event_minute) and str.length(event_time) >= 5 and
-         str.substring(event_time, 2, 3) == ":" and event_hour >= 0 and event_hour <= 23 and
-         event_minute >= 0 and event_minute <= 59
-    valid_parts ? timestamp("America/New_York", int(event_year), int(event_month), int(event_day), int(event_hour), int(event_minute)) : na
+     int lean_state = row_status(lean_row_code)
+     int lean_reason = row_reason(lean_row_code)
+     if lean_state == -1 and lean_reason == 1
+          "🚫 Mkt Block"
+     else if lean_state == -1 and lean_reason == 6
+          "🚫 Earn Block"
+     else if lean_state == 2 and lean_reason == 3
+          "⏳ Incoming"
+     else if lean_state == 3 and lean_reason == 4
+          "❄ Cooldown"
+     else
+          "✓ Clear"
 
 // ── Visibility gate ─────────────────────────────────────────────
 
-bool has_event       = ev_name != ""
+bool has_event       = ev_name != "" and ev_window != "CLEAR"
 bool is_high_impact  = ev_impact == "HIGH" or ev_impact == "MEDIUM" or ev_risk_level == "HIGH" or ev_risk_level == "ELEVATED"
 bool show_any        = has_event and (not high_impact_only or is_high_impact)
-bool is_symbol_event = u.csv_has_symbol_token(ev_risk_tickers, syminfo.ticker, syminfo.tickerid) or u.csv_has_symbol_token(ev_earnings_tickers, syminfo.ticker, syminfo.tickerid)
+bool is_symbol_event = str.contains(ev_earnings, syminfo.ticker)
 bool is_blocked      = ev_mkt_block or (ev_sym_block and is_symbol_event)
-int event_ts         = event_timestamp_et(mp.ASOF_DATE, ev_time)
-bool event_time_valid = not na(event_ts)
-int restriction_start_ts = event_time_valid ? event_ts - ev_before_min * 60000 : na
-int restriction_end_ts   = event_time_valid ? event_ts + ev_after_min * 60000 : na
-int bar_end_ts            = na(time_close) ? time : time_close
-bool in_pre_restriction   = show_any and event_time_valid and time < event_ts and bar_end_ts > restriction_start_ts
-bool in_post_restriction  = show_any and event_time_valid and time <= restriction_end_ts and bar_end_ts > event_ts
-bool fallback_restriction = show_any and not event_time_valid and ev_window != "CLEAR" and barstate.islast
 
 // ── 1. Pre/Post event zone (bgcolor) ────────────────────────────
 
-color zone_color = show_event_zone ?
-     in_pre_restriction ? col_zone_pre :
-     in_post_restriction ? col_zone_post :
-     fallback_restriction and ev_window == "PRE_EVENT" ? col_zone_pre :
-     fallback_restriction ? col_zone_post :
+color zone_color = show_event_zone and show_any ?
+     ev_window == "PRE_EVENT"  ? col_zone_pre  :
+     ev_window == "POST_EVENT" ? col_zone_post :
+     ev_window == "COOLDOWN"   ? col_zone_post :
      na :
      na
 
 bgcolor(zone_color, title = "Event Zone")
 
-// ── 2. Exact event-time line ───────────────────────────────────
+// ── 2. Vertical event line ─────────────────────────────────────
 
-// The generated snapshot is static across chart history. Anchor the object to
-// the published event timestamp instead of treating the first PRE_EVENT bar as
-// an event-time series transition.
-if barstate.islastconfirmedhistory and show_event_line and show_any and event_time_valid
-    line.new(event_ts, high, event_ts, low, xloc.bar_time, extend.both,
+// Draw once when window transitions into PRE_EVENT on the current bar
+var bool prev_was_clear = true
+bool window_just_started = show_event_line and show_any and ev_window == "PRE_EVENT" and prev_was_clear
+if window_just_started
+    line.new(bar_index, high, bar_index, low, xloc.bar_index, extend.both,
          col_event_line, line.style_dashed, 1)
+prev_was_clear := ev_window == "CLEAR"
 
 // ── 3. Compact event label ─────────────────────────────────────
 
-if barstate.islastconfirmedhistory and show_event_label and show_any and event_time_valid
+// Show label once per event window start
+if show_event_label and show_any and window_just_started
     string impact_icon = ev_impact == "HIGH" ? "⚠" : ev_impact == "MEDIUM" ? "●" : "○"
     string block_flag  = is_blocked ? " 🚫" : ""
-    string lbl_text    = impact_icon + " " + ev_name + " @ " + ev_time + block_flag
-    label.new(event_ts, high, lbl_text,
-         xloc.bar_time, yloc.abovebar,
+    string lbl_text    = impact_icon + " " + ev_name + block_flag
+    label.new(bar_index, high, lbl_text,
+         xloc.bar_index, yloc.abovebar,
          color   = is_blocked ? color.red : color.new(color.orange, 30),
          style   = label.style_label_down,
          textcolor = col_label_text,
          size    = size.small)
 
 // ── Status bar (bottom-right compact) ───────────────────────────
-// Minimal real-time status from BUS — one static plot per possible state.
-// Pine requires plotchar.char to be an input string, so a dynamic series string
-// cannot be passed into a single plotchar call.
+// Minimal real-time status from BUS — no table, just a plotchar
 
-int rt_lean_row_code = lean_erl_row_code()
-int rt_lean_state = row_status(rt_lean_row_code)
-int rt_lean_reason = row_reason(rt_lean_row_code)
-bool rt_market_block = rt_lean_state == -1 and rt_lean_reason == 1
-bool rt_earnings_block = rt_lean_state == -1 and rt_lean_reason == 6
-bool rt_incoming = rt_lean_state == 2 and rt_lean_reason == 3
-bool rt_cooldown = rt_lean_state == 3 and rt_lean_reason == 4
-bool rt_clear = not rt_market_block and not rt_earnings_block and not rt_incoming and not rt_cooldown
+string rt_status = overlay_event_status_text(lean_erl_row_code())
 
-plotchar(show_any and rt_market_block ? 0 : na, "Event Status · Market Block", "M", location.bottom, size = size.tiny, display = display.status_line)
-plotchar(show_any and rt_earnings_block ? 0 : na, "Event Status · Earnings Block", "E", location.bottom, size = size.tiny, display = display.status_line)
-plotchar(show_any and rt_incoming ? 0 : na, "Event Status · Incoming", "I", location.bottom, size = size.tiny, display = display.status_line)
-plotchar(show_any and rt_cooldown ? 0 : na, "Event Status · Cooldown", "C", location.bottom, size = size.tiny, display = display.status_line)
-plotchar(show_any and rt_clear ? 0 : na, "Event Status · Clear", "✓", location.bottom, size = size.tiny, display = display.status_line)
+plotchar(show_any ? 0 : na, "Event Status", "•", location.bottom, size = size.tiny, display = display.status_line, char = rt_status)
 
 // ── Alerts ──────────────────────────────────────────────────────
 _alertGate = barCloseOnly ? barstate.isconfirmed : true
-bool restriction_just_started = show_any and event_time_valid and time <= restriction_start_ts and bar_end_ts > restriction_start_ts
 
-alertcondition(restriction_just_started and is_blocked and _alertGate,
-     title = "Event Restriction Hard Block Started",
-     message = "🚫 Event restriction window started: {{ticker}} — " + ev_name)
+alertcondition(show_any and window_just_started and is_blocked and _alertGate,
+     title = "Event Hard Block Started",
+     message = "🚫 Event hard block: {{ticker}} — " + ev_name)
 
-alertcondition(restriction_just_started and not is_blocked and _alertGate,
-     title = "Event Restriction Window Started",
-     message = "⏳ Event restriction window started: {{ticker}} — " + ev_name + " (" + ev_impact + ")")
+alertcondition(show_any and window_just_started and not is_blocked and _alertGate,
+     title = "Event Window Started",
+     message = "⏳ Event window: {{ticker}} — " + ev_name + " (" + ev_impact + ")")

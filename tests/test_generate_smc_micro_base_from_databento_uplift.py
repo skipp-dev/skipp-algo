@@ -689,6 +689,19 @@ def test_resolve_enrichment_flags_individual_only() -> None:
     assert flags["enrich_zone_priority"] is False
 
 
+def test_resolve_enrichment_flags_static_only_disables_provider_enrichment() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["dummy.xlsx", "--static-only", "--enrich-all"])
+    flags = _resolve_enrichment_flags(args)
+    assert flags
+    assert not any(flags.values())
+
+
+# ---------------------------------------------------------------------------
+# main() — workbook path
+# ---------------------------------------------------------------------------
+
+
 def test_main_workbook_path_writes_outputs(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -783,6 +796,7 @@ def test_main_bundle_path_invokes_generate_and_finalize(
             "generate_smc_micro_base_from_databento",
             "--bundle", str(bundle_path),
             "--asof-date", "2026-04-23",
+            "--static-only",
         ],
     )
 
@@ -791,3 +805,4 @@ def test_main_bundle_path_invokes_generate_and_finalize(
     assert captured["bundle"] == bundle_path
     assert captured["asof_date"] == "2026-04-23"
     assert captured["base_result"] == "fake-base-result"
+    assert captured["finalize_kwargs"]["static_control_plane"] is True

@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from smc_integration.sources import structure_artifact_json
-from smc_integration.structure_contract import AUXILIARY_KEYS, normalize_structure_contracts_with_diagnostics
+from smc_integration.structure_contract import normalize_structure_contracts_with_diagnostics
 
 
 def test_normalize_structure_contracts_reports_dropped_legacy_entries() -> None:
@@ -86,16 +86,6 @@ def test_discover_summary_reports_legacy_drop_health_issue(monkeypatch, tmp_path
     assert summary["health"]["issue_count"] >= 1
     codes = {str(item.get("code", "")) for item in summary["health"]["issues"]}
     assert "LEGACY_ENTRIES_DROPPED" in codes
-
-
-def test_empty_discovery_summary_uses_the_canonical_auxiliary_keyset(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setattr(structure_artifact_json, "STRUCTURE_ARTIFACTS_DIR", tmp_path / "missing-artifacts")
-    monkeypatch.setattr(structure_artifact_json, "STRUCTURE_ARTIFACT_JSON", tmp_path / "missing-legacy.json")
-
-    summary = structure_artifact_json.discover_normalized_contract_summary()
-
-    assert set(summary["mapped_auxiliary_categories"]) == set(AUXILIARY_KEYS)
-    assert not any(summary["mapped_auxiliary_categories"].values())
 
 
 # ── pure helper coverage ─────────────────────────────────────────

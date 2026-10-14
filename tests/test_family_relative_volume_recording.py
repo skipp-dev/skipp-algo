@@ -86,7 +86,6 @@ def _triggered_event(family: str, *, rel_volume: float | None, up: bool) -> Fami
         anchor_ts=_T0,
         forward_highs=[f + 1.0 for f in forward],
         forward_lows=[f - 1.0 for f in forward],
-        forward_opens=[base, *forward[:-1]],
         forward_closes=forward,
         forward_timestamps=[_T0 + (i + 1) * _STEP for i in range(len(forward))],
     )

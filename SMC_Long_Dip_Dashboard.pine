@@ -1,0 +1,2067 @@
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © preuss_steffen
+
+//@version=6
+
+// Product role: pro companion surface. Hidden BUS bindings remain operator-only; the visible surface mode controls the user-facing dashboard cut.
+// Product scope: this dashboard reflects the long-dip specialist mainline of SMC Core.
+//   Short-parity would require a dedicated companion track; it is not an implicit promise of this surface.
+
+indicator("SMC Long-Dip Dashboard", overlay = true, max_labels_count = 50)
+
+import preuss_steffen/smc_micro_profiles_generated/158 as mp
+import preuss_steffen/smc_utils/3 as u
+
+var string g_surface = "1. Product Surface"
+// BUS binding groups are ordered so that reading the settings panel from top to
+// bottom walks the Suite's BUS plot() order 0..63 without ever going backwards.
+// TradingView lists a source study's outputs as ONE FLAT list in plot order — it
+// knows nothing about these groups — so any group whose plot range is out of
+// sequence forces the operator to scroll back up in the dropdown. With 64 rows
+// that is the difference between a mechanical top-to-bottom pass and a hunt.
+// The former "Diagnostic Support" group held two disjoint ranges (14-16 and
+// 40-43) and is therefore split: state codes stay here, blocker/regime codes get
+// their own group.
+var string g_bus_lifecycle = "2. Operator Only - Lifecycle BUS"
+var string g_bus_diag = "3. Operator Only - Diagnostic Support"
+var string g_bus_plan = "4. Operator Only - Trade Plan"
+var string g_bus_diag_rows = "5. Operator Only - Diagnostic Rows"
+var string g_bus_blockers = "6. Operator Only - Blocker Codes"
+var string g_bus_detail = "7. Operator Only - Detail Surface"
+var string g_bus_lean = "8. Operator Only - Lean Surface"
+var string g_bus_preset = "9. Operator Only - Preset Contract"
+var string g_local_debug = "10. Operator Only - Local Debug Mirrors"
+var string g_trade_mgmt = "11. Trade Management (optional, mirrors SMC_Hold_Manager)"
+
+// ── Trade Management mirror inputs ────────────────────────────
+// READ-ONLY mirror of SMC_Hold_Manager.pine state machine. Renders 2 extra
+// rows (Trade-State + live Stop) at the bottom of the dashboard table when
+// enabled. NO alerts here — Mobile/Dashboard surfaces are read-only by
+// design. For audible alerts, link SMC_Hold_Manager on the same chart.
+// MIRROR-OF: SMC_Hold_Manager.pine §state-machine (FLAT/ARMED/IN_TRADE)
+tm_enable      = input.bool(false, "Enable Trade-Mgmt rows",            group = g_trade_mgmt, tooltip = "Adds 2 read-only rows (Trade-State + live Stop) showing the same FLAT/ARMED/IN-TRADE machine SMC_Hold_Manager runs. No alerts; for audible alerts add SMC_Hold_Manager.")
+tm_tp1_r       = input.float(1.5,  "TP1 (R-multiple)",                  group = g_trade_mgmt, minval = 0.25, step = 0.25)
+tm_tp2_r       = input.float(3.0,  "TP2 (R-multiple)",                  group = g_trade_mgmt, minval = 0.5,  step = 0.25)
+tm_be_after_t1 = input.bool(true,  "Move stop to break-even after TP1", group = g_trade_mgmt)
+
+surface_mode = input.string("Decision Brief", "View", options = ["Focus", "Hero", "Explain", "Decision Brief", "Audit View"], group = g_surface, tooltip = "Focus: 3-row traffic light — just the essentials.\nHero: 7-row decision-first surface (action, market, quality, trust, why now, risk, plan) reading the hero state contract from the generated library.\nExplain: checklist showing why the current zone state holds.\nDecision Brief: compact setup overview with context.\nAudit View: full expert table for review.")
+show_table = input.bool(true, "Show Brief Panel", group = g_surface)
+show_risk_lines = input.bool(true, "Show Trade Plan", group = g_surface)
+show_state_bg = input.bool(false, "Highlight Live Setup", group = g_surface)
+compact_dashboard = input.bool(false, "Compact Dashboard", group = g_surface, tooltip = "WP-OV5: Show only 5 key rows for mobile or small screens. Overrides Decision Brief when enabled.")
+color_theme = input.string("Standard", "Color Theme", options = ["Standard", "Colorblind Safe"], group = g_surface, tooltip = "Match this to the Core Engine color theme. Colorblind Safe replaces red/green with orange/blue.")
+hero_token_order = input.string("BIAS,TRUST,FAM,ZONE,BLOCKER", "Hero Token Order", group = g_surface, tooltip = "Plan 1.1 follow-up — comma-separated tokens that compose the Hero one-liner after the fixed 'SMC' prefix. Vocabulary: BIAS, TRUST, FAM (top-family hit-rate %), ZONE (rank), BLOCKER (warning), SHA (calibration SHA, requires Calibration SHA input below). Unknown tokens are ignored. Default 'BIAS,TRUST,FAM,ZONE,BLOCKER' matches the original hardcoded order. This input is the seam for the W22 preset/template marketplace (Plan §3.5) — users can already build their own Hero today.")
+calibration_sha = input.string("", "Calibration SHA", group = g_surface, tooltip = "Plan §3.1.1 — paste the short git SHA of the calibration_report artifact you trust (e.g. 'a1b2c3d'). When set and the SHA token is present in Hero Token Order, the Hero one-liner appends 'sha:<7chars>' so a screenshot stays SHA-anchored. Empty by default → SHA segment is omitted (no surface change).")
+calibration_breach_banner = input.bool(false, "Calibration Breach Banner", group = g_surface, tooltip = "Plan §3.1.2 — manual operator switch for the rolling-30-day smECE SLO breach. Flip on when docs/slo_calibration.md mitigation pipeline is triggered. Hero one-liner then prepends '⚠CAL-BREACH' to the BLOCKER token. Auto-flip from the daily artifact stream lands once Plan W14–W15 ships the public dashboard.")
+fvg_context_health_text = input.string("", "FVG Context Health (paste from sidecar)", group = g_surface, tooltip = "Plan §D2 — paste the operator-summary line from the latest pine/generated/fvg_context_health.json sidecar (e.g. '⚠ FVG weak in ETH+HIGH (41% HR, 12 events); OK in RTH+NORMAL (72% HR, 34 events)'). Renders as a tooltip on the FVG Status row (line 32) and an extra hint row (32a). Empty by default → tooltip falls back to the legacy single-number summary (no surface change). Auto-flip from the daily artifact stream lands once the smc_micro_profiles_generated library exposes per-context FVG fields (separate library republish PR).")
+
+// ── Dashboard color palette ───────────────────────────────────
+var bool _cb = color_theme == "Colorblind Safe"
+var color CLR_BULL      = _cb ? #1f77b4 : color.green
+var color CLR_BULL_ALT  = _cb ? color.new(#1f77b4, 20) : color.teal
+var color CLR_WARN      = _cb ? #17becf : color.aqua
+var color CLR_CAUTION   = _cb ? #bcbd22 : color.orange
+var color CLR_BUILDING  = _cb ? color.new(#bcbd22, 20) : color.yellow
+var color CLR_BEAR      = _cb ? #ff7f0e : color.red
+var color CLR_NEUTRAL   = color.gray
+
+// ── Trust-Tier color tokens (Plan 1.6 visual consolidation) ──
+// Used by hero one-liner / future per-tier badges so users can read
+// trust on 10m distance without reading the table.
+var color CLR_TIER_T1   = _cb ? #1f77b4 : color.new(color.green,  0)
+var color CLR_TIER_T2   = _cb ? #17becf : color.new(color.teal,   0)
+var color CLR_TIER_T3   = _cb ? #bcbd22 : color.new(color.orange, 0)
+var color CLR_TIER_T4   = _cb ? #ff7f0e : color.new(color.red,    0)
+// Icon tokens — single source of truth so dashboards/labels stay consistent.
+var string ICON_UP   = "⬆"
+var string ICON_DOWN = "⬇"
+var string ICON_WARN = "⚠"
+var string ICON_OK   = "✅"
+
+src_bus_schema_version = input.source(close, "BUS SchemaVersion", group = g_bus_lifecycle, display = display.none, tooltip = "Bind first — must match the schema version published by SMC Core.")
+src_zone_active = input.source(close, "BUS ZoneActive", group = g_bus_lifecycle, display = display.none, tooltip = "Bind this section top-to-bottom to the matching hidden BUS series published by SMC Core.")
+src_armed = input.source(close, "BUS Armed", group = g_bus_lifecycle, display = display.none)
+src_confirmed = input.source(close, "BUS Confirmed", group = g_bus_lifecycle, display = display.none)
+src_ready = input.source(close, "BUS Ready", group = g_bus_lifecycle, display = display.none)
+src_entry_best = input.source(close, "BUS EntryBest", group = g_bus_lifecycle, display = display.none)
+src_entry_strict = input.source(close, "BUS EntryStrict", group = g_bus_lifecycle, display = display.none)
+src_trigger = input.source(close, "BUS Trigger", group = g_bus_lifecycle, display = display.none)
+src_invalidation = input.source(close, "BUS Invalidation", group = g_bus_lifecycle, display = display.none)
+src_quality_score = input.source(close, "BUS QualityScore", group = g_bus_lifecycle, display = display.none)
+src_source_kind = input.source(close, "BUS SourceKind", group = g_bus_lifecycle, display = display.none)
+src_state_code = input.source(close, "BUS StateCode", group = g_bus_lifecycle, display = display.none)
+src_trend_pack = input.source(close, "BUS TrendPack", group = g_bus_lifecycle, display = display.none)
+src_meta_pack = input.source(close, "BUS MetaPack", group = g_bus_lifecycle, display = display.none)
+src_ltf_delta_state = input.source(close, "BUS LtfDeltaState", group = g_bus_diag, display = display.none, tooltip = "Keep binding straight down the panel — the rows follow the Suite's output order in the dropdown.")
+src_safe_trend_state = input.source(close, "BUS SafeTrendState", group = g_bus_diag, display = display.none)
+src_micro_profile_code = input.source(close, "BUS MicroProfileCode", group = g_bus_diag, display = display.none)
+src_stop_level = input.source(close, "BUS StopLevel", group = g_bus_plan, display = display.none, tooltip = "Trade-plan bindings. They stay in Suite output order like every other group.")
+src_target_1 = input.source(close, "BUS Target1", group = g_bus_plan, display = display.none)
+src_target_2 = input.source(close, "BUS Target2", group = g_bus_plan, display = display.none)
+src_session_gate_row = input.source(close, "BUS SessionGateRow", group = g_bus_diag_rows, display = display.none, tooltip = "Continue binding top-to-bottom — the rows follow the Suite's output order in the dropdown.")
+src_market_gate_row = input.source(close, "BUS MarketGateRow", group = g_bus_diag_rows, display = display.none)
+src_vola_gate_row = input.source(close, "BUS VolaGateRow", group = g_bus_diag_rows, display = display.none)
+src_micro_session_gate_row = input.source(close, "BUS MicroSessionGateRow", group = g_bus_diag_rows, display = display.none)
+src_micro_fresh_row = input.source(close, "BUS MicroFreshRow", group = g_bus_diag_rows, display = display.none)
+src_volume_data_row = input.source(close, "BUS VolumeDataRow", group = g_bus_diag_rows, display = display.none)
+src_quality_env_row = input.source(close, "BUS QualityEnvRow", group = g_bus_diag_rows, display = display.none)
+src_quality_strict_row = input.source(close, "BUS QualityStrictRow", group = g_bus_diag_rows, display = display.none)
+src_close_strength_row = input.source(close, "BUS CloseStrengthRow", group = g_bus_diag_rows, display = display.none)
+src_ema_support_row = input.source(close, "BUS EmaSupportRow", group = g_bus_diag_rows, display = display.none)
+src_adx_row = input.source(close, "BUS AdxRow", group = g_bus_diag_rows, display = display.none)
+src_relvol_row = input.source(close, "BUS RelVolRow", group = g_bus_diag_rows, display = display.none)
+src_vwap_row = input.source(close, "BUS VwapRow", group = g_bus_diag_rows, display = display.none)
+src_context_quality_row = input.source(close, "BUS ContextQualityRow", group = g_bus_diag_rows, display = display.none)
+src_quality_clean_row = input.source(close, "BUS QualityCleanRow", group = g_bus_diag_rows, display = display.none)
+src_quality_score_row = input.source(close, "BUS QualityScoreRow", group = g_bus_diag_rows, display = display.none)
+src_sd_confluence_row = input.source(close, "BUS SdConfluenceRow", group = g_bus_diag_rows, display = display.none)
+src_sd_osc_row = input.source(close, "BUS SdOscRow", group = g_bus_diag_rows, display = display.none)
+src_vol_regime_row = input.source(close, "BUS VolRegimeRow", group = g_bus_diag_rows, display = display.none)
+src_vol_squeeze_row = input.source(close, "BUS VolSqueezeRow", group = g_bus_diag_rows, display = display.none)
+src_ready_blocker_code = input.source(close, "BUS ReadyBlockerCode", group = g_bus_blockers, display = display.none, tooltip = "Blocker / regime codes. Split out of Diagnostic Support so every group covers one contiguous range of Suite outputs.")
+src_strict_blocker_code = input.source(close, "BUS StrictBlockerCode", group = g_bus_blockers, display = display.none)
+src_vol_expansion_state = input.source(close, "BUS VolExpansionState", group = g_bus_blockers, display = display.none)
+src_ddvi_context_state = input.source(close, "BUS DdviContextState", group = g_bus_blockers, display = display.none)
+src_zone_ob_top = input.source(close, "BUS ZoneObTop", group = g_bus_detail, display = display.none)
+src_zone_ob_bottom = input.source(close, "BUS ZoneObBottom", group = g_bus_detail, display = display.none)
+src_zone_fvg_top = input.source(close, "BUS ZoneFvgTop", group = g_bus_detail, display = display.none)
+src_zone_fvg_bottom = input.source(close, "BUS ZoneFvgBottom", group = g_bus_detail, display = display.none)
+src_session_vwap = input.source(close, "BUS SessionVwap", group = g_bus_detail, display = display.none)
+src_adx_value = input.source(close, "BUS AdxValue", group = g_bus_detail, display = display.none)
+src_relvol_value = input.source(close, "BUS RelVolValue", group = g_bus_detail, display = display.none)
+src_stretch_z = input.source(close, "BUS StretchZ", group = g_bus_detail, display = display.none)
+src_stretch_support_mask = input.source(close, "BUS StretchSupportMask", group = g_bus_detail, display = display.none)
+src_ltf_bull_share = input.source(close, "BUS LtfBullShare", group = g_bus_detail, display = display.none)
+src_ltf_bias_hint = input.source(close, "BUS LtfBiasHint", group = g_bus_detail, display = display.none)
+src_ltf_volume_delta = input.source(close, "BUS LtfVolumeDelta", group = g_bus_detail, display = display.none)
+src_objects_count_pack = input.source(close, "BUS ObjectsCountPack", group = g_bus_detail, display = display.none)
+src_lean_pack_a = input.source(close, "BUS LeanPackA", group = g_bus_lean, display = display.none, tooltip = "Lean surface bindings are grouped last because they are additive hero-surface feeds.")
+src_lean_pack_b = input.source(close, "BUS LeanPackB", group = g_bus_lean, display = display.none)
+
+// Plan §2.5 H5 — Preset contract bindings. Bind these to the Engine's
+// 'BUS Preset*' hidden plots so the Hero can detect CUSTOM (class code 0)
+// and surface the 4-Click onboarding tooltip. Optional bindings: a missing
+// bind defaults to close → class code != 0 by accident, so the onboarding
+// tooltip falls back to the always-safe Hero text. No engine change.
+src_preset_class_code = input.source(close, "BUS PresetClassCode", group = g_bus_preset, display = display.none, tooltip = "Bind to the Engine's 'BUS PresetClassCode' hidden plot. 0 = Custom (onboarding tooltip), 1 = Mega-Cap US Tech, 2 = Financial Services, 3 = Energy. Plan §2.5 H5.")
+src_preset_rvol_min = input.source(close, "BUS PresetRvolMin", group = g_bus_preset, display = display.none)
+src_preset_htf_bias_min = input.source(close, "BUS PresetHtfBiasMin", group = g_bus_preset, display = display.none)
+src_preset_fvg_qual_gate = input.source(close, "BUS PresetFvgQualGate", group = g_bus_preset, display = display.none)
+src_preset_vol_regime_def = input.source(close, "BUS PresetVolRegimeDef", group = g_bus_preset, display = display.none)
+
+local_ob_debug_enabled = input.bool(false, "OB Debug Enabled", group = g_local_debug, display = display.none, tooltip = "Mirror the core's effective debug flags here if you want the local Debug Flags and Long Debug rows to match the core setup.")
+local_fvg_debug_enabled = input.bool(false, "FVG Debug Enabled", group = g_local_debug, display = display.none)
+local_engine_debug_enabled = input.bool(false, "Long Engine Debug Enabled", group = g_local_debug, display = display.none)
+
+// ── BUS Schema Version Check ──────────────────────────────────────
+int expected_bus_version = 7001
+bool bus_version_ok = math.round(src_bus_schema_version) == expected_bus_version
+var label bus_version_warning = na
+if barstate.islast and not bus_version_ok
+    if not na(bus_version_warning)
+        label.delete(bus_version_warning)
+    bus_version_warning := label.new(bar_index, high,
+        "⚠ BUS Version Mismatch — Update Dashboard to match Core Engine v" +
+        str.tostring(math.round(src_bus_schema_version)),
+        color = color.red, textcolor = color.white,
+        style = label.style_label_down, size = size.small)
+
+state_on(float value) =>
+    not na(value) and value > 0.5
+
+pack_slot(float packed_value, int slot) =>
+    int packed = int(math.round(nz(packed_value, 0.0)))
+    int slot_value = 0
+    if slot == 0
+        slot_value := int(math.floor(packed / 1000000000))
+    else if slot == 1
+        slot_value := int(math.floor(packed / 1000000)) % 1000
+    else if slot == 2
+        slot_value := int(math.floor(packed / 1000)) % 1000
+    else
+        slot_value := packed % 1000
+    slot_value
+
+count_pack_slot(float packed_value, int slot) =>
+    int packed = int(math.round(nz(packed_value, 0.0)))
+    int slot_value = 0
+    if slot == 0
+        slot_value := int(math.floor(packed / 1000000))
+    else
+        slot_value := packed % 1000000
+    slot_value
+
+trend_slot(float packed_value, int slot) =>
+    int packed = int(math.round(nz(packed_value, 0.0)))
+    int slot_value = 0
+    if slot == 0
+        slot_value := int(math.floor(packed / 1000)) % 10
+    else if slot == 1
+        slot_value := int(math.floor(packed / 100)) % 10
+    else if slot == 2
+        slot_value := int(math.floor(packed / 10)) % 10
+    else
+        slot_value := packed % 10
+    slot_value
+
+meta_slot(float packed_value, int slot) =>
+    int packed = int(math.round(nz(packed_value, 0.0)))
+    int slot_value = 0
+    if slot == 0
+        slot_value := int(math.floor(packed / 1000)) % 10
+    else if slot == 1
+        slot_value := int(math.floor(packed / 100)) % 10
+    else if slot == 2
+        slot_value := int(math.floor(packed / 10)) % 10
+    else
+        slot_value := packed % 10
+    slot_value
+
+row_status(int row_code) =>
+    int(math.floor(row_code / 100)) - 1
+
+row_reason(int row_code) =>
+    row_code % 100
+
+pack_bus_row(int row_state, int reason_code) =>
+    (row_state + 1) * 100 + reason_code
+
+debug_engine_enabled(int row_code) =>
+    int(math.floor(row_reason(row_code) / 4)) % 2 == 1
+
+resolve_debug_flags_row_code(bool ob_debug_enabled, bool fvg_debug_enabled, bool engine_debug_enabled) =>
+    int reason_code = (ob_debug_enabled ? 1 : 0) + (fvg_debug_enabled ? 2 : 0) + (engine_debug_enabled ? 4 : 0)
+    pack_bus_row(reason_code > 0 ? 5 : 0, reason_code)
+
+resolve_debug_state_row_code(int debug_flags_row_code, int state_code, bool armed_state, bool confirmed_state, bool ready_state) =>
+    if not debug_engine_enabled(debug_flags_row_code)
+        pack_bus_row(0, 0)
+    else if state_code == -1
+        pack_bus_row(-1, 2)
+    else if armed_state or confirmed_state or ready_state
+        pack_bus_row(5, 3)
+    else
+        pack_bus_row(2, 4)
+
+resolve_long_triggers_row_code(float trigger_level, float invalidation_level) =>
+    if na(trigger_level) and na(invalidation_level)
+        pack_bus_row(0, 2)
+    else if na(trigger_level) or na(invalidation_level)
+        pack_bus_row(2, 3)
+    else
+        pack_bus_row(5, 1)
+
+resolve_risk_plan_row_code(float trigger_level, float invalidation_level, float stop_level, float target_1, float target_2) =>
+    if na(trigger_level) and na(invalidation_level) and na(stop_level) and na(target_1) and na(target_2)
+        pack_bus_row(0, 2)
+    else if na(trigger_level) or na(invalidation_level)
+        pack_bus_row(2, 3)
+    else if not na(stop_level) and not na(target_1) and not na(target_2)
+        pack_bus_row(5, 1)
+    else
+        pack_bus_row(2, 4)
+
+ltf_delta_row_code_from_state(int state_code) =>
+    if state_code == 2
+        pack_bus_row(0, 2)
+    else if state_code == 3
+        pack_bus_row(2, 3)
+    else if state_code == 4
+        pack_bus_row(0, 4)
+    else if state_code == 5
+        pack_bus_row(5, 5)
+    else if state_code == 6
+        pack_bus_row(-1, 6)
+    else
+        pack_bus_row(0, 1)
+
+swing_row_code_from_state(int state_code) =>
+    state_code == 1 ? pack_bus_row(5, 1) : state_code == 2 ? pack_bus_row(-1, 2) : pack_bus_row(0, 3)
+
+micro_profile_row_code_from_code(int profile_code) =>
+    if profile_code <= 0
+        pack_bus_row(0, 0)
+    else
+        bool has_modifiers = profile_code >= 10
+        int base_code = has_modifiers ? profile_code - 10 : profile_code
+        bool known_profile = base_code >= 1 and base_code <= 6
+        int profile_state = has_modifiers or base_code != 1 ? 5 : 3
+        known_profile ? pack_bus_row(profile_state, has_modifiers ? base_code + 10 : base_code) : pack_bus_row(0, 0)
+
+ready_gate_row_code_from_blocker(int blocker_code) =>
+    if blocker_code == 1
+        pack_bus_row(5, 1)
+    else if blocker_code >= 10 and blocker_code <= 24
+        pack_bus_row(-1, blocker_code)
+    else if blocker_code >= 2 and blocker_code <= 9
+        pack_bus_row(2, blocker_code)
+    else
+        pack_bus_row(2, 9)
+
+strict_gate_row_code_from_blocker(int blocker_code) =>
+    if blocker_code == 1
+        pack_bus_row(5, 1)
+    else if blocker_code == 2
+        pack_bus_row(2, 2)
+    else if blocker_code >= 3 and blocker_code <= 10
+        pack_bus_row(-1, blocker_code)
+    else
+        pack_bus_row(2, 2)
+
+vol_expand_row_code_from_state(int state_code) =>
+    state_code == 2 ? pack_bus_row(5, 2) : state_code == 3 ? pack_bus_row(3, 3) : state_code == 4 ? pack_bus_row(0, 4) : pack_bus_row(0, 1)
+
+ddvi_row_code_from_state(int state_code) =>
+    if state_code == 2
+        pack_bus_row(5, 2)
+    else if state_code == 3
+        pack_bus_row(4, 3)
+    else if state_code == 4
+        pack_bus_row(4, 4)
+    else if state_code == 5
+        pack_bus_row(3, 5)
+    else if state_code == 6
+        pack_bus_row(0, 6)
+    else
+        pack_bus_row(0, 1)
+
+resolve_event_risk_diag_row_code(int lean_erl_row_code) =>
+    int lean_state = row_status(lean_erl_row_code)
+    int lean_reason = row_reason(lean_erl_row_code)
+    if lean_state == -1 and lean_reason == 1
+        pack_bus_row(-1, 4)
+    else if lean_state == -1 and lean_reason == 6
+        pack_bus_row(-1, 5)
+    else if lean_state == 2 and lean_reason == 3
+        pack_bus_row(2, 2)
+    else if lean_state == 3 and lean_reason == 4
+        pack_bus_row(2, 3)
+    else
+        pack_bus_row(5, 1)
+
+resolve_objects_row_code(int ob_count, int fvg_count) =>
+    if ob_count > 0 and fvg_count > 0
+        pack_bus_row(5, 3)
+    else if ob_count > 0
+        pack_bus_row(3, 1)
+    else if fvg_count > 0
+        pack_bus_row(3, 2)
+    else
+        pack_bus_row(0, 4)
+
+zone_row_code(int zone_code) =>
+    int zone_state = 0
+    if zone_code == 2 or zone_code == 3
+        zone_state := 4
+    else if zone_code == 4
+        zone_state := 5
+    pack_bus_row(zone_state, zone_code)
+
+status_bg(int state_value) =>
+    color bg = color.new(CLR_NEUTRAL, 92)
+    if state_value >= 6
+        bg := color.new(CLR_BULL, 70)
+    else if state_value == 5
+        bg := color.new(CLR_BULL_ALT, 75)
+    else if state_value == 4
+        bg := color.new(CLR_BULL, 82)
+    else if state_value == 3
+        bg := color.new(CLR_WARN, 80)
+    else if state_value == 2
+        bg := color.new(CLR_CAUTION, 82)
+    else if state_value == 1
+        bg := color.new(CLR_BUILDING, 84)
+    else if state_value == -1
+        bg := color.new(CLR_BEAR, 82)
+    bg
+
+universe_status_state(int status_code) =>
+    status_code == 3 ? 5 : status_code == 2 ? 2 : -1
+
+dashboard_row(table tbl, int row, string label_text, string value_text, color bg, color txt) =>
+    table.cell(tbl, 0, row, label_text, bgcolor = bg, text_color = txt, text_halign = text.align_left)
+    table.cell(tbl, 1, row, value_text, bgcolor = bg, text_color = txt, text_halign = text.align_left)
+
+// Plan 1.5 — Explain-popup variant: same row but with hover tooltip on both
+// cells. Pine label/cell tooltips have a hard 4096-char limit; we trim to
+// 2000 to stay safely below.
+dashboard_row_tt(table tbl, int row, string label_text, string value_text, color bg, color txt, string tt) =>
+    string _tt_safe = str.length(tt) > 2000 ? str.substring(tt, 0, 2000) + "…" : tt
+    table.cell(tbl, 0, row, label_text, bgcolor = bg, text_color = txt, text_halign = text.align_left, tooltip = _tt_safe)
+    table.cell(tbl, 1, row, value_text, bgcolor = bg, text_color = txt, text_halign = text.align_left, tooltip = _tt_safe)
+
+// Plan 1.1 follow-up — Hero one-liner composer. Walks user-defined
+// token order and emits the matching segment. Vocabulary fixed to keep
+// the surface tested; unknown tokens are ignored (no compile error so
+// users can copy-paste between layouts). The 'SMC' prefix is fixed.
+// Plan §3.1.1 — added SHA token (optional, gated by non-empty sha arg).
+compose_hero_one_liner(string order_csv, string bias, string trust, string fam, int fam_pct, string zone, string blocker, string sha) =>
+    string _out = "SMC"
+    array<string> _toks = str.split(order_csv, ",")
+    for _i = 0 to array.size(_toks) - 1
+        string _tok = str.upper(str.replace_all(array.get(_toks, _i), " ", ""))
+        string _seg = ""
+        if _tok == "BIAS"
+            _seg := bias != "" ? bias : "FLAT"
+        else if _tok == "TRUST"
+            _seg := trust != "" ? trust : "—"
+        else if _tok == "FAM"
+            _seg := "Top " + (fam != "" ? fam : "—") + " " + str.tostring(fam_pct) + "%"
+        else if _tok == "ZONE"
+            _seg := "Zone " + (zone != "" ? zone : "—")
+        else if _tok == "BLOCKER"
+            _seg := blocker != "" ? "⚠" + blocker : ""
+        else if _tok == "SHA"
+            string _sha_trim = str.length(sha) > 7 ? str.substring(sha, 0, 7) : sha
+            _seg := _sha_trim != "" ? "sha:" + _sha_trim : ""
+        if _seg != ""
+            _out := _out + " · " + _seg
+    _out
+
+section_row(table tbl, int row, string title, color bg, color txt) =>
+    dashboard_row(tbl, row, title, "", bg, txt)
+
+primary_metric_bg(int state_value) =>
+    color.new(status_bg(state_value), 0)
+
+diagnostic_metric_bg(int state_value) =>
+    color.new(status_bg(state_value), 8)
+
+dashboard_product_state_text(int state_code) =>
+    string state_text = "WAIT"
+    if state_code == -1
+        state_text := "BLOCKED"
+    else if state_code >= 6
+        state_text := "ENTER LONG"
+    else if state_code == 5
+        state_text := "READY LONG"
+    else if state_code >= 2
+        state_text := "PREPARE LONG"
+    state_text
+
+// Pine helper resolution is order-sensitive here; keep these decoders above compact helper callers.
+decode_lean_sq_text(int row_code) =>
+    int s = row_status(row_code)
+    int r = row_reason(row_code)
+    string tier = r == 4 ? "high" : r == 3 ? "good" : r == 2 ? "ok" : "low"
+    tier
+
+decode_lean_freshness_text(int row_code) =>
+    int s = row_status(row_code)
+    int r = row_reason(row_code)
+    string freshness = s >= 5 ? "fresh" : s == 3 ? "aging" : "stale"
+    string bias = r == 1 ? "bull" : r == 2 ? "bear" : r == 3 ? "mixed" : "neutral"
+    freshness + " | " + bias
+
+decode_lean_erl_text(int row_code) =>
+    int s = row_status(row_code)
+    int r = row_reason(row_code)
+    if s == -1 and r == 1
+        "BLOCKED (Market)"
+    else if s == -1 and r == 6
+        "BLOCKED (Symbol)"
+    else if s == 2 and r == 2
+        "ACTIVE Window"
+    else if s == 2 and r == 3
+        "PRE_EVENT Caution"
+    else if s == 3 and r == 4
+        "COOLDOWN"
+    else
+        "CLEAR"
+
+decode_lean_struct_text(int row_code) =>
+    int s = row_status(row_code)
+    int r = row_reason(row_code)
+    string event = r == 1 ? "BOS_BULL" : r == 2 ? "CHOCH_BULL" : r == 3 ? "BOS_BEAR" : r == 4 ? "CHOCH_BEAR" : "NONE"
+    string strength = s >= 5 ? "Strong" : s >= 4 ? "Medium" : "Weak"
+    strength + " | " + event
+
+decode_lean_ob_text(int row_code) =>
+    int s = row_status(row_code)
+    int r = row_reason(row_code)
+    if s == 5
+        "BULL Fresh | " + (r == 1 ? "fresh" : r == 2 ? "touched" : "stale")
+    else if s == 3 and r == 2
+        "BULL Aging"
+    else if s == 2 and r == 4
+        "BEAR"
+    else
+        "None"
+
+decode_lean_fvg_text(int row_code) =>
+    int s = row_status(row_code)
+    int r = row_reason(row_code)
+    if s == 2 and r == 1
+        "Invalidated"
+    else if s == 5 and r == 2
+        "BULL Fresh"
+    else if s == 4 and r == 3
+        "BULL Aging"
+    else if s == 2 and r == 4
+        "BEAR"
+    else
+        "None"
+
+decode_lean_session_text(int row_code) =>
+    int score = row_status(row_code)
+    int kz = row_reason(row_code)
+    string kz_text = kz == 1 ? "KZ" : "noKZ"
+    str.tostring(score) + " | " + kz_text
+
+decode_ensemble_text(int row_code) =>
+    int ensemble_state = row_status(row_code)
+    ensemble_state >= 5 ? "high" : ensemble_state == 4 ? "good" : ensemble_state == 3 ? "ok" : ensemble_state == 2 ? "low" : "n/a"
+
+decode_library_vol_text(int row_code) =>
+    int reason_code = row_reason(row_code)
+    int regime_code = int(math.floor(reason_code / 10))
+    int source_code = reason_code % 10
+    string regime_text = regime_code == 4 ? "EXTREME" : regime_code == 3 ? "HIGH_VOL" : regime_code == 2 ? "NORMAL" : regime_code == 1 ? "LOW_VOL" : "n/a"
+    string source_text = source_code == 1 ? "arch" : source_code == 2 ? "ATR fallback" : "n/a"
+    regime_code == 0 ? "n/a" : regime_text + " | " + source_text
+
+zone_reason_text(int zone_code) =>
+    string label_text = "No Long Zone"
+    if zone_code == 1
+        label_text := "Pullback zone touched"
+    else if zone_code == 2
+        label_text := "In fair value gap zone (FVG)"
+    else if zone_code == 3
+        label_text := "In order block zone (OB)"
+    else if zone_code == 4
+        label_text := "In order block + fair value gap zone"
+    label_text
+
+plan_text(bool active, float trigger_level, float stop_level, float target_1, float target_2) =>
+    if not active
+        "n/a"
+    else
+        "Entry " + str.tostring(trigger_level, format.mintick) + " | Stop " + str.tostring(stop_level, format.mintick) + " | T1 " + str.tostring(target_1, format.mintick) + " | T2 " + str.tostring(target_2, format.mintick)
+
+trigger_text(bool active, float trigger_level, float invalidation_level) =>
+    if not active
+        "n/a"
+    else
+        "Trigger " + str.tostring(trigger_level, format.mintick) + " | Invalidation " + str.tostring(invalidation_level, format.mintick)
+
+// Keep gate decoders above compact dashboard helpers; TradingView resolves these order-sensitively.
+decode_ready_gate_text(int row_code) =>
+    int reason_code = row_reason(row_code)
+    string label_text = "Ready"
+    if reason_code == 2
+        label_text := "Need confirmed setup"
+    else if reason_code == 3
+        label_text := "Use close-safe mode"
+    else if reason_code == 4
+        label_text := "Wait one bar"
+    else if reason_code == 5
+        label_text := "Confirm expired"
+    else if reason_code == 6
+        label_text := "Setup stale"
+    else if reason_code == 7
+        label_text := "Bearish guard"
+    else if reason_code == 8
+        label_text := "Need main BOS"
+    else if reason_code == 9
+        label_text := "Lifecycle not ready"
+    else if reason_code == 10
+        label_text := "Setup hard gate"
+    else if reason_code == 11
+        label_text := "Session blocked"
+    else if reason_code == 12
+        label_text := "Micro session blocked"
+    else if reason_code == 13
+        label_text := "Micro fresh blocked"
+    else if reason_code == 14
+        label_text := "Overhead blocked"
+    else if reason_code == 15
+        label_text := "Trade hard gate"
+    else if reason_code == 16
+        label_text := "Market gate"
+    else if reason_code == 17
+        label_text := "Vola gate"
+    else if reason_code == 18
+        label_text := "Environment gate"
+    else if reason_code == 19
+        label_text := "Quality gate"
+    else if reason_code == 20
+        label_text := "Accel gate"
+    else if reason_code == 21
+        label_text := "SD gate"
+    else if reason_code == 22
+        label_text := "Vol gate"
+    else if reason_code == 23
+        label_text := "Stretch gate"
+    else if reason_code == 24
+        label_text := "DDVI gate"
+    label_text
+
+decode_strict_gate_text(int row_code) =>
+    int reason_code = row_reason(row_code)
+    string label_text = "Strict"
+    if reason_code == 2
+        label_text := "Need Ready"
+    else if reason_code == 3
+        label_text := "Signal Quality blocked"
+    else if reason_code == 4
+        label_text := "LTF blocked"
+    else if reason_code == 5
+        label_text := "HTF blocked"
+    else if reason_code == 6
+        label_text := "Accel blocked"
+    else if reason_code == 7
+        label_text := "SD blocked"
+    else if reason_code == 8
+        label_text := "Vol blocked"
+    else if reason_code == 9
+        label_text := "Stretch blocked"
+    else if reason_code == 10
+        label_text := "DDVI blocked"
+    label_text
+
+dashboard_compact_why_now_text(int state_code, int zone_code, int lean_struct_row_code, int lean_ob_row_code, int lean_fvg_row_code, int ready_blocker_code, int strict_blocker_code) =>
+    string why_text = "Waiting for reclaim confirmation"
+    string ready_blocker_text = decode_ready_gate_text(ready_blocker_code)
+    string strict_blocker_text = decode_strict_gate_text(strict_blocker_code)
+    if state_code >= 6
+        why_text := "Execution conditions passed; follow the trade levels"
+    else if state_code == 5
+        why_text := "Confirmed setup is ready; watch the trigger break"
+    else if state_code == -1
+        if ready_blocker_text != "Ready"
+            why_text := ready_blocker_text
+        else if strict_blocker_text != "Strict"
+            why_text := strict_blocker_text
+        else
+            why_text := "Setup invalidated; wait for a fresh reclaim"
+    else if state_code == 4
+        why_text := ready_blocker_text != "Ready" ? ready_blocker_text : "Confirmed setup; wait for READY LONG"
+    else if zone_code > 0
+        why_text := zone_reason_text(zone_code)
+    else if row_status(lean_ob_row_code) > 0
+        why_text := decode_lean_ob_text(lean_ob_row_code)
+    else if row_status(lean_fvg_row_code) > 0
+        why_text := decode_lean_fvg_text(lean_fvg_row_code)
+    else if row_status(lean_struct_row_code) > 0
+        why_text := decode_lean_struct_text(lean_struct_row_code)
+    why_text
+
+dashboard_compact_structure_text(int state_code, int zone_code, int lean_struct_row_code, int reclaim_code) =>
+    string structure_text = "not ready"
+    if state_code == -1
+        structure_text := "blocked"
+    else if state_code >= 5
+        structure_text := "supports long"
+    else if state_code == 2 or state_code == 3 or state_code == 4
+        structure_text := "building support"
+    else if zone_code > 0 or reclaim_code >= 4 or row_status(lean_struct_row_code) >= 5
+        structure_text := "supports long"
+    else if reclaim_code >= 2 or row_status(lean_struct_row_code) >= 3
+        structure_text := "building support"
+    structure_text
+
+dashboard_compact_session_market_text(int session_row_code, int market_row_code) =>
+    int session_state = row_status(session_row_code)
+    int market_state = row_status(market_row_code)
+    bool session_off = row_reason(session_row_code) == 2
+    bool market_off = row_reason(market_row_code) == 1 and market_state == 0
+    string context_text = "mixed"
+    if session_off and market_off
+        context_text := "off"
+    else if session_state == -1 or market_state == -1
+        context_text := "blocked"
+    else if (session_state >= 5 or session_off) and (market_state >= 5 or market_off)
+        context_text := "clear"
+    context_text
+
+dashboard_compact_session_market_state(int session_row_code, int market_row_code) =>
+    int session_state = row_status(session_row_code)
+    int market_state = row_status(market_row_code)
+    bool session_off = row_reason(session_row_code) == 2
+    bool market_off = row_reason(market_row_code) == 1 and market_state == 0
+    int compact_state = 3
+    if session_off and market_off
+        compact_state := 0
+    else if session_state == -1 or market_state == -1
+        compact_state := -1
+    else if (session_state >= 5 or session_off) and (market_state >= 5 or market_off)
+        compact_state := 5
+    compact_state
+
+dashboard_compact_event_risk_text(int row_code) =>
+    int reason_code = row_reason(row_code)
+    string risk_text = "mixed"
+    if reason_code == 1 and row_status(row_code) >= 4
+        risk_text := "clear"
+    else if reason_code == 2 or reason_code == 3 or reason_code == 6
+        risk_text := "caution"
+    else if reason_code == 4 or reason_code == 5
+        risk_text := "blocked"
+    risk_text
+
+dashboard_compact_data_quality_text(int volume_data_row_code, int micro_fresh_row_code) =>
+    int reason_code = row_reason(volume_data_row_code)
+    int micro_state = row_status(micro_fresh_row_code)
+    string quality_text = "mixed"
+    if reason_code == 1 and (micro_state == 0 or micro_state >= 3)
+        quality_text := "clear"
+    else if reason_code == 2 or micro_state == 2
+        quality_text := "mixed"
+    else
+        quality_text := "thin"
+    quality_text
+
+dashboard_provider_state_text(int volume_data_row_code, int micro_fresh_row_code) =>
+    int reason_code = row_reason(volume_data_row_code)
+    int micro_state = row_status(micro_fresh_row_code)
+    string provider_text = "degraded"
+    if reason_code == 1 and (micro_state == 0 or micro_state >= 3)
+        provider_text := "ok"
+    provider_text
+
+resolve_dashboard_trust_tier(string signal_quality_tier, string signal_freshness, string provider_state) =>
+    string trust_tier = "insufficient"
+    if provider_state != "ok" or signal_freshness == "stale"
+        trust_tier := signal_quality_tier == "high" or signal_quality_tier == "good" or signal_quality_tier == "ok" ? "degraded" : "insufficient"
+    else if signal_quality_tier == "high" and signal_freshness == "fresh"
+        trust_tier := "high"
+    else if signal_quality_tier == "high" or signal_quality_tier == "good" or signal_quality_tier == "ok"
+        trust_tier := "guarded"
+    trust_tier
+
+// Moved ABOVE dashboard_compact_main_blocker_text (2026-07-13, CE10271):
+// Pine requires user functions to be DEFINED before they are referenced —
+// these two decoders were defined ~250 lines below their first use inside
+// dashboard_compact_main_blocker_text, so the script failed to compile
+// ("Could not find function or function reference"). Guarded by
+// tests/test_pine_function_definition_order.py.
+decode_volume_data_text(int row_code) =>
+    int reason_code = row_reason(row_code)
+    string label_text = "OK"
+    if reason_code == 1
+        label_text := "OK"
+    else if reason_code == 2
+        label_text := "Weak feed quality"
+    else if reason_code == 3
+        label_text := "Chart OK | LTF no-vol"
+    else if reason_code == 4
+        label_text := "Price-only LTF"
+    else if reason_code == 5 or reason_code == 0
+        label_text := "No current bar volume"
+    label_text
+
+decode_event_risk_text(int row_code) =>
+    int reason_code = row_reason(row_code)
+    string label_text = "Blocked"
+    if reason_code == 1
+        label_text := row_status(row_code) >= 4 ? "OK" : "Low"
+    else if reason_code == 2
+        label_text := "Incoming Event"
+    else if reason_code == 3
+        label_text := "Cooldown"
+    else if reason_code == 4
+        label_text := "Market Event Blocked"
+    else if reason_code == 5
+        label_text := "Symbol Earnings Blocked"
+    else if reason_code == 6
+        label_text := "High Macro Risk"
+    label_text
+
+dashboard_compact_main_blocker_text(int event_risk_row_code, int ready_blocker_code, int strict_blocker_code, int volume_data_row_code) =>
+    string blocker_text = "no active blocker"
+    string ready_blocker_text = decode_ready_gate_text(ready_blocker_code)
+    string strict_blocker_text = decode_strict_gate_text(strict_blocker_code)
+    string event_risk_text = decode_event_risk_text(event_risk_row_code)
+    string volume_text = decode_volume_data_text(volume_data_row_code)
+    if event_risk_text != "OK"
+        blocker_text := event_risk_text
+    else if ready_blocker_text != "Ready"
+        blocker_text := ready_blocker_text
+    else if strict_blocker_text != "Strict"
+        blocker_text := strict_blocker_text
+    else if volume_text != "OK"
+        blocker_text := volume_text
+    blocker_text
+
+dashboard_compact_trust_text(int lean_sq_row_code, int lean_freshness_row_code, int volume_data_row_code, int micro_fresh_row_code, int event_risk_row_code, int ready_blocker_code, int strict_blocker_code, string ensemble_tier) =>
+    string signal_quality_tier = decode_lean_sq_text(lean_sq_row_code)
+    string signal_freshness = row_status(lean_freshness_row_code) >= 5 ? "fresh" : row_status(lean_freshness_row_code) == 3 ? "aging" : "stale"
+    string provider_state = dashboard_provider_state_text(volume_data_row_code, micro_fresh_row_code)
+    string trust_tier = resolve_dashboard_trust_tier(signal_quality_tier, signal_freshness, provider_state)
+    string main_blocker = dashboard_compact_main_blocker_text(event_risk_row_code, ready_blocker_code, strict_blocker_code, volume_data_row_code)
+    string ens_suffix = ensemble_tier != "" and ensemble_tier != "n/a" ? " | ens:" + ensemble_tier : ""
+    trust_tier + ens_suffix + " | blocker: " + main_blocker + " | provider: " + provider_state
+
+dashboard_compact_trust_state(int lean_sq_row_code, int lean_freshness_row_code, int volume_data_row_code, int micro_fresh_row_code) =>
+    string signal_quality_tier = decode_lean_sq_text(lean_sq_row_code)
+    string signal_freshness = row_status(lean_freshness_row_code) >= 5 ? "fresh" : row_status(lean_freshness_row_code) == 3 ? "aging" : "stale"
+    string provider_state = dashboard_provider_state_text(volume_data_row_code, micro_fresh_row_code)
+    string trust_tier = resolve_dashboard_trust_tier(signal_quality_tier, signal_freshness, provider_state)
+    int state_code = -1
+    if trust_tier == "high"
+        state_code := 5
+    else if trust_tier == "guarded"
+        state_code := 4
+    else if trust_tier == "degraded"
+        state_code := 2
+    state_code
+
+// ── Product Trust Badge (ENG-WS2-03) ──────────────────────────────
+// Reads the canonical product trust state emitted by the generated library
+// (mp.TRUST_STATE / mp.TRUST_ACTION_IMPACT / mp.TRUST_DEGRADATION_REASON,
+// per ENG-WS2-02) and renders a compact, single-glance badge that the
+// default surfaces (Decision Brief + Hero) and the mobile dashboard can
+// suffix onto their existing trust rows. The badge is purely additive: it
+// never replaces the existing operator-grade trust rendering, so existing
+// substring-based UI contracts stay intact.
+product_trust_badge_text(string trust_state, string degradation_reason) =>
+    string emoji = trust_state == "healthy" ? "✓" : trust_state == "degraded" ? "⚠ degraded" : trust_state == "stale" ? "⚠ stale" : trust_state == "watch_only" ? "⛔ watch-only" : trust_state == "unavailable" ? "⛔ no data" : "?"
+    string suffix = degradation_reason != "" ? " (" + degradation_reason + ")" : ""
+    emoji + suffix
+
+product_trust_badge_state(string trust_state) =>
+    int s = 5
+    if trust_state == "degraded"
+        s := 3
+    else if trust_state == "stale"
+        s := 2
+    else if trust_state == "watch_only"
+        s := 0
+    else if trust_state == "unavailable"
+        s := -1
+    s
+
+dashboard_compact_pressure_text(int ltf_delta_row_code, float ltf_volume_delta, int swing_row_code) =>
+    int reason_code = row_reason(ltf_delta_row_code)
+    int delta_state = row_status(ltf_delta_row_code)
+    int swing_reason = row_reason(swing_row_code)
+    string pressure_text = "mixed"
+    if delta_state == -1 or ltf_volume_delta <= -0.05 or swing_reason == 2
+        pressure_text := "against long"
+    else if delta_state >= 5 and ltf_volume_delta >= 0.05
+        pressure_text := "supports long"
+    else if swing_reason == 1 and delta_state >= 0
+        pressure_text := "supports long"
+    else if reason_code == 2 or reason_code == 3 or reason_code == 4
+        pressure_text := "thin"
+    pressure_text
+
+dashboard_compact_risk_plan_text(bool actionable_state, float trigger_level, float stop_level, float target_1, float target_2) =>
+    actionable_state ? "Trigger " + str.tostring(trigger_level, format.mintick) + " | Stop " + str.tostring(stop_level, format.mintick) + " | T1 " + str.tostring(target_1, format.mintick) + " | T2 " + str.tostring(target_2, format.mintick) : "not ready"
+
+source_kind_text(int source_code) =>
+    string label_text = "None"
+    if source_code == 1
+        label_text := "Order Block (OB)"
+    else if source_code == 2
+        label_text := "Fair Value Gap (FVG)"
+    else if source_code == 3
+        label_text := "Swing Low"
+    else if source_code == 4
+        label_text := "Internal Low"
+    label_text
+
+trend_text(int trend_code) =>
+    string label_text = "Neutral"
+    if trend_code == 2
+        label_text := "Bullish"
+    else if trend_code == 0
+        label_text := "Bearish"
+    label_text
+
+freshness_text(int freshness_code) =>
+    string label_text = "n/a"
+    if freshness_code == 1
+        label_text := "confirm fresh"
+    else if freshness_code == 2
+        label_text := "confirm stale"
+    else if freshness_code == 3
+        label_text := "armed fresh"
+    else if freshness_code == 4
+        label_text := "armed stale"
+    label_text
+
+source_state_text(int source_state_code) =>
+    string label_text = "n/a"
+    if source_state_code == 1
+        label_text := "source alive"
+    else if source_state_code == 2
+        label_text := "source invalid"
+    else if source_state_code == 3
+        label_text := "source lost"
+    label_text
+
+reclaim_reason_text(int reclaim_code) =>
+    string label_text = "No Reclaim"
+    if reclaim_code == 1
+        label_text := "Reclaim recent"
+    else if reclaim_code == 2
+        label_text := "Internal Low Reclaimed"
+    else if reclaim_code == 3
+        label_text := "Swing Low Reclaimed"
+    else if reclaim_code == 4
+        label_text := "FVG Reclaimed"
+    else if reclaim_code == 5
+        label_text := "OB Reclaimed"
+    label_text
+
+long_visual_text(int state_code) =>
+    string label_text = "Neutral"
+    if state_code == -1
+        label_text := "Fail"
+    else if state_code == 1
+        label_text := "In Zone"
+    else if state_code == 2
+        label_text := "Armed"
+    else if state_code == 3
+        label_text := "Building"
+    else if state_code == 4
+        label_text := "Confirmed"
+    else if state_code >= 5
+        label_text := "Ready"
+    label_text
+
+exec_tier_text(int state_code) =>
+    string label_text = "n/a"
+    if state_code >= 7
+        label_text := "Strict"
+    else if state_code == 6
+        label_text := "Best"
+    else if state_code == 5
+        label_text := "Ready"
+    else if state_code == 4
+        label_text := "Confirmed"
+    else if state_code == 2 or state_code == 3
+        label_text := "Armed"
+    else if state_code == 1
+        label_text := "Watchlist"
+    label_text
+
+setup_text(int state_code, int source_code) =>
+    string source_text = source_kind_text(source_code)
+    string label_text = "No Setup"
+    if state_code == -1
+        label_text := "Invalidated"
+    else if state_code == 1
+        label_text := "In Zone"
+    else if state_code == 2
+        label_text := "Armed | " + source_text
+    else if state_code == 3
+        label_text := "Building | " + source_text
+    else if state_code == 4
+        label_text := "Confirmed | " + source_text
+    else if state_code == 5
+        label_text := "Ready | " + source_text
+    else if state_code == 6
+        label_text := "Entry Best | " + source_text
+    else if state_code >= 7
+        label_text := "Entry Strict | " + source_text
+    label_text
+
+setup_age_text(int state_code, int freshness_code) =>
+    if state_code >= 4
+        freshness_text(freshness_code)
+    else if state_code == 2 or state_code == 3
+        freshness_text(freshness_code)
+    else
+        "n/a"
+
+decode_session_text(int row_code) =>
+    int reason_code = row_reason(row_code)
+    string label_text = "OR blocked"
+    if reason_code == 1
+        label_text := row_status(row_code) == 5 ? "OK" : "n/a"
+    else if reason_code == 2
+        label_text := "off"
+    else if reason_code == 3
+        label_text := "Entry session blocked"
+    label_text
+
+decode_market_text(int row_code) =>
+    int reason_code = row_reason(row_code)
+    string label_text = "Breadth blocked"
+    if reason_code == 1
+        label_text := row_status(row_code) == 5 ? "OK" : "off"
+    else if reason_code == 2
+        label_text := "Missing symbol"
+    else if reason_code == 3
+        label_text := "Index blocked"
+    else if reason_code == 4
+        label_text := "Sector blocked"
+    else if reason_code == 6
+        label_text := "Valuation caution"
+    label_text
+
+decode_vola_text(int row_code) =>
+    int reason_code = row_reason(row_code)
+    string label_text = "Blocked"
+    if reason_code == 1
+        label_text := row_status(row_code) == 0 ? "off" : "OK"
+    else if reason_code == 2
+        label_text := "Compression -> Expansion"
+    else if reason_code == 3
+        label_text := "Compression context"
+    label_text
+
+decode_micro_session_text(int row_code) =>
+    int reason_code = row_reason(row_code)
+    string label_text = "Weak after-hours"
+    if reason_code == 1
+        label_text := row_status(row_code) == 0 ? "off" : "OK"
+    else if reason_code == 2
+        label_text := "RTH only"
+    else if reason_code == 3
+        label_text := "Midday block"
+    else if reason_code == 4
+        label_text := "Weak premarket"
+    label_text
+
+decode_micro_fresh_text(int row_code, int freshness_code, int source_state_code) =>
+    if row_reason(row_code) == 1 and row_status(row_code) == 0
+        "off"
+    else
+        freshness_text(freshness_code) + " | " + source_state_text(source_state_code)
+
+
+
+decode_quality_env_text(int row_code) =>
+    int reason_code = row_reason(row_code)
+    string label_text = "Mixed"
+    if reason_code == 1
+        label_text := "Passed"
+    else if reason_code == 2
+        label_text := "Market context blocked"
+    else if reason_code == 3
+        label_text := "Volatility regime blocked"
+    label_text
+
+decode_quality_strict_text(int row_code) =>
+    int reason_code = row_reason(row_code)
+    string label_text = "Volume divergence blocked (DDVI)"
+    if reason_code == 1
+        label_text := "Passed"
+    else if reason_code == 2
+        label_text := "Eligible"
+    else if reason_code == 3
+        label_text := "Lower-timeframe support blocked (LTF)"
+    else if reason_code == 4
+        label_text := "Higher-timeframe trend blocked (HTF)"
+    else if reason_code == 5
+        label_text := "Flow acceleration blocked"
+    else if reason_code == 6
+        label_text := "Divergence support blocked (SD)"
+    else if reason_code == 7
+        label_text := "Volatility context blocked"
+    else if reason_code == 8
+        label_text := "Stretch context blocked"
+    label_text
+
+decode_close_text(int row_code) =>
+    int reason_code = row_reason(row_code)
+    reason_code == 1 and row_status(row_code) == 0 ? "off" : reason_code == 1 ? "Strong Close" : "Weak Close"
+
+decode_ema_text(int row_code) =>
+    int reason_code = row_reason(row_code)
+    reason_code == 1 and row_status(row_code) == 0 ? "off" : reason_code == 1 ? "OK" : "No"
+
+format_level_text(float value) =>
+    na(value) ? "n/a" : str.tostring(value, format.mintick)
+
+format_number_text(float value) =>
+    na(value) ? "n/a" : str.tostring(value, "#.##")
+
+format_relvol_text(float value) =>
+    na(value) ? "n/a" : str.tostring(value, "#.##") + "x"
+
+format_percent_text(float value) =>
+    na(value) ? "n/a" : str.format("{0,number,percent}", value)
+
+format_percent_whole_text(float value) =>
+    na(value) ? "n/a" : str.tostring(value * 100.0, "#") + "%"
+
+format_zscore_text(float value) =>
+    na(value) ? "n/a" : str.tostring(value, "#.##") + "z"
+
+mask_has_flag(float mask_value, int flag_weight) =>
+    int mask = int(math.round(nz(mask_value, 0.0)))
+    int(math.floor(mask / flag_weight)) % 2 == 1
+
+resolve_stretch_row_code(float stretch_z, float stretch_support_mask) =>
+    bool use_stretch_context = mask_has_flag(stretch_support_mask, 1)
+    bool in_lower_extreme = mask_has_flag(stretch_support_mask, 2)
+    bool lower_extreme_recent = mask_has_flag(stretch_support_mask, 4)
+    bool anti_chase_ok_ready = mask_has_flag(stretch_support_mask, 8)
+    bool anti_chase_ok_entry_best = mask_has_flag(stretch_support_mask, 16)
+    if not use_stretch_context
+        pack_bus_row(0, 1)
+    else if na(stretch_z)
+        pack_bus_row(0, 2)
+    else if anti_chase_ok_entry_best and in_lower_extreme
+        pack_bus_row(5, 3)
+    else if anti_chase_ok_entry_best and lower_extreme_recent
+        pack_bus_row(5, 4)
+    else if anti_chase_ok_ready
+        pack_bus_row(3, 5)
+    else
+        pack_bus_row(-1, 6)
+
+resolve_ltf_bias_row_code(int ltf_delta_row_code, float ltf_bull_share, float ltf_bias_hint) =>
+    int delta_reason = row_reason(ltf_delta_row_code)
+    if delta_reason == 1
+        pack_bus_row(0, 1)
+    else if delta_reason == 2 or delta_reason == 4 or na(ltf_bull_share) or na(ltf_bias_hint)
+        pack_bus_row(0, 2)
+    else if delta_reason == 3 and ltf_bull_share >= ltf_bias_hint
+        pack_bus_row(5, 3)
+    else if ltf_bull_share >= ltf_bias_hint
+        pack_bus_row(5, 4)
+    else if ltf_bull_share >= 0.50
+        pack_bus_row(3, 5)
+    else
+        pack_bus_row(-1, 6)
+
+zone_detail_text(int zone_code, float ob_top, float ob_bottom, float fvg_top, float fvg_bottom) =>
+    bool show_ob = (zone_code == 3 or zone_code == 4) and not na(ob_top) and not na(ob_bottom)
+    bool show_fvg = (zone_code == 2 or zone_code == 4) and not na(fvg_top) and not na(fvg_bottom)
+    string label_text = zone_code == 0 ? "No Long Zones" : zone_reason_text(zone_code)
+    if show_ob and show_fvg
+        label_text := "OB " + format_level_text(ob_top) + " / " + format_level_text(ob_bottom) + " | FVG " + format_level_text(fvg_top) + " / " + format_level_text(fvg_bottom)
+    else if show_ob
+        label_text := "OB " + format_level_text(ob_top) + " / " + format_level_text(ob_bottom)
+    else if show_fvg
+        label_text := "FVG " + format_level_text(fvg_top) + " / " + format_level_text(fvg_bottom)
+    label_text
+
+decode_adx_text(int row_code, float adx_value) =>
+    int reason_code = row_reason(row_code)
+    string label_text = "off"
+    if reason_code == 2
+        label_text := "n/a"
+    else if reason_code == 3
+        label_text := format_number_text(adx_value) + " | Bearish pressure"
+    else if reason_code == 4
+        label_text := format_number_text(adx_value) + " | Strong"
+    else if reason_code == 5
+        label_text := format_number_text(adx_value) + " | Trend"
+    else if reason_code == 6
+        label_text := format_number_text(adx_value) + " | Trend building"
+    label_text
+
+decode_relvol_text(int row_code, float relvol_value) =>
+    int reason_code = row_reason(row_code)
+    string label_text = "off"
+    if reason_code == 2
+        label_text := "fallback"
+    else if reason_code == 3
+        label_text := "blocked"
+    else if reason_code == 4
+        label_text := format_relvol_text(relvol_value)
+    else if reason_code == 5
+        label_text := format_relvol_text(relvol_value) + " | Weak"
+    label_text
+
+decode_vwap_text(int row_code, float session_vwap) =>
+    int reason_code = row_reason(row_code)
+    string label_text = "off"
+    if reason_code == 2
+        label_text := "n/a"
+    else if reason_code == 3
+        label_text := "off session"
+    else if reason_code == 4
+        label_text := na(session_vwap) ? "Above VWAP" : "Above VWAP | " + format_level_text(session_vwap)
+    else if reason_code == 5
+        label_text := na(session_vwap) ? "Below VWAP" : "Below VWAP | " + format_level_text(session_vwap)
+    label_text
+
+decode_context_quality_text(int row_code) =>
+    int reason_code = row_reason(row_code)
+    reason_code == 1 ? "off" : reason_code == 2 ? "Supportive" : "Weak"
+
+decode_quality_clean_text(int row_code) =>
+    row_reason(row_code) == 1 ? "Clean" : "No"
+
+decode_sd_confluence_text(int row_code) =>
+    int reason_code = row_reason(row_code)
+    string label_text = "none"
+    if reason_code == 1
+        label_text := "off"
+    else if reason_code == 2
+        label_text := "Bull div + HL"
+    else if reason_code == 3
+        label_text := "Bull div"
+    else if reason_code == 4
+        label_text := "Higher lows"
+    else if reason_code == 5
+        label_text := "Support any"
+    label_text
+
+decode_sd_osc_text(int row_code) =>
+    int reason_code = row_reason(row_code)
+    string label_text = "flat"
+    if reason_code == 1
+        label_text := "off"
+    else if reason_code == 2
+        label_text := "n/a"
+    else if reason_code == 3
+        label_text := "Above zero | rising"
+    else if reason_code == 4
+        label_text := "Rising"
+    else if reason_code == 5
+        label_text := "Below zero | falling"
+    else if reason_code == 6
+        label_text := "Mixed"
+    label_text
+
+decode_vol_regime_text(int row_code) =>
+    int reason_code = row_reason(row_code)
+    reason_code == 1 ? "off" : reason_code == 2 ? "Bull stack" : "Weak stack"
+
+decode_vol_regime_stack_text(int row_code, int transport_row_code) =>
+    string local_text = decode_vol_regime_text(row_code)
+    string library_text = decode_library_vol_text(transport_row_code)
+    library_text == "n/a" ? local_text : local_text + " | Lib " + library_text
+
+decode_vol_squeeze_text(int row_code) =>
+    int reason_code = row_reason(row_code)
+    string label_text = "No squeeze"
+    if reason_code == 1
+        label_text := "off"
+    else if reason_code == 2
+        label_text := "Squeeze on"
+    else if reason_code == 3
+        label_text := "Released"
+    else if reason_code == 4
+        label_text := "Recent squeeze"
+    label_text
+
+decode_vol_expand_text(int row_code) =>
+    int reason_code = row_reason(row_code)
+    reason_code == 1 ? "off" : reason_code == 2 ? "Expansion" : reason_code == 3 ? "Building" : "No Expansion"
+
+decode_stretch_text(int row_code, float stretch_z) =>
+    int reason_code = row_reason(row_code)
+    string label_text = "chasing"
+    if reason_code == 1
+        label_text := "off"
+    else if reason_code == 2
+        label_text := "n/a"
+    else if reason_code == 3
+        label_text := format_zscore_text(stretch_z) + " | lower extreme"
+    else if reason_code == 4
+        label_text := format_zscore_text(stretch_z) + " | recent extreme"
+    else if reason_code == 5
+        label_text := format_zscore_text(stretch_z) + " | anti-chase ok"
+    else if reason_code == 6
+        label_text := format_zscore_text(stretch_z) + " | chasing"
+    label_text
+
+decode_ddvi_text(int row_code) =>
+    int reason_code = row_reason(row_code)
+    string label_text = "Weak"
+    if reason_code == 1
+        label_text := "off"
+    else if reason_code == 2
+        label_text := "Bull bias + div"
+    else if reason_code == 3
+        label_text := "Bull bias"
+    else if reason_code == 4
+        label_text := "Bull div"
+    else if reason_code == 5
+        label_text := "Lower extreme"
+    label_text
+
+decode_ltf_bias_text(int row_code, float ltf_bull_share) =>
+    int reason_code = row_reason(row_code)
+    string label_text = "off"
+    if reason_code == 2
+        label_text := "n/a"
+    else if reason_code == 3
+        label_text := format_percent_whole_text(ltf_bull_share) + " price-only"
+    else if reason_code == 4
+        label_text := format_percent_whole_text(ltf_bull_share)
+    else if reason_code == 5
+        label_text := format_percent_whole_text(ltf_bull_share)
+    else if reason_code == 6
+        label_text := format_percent_whole_text(ltf_bull_share)
+    label_text
+
+decode_ltf_delta_text(int row_code, float ltf_volume_delta) =>
+    int reason_code = row_reason(row_code)
+    string label_text = "off"
+    if reason_code == 2
+        label_text := "n/a"
+    else if reason_code == 3
+        label_text := "no-vol"
+    else if reason_code == 4
+        label_text := "n/a"
+    else if reason_code == 5
+        label_text := format_percent_text(ltf_volume_delta)
+    else if reason_code == 6
+        label_text := format_percent_text(ltf_volume_delta)
+    label_text
+
+decode_objects_text(int row_code, int ob_count, int fvg_count) =>
+    int reason_code = row_reason(row_code)
+    string label_text = "No active objects"
+    if reason_code == 1
+        label_text := "OB " + str.tostring(ob_count)
+    else if reason_code == 2
+        label_text := "FVG " + str.tostring(fvg_count)
+    else if reason_code == 3
+        label_text := "OB " + str.tostring(ob_count) + " | FVG " + str.tostring(fvg_count)
+    label_text
+
+decode_swing_text(int row_code) =>
+    int reason_code = row_reason(row_code)
+    reason_code == 1 ? "Bullish structure" : reason_code == 2 ? "Bearish structure" : "Neutral"
+
+decode_micro_profile_text(int row_code) =>
+    int reason_code = row_reason(row_code)
+    bool has_modifiers = reason_code >= 10
+    int base_reason = has_modifiers ? reason_code - 10 : reason_code
+    string label_text = "off"
+    if base_reason == 1
+        label_text := "Default"
+    else if base_reason == 2
+        label_text := "Stop-Hunt Sensitive"
+    else if base_reason == 3
+        label_text := "Clean Reclaim"
+    else if base_reason == 4
+        label_text := "RTH Only"
+    else if base_reason == 5
+        label_text := "Midday Dead"
+    else if base_reason == 6
+        label_text := "Fast Decay"
+    if has_modifiers
+        label_text += " | mod"
+    label_text
+
+decode_debug_flags_text(int row_code) =>
+    int reason_code = row_reason(row_code)
+    string label_text = "off"
+    if reason_code > 0
+        label_text := ""
+        if reason_code % 2 == 1
+            label_text += "OB"
+        if int(math.floor(reason_code / 2)) % 2 == 1
+            label_text += str.length(label_text) > 0 ? " | FVG" : "FVG"
+        if int(math.floor(reason_code / 4)) % 2 == 1
+            label_text += str.length(label_text) > 0 ? " | Engine" : "Engine"
+    label_text
+
+// ── Phase H: Calibration confidence indicator ─────────────────
+calibration_confidence_tier(float cal_weight) =>
+    cal_weight >= 0.80 ? "high" : cal_weight >= 0.65 ? "good" : cal_weight >= 0.50 ? "ok" : "low"
+
+calibration_confidence_state(float cal_weight) =>
+    cal_weight >= 0.80 ? 5 : cal_weight >= 0.65 ? 4 : cal_weight >= 0.50 ? 3 : 2
+
+resolve_family_cal_weight(string family) =>
+    float w = family == "OB" ? mp.ZONE_CAL_OB : family == "FVG" ? mp.ZONE_CAL_FVG : family == "BOS" ? mp.ZONE_CAL_BOS : family == "SWEEP" ? mp.ZONE_CAL_SWEEP : 0.50
+    w
+
+// ── Q3 F2: session-aware family weight ────────────────────────
+// Picks the session-specific calibrated weight (ZONE_CAL_<FAM>_<SESSION>)
+// when mp.SESSION_CONTEXT matches a promoted bucket (ASIA/LONDON/NY_AM,
+// see scripts/smc_zone_priority_calibration.py); falls back to the
+// global ZONE_CAL_<FAM> for NY_PM/NONE so unmeasured contexts keep
+// the smoothed prior. Audit motivation: NY_AM FVG calibration is
+// 0.4961 vs ASIA 0.6948 — the global 0.5773 was hiding a 20pp HR
+// spread (docs/FVG_LABEL_AUDIT_Q3.md §2).
+resolve_family_cal_weight_session(string family, string session_context) =>
+    float global_w = resolve_family_cal_weight(family)
+    float w = global_w
+    if session_context == "ASIA"
+        w := family == "OB" ? mp.ZONE_CAL_OB_ASIA : family == "FVG" ? mp.ZONE_CAL_FVG_ASIA : family == "BOS" ? mp.ZONE_CAL_BOS_ASIA : family == "SWEEP" ? mp.ZONE_CAL_SWEEP_ASIA : global_w
+    else if session_context == "LONDON"
+        w := family == "OB" ? mp.ZONE_CAL_OB_LONDON : family == "FVG" ? mp.ZONE_CAL_FVG_LONDON : family == "BOS" ? mp.ZONE_CAL_BOS_LONDON : family == "SWEEP" ? mp.ZONE_CAL_SWEEP_LONDON : global_w
+    else if session_context == "NY_AM"
+        w := family == "OB" ? mp.ZONE_CAL_OB_NY_AM : family == "FVG" ? mp.ZONE_CAL_FVG_NY_AM : family == "BOS" ? mp.ZONE_CAL_BOS_NY_AM : family == "SWEEP" ? mp.ZONE_CAL_SWEEP_NY_AM : global_w
+    w
+
+format_cal_weight(float w) =>
+    str.tostring(w * 100.0, "#.#") + "%"
+
+family_performance_text(string family, float cal_weight) =>
+    string tier = calibration_confidence_tier(cal_weight)
+    family + " " + format_cal_weight(cal_weight) + " (" + tier + ")"
+
+// ── Phase H: FVG health warning ───────────────────────────────
+resolve_fvg_health_score() =>
+    float score = 0.0
+    if mp.PRIMARY_FVG_SIDE == "NONE"
+        score := 0.0
+    else
+        score += mp.FVG_FRESH ? 30.0 : 0.0
+        score += mp.FVG_INVALIDATED ? -40.0 : 0.0
+        score += (1.0 - mp.FVG_FILL_PCT) * 30.0
+        score += math.min(mp.FVG_MATURITY_LEVEL, 3) * 10.0
+        score += mp.FVG_NET_IMBALANCE > 0 ? 10.0 : mp.FVG_NET_IMBALANCE < 0 ? -10.0 : 0.0
+    math.max(score, 0.0)
+
+fvg_health_tier(float score) =>
+    score >= 60.0 ? "healthy" : score >= 30.0 ? "aging" : score > 0.0 ? "weak" : "none"
+
+fvg_health_state(float score) =>
+    score >= 60.0 ? 5 : score >= 30.0 ? 3 : score > 0.0 ? 2 : 0
+
+fvg_health_text(float score) =>
+    if mp.PRIMARY_FVG_SIDE == "NONE"
+        "No active FVG"
+    else
+        string side = mp.PRIMARY_FVG_SIDE
+        string tier = fvg_health_tier(score)
+        string fill = str.tostring(mp.FVG_FILL_PCT * 100.0, "#") + "% filled"
+        string fresh_label = mp.FVG_FRESH ? "fresh" : mp.FVG_INVALIDATED ? "INVALIDATED" : "aging"
+        side + " | " + tier + " | " + fill + " | " + fresh_label
+
+fvg_health_warning_text(float score) =>
+    if mp.FVG_INVALIDATED
+        "⚠ FVG invalidated — zone reliability degraded"
+    else if mp.FVG_FILL_PCT >= 0.75 and not mp.FVG_FRESH
+        "⚠ FVG heavily filled (" + str.tostring(mp.FVG_FILL_PCT * 100.0, "#") + "%) — weakening support"
+    else if score < 30.0 and mp.PRIMARY_FVG_SIDE != "NONE"
+        "⚠ FVG health weak — consider reduced confidence"
+    else
+        ""
+
+// Phase H4 calibration-driven FVG warning. Fires when the calibrated
+// per-family hit rate drops below 65% (the strategy-doc threshold) so
+// users see a system-wide signal even when no live FVG is active.
+// Renders nothing when ZONE_HR_FVG is unset (== 0.0 default) so the
+// dashboard stays quiet on first install / before calibration runs.
+fvg_calibration_warning_text(float zone_hr_fvg) =>
+    if zone_hr_fvg <= 0.0
+        ""
+    else if zone_hr_fvg < 0.65
+        "⚠ FVG zones underperforming (" + str.tostring(zone_hr_fvg * 100.0, "#") + "% HR) — prefer OB/BOS setups"
+    else
+        ""
+
+// Phase H follow-on (issue #16 c) — generalized per-family hit-rate
+// warning. Returns the family ticker tag when the calibrated HR is
+// below the 65% threshold and the field is initialised; empty otherwise.
+zone_hr_family_below_threshold(float zone_hr) =>
+    zone_hr > 0.0 and zone_hr < 0.65
+
+// Aggregate calibration warning across all four zone families. Returns
+// a single warning string listing every family currently underperforming
+// so the dashboard surfaces system-wide cal degradation in one slot,
+// rather than four duplicated warnings. Quiet when all families are
+// healthy or uninitialised.
+zone_cal_aggregate_warning_text() =>
+    string tags = ""
+    if zone_hr_family_below_threshold(mp.ZONE_HR_FVG)
+        tags := "FVG"
+    if zone_hr_family_below_threshold(mp.ZONE_HR_OB)
+        tags := tags == "" ? "OB" : tags + "/OB"
+    if zone_hr_family_below_threshold(mp.ZONE_HR_BOS)
+        tags := tags == "" ? "BOS" : tags + "/BOS"
+    if zone_hr_family_below_threshold(mp.ZONE_HR_SWEEP)
+        tags := tags == "" ? "SWEEP" : tags + "/SWEEP"
+    tags == "" ? "" : "⚠ Cal-HR weak: " + tags
+
+// Map mp.ZONE_CAL_TRUST to a compact glyph for the audit row suffix.
+// "OK" → 🔒, "DEGRADED" → ⚠, "UNAVAILABLE" → ❓, anything else → "?".
+// Empty when the field is the default empty string (uninitialised).
+zone_cal_trust_glyph(string trust_state) =>
+    trust_state == "OK" ? "🔒" : trust_state == "DEGRADED" ? "⚠" : trust_state == "UNAVAILABLE" ? "❓" : trust_state == "" ? "" : "?"
+
+// Phase H follow-on (issue #16, deferred tooltip patch) — render the
+// per-family calibration confidence (H1, 0–1) and trend (H3, IMPROVING/
+// STABLE/DEGRADING) as a single tooltip line. Returns "" when the
+// confidence field is at its default sentinel (0.0) so the dashboard
+// stays quiet on first install / before calibration runs.
+zone_cal_diagnostics_tooltip_text(float zone_cal_confidence, string zone_cal_trend) =>
+    if zone_cal_confidence <= 0.0
+        ""
+    else
+        "Cal conf " + str.tostring(zone_cal_confidence, "#.##") + " · trend " + zone_cal_trend
+
+// Combine live-zone and calibration warnings — calibration takes
+// precedence when both fire because it speaks to system reliability
+// rather than a single zone's lifecycle.
+fvg_combined_warning_text(float score, float zone_hr_fvg) =>
+    string cal_warn = fvg_calibration_warning_text(zone_hr_fvg)
+    if cal_warn != ""
+        cal_warn
+    else
+        fvg_health_warning_text(score)
+
+quality_bounds_text(float score_value) =>
+    str.tostring(score_value, "#.##") + "/100 | min 25"
+
+quality_stack_text(float score_value, int ensemble_row_code) =>
+    string ensemble_text = decode_ensemble_text(ensemble_row_code)
+    ensemble_text == "n/a" ? quality_bounds_text(score_value) : quality_bounds_text(score_value) + " | Ensemble " + ensemble_text
+
+bool zone_active = state_on(src_zone_active)
+bool armed = state_on(src_armed)
+bool confirmed = state_on(src_confirmed)
+bool ready = state_on(src_ready)
+bool entry_best = state_on(src_entry_best)
+bool entry_strict = state_on(src_entry_strict)
+int state_code = int(math.round(nz(src_state_code, 0.0)))
+int source_code = int(math.round(nz(src_source_kind, 0.0)))
+int trend_now = trend_slot(src_trend_pack, 0)
+int trend_htf_1 = trend_slot(src_trend_pack, 1)
+int trend_htf_2 = trend_slot(src_trend_pack, 2)
+int trend_htf_3 = trend_slot(src_trend_pack, 3)
+int freshness_code = meta_slot(src_meta_pack, 0)
+int source_state_code = meta_slot(src_meta_pack, 1)
+int reclaim_code = meta_slot(src_meta_pack, 2)
+int zone_code = meta_slot(src_meta_pack, 3)
+int session_row_code = int(math.round(nz(src_session_gate_row, 0.0)))
+int market_row_code = int(math.round(nz(src_market_gate_row, 0.0)))
+int vola_row_code = int(math.round(nz(src_vola_gate_row, 0.0)))
+int micro_session_row_code = int(math.round(nz(src_micro_session_gate_row, 0.0)))
+int micro_fresh_row_code = int(math.round(nz(src_micro_fresh_row, 0.0)))
+int volume_data_row_code = int(math.round(nz(src_volume_data_row, 0.0)))
+int quality_env_row_code = int(math.round(nz(src_quality_env_row, 0.0)))
+int quality_strict_row_code = int(math.round(nz(src_quality_strict_row, 0.0)))
+int close_row_code = int(math.round(nz(src_close_strength_row, 0.0)))
+int ema_row_code = int(math.round(nz(src_ema_support_row, 0.0)))
+int adx_row_code = int(math.round(nz(src_adx_row, 0.0)))
+int relvol_row_code = int(math.round(nz(src_relvol_row, 0.0)))
+int vwap_row_code = int(math.round(nz(src_vwap_row, 0.0)))
+int context_quality_row_code = int(math.round(nz(src_context_quality_row, 0.0)))
+int quality_clean_row_code = int(math.round(nz(src_quality_clean_row, 0.0)))
+int quality_score_row_code = int(math.round(nz(src_quality_score_row, 0.0)))
+int sd_confluence_row_code = int(math.round(nz(src_sd_confluence_row, 0.0)))
+int sd_osc_row_code = int(math.round(nz(src_sd_osc_row, 0.0)))
+int vol_regime_row_code = int(math.round(nz(src_vol_regime_row, 0.0)))
+int vol_squeeze_row_code = int(math.round(nz(src_vol_squeeze_row, 0.0)))
+int ltf_delta_state_code = int(math.round(nz(src_ltf_delta_state, 0.0)))
+int ltf_delta_row_code = ltf_delta_row_code_from_state(ltf_delta_state_code)
+int stretch_row_code = resolve_stretch_row_code(src_stretch_z, src_stretch_support_mask)
+int safe_trend_state_code = int(math.round(nz(src_safe_trend_state, 0.0)))
+int swing_row_code = swing_row_code_from_state(safe_trend_state_code)
+int ltf_bias_row_code = resolve_ltf_bias_row_code(ltf_delta_row_code, src_ltf_bull_share, src_ltf_bias_hint)
+int objects_ob_count = count_pack_slot(src_objects_count_pack, 0)
+int objects_fvg_count = count_pack_slot(src_objects_count_pack, 1)
+int objects_row_code = resolve_objects_row_code(objects_ob_count, objects_fvg_count)
+int micro_profile_encoded = int(math.round(nz(src_micro_profile_code, 0.0)))
+int micro_profile_row_code = micro_profile_row_code_from_code(micro_profile_encoded)
+int long_zones_row_code = zone_row_code(zone_code)
+int long_triggers_row_code = resolve_long_triggers_row_code(src_trigger, src_invalidation)
+int risk_plan_row_code = resolve_risk_plan_row_code(src_trigger, src_invalidation, src_stop_level, src_target_1, src_target_2)
+int debug_flags_row_code = resolve_debug_flags_row_code(local_ob_debug_enabled, local_fvg_debug_enabled, local_engine_debug_enabled)
+int ready_blocker_code = int(math.round(nz(src_ready_blocker_code, 0.0)))
+int strict_blocker_code = int(math.round(nz(src_strict_blocker_code, 0.0)))
+int vol_expansion_state_code = int(math.round(nz(src_vol_expansion_state, 0.0)))
+int ddvi_context_state_code = int(math.round(nz(src_ddvi_context_state, 0.0)))
+int ready_gate_row_code = ready_gate_row_code_from_blocker(ready_blocker_code)
+int strict_gate_row_code = strict_gate_row_code_from_blocker(strict_blocker_code)
+int vol_expand_row_code = vol_expand_row_code_from_state(vol_expansion_state_code)
+int ddvi_row_code = ddvi_row_code_from_state(ddvi_context_state_code)
+int debug_state_row_code = resolve_debug_state_row_code(debug_flags_row_code, state_code, armed, confirmed, ready)
+// v5.5 Lean Pack unpacking
+int lean_sq_row_code = pack_slot(src_lean_pack_a, 0)
+int lean_freshness_row_code = pack_slot(src_lean_pack_a, 1)
+int lean_erl_row_code = pack_slot(src_lean_pack_a, 2)
+int lean_struct_row_code = pack_slot(src_lean_pack_a, 3)
+int event_risk_row_code = resolve_event_risk_diag_row_code(lean_erl_row_code)
+int lean_ob_row_code = pack_slot(src_lean_pack_b, 0)
+int lean_fvg_row_code = pack_slot(src_lean_pack_b, 1)
+int lean_session_row_code = pack_slot(src_lean_pack_b, 2)
+int lean_transport_row_code = pack_slot(src_lean_pack_b, 3)
+int htf_bull_count = (trend_htf_1 == 2 ? 1 : 0) + (trend_htf_2 == 2 ? 1 : 0) + (trend_htf_3 == 2 ? 1 : 0)
+int setup_state = state_code >= 6 ? 5 : state_code == 5 or state_code == 4 ? 4 : state_code == 3 ? 3 : state_code == 2 ? 2 : state_code == 1 ? 1 : state_code == -1 ? -1 : 0
+int exec_state = state_code >= 6 ? 5 : state_code == 5 or state_code == 4 ? 4 : state_code == 2 or state_code == 3 ? 2 : state_code == 1 ? 1 : 0
+int setup_age_state = state_code >= 4 ? freshness_code == 1 ? 5 : 2 : state_code == 2 or state_code == 3 ? freshness_code == 3 ? 4 : 2 : 0
+int htf_state = htf_bull_count >= 2 ? 5 : htf_bull_count == 1 ? 3 : -1
+int reclaim_state = reclaim_code >= 4 ? 5 : reclaim_code >= 2 ? 4 : reclaim_code == 1 ? 2 : 0
+string source_label = source_kind_text(source_code)
+string long_zones_text = zone_detail_text(row_reason(long_zones_row_code), src_zone_ob_top, src_zone_ob_bottom, src_zone_fvg_top, src_zone_fvg_bottom)
+string long_debug_text = row_status(debug_state_row_code) == 0 ? "off" : "state=" + long_visual_text(state_code) + " | src=" + source_label + " | fresh=" + freshness_text(freshness_code) + " | " + source_state_text(source_state_code)
+
+bool actionable_state = state_code >= 5
+string dashboard_symbol_key = syminfo.ticker
+string dashboard_symbol_key_qualified = syminfo.tickerid
+bool dashboard_universe_initialized = mp.UNIVERSE_TICKERS != ""
+bool dashboard_ticker_in_universe = dashboard_universe_initialized and u.csv_has_symbol_token(mp.UNIVERSE_TICKERS, dashboard_symbol_key, dashboard_symbol_key_qualified)
+bool dashboard_universe_partial_context = dashboard_ticker_in_universe and (mp.PROVIDER_COUNT == 0 or mp.STALE_PROVIDERS != "" or mp.EVENT_PROVIDER_STATUS != "ok")
+int dashboard_universe_status_code = u.universe_status_code(dashboard_universe_initialized, dashboard_ticker_in_universe, dashboard_universe_partial_context)
+int dashboard_universe_state = universe_status_state(dashboard_universe_status_code)
+string dashboard_universe_badge = u.universe_status_badge(dashboard_universe_status_code)
+string dashboard_universe_detail = u.universe_status_dashboard_text(dashboard_universe_status_code)
+string dashboard_universe_matrix = u.universe_status_feature_matrix(dashboard_universe_status_code)
+string dashboard_universe_tt = dashboard_universe_detail + "\n\n" + dashboard_universe_matrix
+
+plot(show_risk_lines and actionable_state ? src_trigger : na, "Trade Trigger", color = color.new(CLR_WARN, 0), linewidth = 2, style = plot.style_linebr)
+plot(show_risk_lines and actionable_state ? src_invalidation : na, "Trade Invalidation", color = color.new(CLR_CAUTION, 0), linewidth = 2, style = plot.style_linebr)
+bgcolor(show_state_bg and state_code >= 5 ? color.new(CLR_BULL, 90) : na)
+
+var table smc_dashboard = table.new(position.bottom_right, 2, 80, border_width = 0)
+
+if show_table and barstate.islast
+    color txt = chart.fg_color
+    color header_bg = color.new(color.black, 100)
+    if surface_mode == "Focus"
+        // ── FOCUS MODE (v7.1): 3-row traffic light — just the essentials ──
+        // Row 0: Traffic light (🟢 / 🟡 / 🔴) + one-word action
+        // Row 1: Price levels (trigger + invalidation) if actionable
+        // Row 2: Market context (regime + trust) one-liner
+        string focus_action = state_code >= 6 ? "🟢  ENTRY" : state_code == 5 ? "🟢  READY" : state_code >= 2 ? "🟡  PREPARE" : state_code == -1 ? "🔴  BLOCKED" : "⚪  WAIT"
+        color focus_action_bg = state_code >= 5 ? color.new(CLR_BULL, 70) : state_code >= 2 ? color.new(CLR_CAUTION, 70) : state_code == -1 ? color.new(CLR_BEAR, 70) : color.new(CLR_NEUTRAL, 80)
+        string focus_levels = actionable_state and not na(src_trigger) ? "Entry " + str.tostring(src_trigger, format.mintick) + " | Stop " + str.tostring(src_invalidation, format.mintick) : "—"
+        string focus_context = mp.MARKET_REGIME + " · " + mp.TRADE_STATE
+        color focus_context_bg = mp.TRADE_STATE == "BLOCKED" ? color.new(CLR_BEAR, 80) : mp.TRADE_STATE == "DISCOURAGED" ? color.new(CLR_CAUTION, 80) : color.new(CLR_BULL_ALT, 85)
+        dashboard_row_tt(smc_dashboard, 0, "SMC", focus_action + " | " + dashboard_universe_badge, focus_action_bg, txt, dashboard_universe_tt)
+        dashboard_row(smc_dashboard, 1, "Plan", focus_levels, actionable_state ? color.new(CLR_BULL_ALT, 85) : header_bg, txt)
+        dashboard_row(smc_dashboard, 2, "Market", focus_context, focus_context_bg, txt)
+        table.clear(smc_dashboard, 0, 3, 1, 79)
+    else if surface_mode == "Explain"
+        // ── EXPLAIN MODE (v7.2): Checklist explaining why the current zone state holds ──
+        // Shows each major criterion as ✅ / ❌ with what's met, what's missing, and the next step.
+        string ex_state_label = state_code >= 6 ? "🟢  ENTER LONG" : state_code == 5 ? "🟢  READY LONG" : state_code == 4 ? "🟡  CONFIRMED" : state_code == 3 ? "🟡  BUILDING" : state_code == 2 ? "🟡  ARMED" : state_code == 1 ? "⚪  IN ZONE" : state_code == -1 ? "🔴  BLOCKED" : "⚪  WAIT"
+        color ex_state_bg = state_code >= 5 ? color.new(CLR_BULL, 70) : state_code >= 2 ? color.new(CLR_CAUTION, 70) : state_code == -1 ? color.new(CLR_BEAR, 70) : color.new(CLR_NEUTRAL, 80)
+        string ex_source = source_kind_text(source_code)
+        // ── Criterion checks ──
+        bool ex_struct_ok = row_status(lean_struct_row_code) >= 3
+        string ex_struct_event = row_reason(lean_struct_row_code) == 1 ? "BOS Bull" : row_reason(lean_struct_row_code) == 2 ? "CHoCH Bull" : row_reason(lean_struct_row_code) == 3 ? "BOS Bear" : row_reason(lean_struct_row_code) == 4 ? "CHoCH Bear" : "—"
+        bool ex_zone_ok = zone_code > 0
+        string ex_zone_type = zone_reason_text(zone_code)
+        bool ex_quality_ok = row_status(lean_sq_row_code) >= 3
+        string ex_quality_tier = decode_lean_sq_text(lean_sq_row_code)
+        bool ex_fresh_ok = row_status(lean_freshness_row_code) >= 3
+        string ex_fresh_label = row_status(lean_freshness_row_code) >= 5 ? "fresh" : row_status(lean_freshness_row_code) == 3 ? "aging" : "stale"
+        bool ex_session_ok = row_status(session_row_code) >= 5 or row_reason(session_row_code) == 2
+        bool ex_market_ok = row_status(market_row_code) >= 5 or (row_reason(market_row_code) == 1 and row_status(market_row_code) == 0)
+        bool ex_event_ok = row_status(event_risk_row_code) >= 4 or row_reason(event_risk_row_code) == 1
+        string ex_event_text = dashboard_compact_event_risk_text(event_risk_row_code)
+        int ex_htf_ok_count = (trend_htf_1 == 2 ? 1 : 0) + (trend_htf_2 == 2 ? 1 : 0) + (trend_htf_3 == 2 ? 1 : 0)
+        bool ex_htf_ok = ex_htf_ok_count >= 2
+        bool ex_pressure_ok = row_status(ltf_delta_row_code) >= 3
+        string ex_ready_blocker = decode_ready_gate_text(ready_gate_row_code)
+        string ex_strict_blocker = decode_strict_gate_text(strict_gate_row_code)
+        // ── Next step derivation ──
+        string ex_next_step = "Wait for a bullish structure break"
+        if state_code >= 6
+            ex_next_step := "Execute — follow the trade plan levels"
+        else if state_code == 5
+            ex_next_step := "Watch trigger level for break above"
+        else if state_code == 4
+            if ex_ready_blocker != "Ready"
+                ex_next_step := "Blocked by: " + ex_ready_blocker
+            else
+                ex_next_step := "Wait for Ready gate to clear"
+        else if state_code == 3 or state_code == 2
+            ex_next_step := "Zone reclaim in progress — wait for confirmation"
+        else if state_code == -1
+            ex_next_step := "Setup invalidated — wait for a fresh reclaim"
+        else if not ex_struct_ok
+            ex_next_step := "Need bullish BOS or CHoCH"
+        else if not ex_zone_ok
+            ex_next_step := "Price must enter a demand zone (OB/FVG)"
+        // ── Render ──
+        color pass = color.new(CLR_BULL, 75)
+        color fail = color.new(CLR_BEAR, 75)
+        dashboard_row_tt(smc_dashboard, 0, "SMC Explain", ex_state_label + " | " + dashboard_universe_badge, ex_state_bg, txt, dashboard_universe_tt)
+        dashboard_row(smc_dashboard, 1, "Zone Source", ex_source, header_bg, txt)
+        section_row(smc_dashboard, 2, "[ Checklist ]", header_bg, txt)
+        dashboard_row(smc_dashboard, 3, ex_struct_ok ? "✅ Structure" : "❌ Structure", ex_struct_event, ex_struct_ok ? pass : fail, txt)
+        dashboard_row(smc_dashboard, 4, ex_zone_ok ? "✅ Zone" : "❌ Zone", ex_zone_type, ex_zone_ok ? pass : fail, txt)
+        dashboard_row(smc_dashboard, 5, ex_quality_ok ? "✅ Signal Quality" : "❌ Signal Quality", ex_quality_tier, ex_quality_ok ? pass : fail, txt)
+        dashboard_row(smc_dashboard, 6, ex_fresh_ok ? "✅ Freshness" : "❌ Freshness", ex_fresh_label, ex_fresh_ok ? pass : fail, txt)
+        dashboard_row(smc_dashboard, 7, ex_session_ok ? "✅ Session" : "❌ Session", ex_session_ok ? "open" : "closed", ex_session_ok ? pass : fail, txt)
+        dashboard_row(smc_dashboard, 8, ex_market_ok ? "✅ Market Gate" : "❌ Market Gate", ex_market_ok ? "clear" : "blocked", ex_market_ok ? pass : fail, txt)
+        dashboard_row(smc_dashboard, 9, ex_event_ok ? "✅ Event Risk" : "❌ Event Risk", ex_event_text, ex_event_ok ? pass : fail, txt)
+        dashboard_row(smc_dashboard, 10, ex_htf_ok ? "✅ HTF Trend" : "❌ HTF Trend", str.tostring(ex_htf_ok_count) + "/3 bullish", ex_htf_ok ? pass : fail, txt)
+        dashboard_row(smc_dashboard, 11, ex_pressure_ok ? "✅ Pressure" : "❌ Pressure", ex_pressure_ok ? "supports long" : "mixed / against", ex_pressure_ok ? pass : fail, txt)
+        // Phase H: FVG health checklist item (Phase-H follow-on issue #16:
+        // now also surfaces aggregate cal-HR warnings for OB/BOS/SWEEP and
+        // the ZONE_CAL_TRUST glyph as a row suffix.)
+        float _ex_fvg_health = resolve_fvg_health_score()
+        bool ex_fvg_ok = mp.PRIMARY_FVG_SIDE == "NONE" or _ex_fvg_health >= 30.0
+        string ex_fvg_label = mp.PRIMARY_FVG_SIDE == "NONE" ? "no FVG" : fvg_health_tier(_ex_fvg_health)
+        string _ex_fvg_warn = fvg_combined_warning_text(_ex_fvg_health, mp.ZONE_HR_FVG)
+        string _ex_zone_cal_warn = zone_cal_aggregate_warning_text()
+        string _ex_trust_glyph = zone_cal_trust_glyph(mp.ZONE_CAL_TRUST)
+        string _ex_fvg_combined = _ex_fvg_warn != "" and _ex_zone_cal_warn != "" ? _ex_fvg_warn + " | " + _ex_zone_cal_warn : _ex_fvg_warn != "" ? _ex_fvg_warn : _ex_zone_cal_warn
+        string ex_fvg_detail = _ex_fvg_combined != "" ? ex_fvg_label + " — " + _ex_fvg_combined : ex_fvg_label
+        ex_fvg_detail := _ex_trust_glyph != "" ? ex_fvg_detail + " " + _ex_trust_glyph : ex_fvg_detail
+        // Calibrated-HR drives a hard fail too — not just live-zone health.
+        // Any family below threshold OR DEGRADED/UNAVAILABLE trust state fails the row.
+        bool ex_fvg_cal_ok = mp.ZONE_HR_FVG <= 0.0 or mp.ZONE_HR_FVG >= 0.65
+        bool ex_zone_cal_ok = _ex_zone_cal_warn == ""
+        bool ex_trust_ok = mp.ZONE_CAL_TRUST != "DEGRADED" and mp.ZONE_CAL_TRUST != "UNAVAILABLE"
+        bool ex_fvg_pass = ex_fvg_ok and ex_fvg_cal_ok and ex_zone_cal_ok and ex_trust_ok
+        // Tooltip carries the calibration reliability score (H1; a sample-size x
+        // smECE readiness HEURISTIC, not a probability — confidence-vocabulary
+        // program) + trend (H3) for diagnostic depth; falls back to plain
+        // dashboard_row when the field is uninitialised (sentinel 0.0).
+        string _ex_fvg_tt = zone_cal_diagnostics_tooltip_text(mp.ZONE_CAL_RELIABILITY_SCORE, mp.ZONE_CAL_TREND)
+        if _ex_fvg_tt == ""
+            dashboard_row(smc_dashboard, 12, ex_fvg_pass ? "✅ FVG Health" : "⚠ FVG Health", ex_fvg_detail, ex_fvg_pass ? pass : color.new(CLR_CAUTION, 75), txt)
+        else
+            dashboard_row_tt(smc_dashboard, 12, ex_fvg_pass ? "✅ FVG Health" : "⚠ FVG Health", ex_fvg_detail, ex_fvg_pass ? pass : color.new(CLR_CAUTION, 75), txt, _ex_fvg_tt)
+        section_row(smc_dashboard, 13, "[ Next Step ]", header_bg, txt)
+        dashboard_row(smc_dashboard, 14, "→", ex_next_step, ex_state_bg, txt)
+        table.clear(smc_dashboard, 0, 15, 1, 79)
+    else if compact_dashboard
+        // WP-OV5: 5-row compact dashboard for mobile / small screens
+        string lib_regime = mp.MARKET_REGIME
+        float lib_vix = mp.VIX_LEVEL
+        string lib_tone_c = mp.TONE
+        string market_line = lib_regime + ' · VIX ' + str.tostring(lib_vix, '#.#') + ' · ' + lib_tone_c
+        color market_bg = mp.TRADE_STATE == "BLOCKED" ? color.new(CLR_BEAR, 70) : mp.TRADE_STATE == "DISCOURAGED" ? color.new(CLR_CAUTION, 70) : color.new(CLR_BULL_ALT, 80)
+        // ENG-WS2-03: append the canonical product trust badge to the Trust /
+        // Data row so stale/degraded/watch-only is visible without entering
+        // Audit View. The legacy operator-grade trust text stays as the
+        // prefix; the badge is suffixed and the row state is clamped to the
+        // worse of the legacy state and the product trust state.
+        int _compact_legacy_trust_state = dashboard_compact_trust_state(lean_sq_row_code, lean_freshness_row_code, volume_data_row_code, micro_fresh_row_code)
+        int _compact_product_trust_state = product_trust_badge_state(mp.TRUST_STATE)
+        int _compact_trust_state = _compact_legacy_trust_state < _compact_product_trust_state ? _compact_legacy_trust_state : _compact_product_trust_state
+        string _compact_trust_text = dashboard_compact_trust_text(lean_sq_row_code, lean_freshness_row_code, volume_data_row_code, micro_fresh_row_code, event_risk_row_code, ready_gate_row_code, strict_gate_row_code, mp.ENSEMBLE_QUALITY_TIER) + " | data: " + product_trust_badge_text(mp.TRUST_STATE, mp.TRUST_DEGRADATION_REASON)
+        dashboard_row_tt(smc_dashboard, 0, "SMC Compact", "Decision Brief | " + dashboard_universe_badge, header_bg, txt, dashboard_universe_tt)
+        dashboard_row(smc_dashboard, 1, "Market", market_line, market_bg, txt)
+        dashboard_row(smc_dashboard, 2, "Structure", dashboard_compact_structure_text(state_code, zone_code, lean_struct_row_code, reclaim_code), status_bg(setup_state), txt)
+        dashboard_row_tt(smc_dashboard, 3, "Trust / Data", _compact_trust_text + " | " + dashboard_universe_badge, status_bg(_compact_trust_state < dashboard_universe_state ? _compact_trust_state : dashboard_universe_state), txt, dashboard_universe_tt)
+        dashboard_row(smc_dashboard, 4, "Risk Plan", dashboard_compact_risk_plan_text(actionable_state, src_trigger, src_stop_level, src_target_1, src_target_2), status_bg(actionable_state ? 5 : 0), txt)
+        table.clear(smc_dashboard, 0, 5, 1, 79)
+    else if surface_mode == "Decision Brief"
+        // Market Context from Library
+        string lib_regime = mp.MARKET_REGIME
+        float lib_vix = mp.VIX_LEVEL
+        string lib_trade_state = mp.TRADE_STATE
+        bool lib_macro_event = mp.HIGH_IMPACT_MACRO_TODAY
+        string lib_event_name = mp.MACRO_EVENT_NAME
+        string lib_tone_db = mp.TONE
+        float lib_heat_db = mp.GLOBAL_HEAT
+        string lib_vol_regime_db = mp.VOLATILITY_REGIME
+        string market_line = lib_regime + ' · VIX ' + str.tostring(lib_vix, '#.#') + ' · ' + lib_tone_db + ' · Heat ' + str.tostring(lib_heat_db, '#.##')
+        if lib_vol_regime_db != "" and lib_vol_regime_db != "NORMAL"
+            market_line += ' · Vol:' + lib_vol_regime_db
+        if lib_macro_event
+            market_line += ' · ' + lib_event_name
+        color market_bg = lib_trade_state == "BLOCKED" ? color.new(CLR_BEAR, 70) : lib_trade_state == "DISCOURAGED" ? color.new(CLR_CAUTION, 70) : color.new(CLR_BULL_ALT, 80)
+
+        dashboard_row(smc_dashboard, 0, "SMC Long-Dip Dashboard v7", "Decision Brief | Linked setup active", header_bg, txt)
+        dashboard_row(smc_dashboard, 1, "Market", market_line, market_bg, txt)
+        dashboard_row(smc_dashboard, 2, "Structure", dashboard_compact_structure_text(state_code, zone_code, lean_struct_row_code, reclaim_code), status_bg(setup_state), txt)
+        dashboard_row(smc_dashboard, 3, "Session / Market", dashboard_compact_session_market_text(session_row_code, market_row_code), status_bg(dashboard_compact_session_market_state(session_row_code, market_row_code)), txt)
+        dashboard_row(smc_dashboard, 4, "Event Risk", dashboard_compact_event_risk_text(event_risk_row_code), status_bg(row_status(event_risk_row_code)), txt)
+        // Zone Priority from generated library (C9)
+        string zp_rank = mp.ZONE_PRIORITY_RANK
+        int zp_score = mp.ZONE_PRIORITY_SCORE
+        string zp_catalyst = mp.ZONE_PRIORITY_CATALYST
+        string zp_line = zp_rank + " (" + str.tostring(zp_score) + "/100)"
+        if zp_catalyst != "NONE" and zp_catalyst != ""
+            zp_line += " · " + zp_catalyst
+        color zp_bg = zp_rank == "A" ? color.new(CLR_BULL_ALT, 75) : zp_rank == "B" ? color.new(CLR_BULL_ALT, 85) : zp_rank == "C" ? color.new(CLR_CAUTION, 80) : color.new(CLR_BEAR, 80)
+        // Plan 1.5 — Explain-popup: hover shows family/HR/trust/reason for this zone.
+        string zp_brief_tt = "Zone " + zp_rank + " — Why?\nTop Family: " + mp.ZONE_PRIORITY_TOP_FAMILY + "\nScore: " + str.tostring(zp_score) + "/100\nTrust Tier: " + mp.HERO_TRUST + (mp.ZONE_PRIORITY_REASON != "" ? "\nReason: " + mp.ZONE_PRIORITY_REASON : "") + (zp_catalyst != "NONE" and zp_catalyst != "" ? "\nCatalyst: " + zp_catalyst : "")
+        dashboard_row_tt(smc_dashboard, 5, "Zone Priority", zp_line, zp_bg, txt, zp_brief_tt)
+        // ENG-WS2-03: same product trust badge augmentation as the SMC
+        // Compact view (see comment above). Decision Brief is also a
+        // default surface, so a degraded data lage must be visible here
+        // without switching to Audit View.
+        int _brief_legacy_trust_state = dashboard_compact_trust_state(lean_sq_row_code, lean_freshness_row_code, volume_data_row_code, micro_fresh_row_code)
+        int _brief_product_trust_state = product_trust_badge_state(mp.TRUST_STATE)
+        int _brief_trust_state = _brief_legacy_trust_state < _brief_product_trust_state ? _brief_legacy_trust_state : _brief_product_trust_state
+        string _brief_trust_text = dashboard_compact_trust_text(lean_sq_row_code, lean_freshness_row_code, volume_data_row_code, micro_fresh_row_code, event_risk_row_code, ready_gate_row_code, strict_gate_row_code, mp.ENSEMBLE_QUALITY_TIER) + " | data: " + product_trust_badge_text(mp.TRUST_STATE, mp.TRUST_DEGRADATION_REASON)
+        dashboard_row_tt(smc_dashboard, 6, "Trust / Data", _brief_trust_text + " | " + dashboard_universe_badge, status_bg(_brief_trust_state < dashboard_universe_state ? _brief_trust_state : dashboard_universe_state), txt, dashboard_universe_tt)
+        dashboard_row(smc_dashboard, 7, "Short-term Pressure", dashboard_compact_pressure_text(ltf_delta_row_code, src_ltf_volume_delta, swing_row_code), status_bg(row_status(ltf_delta_row_code)), txt)
+        dashboard_row(smc_dashboard, 8, "Risk Plan", dashboard_compact_risk_plan_text(actionable_state, src_trigger, src_stop_level, src_target_1, src_target_2), status_bg(actionable_state ? 5 : 0), txt)
+        table.clear(smc_dashboard, 0, 9, 1, 79)
+    else if surface_mode == "Hero"
+        // ── Hero Surface (PR 2) ──
+        // Reads the hero state contract from the generated library and exposes
+        // the seven decision-first signals: Market, Action, Why now, Setup Quality,
+        // Trust, Risk, Risk Plan. Row positions match the existing audit-view
+        // labelling convention so substring-based UI contracts remain intact.
+        string h_action = mp.HERO_ACTION
+        string h_bias = mp.HERO_BIAS
+        // Issue #55 — "UNKNOWN"/"FLAT" are both omitted from the appended bias chip;
+        // UNKNOWN means "no enrichment run yet", FLAT means "resolved flat".
+        string h_action_line = h_action + ((h_bias != "FLAT" and h_bias != "UNKNOWN") ? " · " + h_bias : "")
+        color h_action_bg = h_action == "ACTIVE" ? color.new(CLR_BULL, 70) : h_action == "BLOCKED" ? color.new(CLR_BEAR, 70) : h_action == "AVOID" ? color.new(CLR_BEAR, 80) : color.new(CLR_NEUTRAL, 75)
+
+        string h_market = mp.HERO_MARKET_MODE
+        string h_vol = mp.VOLATILITY_REGIME
+        // Issue #55 waiting-state rendering — grey "awaiting first enrichment run".
+        bool h_market_waiting = h_market == "UNKNOWN"
+        string h_market_line = h_market_waiting ? "⚪ awaiting data" : h_market
+        if not h_market_waiting and h_vol != "" and h_vol != "NORMAL"
+            h_market_line += " · Vol:" + h_vol
+        color h_market_bg = h_market_waiting ? color.new(color.gray, 80) : h_market == "BULLISH" ? color.new(CLR_BULL_ALT, 80) : (h_market == "BEARISH" or h_market == "RISK_OFF") ? color.new(CLR_BEAR, 80) : color.new(CLR_NEUTRAL, 80)
+
+        string h_why = mp.HERO_WHY_NOW
+        string h_why_line = h_why != "" ? h_why : "—"
+        color h_why_bg = h_why != "" ? color.new(CLR_BULL_ALT, 85) : header_bg
+
+        string h_quality = mp.HERO_SETUP_QUALITY
+        // Issue #55 — "unavailable" is the waiting-state sentinel (distinct from
+        // "low"); it MUST resolve to a neutral background, not the bearish -1
+        // bucket that status_bg renders for actual negative states.
+        int h_quality_state = (h_quality == "high" or h_quality == "good") ? 5 : h_quality == "ok" ? 3 : 0
+        string h_quality_line = h_quality == "unavailable" ? "⚪ awaiting data" : h_quality
+        color h_quality_bg = h_quality == "unavailable" ? color.new(color.gray, 80) : status_bg(h_quality_state)
+
+        string h_trust = mp.HERO_TRUST
+        // ENG-WS2-03: hero trust row now also carries the canonical product
+        // trust state + degradation reason coming from the generated library
+        // (mp.TRUST_STATE / mp.TRUST_DEGRADATION_REASON). Hero State stays
+        // the leading signal — the product trust badge is appended after a
+        // separator so a single-glance read still works.
+        int h_trust_state_legacy = h_trust == "healthy" ? 5 : h_trust == "warmup" ? 3 : h_trust == "degraded" ? 2 : -1
+        int h_trust_state_product = product_trust_badge_state(mp.TRUST_STATE)
+        int h_trust_state = h_trust_state_legacy < h_trust_state_product ? h_trust_state_legacy : h_trust_state_product
+        string h_trust_line = h_trust + ((h_trust == "degraded" or h_trust == "stale" or h_trust == "unavailable") ? " ⚠" : "") + " · data: " + product_trust_badge_text(mp.TRUST_STATE, mp.TRUST_DEGRADATION_REASON)
+
+        string h_risk = mp.HERO_RISK
+        string h_risk_line = h_risk != "" ? h_risk : "—"
+        int h_risk_state = (h_risk == "DATA_STALE" or h_risk == "EVENT_RISK") ? -1 : (h_risk == "VOLATILITY" or h_risk == "PROVIDER_GAPS") ? 2 : h_risk == "" ? 5 : 3
+
+        dashboard_row(smc_dashboard, 0, "SMC Long-Dip Dashboard v7", "Hero | Decision-first surface", header_bg, txt)
+        // Plan 1.1 — product hero one-liner subtitle: SMC · BIAS · TIER · Top FAM HR% · Zone #N · ⚠BLOCKER
+        // Reads from generated mp.* contract. Cheap to render, no extra state.
+        string _hero_fam = mp.ZONE_PRIORITY_TOP_FAMILY
+        float _hero_fam_w = resolve_family_cal_weight(_hero_fam)
+        int _hero_fam_pct = int(math.round(_hero_fam_w * 100))
+        string _hero_blocker = mp.HERO_RISK != "" ? mp.HERO_RISK : (mp.HERO_TRUST == "degraded" or mp.HERO_TRUST == "stale" ? "TRUST" : "")
+        // Plan §3.1.2 — CAL-BREACH overrides any other blocker because the
+        // operator has explicitly flagged a 30-day smECE SLO breach.
+        if calibration_breach_banner
+            _hero_blocker := "CAL-BREACH"
+        string _hero_one = compose_hero_one_liner(hero_token_order, mp.HERO_BIAS, mp.HERO_TRUST, _hero_fam, _hero_fam_pct, mp.ZONE_PRIORITY_RANK, _hero_blocker, calibration_sha)
+        color _hero_one_bg = mp.HERO_TRUST == "healthy" ? color.new(CLR_TIER_T1, 70) : mp.HERO_TRUST == "warmup" ? color.new(CLR_TIER_T2, 75) : mp.HERO_TRUST == "degraded" ? color.new(CLR_TIER_T3, 75) : color.new(CLR_TIER_T4, 75)
+        // Plan §2.5 H5 — Onboarding tooltip on Hero row when Custom preset
+        // is active. Reads BUS PresetClassCode (0 = Custom). When a curated
+        // preset is bound, the tooltip switches to a calibrated-defaults
+        // hint instead of the onboarding nudge, so the surface stays useful
+        // for advanced users.
+        int _hero_preset_code = int(math.round(src_preset_class_code))
+        string _hero_one_tt = (_hero_preset_code == 0 ? "Onboarding · 4 Clicks to first calibrated signal:\n  1. Open Settings → Quickstart Preset.\n  2. Pick Mega-Cap US Tech / Financial Services / Energy.\n  3. Confirm — preset raises floors (RVOL, HTF Bias, FVG Quality), never lowers your inputs.\n  4. Watch the Hero row update; Trust badge turns T1/T2 once the calibrated stack agrees.\nSource: SMC_Core_Engine quickstart_preset · Plan §1.4 + §2.5 H5." : "Curated preset active (class " + str.tostring(_hero_preset_code) + ") — calibrated floors applied to RVOL/HTF/FVG/Vol inputs. You can still tighten any input above the preset floor; the preset never lowers your value.\nSource: BUS Preset* contract.") + "\n\n" + dashboard_universe_tt
+        string _hero_one_display = _hero_one + " · " + dashboard_universe_badge
+        dashboard_row_tt(smc_dashboard, 1, "Hero", _hero_one_display, _hero_one_bg, txt, _hero_one_tt)
+        dashboard_row(smc_dashboard, 2, "Market", h_market_line, h_market_bg, txt)
+        dashboard_row(smc_dashboard, 3, "Action", h_action_line, h_action_bg, txt)
+        dashboard_row(smc_dashboard, 4, "Why now", h_why_line, h_why_bg, txt)
+        dashboard_row(smc_dashboard, 5, "Setup Quality", h_quality_line, h_quality_bg, txt)
+        dashboard_row(smc_dashboard, 6, "Trust", h_trust_line, status_bg(h_trust_state), txt)
+        dashboard_row(smc_dashboard, 7, "Risk", h_risk_line, status_bg(h_risk_state), txt)
+        dashboard_row(smc_dashboard, 8, "Risk Plan", dashboard_compact_risk_plan_text(actionable_state, src_trigger, src_stop_level, src_target_1, src_target_2), status_bg(actionable_state ? 5 : 0), txt)
+        table.clear(smc_dashboard, 0, 9, 1, 79)
+    else
+        dashboard_row(smc_dashboard, 0, "SMC Long-Dip Dashboard v7", "Audit View | Expert review only", header_bg, txt)
+        // ── AUDIT: decision detail first, then lean review, diagnostics, risk plan, and explicit debug ──
+        section_row(smc_dashboard, 1, "[ Decision Detail ]", header_bg, txt)
+        dashboard_row(smc_dashboard, 2, "Action", dashboard_product_state_text(state_code), status_bg(state_code), txt)
+        dashboard_row(smc_dashboard, 3, "Why now", dashboard_compact_why_now_text(state_code, zone_code, lean_struct_row_code, lean_ob_row_code, lean_fvg_row_code, ready_gate_row_code, strict_gate_row_code), status_bg(actionable_state ? 5 : state_code >= 2 ? 3 : row_status(ready_gate_row_code)), txt)
+        dashboard_row(smc_dashboard, 4, "Trend", trend_text(trend_now), status_bg(trend_now == 2 ? 5 : trend_now == 0 ? -1 : 0), txt)
+        // Addendum 2.8 (2026-04-21) — intentional 3-layer ICT trend stack;
+        // see docs/smc_improvement_plan_addendum_2_8_mtf_scope_2026-04-21.md
+        string _htf_trend_tt = "Trend Stack: 4H · 1D · 1W (ICT-standard 3-layer, factor-~4 spacing).\nIntentional scope: 3 layers + adaptive IPDA, not a 7-TF stack. A 4th intermediate layer (2H) is scaffolded behind a feature-flag (SMC_Long_Dip_Suite.pine: enable_trend_tf_0, default OFF) and gated on the Q4 W13 A/B verdict (G1 ≥3pp HR uplift / G2 Brier ≤0.02 / G3 ≥30 events per bucket).\nSource: Addendum 2.8 (docs/smc_improvement_plan_addendum_2_8_mtf_scope_2026-04-21.md)"
+        dashboard_row_tt(smc_dashboard, 5, "HTF Trend", "HTF1:" + trend_text(trend_htf_1) + " | HTF2:" + trend_text(trend_htf_2) + " | HTF3:" + trend_text(trend_htf_3), status_bg(htf_state), txt, _htf_trend_tt)
+        dashboard_row(smc_dashboard, 6, "Long Setup", setup_text(state_code, source_code), status_bg(setup_state), txt)
+        dashboard_row(smc_dashboard, 7, "Setup Age", setup_age_text(state_code, freshness_code), status_bg(setup_age_state), txt)
+        dashboard_row(smc_dashboard, 8, "Long Visual", long_visual_text(state_code), status_bg(setup_state), txt)
+        dashboard_row(smc_dashboard, 9, "Exec Tier", exec_tier_text(state_code), status_bg(exec_state), txt)
+        section_row(smc_dashboard, 10, "[ Lean Surface ]", header_bg, txt)
+        dashboard_row(smc_dashboard, 11, "Lean | Signal Quality", decode_lean_sq_text(lean_sq_row_code), status_bg(row_status(lean_sq_row_code)), txt)
+        dashboard_row(smc_dashboard, 12, "Lean | Freshness", decode_lean_freshness_text(lean_freshness_row_code), status_bg(row_status(lean_freshness_row_code)), txt)
+        dashboard_row(smc_dashboard, 13, "Lean | Event Risk", decode_lean_erl_text(lean_erl_row_code), status_bg(row_status(lean_erl_row_code)), txt)
+        dashboard_row(smc_dashboard, 14, "Lean | Structure", decode_lean_struct_text(lean_struct_row_code), status_bg(row_status(lean_struct_row_code)), txt)
+        dashboard_row(smc_dashboard, 15, "Lean | Order Block", decode_lean_ob_text(lean_ob_row_code), status_bg(row_status(lean_ob_row_code)), txt)
+        dashboard_row(smc_dashboard, 16, "Lean | FVG", decode_lean_fvg_text(lean_fvg_row_code), status_bg(row_status(lean_fvg_row_code)), txt)
+        dashboard_row(smc_dashboard, 17, "Lean | Session", decode_lean_session_text(lean_session_row_code), status_bg(row_status(lean_session_row_code)), txt)
+        // ── Trust & Provider surface (v5.5b) — read-only visibility, no signal model change ──
+        string _audit_sq_tier = decode_lean_sq_text(lean_sq_row_code)
+        string _audit_sq_fresh = row_status(lean_freshness_row_code) >= 5 ? "fresh" : row_status(lean_freshness_row_code) == 3 ? "aging" : "stale"
+        string _audit_prov = dashboard_provider_state_text(volume_data_row_code, micro_fresh_row_code)
+        string _audit_trust = resolve_dashboard_trust_tier(_audit_sq_tier, _audit_sq_fresh, _audit_prov)
+        int _audit_trust_state = dashboard_compact_trust_state(lean_sq_row_code, lean_freshness_row_code, volume_data_row_code, micro_fresh_row_code)
+        int _audit_prov_state = _audit_prov == "ok" ? 5 : -1
+        bool _audit_degraded = _audit_trust == "degraded" or _audit_trust == "insufficient"
+        string _audit_warn_raw = mp.SIGNAL_WARNINGS
+        string _audit_warn_suffix = _audit_warn_raw != "" and _audit_warn_raw != "n/a" ? " | ⚠ " + _audit_warn_raw : ""
+        string _audit_degrad_text = (_audit_degraded ? (_audit_trust == "insufficient" ? "Insufficient — no measurement data" : "Degraded — " + (_audit_prov != "ok" ? "provider issue" : "data stale")) : "No degradation") + _audit_warn_suffix
+        int _audit_degrad_state = _audit_degraded ? (_audit_trust == "insufficient" ? -1 : 2) : _audit_warn_raw != "" and _audit_warn_raw != "n/a" ? 3 : 5
+        section_row(smc_dashboard, 18, "[ Trust & Provider ]", header_bg, txt)
+        // Plan §3.1.1 — append SHA-anchored calibration receipt so a screenshot
+        // of row 19 is independently verifiable against zone_priority_calibration.json.
+        // Empty calibration_sha input → suffix omitted (no surface change).
+        string _audit_cal_sha_trim = str.length(calibration_sha) > 7 ? str.substring(calibration_sha, 0, 7) : calibration_sha
+        string _audit_cal_sha_suffix = _audit_cal_sha_trim != "" ? " (cal sha " + _audit_cal_sha_trim + ")" : ""
+        dashboard_row(smc_dashboard, 19, "Trust Tier", _audit_trust + " | quality " + _audit_sq_tier + " | " + _audit_sq_fresh + _audit_cal_sha_suffix, status_bg(_audit_trust_state), txt)
+        dashboard_row(smc_dashboard, 20, "Provider State", _audit_prov, status_bg(_audit_prov_state), txt)
+        dashboard_row(smc_dashboard, 21, "Degradation", _audit_degrad_text, status_bg(_audit_degrad_state), txt)
+        // Zone Priority from generated library (C9)
+        string _audit_zp_rank = mp.ZONE_PRIORITY_RANK
+        int _audit_zp_score = mp.ZONE_PRIORITY_SCORE
+        string _audit_zp_family = mp.ZONE_PRIORITY_TOP_FAMILY
+        string _audit_zp_catalyst = mp.ZONE_PRIORITY_CATALYST
+        string _audit_zp_reason = mp.ZONE_PRIORITY_REASON
+        string _audit_zp_line = _audit_zp_rank + " (" + str.tostring(_audit_zp_score) + "/100) · " + _audit_zp_family
+        if _audit_zp_catalyst != "NONE" and _audit_zp_catalyst != ""
+            _audit_zp_line += " · " + _audit_zp_catalyst
+        if _audit_zp_reason != ""
+            _audit_zp_line += " — " + _audit_zp_reason
+        color _audit_zp_bg = _audit_zp_rank == "A" ? color.new(CLR_BULL_ALT, 75) : _audit_zp_rank == "B" ? color.new(CLR_BULL_ALT, 85) : _audit_zp_rank == "C" ? color.new(CLR_CAUTION, 80) : color.new(CLR_BEAR, 80)
+        // Plan 1.5 — Explain-popup with full reason + calibrated weight context.
+        float _audit_zp_top_w = resolve_family_cal_weight(_audit_zp_family)
+        string _audit_zp_tt = "Zone " + _audit_zp_rank + " — Why?\nTop Family: " + _audit_zp_family + " (calibrated weight " + format_cal_weight(_audit_zp_top_w) + ")\nScore: " + str.tostring(_audit_zp_score) + "/100\nTrust Tier: " + _audit_trust + " · Provider: " + _audit_prov + (_audit_zp_reason != "" ? "\nReason: " + _audit_zp_reason : "") + (_audit_zp_catalyst != "NONE" and _audit_zp_catalyst != "" ? "\nCatalyst: " + _audit_zp_catalyst : "") + "\nSource: zone_priority_calibration.json"
+        dashboard_row_tt(smc_dashboard, 22, "Zone Priority", _audit_zp_line, _audit_zp_bg, txt, _audit_zp_tt)
+        // ── Phase H: Calibration Confidence + Per-Family Performance ──
+        float _audit_top_cal = resolve_family_cal_weight(_audit_zp_family)
+        int _audit_top_cal_state = calibration_confidence_state(_audit_top_cal)
+        string _audit_top_cal_text = _audit_zp_family + " " + format_cal_weight(_audit_top_cal) + " (" + calibration_confidence_tier(_audit_top_cal) + ")"
+        float _audit_cal_avg = (mp.ZONE_CAL_OB + mp.ZONE_CAL_FVG + mp.ZONE_CAL_BOS + mp.ZONE_CAL_SWEEP) / 4.0
+        int _audit_cal_avg_state = calibration_confidence_state(_audit_cal_avg)
+        section_row(smc_dashboard, 23, "[ Calibration Confidence ]", header_bg, txt)
+        dashboard_row(smc_dashboard, 24, "Top Family Confidence", _audit_top_cal_text, status_bg(_audit_top_cal_state), txt)
+        dashboard_row(smc_dashboard, 25, "Composite Confidence", format_cal_weight(_audit_cal_avg) + " (" + calibration_confidence_tier(_audit_cal_avg) + ")", status_bg(_audit_cal_avg_state), txt)
+        section_row(smc_dashboard, 26, "[ Per-Family Performance ]", header_bg, txt)
+        // Plan 1.5 — per-family tooltips: calibrated weight + tier in hover.
+        dashboard_row_tt(smc_dashboard, 27, "OB",    family_performance_text("OB",    mp.ZONE_CAL_OB),    status_bg(calibration_confidence_state(mp.ZONE_CAL_OB)),    txt, "OB — calibrated weight "    + format_cal_weight(mp.ZONE_CAL_OB)    + " (" + calibration_confidence_tier(mp.ZONE_CAL_OB)    + ") · source: zone_priority_calibration.json")
+        dashboard_row_tt(smc_dashboard, 28, "FVG",   family_performance_text("FVG",   mp.ZONE_CAL_FVG),   status_bg(calibration_confidence_state(mp.ZONE_CAL_FVG)),   txt, "FVG — calibrated weight "   + format_cal_weight(mp.ZONE_CAL_FVG)   + " (" + calibration_confidence_tier(mp.ZONE_CAL_FVG)   + ") · source: zone_priority_calibration.json")
+        dashboard_row_tt(smc_dashboard, 29, "BOS",   family_performance_text("BOS",   mp.ZONE_CAL_BOS),   status_bg(calibration_confidence_state(mp.ZONE_CAL_BOS)),   txt, "BOS — calibrated weight "   + format_cal_weight(mp.ZONE_CAL_BOS)   + " (" + calibration_confidence_tier(mp.ZONE_CAL_BOS)   + ") · source: zone_priority_calibration.json")
+        dashboard_row_tt(smc_dashboard, 30, "SWEEP", family_performance_text("SWEEP", mp.ZONE_CAL_SWEEP), status_bg(calibration_confidence_state(mp.ZONE_CAL_SWEEP)), txt, "SWEEP — calibrated weight " + format_cal_weight(mp.ZONE_CAL_SWEEP) + " (" + calibration_confidence_tier(mp.ZONE_CAL_SWEEP) + ") · source: zone_priority_calibration.json")
+        // ── Phase H: FVG Health Warning ──
+        float _audit_fvg_health = resolve_fvg_health_score()
+        string _audit_fvg_warn = fvg_combined_warning_text(_audit_fvg_health, mp.ZONE_HR_FVG)
+        section_row(smc_dashboard, 31, "[ FVG Health ]", header_bg, txt)
+        // Plan §D2 — per-context tooltip + optional warn-row from operator-pasted
+        // pine/generated/fvg_context_health.json sidecar. Empty input → legacy
+        // single-number FVG Status row only (no surface change).
+        string _audit_fvg_status_label = fvg_health_text(_audit_fvg_health)
+        string _audit_fvg_ctx_tt = fvg_context_health_text != "" ? "FVG per-context (D2):\n" + fvg_context_health_text + "\nSource: pine/generated/fvg_context_health.json" : "FVG Status — single-number summary. Paste per-context detail into the 'FVG Context Health' input to see the D2 breakdown."
+        dashboard_row_tt(smc_dashboard, 32, "FVG Status", _audit_fvg_status_label, status_bg(fvg_health_state(_audit_fvg_health)), txt, _audit_fvg_ctx_tt)
+        if _audit_fvg_warn != ""
+            dashboard_row(smc_dashboard, 33, "FVG Warning", _audit_fvg_warn, color.new(CLR_CAUTION, 75), txt)
+        else
+            dashboard_row(smc_dashboard, 33, "FVG Warning", "—", header_bg, txt)
+        section_row(smc_dashboard, 34, "[ Gates ]", header_bg, txt)
+        dashboard_row(smc_dashboard, 35, "Session", decode_session_text(session_row_code), status_bg(row_status(session_row_code)), txt)
+        dashboard_row(smc_dashboard, 36, "Market Gate", decode_market_text(market_row_code), status_bg(row_status(market_row_code)), txt)
+        dashboard_row(smc_dashboard, 37, "Vola Regime", decode_vola_text(vola_row_code), status_bg(row_status(vola_row_code)), txt)
+        dashboard_row(smc_dashboard, 38, "Micro Session", decode_micro_session_text(micro_session_row_code), status_bg(row_status(micro_session_row_code)), txt)
+        dashboard_row(smc_dashboard, 39, "Micro Fresh", decode_micro_fresh_text(micro_fresh_row_code, freshness_code, source_state_code), status_bg(row_status(micro_fresh_row_code)), txt)
+        dashboard_row(smc_dashboard, 40, "Volume Data", decode_volume_data_text(volume_data_row_code), status_bg(row_status(volume_data_row_code)), txt)
+        dashboard_row(smc_dashboard, 41, "Event Risk", decode_event_risk_text(event_risk_row_code), status_bg(row_status(event_risk_row_code)), txt)
+        section_row(smc_dashboard, 42, "[ Quality Rows ]", header_bg, txt)
+        dashboard_row(smc_dashboard, 43, "Primary | Quality Env", decode_quality_env_text(quality_env_row_code), primary_metric_bg(row_status(quality_env_row_code)), txt)
+        dashboard_row(smc_dashboard, 44, "Diag | Quality Strict", decode_quality_strict_text(quality_strict_row_code), diagnostic_metric_bg(row_status(quality_strict_row_code)), txt)
+        dashboard_row(smc_dashboard, 45, "Diag | Close Strength", decode_close_text(close_row_code), diagnostic_metric_bg(row_status(close_row_code)), txt)
+        dashboard_row(smc_dashboard, 46, "Diag | EMA Support", decode_ema_text(ema_row_code), diagnostic_metric_bg(row_status(ema_row_code)), txt)
+        dashboard_row(smc_dashboard, 47, "Diag | ADX", decode_adx_text(adx_row_code, src_adx_value), diagnostic_metric_bg(row_status(adx_row_code)), txt)
+        dashboard_row(smc_dashboard, 48, "Diag | Rel Volume", decode_relvol_text(relvol_row_code, src_relvol_value), diagnostic_metric_bg(row_status(relvol_row_code)), txt)
+        dashboard_row(smc_dashboard, 49, "Diag | VWAP Filter", decode_vwap_text(vwap_row_code, src_session_vwap), diagnostic_metric_bg(row_status(vwap_row_code)), txt)
+        dashboard_row(smc_dashboard, 50, "Diag | Context Quality", decode_context_quality_text(context_quality_row_code), diagnostic_metric_bg(row_status(context_quality_row_code)), txt)
+        dashboard_row(smc_dashboard, 51, "Primary | Signal + Ensemble", quality_stack_text(src_quality_score, lean_transport_row_code), primary_metric_bg(row_status(quality_score_row_code)), txt)
+        dashboard_row(smc_dashboard, 52, "Primary | Quality Clean", decode_quality_clean_text(quality_clean_row_code), primary_metric_bg(row_status(quality_clean_row_code)), txt)
+        section_row(smc_dashboard, 53, "[ Support / Metrics ]", header_bg, txt)
+        dashboard_row(smc_dashboard, 54, "SD Confluence", decode_sd_confluence_text(sd_confluence_row_code), status_bg(row_status(sd_confluence_row_code)), txt)
+        dashboard_row(smc_dashboard, 55, "SD Osc", decode_sd_osc_text(sd_osc_row_code), status_bg(row_status(sd_osc_row_code)), txt)
+        dashboard_row(smc_dashboard, 56, "Vol Regime | Lib", decode_vol_regime_stack_text(vol_regime_row_code, lean_transport_row_code), status_bg(row_status(vol_regime_row_code)), txt)
+        dashboard_row(smc_dashboard, 57, "Vol Squeeze", decode_vol_squeeze_text(vol_squeeze_row_code), status_bg(row_status(vol_squeeze_row_code)), txt)
+        dashboard_row(smc_dashboard, 58, "Vol Expand", decode_vol_expand_text(vol_expand_row_code), status_bg(row_status(vol_expand_row_code)), txt)
+        dashboard_row(smc_dashboard, 59, "Stretch", decode_stretch_text(stretch_row_code, src_stretch_z), status_bg(row_status(stretch_row_code)), txt)
+        dashboard_row(smc_dashboard, 60, "DDVI", decode_ddvi_text(ddvi_row_code), status_bg(row_status(ddvi_row_code)), txt)
+        dashboard_row(smc_dashboard, 61, "LTF Bias", decode_ltf_bias_text(ltf_bias_row_code, src_ltf_bull_share), status_bg(row_status(ltf_bias_row_code)), txt)
+        dashboard_row(smc_dashboard, 62, "LTF Delta", decode_ltf_delta_text(ltf_delta_row_code, src_ltf_volume_delta), status_bg(row_status(ltf_delta_row_code)), txt)
+        dashboard_row(smc_dashboard, 63, "Swing H/L", decode_swing_text(swing_row_code), status_bg(row_status(swing_row_code)), txt)
+        section_row(smc_dashboard, 64, "[ Risk / Plan ]", header_bg, txt)
+        dashboard_row(smc_dashboard, 65, "Long Zones", long_zones_text, status_bg(row_status(long_zones_row_code)), txt)
+        dashboard_row(smc_dashboard, 66, "Long Triggers", trigger_text(row_status(long_triggers_row_code) == 5, src_trigger, src_invalidation), status_bg(row_status(long_triggers_row_code)), txt)
+        dashboard_row(smc_dashboard, 67, "Micro Profile", decode_micro_profile_text(micro_profile_row_code), status_bg(row_status(micro_profile_row_code)), txt)
+        dashboard_row(smc_dashboard, 68, "Risk Plan", plan_text(row_status(risk_plan_row_code) == 5, src_trigger, src_stop_level, src_target_1, src_target_2), status_bg(row_status(risk_plan_row_code)), txt)
+        section_row(smc_dashboard, 69, "[ Debug ]", header_bg, txt)
+        dashboard_row(smc_dashboard, 70, "Ready Gate", decode_ready_gate_text(ready_gate_row_code), status_bg(row_status(ready_gate_row_code)), txt)
+        dashboard_row(smc_dashboard, 71, "Strict Gate", decode_strict_gate_text(strict_gate_row_code), status_bg(row_status(strict_gate_row_code)), txt)
+        dashboard_row(smc_dashboard, 72, "Debug Flags", decode_debug_flags_text(debug_flags_row_code), status_bg(row_status(debug_flags_row_code)), txt)
+        dashboard_row(smc_dashboard, 73, "Long Debug", long_debug_text, status_bg(row_status(debug_state_row_code)), txt)
+        // Plan 1.5 follow-up — Why this Tier? drill-down. Pure read-only on the
+        // already-published ZONE_CAL_* contract — no engine change. Sorts the
+        // four families by calibrated weight and shows the top-3 inline so an
+        // operator can answer "why does the engine pick OB over FVG today?"
+        // in one glance. The full ranked breakdown lives in the tooltip.
+        section_row(smc_dashboard, 74, "[ Why this Tier? ]", header_bg, txt)
+        // Q3 F2 wiring: surface session-aware weights when the live
+        // session matches a promoted bucket; otherwise fall back to the
+        // global ZONE_CAL_<FAM>. The original ZONE_CAL_<FAM> reads
+        // are preserved by resolve_family_cal_weight_session() for any
+        // unmatched session (NY_PM/NONE).
+        float _wt_ob    = resolve_family_cal_weight_session("OB",    mp.SESSION_CONTEXT)
+        float _wt_fvg   = resolve_family_cal_weight_session("FVG",   mp.SESSION_CONTEXT)
+        float _wt_bos   = resolve_family_cal_weight_session("BOS",   mp.SESSION_CONTEXT)
+        float _wt_sweep = resolve_family_cal_weight_session("SWEEP", mp.SESSION_CONTEXT)
+        array<string> _wt_names = array.from("OB", "FVG", "BOS", "SWEEP")
+        array<float>  _wt_vals  = array.from(_wt_ob, _wt_fvg, _wt_bos, _wt_sweep)
+        // Simple O(n²) sort — n=4, no perf concern, no extra dependency.
+        for _wi = 0 to array.size(_wt_vals) - 2
+            for _wj = _wi + 1 to array.size(_wt_vals) - 1
+                if array.get(_wt_vals, _wj) > array.get(_wt_vals, _wi)
+                    float _tmp_v = array.get(_wt_vals, _wi)
+                    string _tmp_n = array.get(_wt_names, _wi)
+                    array.set(_wt_vals,  _wi, array.get(_wt_vals, _wj))
+                    array.set(_wt_names, _wi, array.get(_wt_names, _wj))
+                    array.set(_wt_vals,  _wj, _tmp_v)
+                    array.set(_wt_names, _wj, _tmp_n)
+        string _wt_top3 = array.get(_wt_names, 0) + " " + format_cal_weight(array.get(_wt_vals, 0)) + " · " + array.get(_wt_names, 1) + " " + format_cal_weight(array.get(_wt_vals, 1)) + " · " + array.get(_wt_names, 2) + " " + format_cal_weight(array.get(_wt_vals, 2))
+        string _wt_full = "Why this Tier? Ranked calibrated weights driving the Zone Priority pick:\n  1. " + array.get(_wt_names, 0) + " — " + format_cal_weight(array.get(_wt_vals, 0)) + " (" + calibration_confidence_tier(array.get(_wt_vals, 0)) + ")\n  2. " + array.get(_wt_names, 1) + " — " + format_cal_weight(array.get(_wt_vals, 1)) + " (" + calibration_confidence_tier(array.get(_wt_vals, 1)) + ")\n  3. " + array.get(_wt_names, 2) + " — " + format_cal_weight(array.get(_wt_vals, 2)) + " (" + calibration_confidence_tier(array.get(_wt_vals, 2)) + ")\n  4. " + array.get(_wt_names, 3) + " — " + format_cal_weight(array.get(_wt_vals, 3)) + " (" + calibration_confidence_tier(array.get(_wt_vals, 3)) + ")\nSource: zone_priority_calibration.json · BUS contract: ZONE_CAL_*"
+        dashboard_row_tt(smc_dashboard, 75, "Top-3 Weights", _wt_top3, status_bg(calibration_confidence_state(array.get(_wt_vals, 0))), txt, _wt_full)
+        section_row(smc_dashboard, 76, "[ Universe Status ]", header_bg, txt)
+        dashboard_row_tt(smc_dashboard, 77, "Universe Status", dashboard_universe_badge, status_bg(dashboard_universe_state), txt, dashboard_universe_tt)
+else if barstate.islast
+    // Clear the full table (incl. universe + trade-mgmt rows 76..79) when show_table is off.
+    table.clear(smc_dashboard, 0, 0, 1, 79)
+// ───────────────────────── Trade Management mirror ─────────────────────────
+// Read-only mirror of SMC_Hold_Manager state machine. Renders 2 rows
+// (Trade-State + live Stop) at table rows 78/79 when tm_enable is on.
+// MIRROR-OF: SMC_Hold_Manager.pine §state-machine (FLAT/ARMED/IN_TRADE).
+// No alerts here — by design. For audible alerts add SMC_Hold_Manager
+// on the same chart.
+tm_armed_flag     = not na(src_armed) and src_armed > 0.5
+tm_confirmed_flag = not na(src_confirmed) and src_confirmed > 0.5
+tm_ready_flag     = not na(src_ready) and src_ready > 0.5
+tm_any_state      = tm_armed_flag or tm_confirmed_flag or tm_ready_flag
+tm_risk_ok        = not na(src_trigger) and not na(src_invalidation) and src_trigger > src_invalidation
+
+var int   tm_state       = 0
+var float tm_entry_price = na
+var float tm_entry_stop  = na
+var float tm_tp1_price   = na
+var float tm_tp2_price   = na
+var bool  tm_tp1_hit     = false
+
+if tm_enable
+    if tm_state == 0 and tm_any_state and tm_risk_ok
+        tm_state := 1
+        tm_entry_price := src_trigger
+        tm_entry_stop  := src_invalidation
+        tm_tp1_price   := src_trigger + (src_trigger - src_invalidation) * tm_tp1_r
+        tm_tp2_price   := src_trigger + (src_trigger - src_invalidation) * tm_tp2_r
+        tm_tp1_hit     := false
+    if tm_state == 1 and tm_risk_ok
+        tm_entry_price := src_trigger
+        tm_entry_stop  := src_invalidation
+        tm_tp1_price   := src_trigger + (src_trigger - src_invalidation) * tm_tp1_r
+        tm_tp2_price   := src_trigger + (src_trigger - src_invalidation) * tm_tp2_r
+    if tm_state == 1 and not na(tm_entry_price) and high >= tm_entry_price
+        tm_state := 2
+    if tm_state == 1 and not tm_any_state
+        tm_state := 0
+        tm_entry_price := na, tm_entry_stop := na, tm_tp1_price := na, tm_tp2_price := na
+    if tm_state == 2
+        if not tm_tp1_hit and not na(tm_tp1_price) and high >= tm_tp1_price
+            tm_tp1_hit := true
+            if tm_be_after_t1 and not na(tm_entry_price)
+                tm_entry_stop := math.max(tm_entry_stop, tm_entry_price)
+        bool tm_full_exit = (not na(tm_entry_stop) and close < tm_entry_stop) or (not na(tm_tp2_price) and high >= tm_tp2_price)
+        if tm_full_exit
+            tm_state := 0
+            tm_entry_price := na, tm_entry_stop := na, tm_tp1_price := na, tm_tp2_price := na, tm_tp1_hit := false
+
+if show_table and barstate.islast and tm_enable
+    string tm_state_txt = tm_state == 0 ? "FLAT" : tm_state == 1 ? "ARMED" : "IN-TRADE"
+    color  tm_state_bg  = tm_state == 0 ? color.new(CLR_NEUTRAL, 80) : tm_state == 1 ? color.new(CLR_CAUTION, 70) : color.new(CLR_BULL, 65)
+    string tm_stop_txt  = na(tm_entry_stop) ? "—" : str.tostring(tm_entry_stop, format.mintick) + (tm_tp1_hit and tm_be_after_t1 ? " (BE)" : "")
+    color  tm_stop_bg   = tm_state == 2 ? color.new(CLR_BEAR, 65) : color.new(color.black, 100)
+    dashboard_row(smc_dashboard, 78, "Trade", tm_state_txt, tm_state_bg, chart.fg_color)
+    dashboard_row(smc_dashboard, 79, "Stop",  tm_stop_txt,  tm_stop_bg,  chart.fg_color)
+else if barstate.islast and not tm_enable
+    table.clear(smc_dashboard, 0, 78, 1, 79)

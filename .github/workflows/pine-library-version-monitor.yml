@@ -1,16 +1,15 @@
 name: pine-library-version-monitor
 # live-window: mutating-on-cron  # Daily Repo↔TradingView Pine-library version snapshot (2026-07-13)
 
-# Produces the Pine-library version/data-watermark snapshot the live-overlay
-# daemon serves as Prometheus gauges (services/live_overlay_daemon/pine_library_version_bridge.py).
+# Produces the Pine-library version snapshot the live-overlay daemon serves as
+# Prometheus gauges (services/live_overlay_daemon/pine_library_version_bridge.py).
 # This is the monitoring layer that was missing during the 2026-07 incident
 # chain (#3599/#3603): the `import preuss_steffen/<lib>/<N>` pins silently
 # drifted from the real published TradingView version (micro_profiles /1 vs a
 # live /152 for ~4 months) and NOTHING alerted — CE10272 on every modern mp.*
 # symbol. It probes each library's published version via the pine-facade
-# `filter=published` listing, compares it to every repo pin, and exports the
-# generated library's ASOF_DATE. Stale data and stale pins therefore become
-# separate Grafana panels + alerts instead of one misleading green heartbeat.
+# `filter=published` listing and compares it to every repo pin, so a stale pin
+# becomes a red Grafana panel + alert instead of a silent compile break.
 #
 # Publishes to the rolling bot/live-pine-library-versions branch (mirrors
 # evidence-freshness-snapshot.yml) so the daemon can fetch via
@@ -24,30 +23,10 @@ name: pine-library-version-monitor
 
 on:
   schedule:
-    # 05:30 UTC daily — a floor, outside the US trading window. NOTE: this cron
-    # runs BEFORE the daily publisher (smc-library-refresh / handlibs), so on its
-    # own it always captures the PRE-publish pin state and misses any same-day
-    # republish for ~24h. The `push` trigger below is what actually keeps the
-    # snapshot fresh; the cron only backstops days with no pin change.
+    # 05:30 UTC daily — after the micro_profiles refresh cron (09:00 Mon–Fri is
+    # the publisher; drift can appear any day) and outside the US trading window.
     - cron: "30 5 * * *"
   workflow_dispatch:
-  # Event-driven refresh: regenerate the snapshot the moment a publish/repin
-  # lands on main, instead of waiting for the next 05:30 cron. A generated-library
-  # publish bumps `library_release_manifest.json` (and, in the same bot PR, the
-  # consumer `import .../<N>` pins); a manual repin edits the `.pine` consumers.
-  # Either event moves repo↔TradingView parity, so the once-daily snapshot would
-  # otherwise report a stale FALSE drift for up to ~24h (e.g. run 967 / #3996:
-  # the 12:57 UTC refresh reconciled micro_profiles 165->166 while the 06:19 UTC
-  # snapshot still showed 162-vs-165, firing `lo-pine-consumer-version-drift`
-  # for the rest of the day). Re-probing here clears it within minutes.
-  push:
-    branches: [main]
-    paths:
-      - "artifacts/tradingview/library_release_manifest.json"
-      - "*.pine"
-      # `+` is a filter-pattern special char (one-or-more); the SMC++ dir name
-      # needs both escaped so actionlint accepts the glob (fast-gates, 2026-07-25).
-      - 'SMC\+\+/*.pine'
 
 permissions:
   # The publish step writes the rolling bot/live-pine-library-versions branch.
@@ -56,20 +35,8 @@ permissions:
   contents: write
 
 concurrency:
-  # 2026-08-01: deliberately NOT in the shared `tradingview-session` group.
-  # This job maintains or probes the credential the other TradingView
-  # workflows depend on, and it is short (~1 min). smc-library-refresh runs
-  # ~216 min and three times per trading day, so a shared group would park
-  # credential maintenance behind up to eleven hours of publishing — which is
-  # how a 72 h cookie TTL turns into an outage, and how a stale-cookie probe
-  # stops being timely. Read-only or secret-writing, never layout-mutating.
   group: pine-library-version-monitor
   cancel-in-progress: false
-  # 2026-08-06: cancel-in-progress protects only the RUNNING run. The default
-  # `queue: single` cancels the one pending run as soon as a newer tick enters
-  # the group, so a probe could be dropped without ever running. `queue: max`
-  # lets up to 100 ticks queue instead of displacing each other.
-  queue: max
 
 defaults:
   run:
@@ -86,13 +53,13 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 1
           persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: "20"
           cache: "npm"
@@ -112,7 +79,7 @@ jobs:
 
       - name: Restore Playwright browsers cache
         id: pw_cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-browsers-${{ steps.pw_version.outputs.version }}

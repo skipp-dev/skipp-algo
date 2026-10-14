@@ -47,7 +47,7 @@ priorisierten Punkte weitergezogen:
 - `SMC_Long_Dip_Suite.pine` liest `mp.VOLATILITY_REGIME`,
   `mp.VOLATILITY_MODEL_SOURCE`, `mp.ENSEMBLE_QUALITY_SCORE` und
   `mp.ENSEMBLE_QUALITY_TIER` jetzt direkt.
-- `SMC_Decision_Board.pine` zeigt die zusaetzlichen Library-Signale ueber den
+- `SMC_Long_Dip_Dashboard.pine` zeigt die zusaetzlichen Library-Signale ueber den
   bestehenden `BUS LeanPackB`-Transport als `Primary | Signal + Ensemble` und
   `Vol Regime | Lib` an.
 - `.github/workflows/smc-library-refresh.yml` raeumt bekannte Runtime-

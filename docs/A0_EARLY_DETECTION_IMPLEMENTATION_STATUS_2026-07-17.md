@@ -1,4 +1,4 @@
-# A0 early detection implementation status — updated 2026-07-21
+# A0 early detection implementation status — updated 2026-07-19
 
 ## Implemented and merged
 
@@ -32,58 +32,21 @@
   `486770bd-98fe-425c-b82d-24e3e9e6a5ae` restored the verified pre-notify
   runtime. Worker startup, authentication and subscription acknowledgements
   remain visible without the mapping flood.
-- The first regular-session audit on 21 July invalidated the earlier
-  "deployed, now collecting" interpretation. The pre-#3840 process received
-  15,430 OHLCV messages while processing zero records and writing zero
-  snapshots. PR #3840 fixed the missing-`ts_recv` normalization and made
-  record rejections visible. Its replacement container then processed live
-  records, but a mid-session restart exposed a second blocker: Databento
-  Historical ended around eight minutes behind Live, so reconstruction up to
-  the current bar returned `422 data_end_after_available_end` and still wrote
-  no PRE-A0 evidence.
-- The runtime recovery contract now uses Databento Live intraday replay from
-  the current session open (or connection time before the open). A failed
-  Historical gap repair requests a fresh complete Live replay instead of
-  repeatedly querying beyond Historical availability.
-- The first deployment of that contract (`cb61e217-a76e-4be6-a699-6b3070532c7f`)
-  failed closed because later sparse OHLCV-1s bars were still interpreted as
-  missing seconds. PR #3842 corrected the sparse-source contract, but its
-  deployment (`2a90ef0e-4457-43d5-9243-3e2f158520fe`) then exposed a separate
-  replay-burst overflow: several hours for 899 symbols arrived faster than the
-  3,596-bar live buffer could consume them. PR #3844 added bounded replay
-  backpressure while retaining live drop-and-resync behavior after
-  `replay_completed`.
-- Deployment `4b07fe75-2a42-4015-a257-e4f473e658a5` of merge commit
-  `92a4ac76b803913f1dd04fe60ea8f05b1ea309ba` passed Railway health on the first
-  attempt. Databento replay completed at `2026-07-21T17:31:59Z` without a
-  failed or successful Historical recovery, proving that no local replay drop
-  required reconstruction.
-- `up{job="a0_fast"}=1`, stream connectivity, model readiness and calibration
-  readiness prove only control-plane health. They do not prove that PRE-A0
-  measurement is active. `/evidencez=200`, increasing processing/inference/
-  snapshot counters and persisted Parquet plus manifest files are now the
-  mandatory evidence-flow proof.
+- Grafana reports `up{job="a0_fast"}=1`,
+  `a0_fast_stream_connected=1`, `pre_a0_model_ready=1` and
+  `pre_a0_calibration_valid=1`. This proves that the private `/metrics`
+  endpoint is being scraped successfully.
 - Databento Live authenticated and resolved the configured 899-symbol
   universe. `SVAC` was removed after Databento explicitly returned
-  `symbol_resolution_failed`; no other symbol was changed. The verified
-  21 July runtime received and processed 19,301 records with zero queue drops
-  and zero unresolved resync symbols; a later independent sample increased
-  both counters to 19,342.
+  `symbol_resolution_failed`; no other symbol was changed. Because 19 July
+  2026 is a Sunday, no market records were
+  manufactured: record, decision, snapshot and flush counters correctly
+  remain 0.
 - PRE-A0 loaded artifact `71831770afe43bdd424aa7ab` with
-  `pre_a0_model_ready=1`, `pre_a0_calibration_valid=1`, artifact status
-  `ready` and calibration version `platt-v1`.
-- `/healthz=200`, `/evidencez=200`, `a0_fast_evidence_ready=1`, and Grafana
-  Cloud `up{job="a0_fast"}=1` were independently verified. Snapshot counters
-  increased from 7,067 to 7,083 while the worker remained connected;
-  7,000 rows were flushed with zero persistence errors.
-- `/app/data` contains the parity journal and 14 Parquet partitions with 14
-  matching manifests. The first durable Parquet partition was written at
-  `2026-07-21T17:31:56.341742Z`.
-- The PRE-A0 measurement period therefore began on 21 July at the first
-  durable, `/evidencez=200` interval. This partial regular session is not yet a
-  complete valid session: the completed-session counter remains zero until the
-  full replay-to-close session and its durable partitions pass the session
-  audit. The 20-session/200-episode notify gate remains closed.
+  `pre_a0_model_ready=1` and `pre_a0_calibration_valid=1`.
+- `/app/data` is a ready 5-GB persistent Railway volume. It is empty apart
+  from filesystem metadata until the first real market record is persisted.
+- The collection clock starts with the next complete US regular session.
 
 The separate `opra-live-shadow` daemon is deployed privately with its own
 `/app/data` volume and the five-parent hotlist `SPY,QQQ,AAPL,NVDA,TSLA`. The

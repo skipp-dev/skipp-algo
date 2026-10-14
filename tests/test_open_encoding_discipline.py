@@ -32,7 +32,7 @@ from pathlib import Path
 
 import pytest
 
-from tests._guard_corpus import iter_production_py_files, parse_module, read_source
+from tests._guard_corpus import parse_module, read_source
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -64,7 +64,26 @@ _FILE_ALLOWLIST: frozenset[str] = frozenset()
 
 def _iter_first_party_py_files() -> list[Path]:
     """Return all first-party production ``*.py`` files under the repo."""
-    return iter_production_py_files(_DIR_EXCLUDE)
+    files: list[Path] = []
+    for entry in _REPO_ROOT.iterdir():
+        if entry.name.startswith("."):
+            continue
+        if entry.name in _DIR_EXCLUDE:
+            continue
+        if entry.is_file() and entry.suffix == ".py":
+            files.append(entry)
+        elif entry.is_dir():
+            for path in entry.rglob("*.py"):
+                # Filter on repo-relative parts: an absolute ancestor dir (a
+                # ``.claude/worktrees/…`` checkout, or a ``venv/`` parent) must
+                # not skip every subdirectory file and silently disable the pin.
+                rel_parts = path.relative_to(_REPO_ROOT).parts
+                if any(part.startswith(".") for part in rel_parts):
+                    continue
+                if any(part in _DIR_EXCLUDE for part in rel_parts):
+                    continue
+                files.append(path)
+    return sorted(files)
 
 
 def _open_call_mode(call: ast.Call) -> str | None:

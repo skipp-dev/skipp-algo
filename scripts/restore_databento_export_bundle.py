@@ -1,4 +1,4 @@
-"""Restore a sufficiently deep Databento production export for deep-history consumers.
+"""Restore a sufficiently deep Databento production export for the rolling benchmark.
 
 Pulls one of today's ``smc-databento-production-export-<RUN_DATE>-*`` GitHub Actions
 artifact from the ``main`` branch (or a recent same-prefix fallback), verifies
@@ -7,8 +7,8 @@ families, and extracts it into ``artifacts/smc_microstructure_exports/``. Surviv
 transient zip corruption by retrying each candidate up to 3 times before
 falling back to the next eligible artifact. Only artifacts produced by the
 canonical sharded producer workflow are eligible; emergency/manual artifacts
-from the deprecated monolith use the same legacy prefix but must not feed
-deep-history consumers such as the rolling benchmark or library refresh.
+from the deprecated monolith use the same legacy prefix but must not feed the
+rolling benchmark.
 
 Replaces the inline heredoc previously embedded in
 ``.github/workflows/smc-measurement-benchmark-rolling.yml`` (F-V8-D4,
@@ -16,7 +16,7 @@ Replaces the inline heredoc previously embedded in
 logic can be linted / type-checked / unit-tested.
 
 Required env vars:
-  GITHUB_REPOSITORY   – e.g. ``skipp-dev/skipp-algo``
+  GITHUB_REPOSITORY   – e.g. ``skippALGO/skipp-algo``
   GH_TOKEN            – token with ``actions:read`` on the repo
   RUN_DATE            – today's UTC date as ``YYYY-MM-DD``
   GITHUB_OUTPUT       – path to the step-outputs file (provided by Actions)
@@ -45,7 +45,7 @@ from urllib.parse import urlparse
 
 _PREFIX = "smc-databento-production-export-"
 _CANONICAL_WORKFLOW_FILE = "smc-databento-production-export-sharded.yml"
-# The producer is addressed by this FILE (see _list_producer_run_ids), not by name.
+_CANONICAL_WORKFLOW_NAME = "smc-databento-production-export-sharded"
 _ROOT = Path("artifacts/smc_microstructure_exports")
 _USER_AGENT = "smc-measurement-benchmark-rolling"
 _API_VERSION = "2022-11-28"
@@ -118,20 +118,32 @@ def _download_zip(token: str, repo: str, artifact_id: int) -> bytes:
         return resp.read()
 
 
-# Candidate discovery (2026-10-01): ask the PRODUCER for its runs, then each run
-# for its artifacts. The previous implementation paged the repo-wide artifact
-# index (``/actions/artifacts?per_page=100&page=N``, up to 30 pages) and
-# filtered by name prefix. Since 2026-09-25 ~16:00 UTC that index answers
-# HTTP 500 for this repo (reproduced 2026-10-01: per_page=30/50/100 -> 500,
-# per_page=1 -> 200, ``?name=<exact>`` -> 200). From then on the rolling
-# benchmark (every evening run) and smc-library-refresh (every run) died in
-# their restore step, before looking at a single bundle; the last good restore
-# is run 36055941993 (2026-09-24). The run-scoped route does not touch that index, needs no
-# depth heuristic ("hundreds of artifacts per day", see 2026-07-13), and makes
-# the canonical-producer filter structural: only runs of
-# ``_CANONICAL_WORKFLOW_FILE`` are ever listed, so a deprecated-monolith
-# artifact with the same legacy prefix cannot become a candidate.
-_MAX_RUN_PAGES = 5
+def _is_canonical_producer_run(token: str, repo: str, run_id: int, cache: dict[int, bool]) -> bool:
+    """Return whether ``run_id`` belongs to the canonical sharded producer."""
+    if run_id <= 0:
+        return False
+    if run_id in cache:
+        return cache[run_id]
+    payload = _api_get_json(token, f"repos/{repo}/actions/runs/{run_id}")
+    workflow_path = str(payload.get("path") or "")
+    workflow_name = str(payload.get("name") or "")
+    ok = (
+        workflow_path.endswith(f"/{_CANONICAL_WORKFLOW_FILE}")
+        or workflow_path == _CANONICAL_WORKFLOW_FILE
+        or workflow_name == _CANONICAL_WORKFLOW_NAME
+    )
+    cache[run_id] = ok
+    return ok
+
+
+# Fallback search depth (2026-07-13): the previous 3-page window (300 newest
+# repo artifacts) did not reach back to the last good producer bundle after
+# one weekend plus a red producer morning — this repo pushes hundreds of
+# artifacts per day, so the 3-day-old good bundle fell outside the window and
+# the benchmark aborted despite a usable fallback existing. Page deeper, but
+# never restore a bundle older than the age horizon: a silently-stale bundle
+# feeding the benchmark would be worse than the honest missing-bundle abort.
+_MAX_PAGES = 30
 _MAX_CANDIDATE_AGE_DAYS = 14
 _MIN_TRADE_DAYS = 15
 
@@ -142,38 +154,15 @@ def _horizon_iso(run_date: str) -> str:
     return f"{day.isoformat()}T00:00:00Z"
 
 
-def _list_producer_run_ids(token: str, repo: str, horizon_iso: str) -> list[int]:
-    """Ids of canonical producer runs on ``main`` created since the horizon.
-
-    A failure here is NOT swallowed: without the run list there is nothing to
-    restore from, and the honest outcome is the red step with the traceback.
-    """
-    since = horizon_iso[:10]
-    run_ids: list[int] = []
-    for page in range(1, _MAX_RUN_PAGES + 1):
-        payload = _api_get_json(
-            token,
-            f"repos/{repo}/actions/workflows/{_CANONICAL_WORKFLOW_FILE}/runs"
-            f"?branch=main&created=%3E%3D{since}&per_page=100&page={page}",
-        )
-        batch = payload.get("workflow_runs") or []
-        run_ids.extend(int(run.get("id") or 0) for run in batch)
-        if len(batch) < 100:
-            break
-    return [run_id for run_id in run_ids if run_id > 0]
-
-
 def _list_candidates(token: str, repo: str, today_prefix: str, horizon_iso: str) -> list[dict]:
     artifacts: list[dict] = []
-    for run_id in _list_producer_run_ids(token, repo, horizon_iso):
-        try:
-            payload = _api_get_json(token, f"repos/{repo}/actions/runs/{run_id}/artifacts?per_page=100")
-        except (urllib.error.URLError, TimeoutError, ValueError) as exc:
-            # One unreadable run must not cost the whole restore: the other
-            # producer runs of the horizon are independent fallbacks.
-            print(f"::warning::Could not list artifacts of producer run {run_id}: {exc}")
-            continue
-        for item in payload.get("artifacts") or []:
+    run_workflow_cache: dict[int, bool] = {}
+    for page in range(1, _MAX_PAGES + 1):
+        payload = _api_get_json(token, f"repos/{repo}/actions/artifacts?per_page=100&page={page}")
+        batch = payload.get("artifacts") or []
+        if not batch:
+            break
+        for item in batch:
             name = str(item.get("name") or "")
             if not name.startswith(_PREFIX):
                 continue
@@ -186,7 +175,16 @@ def _list_candidates(token: str, repo: str, today_prefix: str, horizon_iso: str)
             workflow_run = item.get("workflow_run") or {}
             if str(workflow_run.get("head_branch") or "") != "main":
                 continue
+            run_id = int(workflow_run.get("id") or 0)
+            if not _is_canonical_producer_run(token, repo, run_id, run_workflow_cache):
+                continue
             artifacts.append(item)
+        # The listing is newest-first; once an entire page predates the
+        # horizon, deeper pages cannot contain an acceptable candidate.
+        if all(str(item.get("created_at") or "") < horizon_iso for item in batch):
+            break
+        if len(batch) < 100:
+            break
 
     artifacts.sort(key=lambda item: str(item.get("created_at") or ""), reverse=True)
     preferred = [item for item in artifacts if str(item.get("name") or "").startswith(today_prefix)]
@@ -230,13 +228,7 @@ def _trade_days_covered(target_dir: Path) -> int:
     values = payload.get("trade_dates_covered")
     if not isinstance(values, list):
         return 0
-    trade_days = len({value for value in values if isinstance(value, str) and value.strip()})
-    declared_coverage = payload.get("coverage_trade_days")
-    if declared_coverage is not None and declared_coverage != trade_days:
-        return 0
-    if payload.get("artifact_scope") == "delta":
-        return 0
-    return trade_days
+    return len({value for value in values if isinstance(value, str) and value.strip()})
 
 
 def main() -> int:
@@ -244,14 +236,9 @@ def main() -> int:
     token = os.environ["GH_TOKEN"]
     run_date = os.environ["RUN_DATE"]
     output_path = Path(os.environ["GITHUB_OUTPUT"])
-    min_trade_days = int(
-        os.environ.get(
-            "DATABENTO_MIN_TRADE_DAYS",
-            os.environ.get("DATABENTO_BENCHMARK_MIN_TRADE_DAYS", _MIN_TRADE_DAYS),
-        )
-    )
+    min_trade_days = int(os.environ.get("DATABENTO_BENCHMARK_MIN_TRADE_DAYS", _MIN_TRADE_DAYS))
     if min_trade_days < 1:
-        raise ValueError("DATABENTO_MIN_TRADE_DAYS must be positive")
+        raise ValueError("DATABENTO_BENCHMARK_MIN_TRADE_DAYS must be positive")
 
     today_prefix = f"{_PREFIX}{run_date}-"
     _ROOT.mkdir(parents=True, exist_ok=True)

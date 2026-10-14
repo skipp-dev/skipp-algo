@@ -5,7 +5,7 @@
 // @description Volume profile engine: Bucket, ProfileConfig, Profile types and methods.
 library("smc_profile_engine", overlay = true)
 
-import preuss_steffen/smc_utils/4 as u
+import preuss_steffen/smc_utils/3 as u
 import preuss_steffen/smc_draw/3 as d
 
 // ── Types ──
@@ -226,9 +226,7 @@ export method calculate(Profile this, simple int use_open_close_data_for_ranges_
                         if j < use_open_close_data_for_ranges_shorter_than_bars
                             overlap += math.max(0, math.min(math.max(range_open, range_close), bucket.top) - math.max(math.min(range_open, range_close), bucket.btm)) / 2
                             range_size += math.abs(range_open - range_close) / 2
-                    // v4 (Review 12.10.2026 #9): Kerzen mit Hoch = Tief fielen durch (overlap immer 0). Jetzt dem Bucket zugeordnet,
-                    // in dem der Preis liegt (unten inklusive, oben exklusiv; der oberste Bucket oben inklusive).
-                    float range_value_fraction = range_size > 0 ? overlap / range_size : (range_low >= bucket.btm and (range_low < bucket.top or i == this.resolution - 1) ? 1 : 0)
+                    float range_value_fraction = range_size > 0 ? overlap / range_size : (overlap > 0 ? 1 : 0)
                     bucket_value += range_value_fraction * range_value
                 bucket.update(bucket_value, bucket_value / this.total)
                 if bucket_value > 0 and (na(this.poc_bucket_index) or bucket_value >= poc_volume)

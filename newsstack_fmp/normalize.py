@@ -66,8 +66,7 @@ def _to_epoch(s: str, *, naive_tz: Any = UTC) -> float:
         return 0.0
     try:
         dt = dtparser.parse(s_stripped)
-        was_naive = dt.tzinfo is None
-        if was_naive:
+        if dt.tzinfo is None:
             dt = dt.replace(tzinfo=naive_tz)
         parsed = float(dt.timestamp())
     except Exception:
@@ -77,18 +76,6 @@ def _to_epoch(s: str, *, naive_tz: Any = UTC) -> float:
     # provider clock drift, mis-parsed year) is treated as 'no timestamp' so
     # it neither advances cursors nor yields negative news_age_minutes.
     if parsed > time.time() + MAX_FUTURE_SKEW_SECS:
-        # WP-A2 (2026-07-21): a naive stamp that is future under the assumed
-        # provider zone but plausible as UTC was mis-zoned upstream (observed
-        # live: FMP feeds emitting naive UTC while normalizers assume ET,
-        # which zeroed every article of the previous ~4 RTH hours).
-        if was_naive and naive_tz is not UTC:
-            utc_parsed = float(dt.replace(tzinfo=UTC).timestamp())
-            if utc_parsed <= time.time() + MAX_FUTURE_SKEW_SECS:
-                logger.info(
-                    "Future-dated naive timestamp %r under %s — self-healed as UTC.",
-                    s_stripped[:80], naive_tz,
-                )
-                return utc_parsed
         logger.warning("Future-dated timestamp %r (> now+skew) — returning epoch 0.", s_stripped[:80])
         return 0.0
     return parsed

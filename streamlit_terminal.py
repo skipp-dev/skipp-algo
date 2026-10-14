@@ -28,7 +28,6 @@ import re
 import sys
 import tempfile
 import time
-from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager, suppress
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
@@ -350,13 +349,7 @@ from newsstack_fmp.ingest_benzinga import BenzingaRestAdapter
 from newsstack_fmp.ingest_fmp import FmpAdapter
 from newsstack_fmp.store_sqlite import SqliteStore
 from open_prep.log_redaction import apply_global_log_redaction
-from open_prep.outcomes import (
-    DEFAULT_HORIZON,
-    HORIZON_KEYS,
-    _load_outcomes_range,
-    compute_hit_rates,
-    horizon_fields,
-)
+from open_prep.outcomes import _load_outcomes_range, compute_hit_rates
 from open_prep.playbook import classify_recency as _classify_recency
 from open_prep.realtime_signals import (
     RealtimeEngine,
@@ -366,6 +359,7 @@ from open_prep.realtime_signals import (
 )
 from smc_integration.provider_health import (
     _FAILURE_SEMANTICS_MATRIX,
+    FailureAction,
     run_provider_health_check,
 )
 from terminal_attention_state import (
@@ -457,6 +451,7 @@ from terminal_bitcoin import (
     format_btc_price,
     format_large_number,
     format_supply,
+    technicals_signal_icon,
     technicals_signal_label,
 )
 from terminal_bitcoin import (
@@ -497,30 +492,10 @@ from terminal_spike_scanner import (
     SESSION_ICONS,
     market_session,
 )
-from terminal_tabs._shared import tv_symbol_column
-from terminal_tabs.style import (
-    DOWN as _COL_DOWN,
-)
-from terminal_tabs.style import (
-    NEUTRAL as _COL_NEUTRAL,
-)
-from terminal_tabs.style import (
-    UP as _COL_UP,
-)
-from terminal_tabs.style import (
-    WARN as _COL_WARN,
-)
-from terminal_tabs.style import (
-    color_text,
-    dir_glyph,
-    label,
-    semantic_color,
-    style_semantic,
-    style_table,
-)
 from terminal_technicals import (
     INTERVAL_MAP,
     fetch_technicals,
+    signal_icon,
     signal_label,
 )
 from terminal_ui_helpers import (
@@ -540,8 +515,6 @@ from terminal_ui_helpers import (
     safe_markdown_text,
     safe_url,
     split_segments_by_sentiment,
-    tv_linkify_rows,
-    tv_symbol_md,
 )
 
 logger = logging.getLogger(__name__)
@@ -636,7 +609,7 @@ if _SMC_TERMINAL_TEST_MODE:
 # ── Page config ─────────────────────────────────────────────────
 
 st.set_page_config(
-    page_title="Skipp Terminal",  # short browser-tab identity, matches the auth gate
+    page_title="Real-Time News Intelligence Stock + Bitcoin Dashboard",
     page_icon="📡",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -703,43 +676,19 @@ st.markdown(
         opacity: 1 !important;
     }
 
-    /* 8. Tabs — readable chips that WRAP instead of overflowing into a scroll */
-    .stTabs [data-baseweb="tab-list"] {
-        flex-wrap: wrap;
-        gap: 6px;
-        row-gap: 6px;
-        border-bottom: 0;
+    /* 8. Tab labels – larger, bolder text */
+    button[data-baseweb="tab"],
+    button[data-baseweb="tab"] p,
+    button[data-baseweb="tab"] span,
+    div[data-baseweb="tab-list"] button p,
+    .stTabs [data-baseweb="tab-list"] button,
+    .stTabs [data-baseweb="tab-list"] button p {
+        font-size: 1.35rem !important;
+        font-weight: 700 !important;
     }
-    .stTabs [data-baseweb="tab-list"] button[data-baseweb="tab"] {
-        background: #141c32;
-        border: 1px solid #2b3659;
-        border-radius: 8px;
-        padding: 0.38rem 0.85rem !important;
-        min-height: 0;
-    }
-    .stTabs [data-baseweb="tab-list"] button[data-baseweb="tab"] p {
-        font-size: 0.95rem !important;
-        font-weight: 600 !important;
-    }
-    .stTabs [data-baseweb="tab-list"] button[aria-selected="true"] {
-        background: #1e2a4a;
-        border-color: #5b9bf0;
-    }
-    .stTabs [data-baseweb="tab-list"] button[aria-selected="true"] p {
-        color: #cfd9f2 !important;
-    }
-    /* chip background carries the "selected" cue, so drop the sliding underline */
-    .stTabs [data-baseweb="tab-highlight"] { background: transparent !important; }
-
-    /* 9. Buttons — a visible affordance without needing hover to discover it */
-    .stButton > button {
-        background: #1a2340;
-        border: 1px solid #37426e;
-        border-radius: 8px;
-    }
-    .stButton > button:hover {
-        background: #223056;
-        border-color: #5b9bf0;
+    button[data-baseweb="tab"] {
+        padding-top: 0.65rem !important;
+        padding-bottom: 0.65rem !important;
     }
     </style>""",
     unsafe_allow_html=True,
@@ -749,7 +698,7 @@ st.markdown(
 def _bz_tier_warning(label: str, fallback: str) -> None:
     """Show tier-limited warning if endpoint is known-blocked, else info."""
     if label in _WARNED_ENDPOINTS:
-        st.warning(f"{label} – endpoint not available on your API plan.")
+        st.warning(f"⚠️ {label} – endpoint not available on your API plan.")
     else:
         st.info(fallback)
 
@@ -767,7 +716,7 @@ def _render_technicals_expander(symbols: list[str], *, key_prefix: str = "tech")
     if not INTERVAL_MAP or not symbols:
         return
 
-    with st.expander("Technical Data", expanded=False):
+    with st.expander("📊 Technical Data", expanded=False):
         _tc1, _tc2 = st.columns([1, 3])
         with _tc1:
             _sel_sym = st.selectbox(
@@ -794,22 +743,21 @@ def _render_technicals_expander(symbols: list[str], *, key_prefix: str = "tech")
             st.markdown(f"### {_sel_sym} · Technical Data · {_sel_iv}")
 
             _g1, _g2, _g3 = st.columns(3)
-            def _tech_gauge(title: str, sig: Any, buy: Any, neutral: Any, sell: Any) -> None:
-                # st.metric can't carry colour, so render a titled, muted-coloured value.
-                st.markdown(
-                    f'<div style="color:{_COL_NEUTRAL};font-size:0.8rem">{title}</div>'
-                    f'<div style="font-size:1.6rem;font-weight:600;line-height:1.15">'
-                    f'{color_text(sig, signal_label(sig))}</div>',
-                    unsafe_allow_html=True,
-                )
-                st.caption(f"Buy {buy} · Neutral {neutral} · Sell {sell}")
-
             with _g1:
-                _tech_gauge("Summary", _tech.summary_signal, _tech.summary_buy, _tech.summary_neutral, _tech.summary_sell)
+                _s_icon = signal_icon(_tech.summary_signal)
+                _s_label = signal_label(_tech.summary_signal)
+                st.metric("Summary", f"{_s_icon} {_s_label}")
+                st.caption(f"Buy {_tech.summary_buy} · Neutral {_tech.summary_neutral} · Sell {_tech.summary_sell}")
             with _g2:
-                _tech_gauge("Oscillators", _tech.osc_signal, _tech.osc_buy, _tech.osc_neutral, _tech.osc_sell)
+                _o_icon = signal_icon(_tech.osc_signal)
+                _o_label = signal_label(_tech.osc_signal)
+                st.metric("Oscillators", f"{_o_icon} {_o_label}")
+                st.caption(f"Buy {_tech.osc_buy} · Neutral {_tech.osc_neutral} · Sell {_tech.osc_sell}")
             with _g3:
-                _tech_gauge("Moving Averages", _tech.ma_signal, _tech.ma_buy, _tech.ma_neutral, _tech.ma_sell)
+                _m_icon = signal_icon(_tech.ma_signal)
+                _m_label = signal_label(_tech.ma_signal)
+                st.metric("Moving Averages", f"{_m_icon} {_m_label}")
+                st.caption(f"Buy {_tech.ma_buy} · Neutral {_tech.ma_neutral} · Sell {_tech.ma_sell}")
 
             # ── Multi-interval summary strip ─────────────────
             _strip_intervals = ["1m", "15m", "1h", "4h", "1D"]
@@ -824,8 +772,9 @@ def _render_technicals_expander(symbols: list[str], *, key_prefix: str = "tech")
                     if _sr.error:
                         st.caption(f"**{_siv}**\n—")
                     else:
+                        _si_icon = signal_icon(_sr.summary_signal)
                         _si_lbl = signal_label(_sr.summary_signal)
-                        st.caption(f"**{_siv}**\n{_si_lbl}")
+                        st.caption(f"**{_siv}**\n{_si_icon} {_si_lbl}")
 
             # ── Oscillator detail table ──────────────────────
             _osc_tab, _ma_tab = st.tabs(["Oscillators", "Moving Averages"])
@@ -835,13 +784,14 @@ def _render_technicals_expander(symbols: list[str], *, key_prefix: str = "tech")
                     _osc_rows = []
                     for d in _tech.osc_detail:
                         _a = d["action"]
+                        _a_icon = {"BUY": "🟢", "SELL": "🔴", "NEUTRAL": "🟡"}.get(_a, "")
                         _osc_rows.append({
                             "Name": d["name"],
                             "Value": d["value"] if d["value"] is not None else "—",
-                            "Action": _a,
+                            "Action": f"{_a_icon} {_a}",
                         })
                     st.dataframe(
-                        style_semantic(pd.DataFrame(_osc_rows), ["Action"]),
+                        pd.DataFrame(_osc_rows),
                         width='stretch',
                         hide_index=True,
                         height=min(500, 40 + 35 * len(_osc_rows)),
@@ -854,86 +804,20 @@ def _render_technicals_expander(symbols: list[str], *, key_prefix: str = "tech")
                     _ma_rows = []
                     for d in _tech.ma_detail:
                         _a = d["action"]
+                        _a_icon = {"BUY": "🟢", "SELL": "🔴", "NEUTRAL": "🟡"}.get(_a, "")
                         _ma_rows.append({
                             "Name": d["name"],
                             "Value": d["value"] if d["value"] is not None else "—",
-                            "Action": _a,
+                            "Action": f"{_a_icon} {_a}",
                         })
                     st.dataframe(
-                        style_semantic(pd.DataFrame(_ma_rows), ["Action"]),
+                        pd.DataFrame(_ma_rows),
                         width='stretch',
                         hide_index=True,
                         height=min(500, 40 + 35 * len(_ma_rows)),
                     )
                 else:
                     st.info("No moving average data available.")
-
-
-def _render_technicals_overview(symbols: list[str], *, key_prefix: str = "techov") -> None:
-    """Technical summary for *every* ranked symbol at once, one row each.
-
-    The per-symbol expander answers "how does AAPL look?". This answers
-    "which of today's ranked symbols look strong?" — the question you
-    actually have when scanning a ranking. Fetches run concurrently because
-    a serial pass over 50 symbols would stall the whole rerun; results are
-    served from ``fetch_technicals``' 3-minute cache on the way back.
-    """
-    if not INTERVAL_MAP or not symbols:
-        st.info("No ranked symbols yet — the ranking feeds this view.")
-        return
-
-    _c1, _c2 = st.columns([1, 3])
-    with _c1:
-        _iv = st.selectbox(
-            "Interval",
-            list(INTERVAL_MAP.keys()),
-            index=list(INTERVAL_MAP.keys()).index("1D"),
-            key=f"{key_prefix}_iv",
-        )
-    with _c2:
-        _limit = st.slider(
-            "Symbols", min_value=5, max_value=min(50, len(symbols)),
-            value=min(25, len(symbols)),
-            key=f"{key_prefix}_limit",
-            help="More symbols means more provider calls on a cache miss.",
-        )
-
-    _syms = symbols[:_limit]
-    with st.spinner(f"Loading technicals for {len(_syms)} symbols…"), ThreadPoolExecutor(max_workers=8) as _pool:
-        _results = list(_pool.map(lambda s: fetch_technicals(s, _iv), _syms))
-
-    _rows = []
-    _failed = 0
-    for _sym, _t in zip(_syms, _results, strict=True):
-        if _t.error:
-            _failed += 1
-            continue
-        _rows.append({
-            "Symbol": _sym,
-            "Summary": signal_label(_t.summary_signal),
-            "Buy": _t.summary_buy,
-            "Neutral": _t.summary_neutral,
-            "Sell": _t.summary_sell,
-            "Oscillators": signal_label(_t.osc_signal),
-            "Moving Averages": signal_label(_t.ma_signal),
-        })
-
-    if not _rows:
-        st.warning(f"No technical data available for any of the {len(_syms)} ranked symbols.")
-        return
-
-    st.dataframe(
-        style_semantic(pd.DataFrame(tv_linkify_rows(_rows)), ["Summary", "Oscillators", "Moving Averages"]),
-        width='stretch',
-        hide_index=True,
-        height=min(800, 40 + 35 * len(_rows)),
-        column_config={"Symbol": tv_symbol_column()},
-    )
-    # Say what is missing rather than silently showing a shorter table.
-    _caption = f"{len(_rows)} of {len(_syms)} symbols · interval {_iv}"
-    if _failed:
-        _caption += f" · {_failed} without data"
-    st.caption(_caption)
 
 
 def _render_event_clusters_expander(symbols: list[str], *, key_prefix: str = "ec") -> None:
@@ -950,7 +834,7 @@ def _render_forecast_expander(symbols: list[str], *, key_prefix: str = "fc") -> 
     if not symbols:
         return
 
-    with st.expander("Forecast", expanded=False):
+    with st.expander("🔮 Forecast", expanded=False):
 
         _fc_sym = st.selectbox(
             "Symbol",
@@ -964,7 +848,7 @@ def _render_forecast_expander(symbols: list[str], *, key_prefix: str = "fc") -> 
         if fc.error:
             # ETF/fund — show info (blue) instead of warning (yellow)
             if "ETF" in fc.error or "Fund" in fc.error:
-                st.info(f"{_fc_sym}: {fc.error}")
+                st.info(f"📊 {_fc_sym}: {fc.error}")
             else:
                 st.warning(f"No forecast data: {fc.error}")
             return
@@ -978,7 +862,7 @@ def _render_forecast_expander(symbols: list[str], *, key_prefix: str = "fc") -> 
         # ── Price Target ─────────────────────────────────
         if fc.price_target and fc.price_target.target_mean > 0:
             pt = fc.price_target
-            st.markdown("### Price Target")
+            st.markdown("### 🎯 Price Target")
             _pt1, _pt2, _pt3, _pt4 = st.columns(4)
             _pt1.metric("Current", f"${pt.current_price:.2f}")
             _pt2.metric("Target (Avg)", f"${pt.target_mean:.2f}", f"{pt.upside_pct:+.1f}%")
@@ -999,7 +883,7 @@ def _render_forecast_expander(symbols: list[str], *, key_prefix: str = "fc") -> 
         # ── Analyst Rating ───────────────────────────────
         if fc.rating and fc.rating.total > 0:
             rt = fc.rating
-            st.markdown(f"### Analyst Rating — {rt.consensus_icon} {rt.consensus}")
+            st.markdown(f"### 📊 Analyst Rating — {rt.consensus_icon} {rt.consensus}")
             st.caption(f"Based on {rt.total} analysts")
             _rt1, _rt2, _rt3, _rt4, _rt5 = st.columns(5)
             _rt1.metric("Strong Buy", rt.strong_buy)
@@ -1010,7 +894,7 @@ def _render_forecast_expander(symbols: list[str], *, key_prefix: str = "fc") -> 
 
         # ── EPS Estimates ────────────────────────────────
         if fc.eps_estimates:
-            st.markdown("### EPS Estimates")
+            st.markdown("### 📈 EPS Estimates")
             _eps_rows = []
             for e in fc.eps_estimates:
                 row: dict[str, Any] = {
@@ -1036,13 +920,21 @@ def _render_forecast_expander(symbols: list[str], *, key_prefix: str = "fc") -> 
 
         # ── Upgrades / Downgrades ────────────────────────
         if fc.upgrades_downgrades:
-            st.markdown("### Recent Upgrades / Downgrades")
+            st.markdown("### 📋 Recent Upgrades / Downgrades")
+            _action_icons = {
+                "upgrade": "⬆️", "up": "⬆️",
+                "downgrade": "⬇️", "down": "⬇️",
+                "maintain": "➡️", "main": "➡️",
+                "init": "🆕", "initiated": "🆕",
+                "reiterate": "🔄", "reit": "🔄",
+            }
             _ud_rows = []
             for u in fc.upgrades_downgrades:
+                _action_icon = _action_icons.get(u.action.lower(), "")
                 _ud_rows.append({
                     "Date": u.date,
                     "Firm": u.firm,
-                    "Action": u.action,
+                    "Action": f"{_action_icon} {u.action}",
                     "From": u.from_grade,
                     "To": u.to_grade,
                 })
@@ -1808,7 +1700,7 @@ def _snapshot_bg_poller_state(poller: BackgroundPoller, *, reason: str, restarti
 # ── Sidebar ─────────────────────────────────────────────────────
 
 with st.sidebar:
-    st.title("Terminal Config")
+    st.title("📡 Terminal Config")
 
     cfg: TerminalConfig = st.session_state.cfg
 
@@ -1817,15 +1709,6 @@ with st.sidebar:
     _bz_key = os.environ.get("BENZINGA_API_KEY", "") or cfg.benzinga_api_key
     _fmp_key = os.environ.get("FMP_API_KEY", "") or cfg.fmp_api_key
     _oai_key = os.environ.get("OPENAI_API_KEY", "") or cfg.openai_api_key
-    # Name the direct providers explicitly — the status row is an ingest route
-    # (producer + direct fallback), not one vendor, so a generic label reads as
-    # a provider that does not exist.
-    _direct_names = tuple(
-        _name for _name, _on in (
-            ("Benzinga", bool(_bz_key)),
-            ("FMP", bool(cfg.fmp_enabled and _fmp_key)),
-        ) if _on
-    )
     _key_statuses = api_key_status(
         benzinga_key=_bz_key,
         databento_available=databento_available(),
@@ -1833,26 +1716,16 @@ with st.sidebar:
         producer_feed_configured=bool(cfg.producer_feed_url and cfg.producer_feed_token),
         direct_news_configured=bool(_bz_key or (cfg.fmp_enabled and _fmp_key)),
         producer_ai_configured=bool(cfg.producer_feed_url and cfg.producer_feed_token),
-        direct_provider_names=_direct_names,
     )
-    def _status_line(dot_colour: str, name: str, message: str) -> None:
-        # Dezent: a small coloured dot carries the state, the text stays muted.
-        st.markdown(
-            f'<div style="margin:2px 0;font-size:0.86rem;line-height:1.4">'
-            f'<span style="color:{dot_colour}">●</span> '
-            f'<span style="color:{_COL_NEUTRAL}">{name} — {message}</span></div>',
-            unsafe_allow_html=True,
-        )
-
     for _ks in _key_statuses:
         if _ks["configured"]:
-            _status_line(_COL_UP, _ks["name"], _ks["message"])
+            st.success(f"{_ks['name']}: {_ks['icon']} {_ks['message']}")
         elif _ks["icon"] == "❌":
-            _status_line(_COL_DOWN, _ks["name"], _ks["message"])
-            if _ks["name"] == "News Ingest":
-                st.caption("Connect the signals producer or set BENZINGA_API_KEY / FMP_API_KEY.")
+            st.error(_ks["message"])
+            if _ks["name"] == "News API":
+                st.info("Connect the signals producer or set `BENZINGA_API_KEY` / `FMP_API_KEY`.")
         else:
-            _status_line(_COL_WARN, _ks["name"], _ks["message"])
+            st.caption(f"{_ks['name']}: {_ks['message']}")
     st.toggle(
         "Use direct news providers as primary",
         value=cfg.direct_news_primary,
@@ -1889,10 +1762,10 @@ with st.sidebar:
     st.toggle("Auto-refresh", key="auto_refresh")
 
     # Manual poll button
-    force_poll = st.button("Poll Now", width='stretch')
+    force_poll = st.button("🔄 Poll Now", width='stretch')
 
     # Reset cursor (forces next poll to fetch latest without updatedSince)
-    if st.button("Reset Cursor", width='stretch',
+    if st.button("🔃 Reset Cursor", width='stretch',
                  help="Reset the API cursor so the next poll fetches the most recent articles "
                       "without an updatedSince filter. Use when data appears stale."):
         _store = _get_store()
@@ -1911,7 +1784,7 @@ with st.sidebar:
         if _bp_reset_cursor is not None:
             _bp_reset_cursor.consecutive_empty_polls = 0
             _bp_reset_cursor.wake_and_reset_cursor()
-        st.toast("Cursor reset — next poll will fetch latest articles")
+        st.toast("Cursor reset — next poll will fetch latest articles", icon="🔃")
         st.rerun()
 
     st.divider()
@@ -1958,12 +1831,8 @@ with st.sidebar:
     elif poll_status:
         st.caption(f"Last poll: {poll_status}")
 
-    # Data sources active. The producer feed is listed FIRST when configured:
-    # it is the primary news route unless direct_news_primary is on, and
-    # omitting it made this line read as if news came from BZ/FMP directly.
+    # Data sources active
     sources = []
-    if cfg.producer_feed_url and cfg.producer_feed_token:
-        sources.append("Producer")
     if cfg.benzinga_api_key:
         sources.append("BZ")
     if cfg.fmp_enabled and cfg.fmp_api_key:
@@ -1973,7 +1842,7 @@ with st.sidebar:
     st.caption(f"Sources: {', '.join(sources) if sources else 'none'}")
 
     # Reset dedup DB (clears mark_seen so next poll re-ingests)
-    if st.button("Reset dedup DB", width='stretch'):
+    if st.button("🗑️ Reset dedup DB", width='stretch'):
         # Stop background poller AND WAIT for it to finish so it
         # doesn't use the store/adapters after we close them.
         _bp_reset = st.session_state.get("bg_poller")
@@ -2020,15 +1889,15 @@ with st.sidebar:
         st.session_state.last_poll_status = "DB reset — will re-poll"
         st.session_state.last_poll_error = ""
         st.session_state.bg_poller = None
-        st.toast("Dedup DB cleared. Next poll will re-ingest.")
+        st.toast("Dedup DB cleared. Next poll will re-ingest.", icon="🗑️")
         st.rerun()
 
     st.divider()
 
     # ── Compound Alert Builder (sidebar) ────────────────────
-    st.subheader("Alert Rules")
+    st.subheader("⚡ Alert Rules")
 
-    with st.expander("New Alert Rule"):
+    with st.expander("➕ New Alert Rule"):
         alert_ticker = st.text_input("Ticker (or * for all)", value="*", key="alert_tk")
         alert_cond = st.selectbox("Condition", [
             "score >= threshold",
@@ -2082,7 +1951,7 @@ with st.sidebar:
                         )
                     except OSError:
                         logger.warning("Failed to persist alert rules to disk", exc_info=True)
-                    st.toast(f"Alert rule added for {new_rule['ticker']}")
+                    st.toast(f"Alert rule added for {new_rule['ticker']}", icon="⚡")
                     st.rerun()
 
     # Show existing rules
@@ -2116,7 +1985,7 @@ with st.sidebar:
     st.divider()
 
     # ── Background Poller + Lifecycle ───────────────────────
-    st.subheader("Engine")
+    st.subheader("🔧 Engine")
 
     st.toggle(
         "Background Polling",
@@ -2143,9 +2012,9 @@ with st.sidebar:
     _lc_status = st.session_state.lifecycle_mgr.get_status_display()
     st.caption(f"Market: {_lc_status['phase']} ({_lc_status['time_et']})")
     if _lc_status["weekend_cleared"] == "✅":
-        st.caption("Weekend clear: done")
+        st.caption("Weekend clear: ✅")
     if _lc_status["preseed_done"] == "✅":
-        st.caption("Pre-seed: done")
+        st.caption("Pre-seed: ✅")
 
     # Notification status
     _nc = st.session_state.notify_config
@@ -2187,7 +2056,7 @@ with st.sidebar:
     # RT engine status — skip on Streamlit Cloud where the local engine can't run
     _is_cloud = str(PROJECT_ROOT).startswith("/mount/src") or os.environ.get("STREAMLIT_SHARING_MODE")
     if _is_cloud:
-        st.caption("RT Engine: Cloud mode (local-only feature)")
+        st.caption("RT Engine: ☁️ Cloud mode (local-only feature)")
     else:
         _rt_status = get_rt_engine_status()
         _telemetry_status = get_rt_engine_telemetry_status()
@@ -2299,6 +2168,16 @@ def _intel_enabled() -> bool:
     toggle position.
     """
     return bool(globals().get("_INTEL_ENABLED", False))
+
+
+_ATTENTION_ICONS = {
+    "ALERT": "🚨",
+    "FOCUS": "🎯",
+    "MONITOR": "👀",
+    "BACKGROUND": "⚪",
+    "SUPPRESS": "⛔",
+}
+
 
 
 
@@ -2509,7 +2388,7 @@ def _process_new_items(
                 logger.debug("Extended-hours quote fetch skipped", exc_info=True)
     save_vd_snapshot(st.session_state.feed, bz_quotes=_vd_bz_quotes)
 
-    st.toast(f"{len(items)} live story update(s) [{src_label}]")
+    st.toast(f"📡 {len(items)} live story update(s) [{src_label}]", icon="✅")
 
 
 def _get_producer_feed_client() -> Any | None:
@@ -2740,7 +2619,7 @@ elif _lc_result.get("feed_action") == "stale_recovery":
 _effective_interval = _lifecycle.get_off_hours_poll_interval(float(interval))
 if _effective_interval != float(interval):
     st.sidebar.caption(
-        f"Effective interval: {_effective_interval:.0f}s "
+        f"⏳ Effective interval: {_effective_interval:.0f}s "
         f"({'weekend' if _lifecycle.get_status_display().get('phase', '').startswith('🌙 Weekend') else 'off-hours'} throttle)"
     )
 
@@ -2861,8 +2740,8 @@ if time.time() - st.session_state.last_resync_ts >= _RESYNC_INTERVAL_S:
 
 st.markdown("<style>h1 {margin-top: -1.2rem !important;}</style>", unsafe_allow_html=True)
 st.markdown(
-    '<p style="font-size:2.05rem; line-height:1.24; font-weight:700; color:inherit; margin-bottom:1.75rem;">'
-    'Skipp Terminal <span style="font-size:1.05rem; font-weight:400; color:#8ea0c8;">Real-time news intelligence · Stocks + Bitcoin · AI supported</span></p>',
+    '<p style="font-size:2.05rem; line-height:1.24; font-weight:400; color:inherit; margin-bottom:1.75rem;">'
+    '📡 Real-Time News Intelligence Stock + Bitcoin Dashboard — AI supported</p>',
     unsafe_allow_html=True,
 )
 
@@ -2964,31 +2843,27 @@ else:
         for _t3i, _t3r in enumerate(_top3_ranked):
             _t3_sym = _t3r["symbol"]
             _t3_sent = (_t3r.get("sentiment") or "").lower()
+            _t3_sent_icon = "🟢" if _t3_sent == "bullish" else "🔴" if _t3_sent == "bearish" else "⚪"
             _t3_sent_label = _t3_sent.title() if _t3_sent else "Neutral"
             _t3_ns = _t3r.get("news_score", 0)
             _t3_attention_state = str(_t3r.get("attention_state") or "").strip().upper()
+            _t3_attention_icon = _ATTENTION_ICONS.get(_t3_attention_state, "")
             _t3_price = _t3r.get("price", 0)
             _t3_name = _t3r.get("name", "")
             _t3_price_str = f"${_t3_price:.2f}" if _t3_price >= 1 else (f"${_t3_price:.4f}" if _t3_price > 0 else "")
-            _t3_sub = color_text(_t3_sent, _t3_sent_label)
+            _t3_sub = f"{_t3_sent_icon} {_t3_sent_label}"
             if _t3_attention_state:
-                _t3_sub = f"{color_text(_t3_attention_state, _t3_attention_state.title())} · " + _t3_sub
+                _t3_sub = f"{_t3_attention_icon} {_t3_attention_state.title()} · " + _t3_sub
             if _t3_price_str:
                 _t3_sub += f" · {_t3_price_str}"
             if _t3_ns > 0:
                 _t3_sub += f" · Catalyst {_t3_ns:.2f}"
             _t3_name_safe = safe_markdown_text(_t3_name) if _t3_name else ""
             with _t3_cols[_t3i]:
-                _t3_hdr_css = semantic_color(_t3_sent)
-                _t3_hdr_hex = _t3_hdr_css.split(":", 1)[1].strip() if _t3_hdr_css else _COL_NEUTRAL
-                st.markdown(
-                    f'<div style="font-size:1.35rem;font-weight:700;line-height:1.2">'
-                    f'#{_t3i + 1} <span style="color:{_t3_hdr_hex}">{_t3_sym}</span></div>',
-                    unsafe_allow_html=True,
-                )
+                st.markdown(f"### #{_t3i+1} {_t3_sym}")
                 if _t3_name_safe:
                     st.caption(_t3_name_safe)
-                st.markdown(_t3_sub, unsafe_allow_html=True)
+                st.markdown(_t3_sub)
     else:
         st.caption("No ranked symbols yet — waiting for data…")
 
@@ -3009,7 +2884,7 @@ else:
             _hl = safe_markdown_text((_best.get("headline") or "")[:100])
             _u = safe_url(_best.get("url") or "")
             _link = f"[{_hl}]({_u})" if _u else _hl
-            st.markdown(f"**{tv_symbol_md(_tk_sym)}** — {_link}")
+            st.markdown(f"**{_tk_sym}** — {_link}")
 
     with _detail_cols[1], st.expander(f"Actionable ({_stats['actionable']})"):
         _act_items = dedup_feed_items([d for d in feed if _is_actionable_broad(d)])
@@ -3022,9 +2897,9 @@ else:
                 _att = effective_attention_state(_ai)
                 _link = f"[{_hl}]({_u})" if _u else _hl
                 if _att:
-                    st.markdown(f"**{tv_symbol_md(_tk)}** ({_att.title()} · {_sc:.2f}) — {_link}")
+                    st.markdown(f"**{_tk}** ({_att.title()} · {_sc:.2f}) — {_link}")
                 else:
-                    st.markdown(f"**{tv_symbol_md(_tk)}** ({_sc:.2f}) — {_link}")
+                    st.markdown(f"**{_tk}** ({_sc:.2f}) — {_link}")
         else:
             st.caption("No actionable items.")
 
@@ -3037,7 +2912,7 @@ else:
                 _u = safe_url(_hi.get("url") or "")
                 _sc = effective_catalyst_score(_hi)
                 _link = f"[{_hl}]({_u})" if _u else _hl
-                st.markdown(f"**{tv_symbol_md(_tk)}** ({_sc:.2f}) — {_link}")
+                st.markdown(f"**{_tk}** ({_sc:.2f}) — {_link}")
         else:
             st.caption("No HIGH materiality items.")
 
@@ -3055,15 +2930,16 @@ else:
         if not entry:
             return "\u2014"
         sig = entry.get("summary", "")
+        icon = signal_icon(sig)
         label = signal_label(sig)
-        return label or "\u2014"
+        return f"{icon} {label}" if icon else (label or "\u2014")
 
     def _safe_tab(label: str, body_fn, *args, **kwargs) -> None:
         """Wrap a tab body in try/except so one failing tab doesn't crash others (item 7)."""
         try:
             body_fn(*args, **kwargs)
         except Exception as _tab_exc:
-            st.error(f"{label} tab failed to render.")
+            st.error(f"⚠️ {label} tab failed to render.")
             import traceback as _tb
             st.code(_tb.format_exc(), language="python")
             logger.exception("Tab %s render error", label)
@@ -3074,16 +2950,16 @@ else:
         try:
             yield
         except Exception:
-            st.error(f"{label} tab failed to render.")
+            st.error(f"⚠️ {label} tab failed to render.")
             import traceback as _tb
             st.code(_tb.format_exc(), language="python")
             logger.exception("Tab %s render error", label)
 
-    tab_rank, tab_tech, tab_actionable, tab_ai, tab_segments, tab_outlook, tab_feed, tab_bitcoin, tab_alerts, tab_table, tab_replay, tab_health, tab_decisions = st.tabs(
-        ["Rankings", "Technical Data", "Actionable", "AI Insights", "Segments", "Outlook",
-         "Live Feed", "Bitcoin",
-         "Alerts", "Data Table", "Signal Replay", "Provider Health",
-         "Decision-First"],
+    tab_rank, tab_actionable, tab_ai, tab_segments, tab_outlook, tab_feed, tab_bitcoin, tab_alerts, tab_table, tab_replay, tab_health, tab_decisions = st.tabs(
+        ["🏆 Rankings", "🎯 Actionable", "🧠 AI Insights", "🏗️ Segments", "🔮 Outlook",
+         "📰 Live Feed", "₿ Bitcoin",
+         "⚡ Alerts", "📊 Data Table", "📜 Signal Replay", "🩺 Provider Health",
+         "🪪 Decision-First"],
     )
 
     # ── TAB: Live Feed (with search + date filter) ──────────
@@ -3092,7 +2968,7 @@ else:
         fcol1, fcol2, fcol3, fcol4 = st.columns([3, 1.5, 1.5, 1])
         with fcol1:
             search_q = st.text_input(
-                "Search headlines", value="", placeholder="e.g. AAPL earnings",
+                "🔍 Search headlines", value="", placeholder="e.g. AAPL earnings",
                 key="feed_search",
             )
         with fcol2:
@@ -3153,11 +3029,11 @@ else:
         # Show filtered items
         # Column headers with info popovers
         _hdr_cols = st.columns([1, 4, 1, 1, 1, 1, 1])
-        with _hdr_cols[0], st.popover("**Ticker**"):
+        with _hdr_cols[0], st.popover("**Ticker** ℹ️"):
             st.markdown("**Stock symbol** — The ticker symbol of the company mentioned in the article (e.g. AAPL, TSLA, NVDA).")
-        with _hdr_cols[1], st.popover("**Headline**"):
+        with _hdr_cols[1], st.popover("**Headline** ℹ️"):
             st.markdown("**News headline** with sentiment icon (🟢 positive / 🔴 negative / ⚪ neutral). Click the link to open the full article.")
-        with _hdr_cols[2], st.popover("**Category**"):
+        with _hdr_cols[2], st.popover("**Category** ℹ️"):
             st.markdown(
                 "**News category** — Classifies the type of news.\n\n"
                 "Common values:\n"
@@ -3170,7 +3046,7 @@ else:
                 "- `insider` — Insider trading\n"
                 "- `govt` — Government/regulation"
             )
-        with _hdr_cols[3], st.popover("**Score**"):
+        with _hdr_cols[3], st.popover("**Score** ℹ️"):
             st.markdown(
                 "**News importance score** (0–1) computed by the scoring engine based on "
                 "source tier, relevance, materiality, and sentiment strength.\n\n"
@@ -3196,7 +3072,7 @@ else:
                 "| **−** | Bearish impact |\n\n"
                 "The 🔍 badge means **WIIM** (Why It Matters) — a short explanation of the article's market relevance."
             )
-        with _hdr_cols[4], st.popover("**Age**"):
+        with _hdr_cols[4], st.popover("**Age** ℹ️"):
             st.markdown(
                 "**Time since publication** — How long ago the article was published.\n\n"
                 "Recency icons:\n"
@@ -3204,7 +3080,7 @@ else:
                 "- 🟡 Recent (1–4 hours)\n"
                 "- ⚪ Older (> 4 hours)"
             )
-        with _hdr_cols[5], st.popover("**Event**"):
+        with _hdr_cols[5], st.popover("**Event** ℹ️"):
             st.markdown(
                 "**Event classification label** — Describes the type of market event.\n\n"
                 "Examples:\n"
@@ -3215,7 +3091,7 @@ else:
                 "- `stock split` — Corporate action\n\n"
                 "The provider icon shows the data source."
             )
-        with _hdr_cols[6], st.popover("**Price**"):
+        with _hdr_cols[6], st.popover("**Price** ℹ️"):
             st.markdown(
                 "**Databento daily close price** — The most recent closing price "
                 "from Databento market data."
@@ -3256,7 +3132,7 @@ else:
             with st.container():
                 cols = st.columns([1, 4, 1, 1, 1, 1, 1])
                 with cols[0]:
-                    st.markdown(f"**{tv_symbol_md(ticker)}**")
+                    st.markdown(f"**{ticker}**")
                 with cols[1]:
                     safe_hl = safe_markdown_text(headline[:100])
                     link = f"[{safe_hl}]({_safe_url})" if _safe_url else headline[:100]
@@ -3274,7 +3150,7 @@ else:
                     _db_data = _feed_nlp.get(ticker.upper())
                     if _db_data and _db_data.get("price"):
                         _db_p = _db_data["price"]
-                        st.markdown(f"`${_db_p:.2f}`" if _db_p >= 1 else f"`${_db_p:.4f}`")
+                        st.markdown(f"💲 `${_db_p:.2f}`" if _db_p >= 1 else f"💲 `${_db_p:.4f}`")
                     else:
                         st.markdown("")
 
@@ -3282,7 +3158,7 @@ else:
     with tab_rank, _tab_guard("Rankings"):
         _session_label_rank = _session_icons.get(_current_session, _current_session)
 
-        st.header("Rankings")
+        st.header("🏆 Rankings")
         st.caption(f"**{_session_label_rank}** — Symbols ranked by operator attention first, then directional state and composite score (price + catalyst + tech + RT signal). Feed + RT spike + realtime signals.")
 
         # Build unified symbol map from feed + RT spikes (zero API calls)
@@ -3578,23 +3454,58 @@ else:
             top_n = min(50, len(_ranked))
             _rank_rows = []
             for i, m in enumerate(_ranked[:top_n], 1):
-                _dir = dir_glyph(m.get("chg_pct", 0))
+                _dir = "🟢" if m.get("chg_pct", 0) > 0 else "🔴" if m.get("chg_pct", 0) < 0 else "⚪"
+                _sent_icon = {"bullish": "🟢", "bearish": "🔴", "neutral": "🟡"}.get(
+                    (m.get("sentiment") or "").lower(), ""
+                )
                 _hl_url = m.get("url", "")
                 _hl_text = m.get("headline", "")
                 _catalyst_col = ""
                 _reaction_state = str(m.get("reaction_state") or "").strip().upper()
-                _reaction_col = label(_reaction_state)
+                _reaction_icon = {
+                    "CONFIRMED": "✅",
+                    "WATCH": "👀",
+                    "IDLE": "⏳",
+                    "FADE": "↘",
+                    "CONFLICTED": "⚠️",
+                }.get(_reaction_state, "")
+                _reaction_col = f"{_reaction_icon} {_reaction_state.title()}" if _reaction_state else ""
                 _attention_state = str(m.get("attention_state") or "").strip().upper()
-                _attention_col = label(_attention_state)
+                _attention_icon = _ATTENTION_ICONS.get(_attention_state, "")
+                _attention_col = (
+                    f"{_attention_icon} {_attention_state.title()}"
+                    if _attention_state
+                    else ""
+                )
                 _posture_state = str(m.get("posture_state") or "").strip().upper()
-                _posture_col = label(_posture_state)
+                _posture_icon = {
+                    "LONG": "🟢",
+                    "SHORT": "🔴",
+                    "WATCH_LONG": "👀",
+                    "WATCH_SHORT": "👀",
+                    "NEUTRAL": "⚪",
+                    "AVOID": "⛔",
+                }.get(_posture_state, "")
+                _posture_col = f"{_posture_icon} {_posture_state.replace('_', ' ').title()}" if _posture_state else ""
                 _resolution_state = str(m.get("resolution_state") or "").strip().upper()
-                _resolution_col = label(_resolution_state)
+                _resolution_icon = {
+                    "FOLLOW_THROUGH": "🚀",
+                    "OPEN": "🕒",
+                    "STALLED": "⏸️",
+                    "FAILED": "❌",
+                    "REVERSAL": "↩️",
+                }.get(_resolution_state, "")
+                _resolution_col = (
+                    f"{_resolution_icon} {_resolution_state.replace('_', ' ').title()}"
+                    if _resolution_state
+                    else ""
+                )
                 # Use the feed item's news_score so the ranking
                 # table is consistent with the header cards.
                 _ns_fallback = float(m.get("news_score") or 0)
                 if _ns_fallback > 0:
-                    _catalyst_col = f"{_ns_fallback:.2f}"
+                    _ns_icon = "🟢" if _ns_fallback > 0.6 else ("🟡" if _ns_fallback > 0.3 else "⚪")
+                    _catalyst_col = f"{_ns_icon} {_ns_fallback:.2f}"
                 _r_price = m.get("price") or 0
                 _r_sym = m.get("symbol", "?")
 
@@ -3607,7 +3518,8 @@ else:
                 _rt_dir = m.get("_rt_direction", "")
 
                 # Format technical indicator column
-                _tech_col = f"{_rt_tech:.2f}" if _rt_tech_sig else ""
+                _tech_icon = {"STRONG_BUY": "🟢", "BUY": "🟢", "STRONG_SELL": "🔴", "SELL": "🔴"}.get(_rt_tech_sig, "🟡")
+                _tech_col = f"{_tech_icon} {_rt_tech:.2f}" if _rt_tech_sig else ""
 
                 # Format RSI column
                 _rsi_col = ""
@@ -3618,7 +3530,8 @@ else:
                     except (ValueError, TypeError):
                         _rsi_v = None
                     if _rsi_v is not None:
-                        _rsi_col = f"{_rsi_v:.0f}"
+                        _rsi_icon = "🔴" if _rsi_v > 70 else ("🟢" if _rsi_v < 30 else "🟡")
+                        _rsi_col = f"{_rsi_icon} {_rsi_v:.0f}"
 
                 # Analyst forecast
                 _raf = _rank_forecasts.get(_r_sym, {})
@@ -3627,8 +3540,9 @@ else:
                 _analyst_col = ""
                 if _raf_pt.get("upside_pct") is not None:
                     _up = _raf_pt["upside_pct"]
+                    _up_icon = "🟢" if _up > 10 else "🔴" if _up < -10 else "🟡"
                     _consensus = _raf_rating.get("consensus", "")
-                    _analyst_col = f"{_up:+.0f}%"
+                    _analyst_col = f"{_up_icon} {_up:+.0f}%"
                     if _consensus:
                         _analyst_col += f" {_consensus}"
 
@@ -3647,16 +3561,17 @@ else:
                     "Score": round(_composite_score(m), 2),
                     "Attention": _attention_col,
                     "Age": format_age_string(m.get("_ts")),
-                    "Sentiment": label(m.get("sentiment", "")),
+                    "Sentiment": f"{_sent_icon} {m.get('sentiment', '')}" if m.get("sentiment") else "",
                     "Posture": _posture_col,
                     "Resolution": _resolution_col,
                     "Reaction": _reaction_col,
                     "Catalyst": _catalyst_col,
                     "Volume": f"{m.get('volume', 0):,}" if m.get("volume") else "",
+                    "Name": m.get("name", ""),
                     "Headline": _hl_url if _hl_url else _hl_text,
                 })
 
-            df_rank = pd.DataFrame(tv_linkify_rows(_rank_rows))
+            df_rank = pd.DataFrame(_rank_rows)
 
             # Auto-hide columns that are entirely empty/blank
             _hideable_cols = ["Signal", "Tech", "RSI", "MACD", "Analyst"]
@@ -3682,7 +3597,7 @@ else:
                 f"{_n_rank_enriched} enrichment layers"
             )
 
-            with st.popover("Column guide"):
+            with st.popover("ℹ️ Column guide"):
                 st.markdown(
                     "- **Signal** — RT engine actionability tier (A0 = top conviction, A1 = secondary)\n"
                     "- **Attention** — Operator escalation state above posture (alert/focus/monitor/background/suppress)\n"
@@ -3690,7 +3605,7 @@ else:
                     "- **Resolution** — Outcome-state overlay after the initial reaction window (follow-through/open/stalled/failed/reversal)\n"
                     "- **Reaction** — Execution-state overlay from live quote confirmation (confirmed/watch/fade/conflicted)\n"
                     "- **Tech** — Technical indicator score (0–1, weighted: RSI 40%, MA 25%, MACD 15%, ADX 10%, Summary 10%)\n"
-                    "- **RSI** — RSI-14 (<30 oversold, >70 overbought)\n"
+                    "- **RSI** — RSI-14 (🟢 <30 oversold, 🔴 >70 overbought, 🟡 neutral)\n"
                     "- **MACD** — MACD signal direction (BUY/SELL/NEUTRAL)\n"
                     "- **Analyst** — Analyst consensus (upside %, rating)\n"
                     "- **Score** — Composite: 50% price + 20% catalyst + 15% technical + 15% signal\n"
@@ -3704,7 +3619,7 @@ else:
             # Build column config
             _rank_col_cfg: dict[str, Any] = {
                 "Dir": st.column_config.TextColumn("Dir", width="small"),
-                "Symbol": tv_symbol_column(),
+                "Symbol": st.column_config.TextColumn("Symbol", width="small"),
                 "Signal": st.column_config.TextColumn("Signal", width="small"),
                 "Attention": st.column_config.TextColumn("Attention", width="small"),
                 "Posture": st.column_config.TextColumn("Posture", width="small"),
@@ -3729,43 +3644,24 @@ else:
                 )
 
             st.dataframe(
-                style_table(
-                    df_rank,
-                    directional=["Dir", "Change", "Change %"],
-                    semantic=["Sentiment", "Posture", "Attention", "Reaction", "Resolution"],
-                ),
+                df_rank,
                 width='stretch',
                 height=min(800, 40 + 35 * len(df_rank)),
                 column_config=_rank_col_cfg,
             )
 
-            # Technicals + forecast now live in their own "Technical Data" tab,
-            # where they cover every ranked symbol instead of one at a time.
-            if not _intel_enabled():
-                st.caption("Low-latency mode: optional intelligence modules are disabled.")
-
-    # ── TAB: Technical Data ────────────────────────────────
-    with tab_tech, _tab_guard("Technical Data"):
-        st.header("Technical Data")
-        st.caption("Technical posture of every symbol in the current ranking, plus the analyst forecast.")
-
-        if not _intel_enabled():
-            st.caption("Low-latency mode: optional intelligence modules are disabled.")
-        else:
-            _tech_symbols = [
-                m["symbol"] for m in st.session_state.get("_ranked_list", [])[:50]
-            ]
-            _render_technicals_overview(_tech_symbols, key_prefix="tech_tab")
-
-            st.divider()
-            st.subheader("🔍 Single-symbol detail")
-            _render_technicals_expander(_tech_symbols, key_prefix="tech_rank")
-            _render_forecast_expander(_tech_symbols, key_prefix="fc_rank")
-            _render_event_clusters_expander(_tech_symbols, key_prefix="ec_rank")
+            # Technical Analysis expander
+            _rank_symbols = [m["symbol"] for m in _ranked[:50]]
+            if _intel_enabled():
+                _render_technicals_expander(_rank_symbols, key_prefix="tech_rank")
+                _render_forecast_expander(_rank_symbols, key_prefix="fc_rank")
+                _render_event_clusters_expander(_rank_symbols, key_prefix="ec_rank")
+            else:
+                st.caption("⚡ Low-latency mode: optional intelligence modules are disabled.")
 
     # ── TAB: Actionable ────────────────────────────────────
     with tab_actionable, _tab_guard("Actionable"):
-        st.header("Actionable Items")
+        st.header("🎯 Actionable Items")
 
         # Broadened actionable criteria now prefer the derived ticker state
         # overlays when present and fall back to the raw story attributes.
@@ -3881,6 +3777,30 @@ else:
                 _ai_reaction = effective_reaction_state(_ai)
                 _ai_resolution = effective_resolution_state(_ai)
                 _ai_posture = effective_posture_state(_ai)
+                _ai_attention_icon = _ATTENTION_ICONS.get(_ai_attention, "")
+                _ai_posture_icon = {
+                    "LONG": "🟢",
+                    "SHORT": "🔴",
+                    "WATCH_LONG": "👀",
+                    "WATCH_SHORT": "👀",
+                    "NEUTRAL": "⚪",
+                    "AVOID": "⛔",
+                }.get(_ai_posture, "")
+                _ai_resolution_icon = {
+                    "FOLLOW_THROUGH": "🚀",
+                    "OPEN": "🕒",
+                    "STALLED": "⏸️",
+                    "FAILED": "❌",
+                    "REVERSAL": "↩️",
+                }.get(_ai_resolution, "")
+                _ai_reaction_icon = {
+                    "CONFIRMED": "✅",
+                    "WATCH": "👀",
+                    "IDLE": "⏳",
+                    "FADE": "↘",
+                    "CONFLICTED": "⚠️",
+                }.get(_ai_reaction, "")
+                _ai_sent_icon = {"bullish": "🟢", "bearish": "🔴", "neutral": "🟡"}.get(_ai_sent, "")
                 _ai_hl = (_ai.get("headline") or "")[:120]
                 _ai_url = _ai.get("url") or ""
                 _ai_cat = _ai.get("category") or ""
@@ -3897,9 +3817,10 @@ else:
                 _as = _act_social.get(_ai_tk, {})
                 _as_label = _as.get("label", "")
                 _as_mentions = _as.get("total_mentions", 0)
-                _social_col = "—"
+                _social_col = "⚪ —"
                 if _as_label:
-                    _social_col = f"{_as_mentions}"
+                    _soc_icon = {"bullish": "🟢", "bearish": "🔴", "neutral": "🟡"}.get(_as_label, "⚪")
+                    _social_col = f"{_soc_icon} {_as_mentions}"
 
                 # Analyst forecast
                 _af = _act_forecasts.get(_ai_tk, {})
@@ -3908,8 +3829,9 @@ else:
                 _analyst_col = ""
                 if _af_pt.get("upside_pct") is not None:
                     _up = _af_pt["upside_pct"]
+                    _up_icon = "🟢" if _up > 10 else "🔴" if _up < -10 else "🟡"
                     _consensus = _af_rating.get("consensus", "")
-                    _analyst_col = f"{_up:+.0f}%"
+                    _analyst_col = f"{_up_icon} {_up:+.0f}%"
                     if _consensus:
                         _analyst_col += f" {_consensus}"
 
@@ -3920,11 +3842,11 @@ else:
                     "Chg%": f"{_aq_chg:+.2f}%" if _aq_chg else "—",
                     "Score": round(_ai_sc, 3),
                     "Catalyst": round(_ai_catalyst_sc, 3),
-                    "Attention": _ai_attention.title() if _ai_attention else "",
-                    "Posture": _ai_posture.replace('_', ' ').title() if _ai_posture else "",
-                    "Resolution": _ai_resolution.replace('_', ' ').title() if _ai_resolution else "",
-                    "Reaction": _ai_reaction.title() if _ai_reaction else "",
-                    "Sentiment": _ai_sent.title() if _ai_sent else "",
+                    "Attention": f"{_ai_attention_icon} {_ai_attention.title()}" if _ai_attention else "",
+                    "Posture": f"{_ai_posture_icon} {_ai_posture.replace('_', ' ').title()}" if _ai_posture else "",
+                    "Resolution": f"{_ai_resolution_icon} {_ai_resolution.replace('_', ' ').title()}" if _ai_resolution else "",
+                    "Reaction": f"{_ai_reaction_icon} {_ai_reaction.title()}" if _ai_reaction else "",
+                    "Sentiment": f"{_ai_sent_icon} {_ai_sent.title()}" if _ai_sent else "",
                     "Category": _ai_cat,
                     "Materiality": _ai_mat,
                     "Headline": _ai_url if _ai_url else _ai_hl,
@@ -3936,10 +3858,10 @@ else:
                     "Vol": f"{_aq_vol:,.0f}" if _aq_vol else "—",
                 })
 
-            _df_act = pd.DataFrame(tv_linkify_rows(_act_rows)).set_index("#")
+            _df_act = pd.DataFrame(_act_rows).set_index("#")
 
             _act_col_cfg: dict[str, Any] = {
-                "Symbol": tv_symbol_column(),
+                "Symbol": st.column_config.TextColumn("Symbol", width="small"),
                 "Price": st.column_config.TextColumn("Price", width="small"),
                 "Chg%": st.column_config.TextColumn("Chg%", width="small"),
                 "Score": st.column_config.NumberColumn("Score", width="small", format="%.3f"),
@@ -3965,7 +3887,7 @@ else:
                     width="large",
                 )
 
-            with st.popover("Column guide"):
+            with st.popover("ℹ️ Column guide"):
                 st.markdown(
                     "- **Price / Chg%** — Quote from Databento (price, daily change %)\n"
                     "- **Score** — Attention-aware ticker score used for surfacing, alerts, and prioritization\n"
@@ -3981,14 +3903,7 @@ else:
                 )
 
             st.dataframe(
-                style_table(
-                    _df_act,
-                    directional=["Chg%"],
-                    semantic=[
-                        "Attention", "Posture", "Resolution",
-                        "Reaction", "Sentiment", "Materiality",
-                    ],
-                ),
+                _df_act,
                 width='stretch',
                 height=min(800, 40 + 35 * len(_df_act)),
                 column_config=_act_col_cfg,
@@ -3996,7 +3911,7 @@ else:
 
     # ── TAB: Segments ───────────────────────────────────────
     with tab_segments, _tab_guard("Segments"):
-        st.header("Segments")
+        st.header("🏗️ Segments")
         seg_rows = aggregate_segments(feed)
 
         if not seg_rows:
@@ -4074,11 +3989,11 @@ else:
                                 st.markdown(f"- {safe_markdown_text(_sa_hl)} · `{_sa_tk}` · {_sa_sc:.3f}")
 
             with scols[0]:
-                _render_seg_block("Bullish Segments", leading)
+                _render_seg_block("🟢 Bullish Segments", leading)
             with scols[1]:
-                _render_seg_block("Neutral Segments", neutral_segs, bold=False)
+                _render_seg_block("🟡 Neutral Segments", neutral_segs, bold=False)
             with scols[2]:
-                _render_seg_block("Bearish Segments", lagging)
+                _render_seg_block("🔴 Bearish Segments", lagging)
 
             st.divider()
 
@@ -4176,7 +4091,8 @@ else:
                         _ss_mentions = _ss.get("total_mentions", 0)
                         _social_col = ""
                         if _ss_label:
-                            _social_col = f"{_ss_mentions}"
+                            _soc_icon = {"bullish": "🟢", "bearish": "🔴", "neutral": "🟡"}.get(_ss_label, "⚪")
+                            _social_col = f"{_soc_icon} {_ss_mentions}"
 
                         # Analyst consensus
                         _saf = _seg_forecasts.get(_tk_sym, {})
@@ -4184,14 +4100,15 @@ else:
                         _analyst_col = ""
                         if _saf_pt.get("upside_pct") is not None:
                             _up = _saf_pt["upside_pct"]
-                            _analyst_col = f"{_up:+.0f}%"
+                            _up_icon = "🟢" if _up > 10 else "🔴" if _up < -10 else "🟡"
+                            _analyst_col = f"{_up_icon} {_up:+.0f}%"
 
                         tk_rows.append({
                             "Symbol": _tk_sym,
                             "Price": f"${_sfq_price:.2f}" if _sfq_price >= 1 else ("—" if _sfq_price == 0 else f"${_sfq_price:.4f}"),
                             "Chg%": f"{_sfq_chg:+.2f}%" if _sfq_chg else "—",
                             "Score": round(d.get("news_score", 0), 4),
-                            "Sentiment": sent_label,
+                            "Sentiment": _SENTIMENT_COLORS.get(sent_label, "🟡") + " " + sent_label,
                             "Tech": _get_tech_summary(_tk_sym),
                             "Social": _social_col,
                             "Analyst": _analyst_col,
@@ -4201,14 +4118,14 @@ else:
                             "Headline": headline_display,
                         })
                     if tk_rows:
-                        df_tk = pd.DataFrame(tv_linkify_rows(tk_rows))
+                        df_tk = pd.DataFrame(tk_rows)
                         df_tk.index = df_tk.index + 1
                         st.dataframe(
                             df_tk,
                             width='stretch',
                             height=min(1000, 40 + 35 * len(df_tk)),
                             column_config={
-                                "Symbol": tv_symbol_column(),
+                                "Symbol": st.column_config.TextColumn("Symbol", width="small"),
                                 "Price": st.column_config.TextColumn("Price", width="small"),
                                 "Chg%": st.column_config.TextColumn("Chg%", width="small"),
                                 "Tech": st.column_config.TextColumn("Tech", width="small"),
@@ -4226,21 +4143,7 @@ else:
 
     # ── TAB: Outlook ────────────────────────────────────────
     with tab_outlook, _tab_guard("Outlook"):
-        st.header("Outlook")
-
-        def _outlook_banner(prefix: str, label_text: Any, date_text: Any) -> None:
-            # Dezent: a soft tinted bar with a state-coloured border + text,
-            # not a saturated fill with white text.
-            _clean = re.sub(r"^[^0-9A-Za-z]+", "", str(label_text)).strip() or str(label_text)
-            _css = semantic_color(_clean)
-            _hex = _css.split(":", 1)[1].strip() if _css else _COL_NEUTRAL
-            st.markdown(
-                f"<div style='padding:0.55rem 1.1rem;border-radius:0.5rem;"
-                f"border-left:4px solid {_hex};background:{_hex}1f;"
-                f"color:{_hex};font-weight:700;font-size:1.05rem;margin-bottom:0.8rem'>"
-                f"{prefix}  {_clean} — {date_text}</div>",
-                unsafe_allow_html=True,
-            )
+        st.header("🔮 Outlook")
 
         bz_key = cfg.benzinga_api_key
         fmp_key = cfg.fmp_api_key  # terminal's FMP key (env FMP_API_KEY); factors skip gracefully if unset
@@ -4273,23 +4176,31 @@ else:
                     _bear_ratio = _bear_c / _total_f
                     _bull_ratio = _bull_c / _total_f
                     if _bear_ratio > 0.55:
-                        _feed_sentiment_label = "Bearish-heavy"
+                        _feed_sentiment_label = "🔴 Bearish-heavy"
                     elif _bull_ratio > 0.55:
-                        _feed_sentiment_label = "Bullish-heavy"
+                        _feed_sentiment_label = "🟢 Bullish-heavy"
                     else:
-                        _feed_sentiment_label = "Mixed"
+                        _feed_sentiment_label = "🟡 Mixed"
                 else:
-                    _feed_sentiment_label = "Insufficient data"
+                    _feed_sentiment_label = "⚪ Insufficient data"
             else:
-                _feed_sentiment_label = "No feed data"
+                _feed_sentiment_label = "⚪ No feed data"
 
             # ────────────────────────────────────────────────
             # ── TODAY'S OUTLOOK ──
             # ────────────────────────────────────────────────
             if today_outlook:
                 _to_label = today_outlook.get("outlook_label", "🟡 NEUTRAL")
+                _to_color = today_outlook.get("outlook_color", "orange")
                 _to_date = today_outlook.get("target_date", _today_iso)
-                _outlook_banner("TODAY", _to_label, _to_date)
+
+                st.markdown(
+                    f"<div style='padding:0.7rem 1.2rem;border-radius:0.6rem;"
+                    f"background:{_to_color};color:white;font-weight:700;"
+                    f"font-size:1.2rem;text-align:center;margin-bottom:0.8rem'>"
+                    f"TODAY  {_to_label} — {_to_date}</div>",
+                    unsafe_allow_html=True,
+                )
 
                 if _to_label != "⚪ MARKET CLOSED":
                     _to_cols = st.columns(4)
@@ -4301,7 +4212,7 @@ else:
                     # High-impact events for today
                     _to_hi: list[dict[str, Any]] = today_outlook.get("high_impact_events_details") or []
                     if _to_hi:
-                        with st.expander(f"Today's High-Impact Events ({len(_to_hi)})", expanded=False):
+                        with st.expander(f"📋 Today's High-Impact Events ({len(_to_hi)})", expanded=False):
                             for _ev in _to_hi:
                                 _ev_n = safe_markdown_text(str(_ev.get("event", "—")))
                                 _ev_c = safe_markdown_text(str(_ev.get("country", "US")))
@@ -4311,7 +4222,7 @@ else:
                     # Notable earnings today
                     _to_earn = today_outlook.get("notable_earnings") or []
                     if _to_earn:
-                        with st.expander(f"Earnings Reporting Today ({len(_to_earn)})", expanded=False):
+                        with st.expander(f"📊 Earnings Reporting Today ({len(_to_earn)})", expanded=False):
                             _to_df = pd.DataFrame(_to_earn)
                             _to_disp = [c for c in ["ticker", "eps_surprise", "eps_surprise_percent"] if c in _to_df.columns]
                             st.dataframe(
@@ -4323,9 +4234,10 @@ else:
                     # Today factors & mood
                     _to_reasons = today_outlook.get("reasons") or []
                     _to_mood = today_outlook.get("sector_mood", "neutral")
+                    _to_mood_e = {"risk-on": "🟢", "risk-off": "🔴", "neutral": "🟡"}.get(_to_mood, "⚪")
                     st.caption(
                         f"**Factors:** {' · '.join(_to_reasons)}  ·  "
-                        f"**Sector Mood:** {_to_mood.title()}"
+                        f"**Sector Mood:** {_to_mood_e} {_to_mood.title()}"
                     )
 
                 st.divider()
@@ -4334,8 +4246,16 @@ else:
             # ── TOMORROW'S OUTLOOK ──
             # ────────────────────────────────────────────────
             o_label = outlook.get("outlook_label", "🟡 NEUTRAL")
+            o_color = outlook.get("outlook_color", "orange")
             next_td_str = outlook.get("next_trading_day", "—")
-            _outlook_banner("NEXT TRADING DAY", o_label, next_td_str)
+
+            st.markdown(
+                f"<div style='padding:0.7rem 1.2rem;border-radius:0.6rem;"
+                f"background:{o_color};color:white;font-weight:700;"
+                f"font-size:1.2rem;text-align:center;margin-bottom:0.8rem'>"
+                f"NEXT TRADING DAY  {o_label} — {next_td_str}</div>",
+                unsafe_allow_html=True,
+            )
 
             # ── Key metrics ──
             ocols = st.columns(4)
@@ -4349,7 +4269,7 @@ else:
             # ── High-impact events detail ──
             hi_details: list[dict[str, Any]] = outlook.get("high_impact_events_tomorrow_details") or []
             if hi_details:
-                st.subheader("Scheduled High-Impact Events")
+                st.subheader("📋 Scheduled High-Impact Events")
                 _show_unmatched_hi = st.toggle(
                     "Show scheduled events without related feed articles",
                     value=False,
@@ -4406,7 +4326,7 @@ else:
             # ── Notable earnings ──
             notable = outlook.get("notable_earnings") or []
             if notable:
-                st.subheader(f"Earnings Reporting on {next_td_str}")
+                st.subheader(f"📊 Earnings Reporting on {next_td_str}")
                 _ne_df = pd.DataFrame(notable)
                 display_cols = [c for c in ["ticker", "eps_surprise", "eps_surprise_percent"] if c in _ne_df.columns]
                 st.dataframe(
@@ -4423,7 +4343,8 @@ else:
 
             # ── Sector mood ──
             sector_mood = outlook.get("sector_mood", "neutral")
-            st.caption(f"**Sector Mood:** {sector_mood.title()}")
+            mood_emoji = {"risk-on": "🟢", "risk-off": "🔴", "neutral": "🟡"}.get(sector_mood, "⚪")
+            st.caption(f"**Sector Mood:** {mood_emoji} {sector_mood.title()}")
 
             # (Trending Themes section removed — NewsAPI.ai no longer available)
 
@@ -4434,19 +4355,19 @@ else:
             from terminal_tabs.tab_fmp_ai import render as render_fmp_ai
             _safe_tab("AI Insights", render_fmp_ai, feed, current_session=_current_session)
         else:
-            st.info("Low-latency mode: AI Insights are disabled. Enable optional intelligence modules in the sidebar.")
+            st.info("⚡ Low-latency mode: AI Insights are disabled. Enable optional intelligence modules in the sidebar.")
 
     # ── TAB: Bitcoin ────────────────────────────────────────
     with tab_bitcoin, _tab_guard("Bitcoin"):
-        st.header("Bitcoin Dashboard")
-        st.caption("Market: 24/7 — always open")
+        st.header("₿ Bitcoin Dashboard")
+        st.caption("🟢 Market: 24/7 — always open")
 
         if not btc_available():
             st.warning("No Bitcoin data source is available. Configure FMP or the local market-data adapter.")
         else:
             # ── Tomorrow Outlook (on top as requested) ──────
             with st.container():
-                st.markdown("### Bitcoin Outlook")
+                st.markdown("### 🔮 Bitcoin Outlook")
                 _btc_outlook = fetch_btc_outlook()
                 if _btc_outlook and not _btc_outlook.error:
                     _oc1, _oc2, _oc3, _oc4 = st.columns(4)
@@ -4462,7 +4383,7 @@ else:
                             _fg_val = _ol_fg.value
                             _fg_label = _ol_fg.label
                             st.metric("Fear & Greed", f"{_fg_val:.0f}", delta=_fg_label)
-                            with st.expander(f"{_fg_label} — what does {_fg_val:.0f} mean?"):
+                            with st.expander(f"ℹ️ {_fg_label} — what does {_fg_val:.0f} mean?"):
                                 st.markdown(
                                     f"**Fear & Greed Index: {_fg_val:.0f}** means **{_fg_label}**. "
                                     "The scale runs 0–100:\n\n"
@@ -4491,24 +4412,24 @@ else:
                         with _col:
                             if _tech and not _tech.error:
                                 st.markdown(
-                                    f"**{_label}:** {color_text(_tech.summary, technicals_signal_label(_tech.summary))} "
-                                    f"(Buy {_tech.buy} / Sell {_tech.sell} / Neutral {_tech.neutral})",
-                                    unsafe_allow_html=True,
+                                    f"**{_label}:** {technicals_signal_icon(_tech.summary)} "
+                                    f"{technicals_signal_label(_tech.summary)} "
+                                    f"(Buy {_tech.buy} / Sell {_tech.sell} / Neutral {_tech.neutral})"
                                 )
                             elif _tech and _tech.error:
-                                st.caption(f"{_label}: {_tech.error}")
+                                st.caption(f"{_label}: ⚠️ {_tech.error}")
 
-                    with st.expander("Full Outlook Analysis", expanded=True):
+                    with st.expander("📋 Full Outlook Analysis", expanded=True):
                         st.markdown(_btc_outlook.summary_text)
                 elif _btc_outlook and _btc_outlook.error:
-                    st.warning(f"Bitcoin outlook unavailable: {_btc_outlook.error}")
+                    st.warning(f"⚠️ Bitcoin outlook unavailable: {_btc_outlook.error}")
 
                 st.markdown("---")
 
             # ── Real-time Quote ─────────────────────────────
             _btc_quote = fetch_btc_quote()
             if _btc_quote and _btc_quote.price > 0:
-                st.markdown("### Real-time Quote")
+                st.markdown("### 💰 Real-time Quote")
                 _qc1, _qc2, _qc3, _qc4 = st.columns(4)
                 with _qc1:
                     st.metric(
@@ -4536,7 +4457,7 @@ else:
                 st.markdown("---")
 
             # ── Combined Price + Volume Chart ───────────────
-            with st.expander("Price & Volume Chart (48h)"):
+            with st.expander("📊 Price & Volume Chart (48h)"):
                 try:
                     import plotly.graph_objects as go
                     from plotly.subplots import make_subplots
@@ -4614,7 +4535,7 @@ else:
             st.markdown("---")
 
             # ── Technical Analysis ──────────────────────────
-            st.markdown("### Technical Analysis")
+            st.markdown("### 📐 Technical Analysis")
             _btc_tech_interval = st.selectbox(
                 "Interval", ["1m", "5m", "15m", "30m", "1h", "2h", "4h", "1d", "1w"],
                 index=4,  # default 1h
@@ -4625,29 +4546,29 @@ else:
                 _tech_c1, _tech_c2, _tech_c3 = st.columns(3)
                 with _tech_c1:
                     st.markdown(
-                        f"**Overall:** {color_text(_btc_tech.summary, technicals_signal_label(_btc_tech.summary))}",
-                        unsafe_allow_html=True,
+                        f"**Overall:** {technicals_signal_icon(_btc_tech.summary)} "
+                        f"{technicals_signal_label(_btc_tech.summary)}"
                     )
                     st.caption(f"Buy {_btc_tech.buy} · Sell {_btc_tech.sell} · Neutral {_btc_tech.neutral}")
                 with _tech_c2:
                     st.markdown(
-                        f"**Oscillators:** {color_text(_btc_tech.osc_signal, technicals_signal_label(_btc_tech.osc_signal))}",
-                        unsafe_allow_html=True,
+                        f"**Oscillators:** {technicals_signal_icon(_btc_tech.osc_signal)} "
+                        f"{technicals_signal_label(_btc_tech.osc_signal)}"
                     )
                     st.caption(f"Buy {_btc_tech.osc_buy} · Sell {_btc_tech.osc_sell} · Neutral {_btc_tech.osc_neutral}")
                 with _tech_c3:
                     st.markdown(
-                        f"**Moving Avgs:** {color_text(_btc_tech.ma_signal, technicals_signal_label(_btc_tech.ma_signal))}",
-                        unsafe_allow_html=True,
+                        f"**Moving Avgs:** {technicals_signal_icon(_btc_tech.ma_signal)} "
+                        f"{technicals_signal_label(_btc_tech.ma_signal)}"
                     )
                     st.caption(f"Buy {_btc_tech.ma_buy} · Sell {_btc_tech.ma_sell} · Neutral {_btc_tech.ma_neutral}")
 
                 # Key indicators
-                with st.expander("Key Indicators"):
+                with st.expander("📊 Key Indicators"):
                     _ind_c1, _ind_c2, _ind_c3 = st.columns(3)
                     with _ind_c1:
                         if _btc_tech.rsi is not None:
-                            _rsi_status = "Overbought" if _btc_tech.rsi > 70 else ("Oversold" if _btc_tech.rsi < 30 else "Normal")
+                            _rsi_status = "🔴 Overbought" if _btc_tech.rsi > 70 else ("🟢 Oversold" if _btc_tech.rsi < 30 else "⚪ Normal")
                             st.metric("RSI (14)", f"{_btc_tech.rsi:.1f}", delta=_rsi_status)
                         if _btc_tech.adx is not None:
                             st.metric("ADX", f"{_btc_tech.adx:.1f}")
@@ -4668,7 +4589,7 @@ else:
             st.markdown("---")
 
             # ── Fear & Greed Index ──────────────────────────
-            st.markdown("### Fear & Greed Index")
+            st.markdown("### 😱 Fear & Greed Index")
             _fg = fetch_fear_greed()
             if _fg:
                 _fg_c1, _fg_c2 = st.columns([1, 3])
@@ -4684,7 +4605,7 @@ else:
             st.markdown("---")
 
             # ── Market Cap & Supply ─────────────────────────
-            st.markdown("### Market Cap & Supply")
+            st.markdown("### 🏦 Market Cap & Supply")
             _supply = fetch_btc_supply()
             if _supply and _supply.market_cap > 0:
                 _sc1, _sc2, _sc3 = st.columns(3)
@@ -4704,7 +4625,7 @@ else:
             st.markdown("---")
 
             # ── Bitcoin News ────────────────────────────────
-            st.markdown("### Bitcoin News")
+            st.markdown("### 📰 Bitcoin News")
             _btc_news_articles = fetch_btc_news(limit=10)
             if _btc_news_articles:
                 for _btc_art in _btc_news_articles:
@@ -4712,12 +4633,14 @@ else:
                     _art_url = _btc_art.get("url", "")
                     _art_source = _btc_art.get("source", "")
                     _art_date = _btc_art.get("date", "")
+                    _art_sent = _btc_art.get("sentiment", "")
+                    _sent_icon = "🟢" if _art_sent == "Bullish" else ("🔴" if _art_sent == "Bearish" else "⚪")
                     _source_str = f" — *{_art_source}*" if _art_source else ""
                     _date_str = f" · {_art_date[:10]}" if _art_date else ""
                     if _art_url:
-                        st.markdown(f"- [{safe_markdown_text(_art_title[:120])}]({safe_url(_art_url)}){_source_str}{_date_str}")
+                        st.markdown(f"- {_sent_icon} [{safe_markdown_text(_art_title[:120])}]({safe_url(_art_url)}){_source_str}{_date_str}")
                     else:
-                        st.markdown(f"- {safe_markdown_text(_art_title[:120])}{_source_str}{_date_str}")
+                        st.markdown(f"- {_sent_icon} {safe_markdown_text(_art_title[:120])}{_source_str}{_date_str}")
                     if _btc_art.get("text"):
                         st.caption(f"  {_btc_art['text'][:200]}...")
             else:
@@ -4728,11 +4651,11 @@ else:
             st.markdown("---")
 
             # ── Crypto Movers ───────────────────────────────
-            st.markdown("### Crypto Movers (24h)")
+            st.markdown("### 🚀 Crypto Movers (24h)")
             _crypto_movers = fetch_crypto_movers()
             _movers_c1, _movers_c2 = st.columns(2)
             with _movers_c1:
-                st.markdown("#### Top Gainers")
+                st.markdown("#### 🟢 Top Gainers")
                 _gainers = _crypto_movers.get("gainers", [])[:10]
                 if _gainers:
                     _gainer_data = [{
@@ -4741,15 +4664,11 @@ else:
                         "Price": f"${g.price:,.4f}" if g.price < 1 else f"${g.price:,.2f}",
                         "Change %": f"{g.change_pct:+.2f}%",
                     } for g in _gainers]
-                    st.dataframe(
-                        style_table(pd.DataFrame(_gainer_data), directional=["Change %"]),
-                        width='stretch',
-                        hide_index=True,
-                    )
+                    st.dataframe(_gainer_data, width='stretch', hide_index=True)
                 else:
                     st.caption("No gainers data.")
             with _movers_c2:
-                st.markdown("#### Top Losers")
+                st.markdown("#### 🔴 Top Losers")
                 _losers = _crypto_movers.get("losers", [])[:10]
                 if _losers:
                     _loser_data = [{
@@ -4758,18 +4677,14 @@ else:
                         "Price": f"${lo.price:,.4f}" if lo.price < 1 else f"${lo.price:,.2f}",
                         "Change %": f"{lo.change_pct:+.2f}%",
                     } for lo in _losers]
-                    st.dataframe(
-                        style_table(pd.DataFrame(_loser_data), directional=["Change %"]),
-                        width='stretch',
-                        hide_index=True,
-                    )
+                    st.dataframe(_loser_data, width='stretch', hide_index=True)
                 else:
                     st.caption("No losers data.")
 
             st.markdown("---")
 
             # ── Exchange Listings ───────────────────────────
-            with st.expander("Cryptocurrency Exchange Listings"):
+            with st.expander("🏦 Cryptocurrency Exchange Listings"):
                 _listings = fetch_crypto_listings(limit=50)
                 if _listings:
                     _listing_data = [{
@@ -4784,23 +4699,23 @@ else:
 
     # ── TAB: Alerts ─────────────────────────────────────────
     with tab_alerts, _tab_guard("Alerts"):
-        st.header("Alert Log")
+        st.header("⚡ Alert Log")
 
         alert_log = st.session_state.alert_log
         rules = st.session_state.alert_rules
 
         if rules:
             st.caption(f"{len(rules)} active rule(s)")
-            rule_df = pd.DataFrame(tv_linkify_rows([{
+            rule_df = pd.DataFrame([{
                 "Ticker": r["ticker"],
                 "Condition": r["condition"],
                 "Threshold": r.get("threshold", ""),
                 "Category": r.get("category", ""),
                 "Webhook": "✅" if r.get("webhook_url") else "❌",
-            } for r in rules], key="Ticker"))
-            st.dataframe(rule_df, width='stretch', column_config={"Ticker": tv_symbol_column("Ticker")})
+            } for r in rules])
+            st.dataframe(rule_df, width='stretch')
         else:
-            st.info("No alert rules configured. Add rules in the sidebar")
+            st.info("No alert rules configured. Add rules in the sidebar ➡️")
 
         st.divider()
 
@@ -4810,7 +4725,7 @@ else:
                 ts = datetime.fromtimestamp(entry["ts"], tz=UTC).strftime("%H:%M:%S")
                 _ahl = safe_markdown_text(entry['headline'][:80])
                 st.markdown(
-                    f"`{ts}` **{entry['ticker']}** — "
+                    f"⚡ `{ts}` **{entry['ticker']}** — "
                     f"{_ahl} | Rule: {entry['rule']} | Score: {entry['score']:.3f}"
                 )
         else:
@@ -4818,14 +4733,14 @@ else:
 
         # ── Push Notification Log ───────────────────────────
         st.divider()
-        st.subheader("Push Notification Log")
+        st.subheader("📱 Push Notification Log")
         _nlog = st.session_state.notify_log
         if _nlog:
             st.caption(f"{len(_nlog)} notification(s) sent")
             for _n in _nlog[:20]:
                 _ch_names = ", ".join(c["name"] for c in _n.get("channels", []) if c.get("ok"))
                 st.markdown(
-                    f"**{_n['ticker']}** — score {_n['score']:.3f} → {_ch_names}"
+                    f"📱 **{_n['ticker']}** — score {_n['score']:.3f} → {_ch_names}"
                 )
         else:
             _nc = st.session_state.notify_config
@@ -4860,12 +4775,6 @@ else:
 
             # Make headlines clickable links to the article URL
             _dt_col_cfg: dict[str, Any] = {}
-            if "ticker" in df_display.columns:
-                _dt_ticker_rows = df_display[["ticker"]].to_dict("records")
-                df_display["ticker"] = pd.DataFrame(
-                    tv_linkify_rows(_dt_ticker_rows, key="ticker")
-                )["ticker"].to_numpy()
-                _dt_col_cfg["ticker"] = tv_symbol_column("Ticker")
             if "url" in df.columns and "headline" in df_display.columns:
                 df_display["headline"] = df.apply(
                     lambda r: r["url"] if r.get("url") else r.get("headline", ""),
@@ -4889,123 +4798,41 @@ else:
 
     # ── TAB: Signal Replay ──────────────────────────────────────
     with tab_replay, _tab_guard("Signal Replay"):
-        st.header("Signal Replay")
+        st.header("📜 Signal Replay")
         st.caption("Historical signal outcomes — per-day breakdown with hit rates and P&L.")
 
-        with st.expander("What is Signal Replay, and how do I use it?"):
-            st.markdown(
-                "Each **actionable signal** the terminal surfaces — the directional "
-                "decision capsules from the **Open Prep** pipeline (news catalysts + "
-                "technical posture + the real-time engine, joined per symbol) — is "
-                "logged when it fires, and its result is measured a fixed window later. "
-                "This tab replays that record:\n\n"
-                "- **Hit rate** — share of *resolved* signals that were profitable within "
-                "the selected window after firing.\n"
-                "- **P&L** — the realised move in the signal's direction over that window.\n"
-                "- **Pending** — signals whose outcome window has not closed yet, plus "
-                "every record written before a horizon existed (older files carry only "
-                "the 30-minute label).\n\n"
-                "**Horizon and anchor.** Pre-open capsules are measured from the 09:30 ET "
-                "open; a real-time signal that fires intraday is measured from **its own "
-                "fire time** (`fired_at`), so an 11:00 signal is never scored on the "
-                "09:30–10:00 span. The end-of-day horizon runs to the 16:00 close.\n\n"
-                "**What the P&L is not.** It is a *cost-free mark-to-market* move — entry "
-                "at the first bar of the window, exit at the last, with **no exit signal "
-                "and no fees, spread or slippage modelled**. That omission weighs more the "
-                "longer the horizon, and weighs most on thin micro-caps, where the quoted "
-                "spread alone can exceed the measured edge. Read these numbers as an "
-                "upper bound, not as an achievable return.\n\n"
-                "It is a **track record, not a live trade feed**: use it to see which "
-                "signal states (posture, attention, catalyst strength) have actually paid "
-                "off historically before you act on a live one. The history is produced by "
-                "the Open Prep pipeline — run it to populate this tab."
-            )
-
-        _rp_col1, _rp_col2 = st.columns([3, 1])
-        with _rp_col1:
-            _replay_days = st.slider("Lookback (days)", min_value=5, max_value=90, value=20, key="replay_lookback")
-        with _rp_col2:
-            _replay_horizon = st.selectbox(
-                "Horizon",
-                options=list(HORIZON_KEYS),
-                index=list(HORIZON_KEYS).index(DEFAULT_HORIZON),
-                key="replay_horizon",
-                help=(
-                    "Measurement window after the anchor (09:30 open for pre-open "
-                    "capsules, fired_at for intraday real-time signals). 'eod' runs "
-                    "to the 16:00 close."
-                ),
-            )
-        _hz = horizon_fields(_replay_horizon)
+        _replay_days = st.slider("Lookback (days)", min_value=5, max_value=90, value=20, key="replay_lookback")
         _replay_records = _load_outcomes_range(lookback_days=_replay_days)
-
-        st.caption(
-            "P&L is cost-free mark-to-market (no exit signal, no fees/spread/slippage) — "
-            "the longer the horizon, the more that flatters the number, especially on "
-            "micro-caps. Hit rate and P&L are direction-aware and read as a pair, with a "
-            "paired fallback to the legacy long-only fields on older records."
-        )
 
         if not _replay_records:
             st.info("No outcome data found. Run the Open Prep pipeline to generate signal history.")
         else:
             # ── Aggregate metrics ───────────────────────────────
-            # Directional label + PnL are read AS A PAIR (matching
-            # compute_hit_rates) so a directional hit-rate is never averaged
-            # with long-only PnL.
-            def _replay_outcome(rec: dict[str, Any]) -> tuple[Any, Any]:
-                _lbl = rec.get(_hz["profitable_directional"])
-                _val = rec.get(_hz["pnl_signed"])
-                if _lbl is None or _val is None:
-                    _lbl = rec.get(_hz["profitable"])
-                    _val = rec.get(_hz["pnl"])
-                return _lbl, _val
-
             _total = len(_replay_records)
             _with_outcome: list[dict[str, Any]] = [
-                r for r in _replay_records if _replay_outcome(r)[0] is not None
+                r for r in _replay_records if r.get("profitable_30m") is not None
             ]
             _winners: list[dict[str, Any]] = [
-                r for r in _with_outcome if _replay_outcome(r)[0] is True
+                r for r in _with_outcome if r.get("profitable_30m") is True
             ]
             _pending = _total - len(_with_outcome)
 
             _hit_rate = len(_winners) / len(_with_outcome) if _with_outcome else 0.0
-            _pnl_values = [float(_replay_outcome(r)[1] or 0) for r in _with_outcome]
+            _pnl_values = [float(r.get("pnl_30m_pct") or 0) for r in _with_outcome]
             _avg_pnl = sum(_pnl_values) / len(_pnl_values) if _pnl_values else 0.0
             _total_pnl = sum(_pnl_values)
 
             mcol1, mcol2, mcol3, mcol4, mcol5 = st.columns(5)
             mcol1.metric("Signals", _total)
-            mcol2.metric(f"Resolved ({_replay_horizon})", len(_with_outcome))
+            mcol2.metric("Resolved", len(_with_outcome))
             mcol3.metric("Hit Rate", f"{_hit_rate:.1%}")
             mcol4.metric("Avg P&L", f"{_avg_pnl:+.2f}%")
             mcol5.metric("Total P&L", f"{_total_pnl:+.2f}%")
 
-            if not _with_outcome and _replay_horizon != DEFAULT_HORIZON:
-                st.info(
-                    f"No record in this window carries a {_replay_horizon} label yet. "
-                    "Files written before the horizon extension only have the 30m "
-                    "measurement; run "
-                    "`python -m open_prep.outcome_backfill --backfill-horizons` "
-                    "to fill the longer horizons into history."
-                )
-
             # ── Hit rate by bucket ──────────────────────────────
-            _bucket_rates = compute_hit_rates(
-                lookback_days=_replay_days, horizon=_replay_horizon,
-            )
+            _bucket_rates = compute_hit_rates(lookback_days=_replay_days)
             if _bucket_rates:
                 st.subheader("Hit Rate by Gap × RVOL Bucket")
-                st.caption(
-                    "Direction-aware: the win/loss label and the P&L are read as a "
-                    "signed pair, falling back together to the legacy long-only "
-                    "fields for records written before directional labels existed. "
-                    "A short signal's history therefore reads slightly differently "
-                    "here than under a pure long-only view. Records with no RVOL "
-                    "ratio are excluded from these buckets entirely — they are not "
-                    "pooled into the low-RVOL bucket."
-                )
                 _bucket_rows = []
                 for bkey, bdata in sorted(_bucket_rates.items()):
                     gap_b, rvol_b = bkey.split(":", 1)
@@ -5028,40 +4855,38 @@ else:
 
             for _rd in sorted(_by_date.keys(), reverse=True):
                 _day_records = _by_date[_rd]
-                _day_resolved = [r for r in _day_records if _replay_outcome(r)[0] is not None]
-                _day_wins = sum(1 for r in _day_resolved if _replay_outcome(r)[0] is True)
+                _day_resolved = [r for r in _day_records if r.get("profitable_30m") is not None]
+                _day_wins = sum(1 for r in _day_resolved if r.get("profitable_30m") is True)
                 _day_hr = _day_wins / len(_day_resolved) if _day_resolved else 0.0
-                _day_pnl = sum(float(_replay_outcome(r)[1] or 0) for r in _day_resolved)
+                _day_pnl = sum(float(r.get("pnl_30m_pct") or 0) for r in _day_resolved)
 
-                _day_label = f"{_rd} — {len(_day_records)} signals"
+                _day_label = f"📅 {_rd} — {len(_day_records)} signals"
                 if _day_resolved:
                     _day_label += f" | HR {_day_hr:.0%} | P&L {_day_pnl:+.2f}%"
                 with st.expander(_day_label, expanded=(_rd == sorted(_by_date.keys(), reverse=True)[0])):
                     _signal_rows = []
                     for _sr in _day_records:
-                        _sr_label, _sr_pnl = _replay_outcome(_sr)
-                        _outcome_icon = "pending"
-                        if _sr_label is True:
-                            _outcome_icon = "win"
-                        elif _sr_label is False:
-                            _outcome_icon = "loss"
+                        _outcome_icon = "⏳"
+                        if _sr.get("profitable_30m") is True:
+                            _outcome_icon = "✅"
+                        elif _sr.get("profitable_30m") is False:
+                            _outcome_icon = "❌"
                         _signal_rows.append({
                             "": _outcome_icon,
                             "Symbol": _sr.get("symbol", "?"),
                             "Score": round(float(_sr.get("score") or 0), 2),
                             "Gap%": f"{float(_sr.get('gap_pct') or 0):+.2f}",
-                            "RVOL": (f"{float(_sr['rvol']):.2f}" if _sr.get("rvol") is not None else "—"),  # None = ratio unavailable at scoring time, not 0.00 (RVOL fix 2026-07-23)
+                            "RVOL": f"{float(_sr.get('rvol') or 0):.2f}",
                             "Tier": _sr.get("confidence_tier", ""),
                             "Regime": _sr.get("regime", ""),
-                            f"P&L {_replay_horizon}": f"{float(_sr_pnl or 0):+.2f}%" if _sr_pnl is not None else "—",
-                            "Anchor": _sr.get("outcome_anchor") or "—",  # market_open (pre-open capsule) vs fired_at (intraday RT signal)
-                            "Bucket": f"{_sr.get('gap_bucket_label') or ''}:{_sr.get('rvol_bucket_label') or ''}",  # `or ''`: rvol_bucket_label is None for missing-rvol records (RVOL fix 2026-07-23)
+                            "P&L 30m": f"{float(_sr.get('pnl_30m_pct') or 0):+.2f}%" if _sr.get("pnl_30m_pct") is not None else "—",
+                            "Bucket": f"{_sr.get('gap_bucket_label', '')}:{_sr.get('rvol_bucket_label', '')}",
                         })
-                    st.dataframe(pd.DataFrame(tv_linkify_rows(_signal_rows)), hide_index=True, use_container_width=True, column_config={"Symbol": tv_symbol_column()})
+                    st.dataframe(pd.DataFrame(_signal_rows), hide_index=True, use_container_width=True)
 
     # ── TAB: Provider Health ────────────────────────────────────
     with tab_health, _tab_guard("Provider Health"):
-        st.header("Provider Health")
+        st.header("🩺 Provider Health")
         st.caption("Live provider status, domain visibility, staleness, failure semantics, and fallback chains.")
 
         try:
@@ -5073,15 +4898,11 @@ else:
         if _health_report:
             # ── Overall status badge ──────────────────────────
             _overall = _health_report.get("overall_status", "unknown")
+            _status_icon = {"ok": "🟢", "warn": "🟡", "fail": "🔴"}.get(_overall, "⚪")
             _checked_iso = _health_report.get("checked_at_iso", "")
 
             hcol1, hcol2, hcol3, hcol4 = st.columns(4)
-            hcol1.markdown(
-                f'<div style="color:{_COL_NEUTRAL};font-size:0.8rem">Status</div>'
-                f'<div style="font-size:1.6rem;font-weight:600;line-height:1.15">'
-                f'{color_text(_overall, _overall.upper())}</div>',
-                unsafe_allow_html=True,
-            )
+            hcol1.metric("Status", f"{_status_icon} {_overall.upper()}")
             _vis_score = _health_report.get("domain_visibility_score")
             hcol2.metric("Domain Coverage", f"{_vis_score:.0%}" if _vis_score is not None else "—")
             hcol3.metric("Warnings", len(_health_report.get("warnings", [])))
@@ -5095,14 +4916,14 @@ else:
                 for _p in _providers:
                     _prov_rows.append({
                         "Provider": _p.get("provider", "?"),
-                        "Status": "OK" if _p.get("status") == "ok" else "warn",
-                        "Structure": "yes" if _p.get("maps_structure") else "—",
-                        "Meta": "yes" if _p.get("maps_meta") else "—",
-                        "Technical": "yes" if _p.get("maps_technical") else "—",
-                        "News": "yes" if _p.get("maps_news") else "—",
+                        "Status": "✅" if _p.get("status") == "ok" else "⚠️",
+                        "Structure": "✅" if _p.get("maps_structure") else "—",
+                        "Meta": "✅" if _p.get("maps_meta") else "—",
+                        "Technical": "✅" if _p.get("maps_technical") else "—",
+                        "News": "✅" if _p.get("maps_news") else "—",
                         "Gaps": ", ".join(_p.get("known_gaps", [])) or "none",
                     })
-                st.dataframe(style_semantic(pd.DataFrame(_prov_rows), ["Status"]), hide_index=True, use_container_width=True)
+                st.dataframe(pd.DataFrame(_prov_rows), hide_index=True, use_container_width=True)
 
             # ── Domain visibility breakdown ───────────────────
             _vis = _health_report.get("domain_visibility", {})
@@ -5115,11 +4936,11 @@ else:
                         "Symbol": _vr.get("symbol", "?"),
                         "TF": _vr.get("timeframe", "?"),
                         "Score": f"{_vr.get('score', 0):.0%}",
-                        "Complete": "yes" if _vr.get("complete") else "no",
+                        "Complete": "✅" if _vr.get("complete") else "❌",
                         "Present": ", ".join(_vr.get("domains_present", [])),
                         "Missing": ", ".join(_vr.get("domains_missing", [])) or "—",
                     })
-                st.dataframe(pd.DataFrame(tv_linkify_rows(_dv_rows)), hide_index=True, use_container_width=True, column_config={"Symbol": tv_symbol_column()})
+                st.dataframe(pd.DataFrame(_dv_rows), hide_index=True, use_container_width=True)
 
             # ── Domain alerts ─────────────────────────────────
             _alerts = _health_report.get("domain_alerts", [])
@@ -5128,16 +4949,17 @@ else:
                 _alert_rows = []
                 for _a in _alerts:
                     _sev = str(_a.get("severity", "")).upper()
+                    _sev_icon = {"WARN": "⚠️", "INFO": "ℹ️", "ERROR": "🔴"}.get(_sev, "⚪")
                     _alert_rows.append({
-                        "Severity": _sev.title(),
+                        "": _sev_icon,
                         "Domain": _a.get("domain", "?"),
                         "Code": _a.get("code", "?"),
                         "Symbol": _a.get("symbol", ""),
                         "Action": _a.get("failure_action", "—"),
-                        "Entry Risk": "Yes" if _a.get("failure_affects_entry") else "—",
+                        "Entry Risk": "⚠️" if _a.get("failure_affects_entry") else "—",
                         "Message": str(_a.get("message", ""))[:120],
                     })
-                st.dataframe(style_semantic(pd.DataFrame(tv_linkify_rows(_alert_rows)), ["Severity", "Action"]), hide_index=True, use_container_width=True, column_config={"Symbol": tv_symbol_column()})
+                st.dataframe(pd.DataFrame(_alert_rows), hide_index=True, use_container_width=True)
 
             # ── Stale / missing artifacts ─────────────────────
             _stale = _health_report.get("stale_artifacts", [])
@@ -5146,28 +4968,34 @@ else:
                 st.subheader("Artifact Issues")
                 _art_rows = []
                 for _s in _stale:
-                    _art_rows.append({"Type": "Stale", "Code": _s.get("code", "?"), "Detail": str(_s.get("message", ""))[:150]})
+                    _art_rows.append({"Type": "⏰ Stale", "Code": _s.get("code", "?"), "Detail": str(_s.get("message", ""))[:150]})
                 for _m in _missing:
-                    _art_rows.append({"Type": "Missing", "Code": _m.get("code", "?"), "Detail": str(_m.get("message", ""))[:150]})
-                st.dataframe(style_semantic(pd.DataFrame(_art_rows), ["Type"]), hide_index=True, use_container_width=True)
+                    _art_rows.append({"Type": "❌ Missing", "Code": _m.get("code", "?"), "Detail": str(_m.get("message", ""))[:150]})
+                st.dataframe(pd.DataFrame(_art_rows), hide_index=True, use_container_width=True)
 
             # ── Failure semantics reference ───────────────────
-            with st.expander("Failure Semantics Reference"):
+            with st.expander("📖 Failure Semantics Reference"):
                 _sem_rows = []
                 for _fs in _FAILURE_SEMANTICS_MATRIX:
+                    _action_icon = {
+                        FailureAction.FALLBACK: "🔄",
+                        FailureAction.ADVISORY: "ℹ️",
+                        FailureAction.SUPPRESS: "🚫",
+                        FailureAction.HARD_DEGRADE: "💀",
+                    }.get(_fs.action, "")
                     _sem_rows.append({
                         "Domain": _fs.domain,
                         "Failure": _fs.failure_type,
-                        "Action": _fs.action.value,
-                        "Entry Risk": "Yes" if _fs.affects_entry else "—",
+                        "Action": f"{_action_icon} {_fs.action.value}",
+                        "Entry Risk": "⚠️" if _fs.affects_entry else "—",
                         "Max Hours": str(_fs.max_tolerable_hours) if _fs.max_tolerable_hours else "—",
                         "Description": _fs.description,
                     })
-                st.dataframe(style_semantic(pd.DataFrame(_sem_rows), ["Action"]), hide_index=True, use_container_width=True)
+                st.dataframe(pd.DataFrame(_sem_rows), hide_index=True, use_container_width=True)
 
     # ── TAB: Decision-First Panel (C7.1 / W1 wiring) ─────────────────────
     with tab_decisions, _tab_guard("Decision-First"):
-        st.header("Decision-First Panel")
+        st.header("🪪 Decision-First Panel")
         st.caption(
             "One card per family: posture, top blocker, walk-forward Brier sparkline, "
             "headline metrics. Source = governance.promotion_gate decisions."
@@ -5208,22 +5036,6 @@ else:
                 st.error(f"Decision-First panel failed: {_panel_exc}")
                 logger.exception("Decision-First panel render error")
 
-        # EV-09 (2026-08-18, Verdrahtungs-Sweep E2): der ehrliche
-        # Verdict-Aufsatz (edge_supported / no_edge / inconclusive /
-        # not_evaluated je Familie) wurde gebaut, getestet — und nie
-        # gerendert. Das Terminal zeigte weiter nur PROMOTED/BLOCKED,
-        # exakt die Fehlleseart, gegen die EV-08/EV-09 gebaut wurden.
-        # Lokaler Import: der Modul-Kopf liegt oberhalb dreier
-        # Lineno-Ledger-Pins (608/2301/2363), diese Stelle nicht.
-        try:
-            from dashboard.verdict_panel import render_panel_from_archive
-
-            _verdict_text = render_panel_from_archive()
-            st.code(_verdict_text, language="text")
-        except Exception as _verdict_exc:
-            st.error(f"Verdict panel failed: {_verdict_exc}")
-            logger.exception("Verdict panel render error")
-
 
 # ── Auto-refresh trigger ───────────────────────────────────────
 
@@ -5247,15 +5059,7 @@ if st.session_state.auto_refresh and _has_live_news_provider(
         _ai_future = st.session_state.get("_fmp_ai_future")
         if _ai_future is not None and _ai_future.done():
             try:
-                _bg = _ai_future.result()
-                # Same harvest contract as tab_fmp_ai.render Step A: the
-                # worker returns {result_dict, context_json, cache_updates};
-                # storing the wrapper verbatim rendered a silent empty
-                # answer (review finding 2026-07-21).
-                st.session_state["fmp_ai_last_result"] = _bg["result_dict"]
-                st.session_state["fmp_ai_last_context_json"] = _bg.get("context_json", "")
-                for _ck, _cv in _bg.get("cache_updates", {}).items():
-                    st.session_state[_ck] = _cv
+                st.session_state["fmp_ai_last_result"] = _ai_future.result()
             except Exception as _ai_exc:
                 logger.warning("AI background task failed", exc_info=True)
                 st.session_state["fmp_ai_last_result"] = {
@@ -5276,22 +5080,18 @@ if st.session_state.auto_refresh and _has_live_news_provider(
             st.session_state["_last_fragment_rerun_ts"] = time.time()
             st.rerun()
 
-        # Safety: detect stale AI execution (aligned with tab_fmp_ai's
-        # 210 s hard timeout: enrichment budget + Producer LLM timeout + slack)
+        # Safety: detect stale AI execution (worker hung > 180s)
         if st.session_state.get("_fmp_ai_executing", False):
             _submit_ts = st.session_state.get("_fmp_ai_submit_ts", 0)
-            if _submit_ts and time.time() - _submit_ts > 210:
-                logger.warning("Fragment: FMP AI worker stale (>210s) — force-resetting")
-                _cancel_ev = st.session_state.get("_fmp_ai_cancel")
-                if _cancel_ev is not None:
-                    _cancel_ev.set()
+            if _submit_ts and time.time() - _submit_ts > 180:
+                logger.warning("Fragment: FMP AI worker stale (>180s) — force-resetting")
                 if _ai_future is not None:
                     _ai_future.cancel()
                 st.session_state["_fmp_ai_executing"] = False
                 st.session_state.pop("_fmp_ai_future", None)
                 st.session_state.pop("_fmp_ai_submit_ts", None)
                 st.session_state["fmp_ai_last_result"] = {
-                    "error": "Analysis timed out (>210s). The worker may have hung on a slow API call. Please try again.",
+                    "error": "Analysis timed out (>180s). The worker may have hung on a slow API call. Please try again.",
                     "question": st.session_state.get("fmp_ai_selected_question", ""),
                     "answer": "", "model": "", "cached": False,
                     "context_articles": 0, "context_tickers": 0, "fmp_tickers": 0, "enrichment_layers": 0,

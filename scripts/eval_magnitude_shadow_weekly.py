@@ -50,8 +50,7 @@ Exit codes
 ----------
 * ``0`` -- evaluated cleanly (eligible set may be empty; that is normal).
 * ``2`` -- the all-PASS red flag fired on the trailing window.
-* ``3`` -- the ledger is empty or missing, or holds no row graded under the
-  current return rule yet (nothing to judge).
+* ``3`` -- the ledger is empty or missing (nothing to judge).
 * ``4`` -- auto-demotion applied (policy file rewritten); report otherwise clean.
 * ``1`` -- usage/config error (including a corrupt ledger line, W7-1).
 """
@@ -67,7 +66,6 @@ from datetime import date as _date
 from pathlib import Path
 from typing import Any
 
-from governance.family_returns import RETURN_RULE
 from governance.magnitude_resolution_gate import MAG_AUC_CI_LOW_FLOOR
 from governance.magnitude_stage_policy import (
     DEFAULT_ARMED_PLANE,
@@ -81,7 +79,6 @@ from scripts.run_magnitude_shadow_ledger import (
     CANDIDATE_FAMILIES,
     DEFAULT_LEDGER,
     load_ledger,
-    rows_under_current_rule,
 )
 from scripts.smc_atomic_write import atomic_write_json
 
@@ -647,27 +644,6 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     if not rows:
         print(f"error: empty or missing ledger: {args.ledger}", file=sys.stderr)
-        return 3
-
-    # Return-rule guard (ADR-0031, Nachtrag 2026-10-02 II). The move-size
-    # target is the size of the realized return, and the rule that defines
-    # that return changed on 2026-10-02. Rows graded under another rule are a
-    # different experiment; a k-of-n window over both would pool them. They
-    # stay in the ledger (it is append-only) and are left out of the vote.
-    rows, other_rules = rows_under_current_rule(rows)
-    if other_rules:
-        excluded = ", ".join(f"{n} under {rule}" for rule, n in sorted(other_rules.items()))
-        print(
-            f"note: {excluded} left out of the judgement — the ledger's current "
-            f"return rule is {RETURN_RULE}",
-            file=sys.stderr,
-        )
-    if not rows:
-        print(
-            f"error: no ledger rows under the current return rule {RETURN_RULE} "
-            f"yet: {args.ledger}",
-            file=sys.stderr,
-        )
         return 3
 
     # Measurement-plane guard (2026-07-06, handover header): the 2026-06-11

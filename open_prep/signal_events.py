@@ -16,8 +16,8 @@ Opt-in and fail-soft:
 Dedup is STRICTER than rt_notify: one row per (symbol, direction) strength
 *increase* within the 12 h state TTL — there is no cooldown re-log (rt_notify
 re-fires a still-active level after its 30-min cooldown; a second same-day
-episode adds no second row here). For pushed tiers (A0/A1) Slack push counts
-exceed event-log rows; A2 is logged but only pushed if RT_SIGNAL_NOTIFY_LEVELS opts in.
+episode adds no second row here). Slack push counts therefore exceed event-log
+row counts by design; that is not data loss.
 """
 from __future__ import annotations
 

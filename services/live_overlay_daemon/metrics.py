@@ -19,7 +19,6 @@ from typing import Any
 
 from . import (
     cache,
-    composio_lifecycle_receiver,
     compute,
     config,
     evidence_freshness_bridge,
@@ -29,7 +28,6 @@ from . import (
     pine_library_version_bridge,
     provider_usage_bridge,
     railway_metrics,
-    reaction_zone_shadow_bridge,
     request_hotspots,
     sweep_trap_shadow_bridge,
     tradingview_binding_bridge,
@@ -37,10 +35,8 @@ from . import (
 )
 from .market_hours import (
     compute_daemon_health_status,
-    holiday_calendar_loaded,
     is_asia_regular_session_open,
     is_europe_regular_session_open,
-    is_us_extended_session_open,
     is_us_regular_session_open,
 )
 
@@ -73,23 +69,9 @@ def _prom_numeric_value(raw: object) -> float:
     """Coerce metric value to a Prometheus-safe finite number (fallback: NaN)."""
     try:
         value = float(raw)
-    except (OverflowError, TypeError, ValueError):
+    except (TypeError, ValueError):
         return float("nan")
     return value if math.isfinite(value) else float("nan")
-
-
-def _past_age_seconds(epoch: object, *, now: float | None = None) -> float | None:
-    """Return a finite age for a proven past epoch; future/invalid means unknown."""
-    if isinstance(epoch, bool):
-        return None
-    try:
-        timestamp = float(epoch)
-    except (OverflowError, TypeError, ValueError):
-        return None
-    if not math.isfinite(timestamp) or timestamp <= 0.0:
-        return None
-    age = (time.time() if now is None else now) - timestamp
-    return age if math.isfinite(age) and age >= 0.0 else None
 
 
 def _parse_bucket_upper_bound(suffix: str) -> float | None:
@@ -99,6 +81,71 @@ def _parse_bucket_upper_bound(suffix: str) -> float | None:
         return float(suffix.replace("_", "."))
     except ValueError:
         return None
+
+
+def _estimate_histogram_quantile_ms(
+    counters: dict[str, float],
+    *,
+    base_name: str,
+    quantile: float,
+) -> float | None:
+    """Estimate a latency quantile from cumulative bucket counters.
+
+    The in-process histogram stores counters as flattened names like
+    ``{base_name}.bucket_le_100``. This function computes an approximate
+    quantile using linear interpolation across cumulative buckets.
+    """
+    if not 0.0 < quantile <= 1.0:
+        return None
+
+    total_raw = counters.get(f"{base_name}.count")
+    if total_raw is None:
+        return None
+    total = _prom_numeric_value(total_raw)
+    if not math.isfinite(total) or total <= 0:
+        return None
+
+    prefix = f"{base_name}.bucket_le_"
+    bucket_points: list[tuple[float, float]] = []
+    for key, value in counters.items():
+        if not key.startswith(prefix):
+            continue
+        suffix = key[len(prefix) :]
+        upper = _parse_bucket_upper_bound(suffix)
+        if upper is None:
+            continue
+        cumulative = _prom_numeric_value(value)
+        if not math.isfinite(cumulative):
+            continue
+        bucket_points.append((upper, cumulative))
+
+    if not bucket_points:
+        return None
+
+    bucket_points.sort(key=lambda x: x[0])
+    target = quantile * total
+    prev_upper = 0.0
+    prev_cumulative = 0.0
+
+    for upper, cumulative in bucket_points:
+        if cumulative >= target:
+            if upper == float("inf"):
+                # Only the +Inf bucket carried the target: every observation
+                # exceeds the finite bucket bounds, so no finite quantile can
+                # be interpolated. Returning prev_upper's initial 0.0 here would
+                # report a misleadingly-perfect 0 ms while real latencies blow
+                # the SLO — omit the metric (None) instead in that case.
+                return prev_upper if prev_upper > 0.0 else None
+            span = cumulative - prev_cumulative
+            if span <= 0:
+                return upper
+            position = (target - prev_cumulative) / span
+            return prev_upper + (upper - prev_upper) * max(0.0, min(1.0, position))
+        if upper != float("inf"):
+            prev_upper = upper
+        prev_cumulative = cumulative
+
+    return prev_upper
 
 
 # Provider health state codes exposed via live_overlay_provider_news_*_state_code
@@ -114,7 +161,6 @@ _HEALTH_STATUS_CODES = {
     "starting": 1,
     "idle_market_closed": 2,
     "ok": 3,
-    "degraded": 4,  # sustained non-ok during open US session, past warmup (F-3)
 }
 
 # Map the raw snapshot "error" reason onto a human-readable message that the
@@ -248,16 +294,7 @@ def _trading_signals_snapshot() -> dict[str, object]:
 
     if isinstance(raw, dict) and raw:
         loaded = 1.0
-        # Der Serve-Pfad verwirft einen Snapshot, dessen ``signals`` kein List
-        # ist, als ERSTES (compute._signals_snapshot_is_fresh seit #4056) und
-        # liefert dann fuer JEDES Symbol None. Ohne ein Gegenstueck hier meldete
-        # der Exporter denselben Snapshot als geladen und frisch: stiller
-        # Totalverlust des Handelskontexts bei gruener Alarmflaeche. Der
-        # Rohwert zaehlt, nicht ``or []`` — das macht "Feld fehlt" und "leere
-        # Liste" ununterscheidbar, obwohl Serve nur das ERSTE verwirft.
-        signals_raw = raw.get("signals")
-        signals_usable = isinstance(signals_raw, list)
-        signals_obj = signals_raw if signals_usable else []
+        signals_obj = raw.get("signals") or []
         counts["active"] = _coerce_count(raw.get("signal_count"))
         counts["a0"] = _coerce_count(raw.get("a0_count"))
         counts["a1"] = _coerce_count(raw.get("a1_count"))
@@ -272,42 +309,12 @@ def _trading_signals_snapshot() -> dict[str, object]:
             except (TypeError, ValueError):
                 epoch_float = 0.0
         if math.isfinite(epoch_float) and epoch_float > 0:
-            raw_age_seconds = time.time() - epoch_float
-            if raw_age_seconds >= 0.0:
-                age_known = 1.0
-                age_seconds = raw_age_seconds
-                stale = 1.0 if age_seconds > max_age_seconds else 0.0
-            else:
-                # A producer clock ahead of this process cannot prove that a
-                # snapshot is current. Keep the age unknown and stale so the
-                # alerting contract matches compute._signals_snapshot_is_fresh.
-                stale = 1.0
-        if not signals_usable:
-            # NACH dem Altersblock, sonst ueberschriebe dessen ``else 0.0``
-            # dieses Urteil: ein Snapshot mit taufrischem ``updated_epoch``,
-            # aber unbrauchbarer Signalliste, saehe wieder frisch aus.
-            stale = 1.0
+            age_known = 1.0
+            age_seconds = max(0.0, time.time() - epoch_float)
+            stale = 1.0 if age_seconds > max_age_seconds else 0.0
 
     signals_list = signals_obj if isinstance(signals_obj, list) else []
     normalized = [item for item in signals_list if isinstance(item, dict)]
-    now_epoch = time.time()
-
-    def _is_current_signal(sig: dict[str, object]) -> bool:
-        fired_value = sig.get("fired_epoch")
-        if isinstance(fired_value, bool) or not isinstance(
-            fired_value, (int, float, str)
-        ):
-            return False
-        try:
-            fired_epoch = float(fired_value)
-        except (TypeError, ValueError):
-            return False
-        return (
-            str(sig.get("level", "")) in {"A0", "A1", "A2"}
-            and math.isfinite(fired_epoch)
-            and 0.0 < fired_epoch <= now_epoch
-            and now_epoch - fired_epoch <= max_age_seconds
-        )
 
     def _score_key(sig: dict[str, object]) -> float:
         value = sig.get("score")
@@ -322,17 +329,7 @@ def _trading_signals_snapshot() -> dict[str, object]:
                 return 0.0
         return 0.0
 
-    if not age_known or stale:
-        normalized = []
-    else:
-        normalized = [sig for sig in normalized if _is_current_signal(sig)]
     normalized.sort(key=_score_key, reverse=True)
-    counts.update(
-        active=len(normalized),
-        a0=sum(str(sig.get("level", "")) == "A0" for sig in normalized),
-        a1=sum(str(sig.get("level", "")) == "A1" for sig in normalized),
-        a2=sum(str(sig.get("level", "")) == "A2" for sig in normalized),
-    )
 
     return {
         "loaded": loaded,
@@ -467,10 +464,9 @@ def _credential_health_snapshot() -> dict[str, object]:
         if parsed is not None:
             if parsed.tzinfo is None:
                 parsed = parsed.replace(tzinfo=datetime.UTC)
-            age = _past_age_seconds(parsed.timestamp())
-            if age is not None:
-                snapshot["snapshot_age_known"] = 1.0
-                snapshot["snapshot_age_seconds"] = age
+            age = (datetime.datetime.now(datetime.UTC) - parsed).total_seconds()
+            snapshot["snapshot_age_known"] = 1.0
+            snapshot["snapshot_age_seconds"] = max(0.0, age)
 
     probes = raw.get("probes")
     probe_rows: list[dict[str, object]] = []
@@ -613,8 +609,8 @@ def _experiment_run_age(run_date: str) -> tuple[float, float]:
         parsed = datetime.datetime.strptime(run_date, "%Y-%m-%d").replace(tzinfo=datetime.UTC)
     except ValueError:
         return 0.0, 0.0
-    age = _past_age_seconds(parsed.timestamp())
-    return (1.0, age) if age is not None else (0.0, 0.0)
+    age = time.time() - parsed.timestamp()
+    return 1.0, max(0.0, age)
 
 
 def _experiment_per_tf_rows(per_tf: object) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
@@ -666,7 +662,6 @@ def _experiment_snapshot() -> dict[str, object]:
     """
     raw = compute._load_experiment_snapshot()
     loaded = 0.0
-    synthetic = 0.0
     run_date = ""
     age_known = 0.0
     age_seconds = 0.0
@@ -677,7 +672,6 @@ def _experiment_snapshot() -> dict[str, object]:
 
     if isinstance(raw, dict) and raw:
         loaded = 1.0
-        synthetic = 1.0 if raw.get("synthetic") is True else 0.0
         run_date = _experiment_date_from_root(raw.get("scoring_root"))
         age_known, age_seconds = _experiment_run_age(run_date)
         files_value = raw.get("files_scanned", 0)
@@ -687,26 +681,11 @@ def _experiment_snapshot() -> dict[str, object]:
 
         phase_e2 = raw.get("phase_e2_verdict")
         if isinstance(phase_e2, dict):
-            # Known keys first, in their declared order, then anything the
-            # producer has added since: iterating the consumer's own map would
-            # drop a new hypothesis silently, which is exactly what a staggered
-            # deploy produces.
-            unknown_keys = sorted(set(phase_e2) - set(_EXPERIMENT_VERDICT_KEYS))
-            ordered = [
-                *_EXPERIMENT_VERDICT_KEYS.items(),
-                *((key, key) for key in unknown_keys),
-            ]
-            for key, hypothesis in ordered:
+            for key, hypothesis in _EXPERIMENT_VERDICT_KEYS.items():
                 verdict = phase_e2.get(key)
                 if not isinstance(verdict, dict):
                     continue
                 status = str(verdict.get("status", "missing"))
-                # Tripwire (F-6, 2026-08-08): a rollup that declares itself
-                # synthetic must never surface as a measured verdict, whatever
-                # produced it. Downgrade to "missing" so no panel can render
-                # fabricated input as evidence; the synthetic gauge says why.
-                if synthetic:
-                    status = "missing"
                 p_value = verdict.get("delta_hr_p_value")
                 verdicts.append(
                     {
@@ -725,7 +704,6 @@ def _experiment_snapshot() -> dict[str, object]:
 
     return {
         "loaded": loaded,
-        "synthetic": synthetic,
         "run_date": run_date,
         "age_known": age_known,
         "age_seconds": age_seconds,
@@ -852,10 +830,9 @@ def _provider_health_snapshot() -> dict[str, object]:
         # the age is unknown and flagged as such instead of reporting a
         # misleading 0 that masquerades as a fresh snapshot.
         snapshot_ts = _snapshot_timestamp(raw)
-        snapshot_age = _past_age_seconds(snapshot_ts)
-        if snapshot_age is not None:
+        if snapshot_ts is not None:
             snapshot_age_known = 1.0
-            snapshot_age_seconds = snapshot_age
+            snapshot_age_seconds = max(0.0, time.time() - snapshot_ts)
         # last_ingest_success_at advances only when new items were accepted
         # (WP-C1c); it is the correct key for a 'news not flowing' alert since
         # generated_at refreshes every producer tick regardless of ingest.
@@ -864,10 +841,9 @@ def _provider_health_snapshot() -> dict[str, object]:
             ingest_ts = float(ingest_raw) if ingest_raw is not None else 0.0
         except (TypeError, ValueError):
             ingest_ts = 0.0
-        ingest_age = _past_age_seconds(ingest_ts)
-        if ingest_age is not None:
+        if math.isfinite(ingest_ts) and ingest_ts > 0.0:
             ingest_age_known = 1.0
-            ingest_age_seconds = ingest_age
+            ingest_age_seconds = max(0.0, time.time() - ingest_ts)
 
     providers = providers_obj if isinstance(providers_obj, dict) else {}
 
@@ -1078,13 +1054,16 @@ def _collect_process_metrics(startup_ts: float, startup_epoch: float = 0.0) -> l
     # Start time and uptime
     lines.append(f"# TYPE {prefix}_start_time_seconds gauge")
     lines.append(f"{prefix}_start_time_seconds {startup_epoch:.3f}")
-    # 2026-07-28 (B-sweep): the cause-labeled daemon start-time gauge was
-    # removed (name spelled out in OPS.md, not here — the metric-coverage guard
-    # regex-scans this file's source and would count a commented name as
-    # emitted). LIVE_OVERLAY_RESTART_CAUSE was never set in any deploy config,
-    # so the label was the constant "unknown" — and a statically-set env var
-    # can never distinguish deploy from crash. Restart COUNTING stays truthful
-    # via changes() of the process start-time gauge (crash-loop alert uses it).
+    # Restart-cause attribution as a start-time-VALUED gauge LABELED by cause:
+    # restarts-per-cause = changes() of this series over the window. The old
+    # live_overlay_daemon_restart_cause_*_total counters were set to 1 once per
+    # process and stayed constant (Prometheus saw 1,1,1,… so increase() was
+    # always 0); start_time jumps on every restart, so changes() actually counts.
+    lines.append("# TYPE live_overlay_daemon_start_time_seconds gauge")
+    lines.append(
+        f'live_overlay_daemon_start_time_seconds{{cause="{_escape_label_value(config.restart_cause())}"}} '
+        f"{startup_epoch:.3f}"
+    )
     uptime = time.monotonic() - startup_ts if startup_ts > 0 else 0
     lines.append(f"# TYPE {prefix}_uptime_seconds gauge")
     lines.append(f"{prefix}_uptime_seconds {uptime:.1f}")
@@ -1098,24 +1077,6 @@ def _collect_process_metrics(startup_ts: float, startup_epoch: float = 0.0) -> l
     lines.append(
         f'live_overlay_build_info{{commit="{_escape_label_value(commit)}",'
         f'branch="{_escape_label_value(branch)}"}} 1'
-    )
-
-    # Effective config — the values an ALERT RULE reasons about must be
-    # readable from outside the container, or "deployed" and "declared" drift
-    # in silence. Measured 2026-08-19 (Doppelgaenger K13): the Railway service
-    # runs HOLD_MANAGER_SHADOW_MAX_EVENT_AGE_SECS=86400 while README/OPS
-    # document the 900 default, and lo-hold-manager-shadow-rejected asserts the
-    # 86400 window in PROSE. Nothing compared the three. Reset the variable (or
-    # stand up a second environment) and the rule's premise breaks with the
-    # docs confirming the wrong number. Exposed as a gauge, the deployed truth
-    # is one query away and the alert can gate on it.
-    # Literal namespace like live_overlay_build_info above — NOT the local
-    # ``prefix`` (that is live_overlay_process_*), because the alert rule
-    # matches the live_overlay_hold_manager_shadow_* family.
-    lines.append("# TYPE live_overlay_hold_manager_shadow_max_event_age_secs gauge")
-    lines.append(
-        "live_overlay_hold_manager_shadow_max_event_age_secs "
-        f"{config.hold_manager_shadow_max_event_age_secs()}"
     )
 
     # Python GC collections
@@ -1149,11 +1110,9 @@ def _bridge_last_success_age(
     Disabled/unconfigured bridges return None (series omitted, as before).
     """
     if math.isfinite(last_success_ts) and last_success_ts > 0:
-        age = _past_age_seconds(last_success_ts)
-        if age is not None:
-            return age
+        return max(0.0, time.time() - last_success_ts)
     if enabled and configured and startup_epoch > 0:
-        return _past_age_seconds(startup_epoch)
+        return max(0.0, time.time() - startup_epoch)
     return None
 
 
@@ -1227,21 +1186,6 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
         "live_overlay.smc_live_bad_tf.total",
         "live_overlay.smc_live_cache_miss.total",
         "live_overlay.smc_live_stale_served.total",
-        # Compute-cycle error counters feed lo-compute-errors-rate. They were
-        # created lazily on first error, so Prometheus increase() treated the
-        # first-seen sample as baseline and the FIRST error burst per process
-        # lifetime never fired the alert. Seed 0 like the traffic counters.
-        "live_overlay.full_compute_cycle.errors",
-        "live_overlay.flow_patch_cycle.errors",
-        # 2026-08-19 (Doppelgaenger K12): same lazy-creation trap, one alert
-        # later. lo-hold-manager-shadow-rejected matches these three via
-        # increase(...[30m]) and its own comment calls every rejection class
-        # here "a first-of-its-kind event" — which is exactly the sample the
-        # unseeded counter swallows as its baseline. Seeded, the first
-        # rejection is a step from 0 and the alert fires.
-        "live_overlay.hold_manager_shadow.contract_rejected.total",
-        "live_overlay.hold_manager_shadow.payload_rejected.total",
-        "live_overlay.hold_manager_shadow.event_time_rejected.total",
     ):
         counters.setdefault(traffic_counter, 0.0)
 
@@ -1256,25 +1200,15 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
     lines.append("# TYPE live_overlay_hotspot_timeframes_tracked gauge")
     lines.append(f"live_overlay_hotspot_timeframes_tracked {_prom_numeric_value(hotspot.get('tf_count', 0))}")
 
-    # Aggregate by SANITIZED name: distinct raw keys can collide after
-    # sanitization ("BRK.A"/"BRK-A" -> brk_a), and duplicate TYPE headers +
-    # samples make Prometheus reject the entire exposition (whole-scrape
-    # blackout from one colliding request pair).
-    symbol_totals: dict[str, float] = {}
     for symbol, count in hotspot.get("top_symbols") or []:
         sym = _sanitize_name(str(symbol).lower())
-        symbol_totals[sym] = symbol_totals.get(sym, 0.0) + float(_prom_numeric_value(count))
-    for sym, total in symbol_totals.items():
         lines.append(f"# TYPE live_overlay_hotspot_symbol_{sym}_requests_total counter")
-        lines.append(f"live_overlay_hotspot_symbol_{sym}_requests_total {total}")
+        lines.append(f"live_overlay_hotspot_symbol_{sym}_requests_total {_prom_numeric_value(count)}")
 
-    tf_totals: dict[str, float] = {}
     for tf, count in hotspot.get("top_tfs") or []:
         tf_name = _sanitize_name(str(tf).lower())
-        tf_totals[tf_name] = tf_totals.get(tf_name, 0.0) + float(_prom_numeric_value(count))
-    for tf_name, total in tf_totals.items():
         lines.append(f"# TYPE live_overlay_hotspot_tf_{tf_name}_requests_total counter")
-        lines.append(f"live_overlay_hotspot_tf_{tf_name}_requests_total {total}")
+        lines.append(f"live_overlay_hotspot_tf_{tf_name}_requests_total {_prom_numeric_value(count)}")
 
     # --- Latency histogram -------------------------------------------------
     # Export real classic histogram bucket series so Prometheus can compute
@@ -1320,13 +1254,25 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
     )
     lines.append(f"live_overlay_smc_live_latency_ms_count {_prom_numeric_value(latency_count or 0.0)}")
 
-    # The derived p95/p99 gauges that lived here were kept only "until
-    # dashboard/alert consumers are fully migrated to histogram_quantile() over
-    # the buckets". That migration is complete and now enforced:
-    # test_dashboard_latency_panel_uses_only_histogram_quantile and
-    # test_latency_alert_uses_histogram_quantile_bucket assert the gauges are
-    # ABSENT from every panel and rule. Emitting a series nothing may consume is
-    # the blind spot the orphan scan exists to surface, so they are gone.
+    # Keep the derived gauges for backward compatibility until dashboard/alert
+    # consumers are fully migrated to histogram_quantile() over the buckets.
+    latency_p95_ms = _estimate_histogram_quantile_ms(
+        counters,
+        base_name=latency_base,
+        quantile=0.95,
+    )
+    if latency_p95_ms is not None:
+        lines.append("# TYPE live_overlay_smc_live_latency_p95_ms gauge")
+        lines.append(f"live_overlay_smc_live_latency_p95_ms {latency_p95_ms:.3f}")
+
+    latency_p99_ms = _estimate_histogram_quantile_ms(
+        counters,
+        base_name=latency_base,
+        quantile=0.99,
+    )
+    if latency_p99_ms is not None:
+        lines.append("# TYPE live_overlay_smc_live_latency_p99_ms gauge")
+        lines.append(f"live_overlay_smc_live_latency_p99_ms {latency_p99_ms:.3f}")
 
     # --- Feed counters ---
     feed_metrics = feed.metrics_snapshot()
@@ -1423,60 +1369,6 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
     lines.append("# TYPE live_overlay_bar_count gauge")
     lines.append(f"live_overlay_bar_count {bar_count}")
 
-    # Draht A (2026-08-30): abgelaufene Composio-Verbindungen. BEWUSST hier
-    # und nicht als Slack-/Issue-Meldung: beide Wege liefen durch composio_ops,
-    # also durch die Schicht, deren Tod gemeldet wird. Prometheus HOLT diese
-    # Zahl ab — der Alarmweg ist damit unabhaengig von dem, was ausgefallen ist.
-    expired = composio_lifecycle_receiver.expired_connections()
-    lines.append("# TYPE live_overlay_composio_expired_connections gauge")
-    lines.append(f"live_overlay_composio_expired_connections {len(expired)}")
-
-    # Cap-churn visibility (2026-07-22): without these the bar cache could
-    # thrash at the symbol cap — one bar per symbol, every rolling metric
-    # unavailable — with no metric moving. NOTE (2026-07-24): under the
-    # ALL_SYMBOLS feed this GLOBAL mean sits at ~1.0 by design — demand-aware
-    # retention (#3903) pins the cache at the cap with the unrequested majority
-    # holding one bar — so it is NOT the health signal for the rolling features.
-    # `requested_bars_per_symbol` below (depth of the symbols a consumer reads)
-    # is; `evicted_protected_total` rising means real demand exceeds the cap.
-    lines.append("# TYPE live_overlay_bars_per_symbol gauge")
-    lines.append(
-        f"live_overlay_bars_per_symbol {bar_count / bar_symbols if bar_symbols else 0}"
-    )
-    # Requested-symbol depth: the number that actually gates squeeze /
-    # relative-volume / ATS z-score (needs >= 20). Restricted to cached symbols
-    # a consumer has read, so the ALL_SYMBOLS churn no longer masks or fakes it.
-    req_bar_symbols, req_bars_per_symbol = cache.requested_bar_depth()
-    lines.append("# TYPE live_overlay_requested_bar_symbols gauge")
-    lines.append(f"live_overlay_requested_bar_symbols {req_bar_symbols}")
-    lines.append("# TYPE live_overlay_requested_bars_per_symbol gauge")
-    lines.append(f"live_overlay_requested_bars_per_symbol {req_bars_per_symbol}")
-    history_symbols, history_readiness = cache.requested_bar_history_readiness()
-    lines.append("# TYPE live_overlay_requested_bar_history_symbols gauge")
-    lines.append(f"live_overlay_requested_bar_history_symbols {history_symbols}")
-    lines.append("# TYPE live_overlay_requested_bar_history_readiness_ratio gauge")
-    lines.append(
-        f"live_overlay_requested_bar_history_readiness_ratio {history_readiness}"
-    )
-    # 2026-08-18 (C1): the alertable re-cut — depth below the symbol's own
-    # post-restart high-water mark (history destroyed), not absolute
-    # readiness (which needs ~160h of stream and false-fired after deploys).
-    lines.append("# TYPE live_overlay_requested_bar_history_regressed gauge")
-    lines.append(
-        "live_overlay_requested_bar_history_regressed "
-        f"{cache.requested_bar_history_regressed()}"
-    )
-    lines.append("# TYPE live_overlay_bar_symbols_evicted_total counter")
-    lines.append(f"live_overlay_bar_symbols_evicted_total {cache.evicted_symbols_total()}")
-    lines.append("# TYPE live_overlay_bar_requested_symbols_evicted_total counter")
-    lines.append(
-        f"live_overlay_bar_requested_symbols_evicted_total {cache.evicted_protected_total()}"
-    )
-    lines.append("# TYPE live_overlay_bar_future_dated_rejected_total counter")
-    lines.append(
-        f"live_overlay_bar_future_dated_rejected_total {cache.future_dated_bars_rejected_total()}"
-    )
-
     overlay_age = cache.overlay_age_secs()
     overlay_age_known = 1.0 if overlay_age != float("inf") else 0.0
     lines.append("# TYPE live_overlay_overlay_age_known gauge")
@@ -1499,29 +1391,6 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
     lines.append(f"live_overlay_last_bar_age_known {bar_age_known}")
     lines.append("# TYPE live_overlay_last_bar_age_seconds gauge")
     lines.append(f"live_overlay_last_bar_age_seconds {bar_age:.1f}")
-
-    vix_level = cache.get_vix()
-    vix_age = cache.vix_age_secs()
-    vix_age_known = 1.0 if vix_age != float("inf") else 0.0
-    lines.append("# TYPE live_overlay_vix_age_known gauge")
-    lines.append(f"live_overlay_vix_age_known {vix_age_known}")
-    lines.append("# TYPE live_overlay_vix_age_seconds gauge")
-    # Unknown age renders 0.0, NOT nan: `lo-vix-unavailable` selects arithmetically
-    # with `(age * known) + ((1 - known) * 5401)` — the same contract as
-    # live_overlay_overlay_age_seconds above, where NaN * 0 would poison the sum.
-    lines.append(
-        f"live_overlay_vix_age_seconds {vix_age:.1f}"
-        if vix_age != float("inf")
-        else "live_overlay_vix_age_seconds 0.0"
-    )
-    lines.append("# TYPE live_overlay_vix_level gauge")
-    # 0.0 while never-fetched keeps the series present (absent-vs-zero stays
-    # distinguishable via vix_age_known; the dashboard panel gates on it).
-    lines.append(
-        f"live_overlay_vix_level {vix_level:.2f}"
-        if vix_level is not None
-        else "live_overlay_vix_level 0.0"
-    )
 
     feed_healthy = 1 if feed.is_ready() else 0
     lines.append("# TYPE live_overlay_feed_healthy gauge")
@@ -1550,7 +1419,6 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
         overlay_fresh=overlay_fresh,
         market_open=us_open,
         bar_count=bar_count,
-        uptime_secs=uptime,  # distinguishes warmup from sustained failure (F-3)
     )
 
     lines.append("# TYPE live_overlay_market_open gauge")
@@ -1560,22 +1428,6 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
     lines.append(f"live_overlay_expected_market_traffic {1 if expected_traffic else 0}")
     lines.append("# TYPE live_overlay_market_us_open gauge")
     lines.append(f"live_overlay_market_us_open {1 if us_open else 0}")
-    # The window in which the feed actually delivers bars (04:00-20:00 ET).
-    # Data-flow alerts gate on THIS one; the regular-session gauge above stays
-    # for anything whose false positive could restart the process.
-    lines.append("# TYPE live_overlay_market_us_extended_open gauge")
-    lines.append(
-        f"live_overlay_market_us_extended_open {1 if is_us_extended_session_open() else 0}"
-    )
-    # 0 once a holiday lookup has fallen back to an empty calendar. The
-    # fallback is deliberate (a missing package must not crash the daemon)
-    # but fail-OPEN: an empty calendar makes a holiday look like a trading
-    # day, and the session predicates gate the self-heal supervisor, whose
-    # escalation is os._exit against a three-restart platform budget.
-    lines.append("# TYPE live_overlay_market_holiday_calendar_loaded gauge")
-    lines.append(
-        f"live_overlay_market_holiday_calendar_loaded {1 if holiday_calendar_loaded() else 0}"
-    )
     lines.append("# TYPE live_overlay_market_europe_open gauge")
     lines.append(f"live_overlay_market_europe_open {1 if eu_open else 0}")
     lines.append("# TYPE live_overlay_market_asia_open gauge")
@@ -1587,6 +1439,12 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
     lines.append(f"live_overlay_health_status_code {health_status_code}")
     lines.append("# TYPE live_overlay_health_status_info gauge")
     lines.append(f'live_overlay_health_status_info{{status="{_escape_label_value(status)}"}} 1')
+    lines.append("# TYPE live_overlay_health_status_ok gauge")
+    lines.append(f"live_overlay_health_status_ok {1 if status == 'ok' else 0}")
+    lines.append("# TYPE live_overlay_health_status_starting gauge")
+    lines.append(f"live_overlay_health_status_starting {1 if status == 'starting' else 0}")
+    lines.append("# TYPE live_overlay_health_status_idle_market_closed gauge")
+    lines.append(f"live_overlay_health_status_idle_market_closed {1 if status == 'idle_market_closed' else 0}")
 
     for worker_name, alive in workers.items():
         prom_worker = _sanitize_name(worker_name)
@@ -1597,10 +1455,7 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
     uptime_snapshot = uptimerobot_bridge.snapshot()
     uptime_enabled = bool(uptime_snapshot.get("enabled"))
     uptime_configured = bool(uptime_snapshot.get("configured", uptime_enabled))
-    # scrape_success reflects the LAST ATTEMPT, not the retained snapshot's
-    # ok: the keep-last-good cache preserves data across failures, and mapping
-    # its ok froze scrape_success=1/error=none during persistent outages.
-    uptime_ok = bool(uptime_snapshot.get("last_attempt_ok", uptime_snapshot.get("ok")))
+    uptime_ok = bool(uptime_snapshot.get("ok"))
     # Age comes from last_success ONLY — never from fetched_at, which on a
     # failed poll is the timestamp of the failed ATTEMPT and fabricated a
     # near-zero "last success age" while a bridge was failing from boot,
@@ -1619,12 +1474,7 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
         startup_epoch=startup_epoch,
     )
 
-    # Presence-based (not truthiness) preference: last_attempt_error_code
-    # exists only on retained-failure snapshots and then always wins.
-    if "last_attempt_error_code" in uptime_snapshot:
-        error_code = str(uptime_snapshot["last_attempt_error_code"])
-    else:
-        error_code = str(uptime_snapshot.get("error_code") or "")
+    error_code = str(uptime_snapshot.get("error_code") or "")
 
     _append_bridge_metrics(
         lines,
@@ -1643,13 +1493,6 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
         prom_name = f"live_overlay_uptimerobot_monitors_{key}{suffix}"
         lines.append(f"# TYPE {prom_name} gauge")
         lines.append(f"{prom_name} {_prom_numeric_value(counts.get(key, 0))}")
-
-    expected_monitor_ids = config.uptimerobot_monitor_ids()
-    if expected_monitor_ids:
-        lines.append("# TYPE live_overlay_uptimerobot_monitors_expected gauge")
-        lines.append(
-            f"live_overlay_uptimerobot_monitors_expected {float(len(expected_monitor_ids))}"
-        )
 
     avg_response_time_ms = uptime_snapshot.get("avg_response_time_ms")
     if avg_response_time_ms is not None:
@@ -1674,8 +1517,7 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
     workflow_snapshot = github_workflow_bridge.snapshot()
     wf_enabled = bool(workflow_snapshot.get("enabled"))
     wf_configured = bool(workflow_snapshot.get("configured", wf_enabled))
-    # Last-attempt mapping — see the uptimerobot block above.
-    wf_ok = bool(workflow_snapshot.get("last_attempt_ok", workflow_snapshot.get("ok")))
+    wf_ok = bool(workflow_snapshot.get("ok"))
     # last_success only — see the uptimerobot block above for the rationale
     # (fetched_at on a failed poll fabricated a fresh "last success age").
     wf_last_success_ts = _prom_numeric_value(
@@ -1688,11 +1530,7 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
         startup_epoch=startup_epoch,
     )
 
-    # Presence-based preference — see the uptimerobot block above.
-    if "last_attempt_error_code" in workflow_snapshot:
-        wf_error_code = str(workflow_snapshot["last_attempt_error_code"])
-    else:
-        wf_error_code = str(workflow_snapshot.get("error_code") or "")
+    wf_error_code = str(workflow_snapshot.get("error_code") or "")
 
     _append_bridge_metrics(
         lines,
@@ -1762,23 +1600,6 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
                 f"{{{_workflow_labels(workflow)}}} {_prom_numeric_value(workflow_duration)}"
             )
 
-    # Presence of each DECLARED workflow (config.github_workflow_expected).
-    # Every other workflow series is keyed off rows discovered in the fetched
-    # runs page, so a flow that stops running loses its series entirely and each
-    # rule over it goes NoData -> silent. This gauge is the one series that
-    # survives that disappearance: it stays present and reads 0. Labelled by
-    # NAME only -- workflow_id/event are unknown for a flow with no runs, and
-    # inventing them would churn labels the moment it returns.
-    expected_present = workflow_snapshot.get("expected_present")
-    if isinstance(expected_present, Mapping) and expected_present:
-        lines.append("# TYPE live_overlay_github_workflow_expected_present gauge")
-        for workflow_name in sorted(expected_present):
-            lines.append(
-                "live_overlay_github_workflow_expected_present"
-                f'{{workflow="{_escape_label_value(workflow_name)}"}} '
-                f"{_prom_numeric_value(expected_present[workflow_name])}"
-            )
-
     # ---- Realtime trading signals (A0 strongest / A1 confirmed / A2 early-warning) ----------
     # Sourced from the realtime engine snapshot via
     # compute._load_signals_snapshot (local file or SIGNALS_SNAPSHOT_URL).
@@ -1794,29 +1615,38 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
     lines.append(f"live_overlay_trading_signals_loaded {_prom_numeric_value(signals_snapshot['loaded'])}")
     # These are point-in-time gauges: currently-loaded signal counts that rise
     # AND fall. The canonical names are suffix-less to match the Prometheus
-    # gauge convention (cf. trading_signals_loaded above). The historical
-    # *_total aliases (non-monotonic despite the counter-style suffix) were
-    # dropped 2026-07-22: every committed dashboard uses the suffix-less names,
-    # and the orphan scan in test_monitoring_metric_alert_coverage now covers
-    # the trading_signals family, so unconsumed aliases fail CI.
+    # gauge convention (cf. trading_signals_loaded above); the historical
+    # *_total names are non-monotonic despite the counter-style suffix and are
+    # kept only as DEPRECATED aliases for dashboards not yet migrated (drop
+    # after the transition window — see the migration PR).
     _sig_active = _prom_numeric_value(signal_counts['active'])
     lines.append("# TYPE live_overlay_trading_signals_active gauge")
     lines.append(f"live_overlay_trading_signals_active {_sig_active}")
+    lines.append("# TYPE live_overlay_trading_signals_active_total gauge")
+    lines.append(f"live_overlay_trading_signals_active_total {_sig_active}")
     _sig_a0 = _prom_numeric_value(signal_counts['a0'])
     lines.append("# TYPE live_overlay_trading_signals_a0 gauge")
     lines.append(f"live_overlay_trading_signals_a0 {_sig_a0}")
+    lines.append("# TYPE live_overlay_trading_signals_a0_total gauge")
+    lines.append(f"live_overlay_trading_signals_a0_total {_sig_a0}")
     _sig_a1 = _prom_numeric_value(signal_counts['a1'])
     lines.append("# TYPE live_overlay_trading_signals_a1 gauge")
     lines.append(f"live_overlay_trading_signals_a1 {_sig_a1}")
+    lines.append("# TYPE live_overlay_trading_signals_a1_total gauge")
+    lines.append(f"live_overlay_trading_signals_a1_total {_sig_a1}")
     # A2 = early-warning tier (building momentum, not confirmed). Emitted since
     # 2026-07-08 so Grafana can surface all three levels; the producer counts it
     # in a2_count. active already includes A2.
     _sig_a2 = _prom_numeric_value(signal_counts['a2'])
     lines.append("# TYPE live_overlay_trading_signals_a2 gauge")
     lines.append(f"live_overlay_trading_signals_a2 {_sig_a2}")
+    lines.append("# TYPE live_overlay_trading_signals_a2_total gauge")
+    lines.append(f"live_overlay_trading_signals_a2_total {_sig_a2}")
     _sig_watched = _prom_numeric_value(signal_counts['watched'])
     lines.append("# TYPE live_overlay_trading_signals_watched gauge")
     lines.append(f"live_overlay_trading_signals_watched {_sig_watched}")
+    lines.append("# TYPE live_overlay_trading_signals_watched_total gauge")
+    lines.append(f"live_overlay_trading_signals_watched_total {_sig_watched}")
     lines.append("# TYPE live_overlay_trading_signals_snapshot_age_known gauge")
     lines.append(
         f"live_overlay_trading_signals_snapshot_age_known {_prom_numeric_value(signals_snapshot['age_known'])}"
@@ -1882,6 +1712,10 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
     lines.append(f"live_overlay_tradingview_credential_age_known {_prom_numeric_value(tv_credential['age_known'])}")
     lines.append("# TYPE live_overlay_tradingview_credential_age_hours gauge")
     lines.append(f"live_overlay_tradingview_credential_age_hours {tv_credential['age_hours']:.3f}")
+    lines.append("# TYPE live_overlay_tradingview_credential_validated_at_seconds gauge")
+    lines.append(
+        f"live_overlay_tradingview_credential_validated_at_seconds {tv_credential['validated_at_seconds']:.0f}"
+    )
 
     # ----- Full credential-health report -----------------------------------
     # Sourced from the same daily credential-health report as the legacy
@@ -1904,28 +1738,28 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
     cred_age_float = float(cred_age_value) if isinstance(cred_age_value, (int, float)) else 0.0
     lines.append(f"live_overlay_credential_health_snapshot_age_seconds {cred_age_float:.1f}")
 
-    # Per-probe series are dynamically named (credential_health_<probe>_valid
-    # etc.), so a single # TYPE line cannot describe them. Four such headers
-    # used to be emitted for names no sample ever carried — inert metadata
-    # that the orphan scan then reported as unconsumed metrics. Dropped.
     probe_rows = credential.get("probes") or []
     if probe_rows:
+        lines.append("# TYPE live_overlay_credential_health_probe_severity_code gauge")
         for probe in probe_rows:
             name = _sanitize_name(str(probe["name"]))
             code = _prom_numeric_value(probe["code"])
             lines.append(f"live_overlay_credential_health_{name}_severity_code {code}")
 
+        lines.append("# TYPE live_overlay_credential_health_probe_valid gauge")
         for probe in probe_rows:
             name = _sanitize_name(str(probe["name"]))
             valid = _prom_numeric_value(probe["valid"])
             lines.append(f"live_overlay_credential_health_{name}_valid {valid}")
 
+        lines.append("# TYPE live_overlay_credential_health_probe_info gauge")
         for probe in probe_rows:
             name = _sanitize_name(str(probe["name"]))
             severity = _escape_label_value(str(probe["severity"]))
             message = _escape_label_value(str(probe["message"])[:200])
             lines.append(f'live_overlay_credential_health_{name}_info{{severity="{severity}",message="{message}"}} 1')
 
+        lines.append("# TYPE live_overlay_credential_health_probe_value gauge")
         for probe in probe_rows:
             name = _sanitize_name(str(probe["name"]))
             numeric = probe.get("numeric") or {}
@@ -1937,12 +1771,6 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
     experiment = _experiment_snapshot()
     lines.append("# TYPE live_overlay_experiment_loaded gauge")
     lines.append(f"live_overlay_experiment_loaded {_prom_numeric_value(experiment['loaded'])}")
-    # 1 if a producer ever declares its rollup synthetic. Expected 0 since the
-    # daemon reads the measuring producer (config.experiment_snapshot_url).
-    lines.append("# TYPE live_overlay_experiment_snapshot_synthetic gauge")
-    lines.append(
-        f"live_overlay_experiment_snapshot_synthetic {_prom_numeric_value(experiment['synthetic'])}"
-    )
     lines.append("# TYPE live_overlay_experiment_snapshot_age_known gauge")
     lines.append(f"live_overlay_experiment_snapshot_age_known {_prom_numeric_value(experiment['age_known'])}")
     lines.append("# TYPE live_overlay_experiment_snapshot_age_seconds gauge")
@@ -2176,74 +2004,6 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
                     f'live_overlay_railway_service_network_tx_gb{{service="{service_name}",service_id="{service_id}"}} '
                     f"{_prom_numeric_value(tx_gb)}"
                 )
-
-    # --- Railway native volume backups (customer plane) ---
-    # The licence database of the hosted customer plane lives on a Railway
-    # volume. Railway can back that volume up on a schedule and restore it, but
-    # the schedule was off and nothing said so. These gauges make both the
-    # schedule and its output observable from outside the plane being backed up
-    # — deliberately not from the worker itself, which is down in exactly the
-    # incident where the answer matters.
-    backup_snapshot = railway_metrics.volume_backup_snapshot()
-    backup_enabled = bool(backup_snapshot.get("enabled"))
-    backup_configured = bool(backup_snapshot.get("configured", backup_enabled))
-    backup_error = backup_snapshot.get("error")
-    _append_bridge_metrics(
-        lines,
-        bridge="railway_volume_backups",
-        enabled=backup_enabled,
-        configured=backup_configured,
-        scrape_success=bool(backup_snapshot.get("ok")),
-        last_success_age_seconds=_bridge_last_success_age(
-            _prom_numeric_value(backup_snapshot.get("last_success_fetched_at_unix") or 0.0),
-            enabled=backup_enabled,
-            configured=backup_configured,
-            startup_epoch=startup_epoch,
-        ),
-        scrape_duration_seconds=backup_snapshot.get("scrape_duration_seconds"),
-        error_code=str(backup_error)[:200] if backup_error else None,
-    )
-
-    volumes = backup_snapshot.get("volumes") or []
-    if volumes:
-        now_epoch = time.time()
-        lines.append("# TYPE live_overlay_railway_volume_backup_max_age_seconds gauge")
-        lines.append(
-            "live_overlay_railway_volume_backup_max_age_seconds "
-            f"{_prom_numeric_value(config.railway_volume_backup_max_age_secs())}"
-        )
-        lines.append("# TYPE live_overlay_railway_volume_backup_schedule_count gauge")
-        lines.append("# TYPE live_overlay_railway_volume_backup_count gauge")
-        lines.append("# TYPE live_overlay_railway_volume_backup_age_known gauge")
-        lines.append("# TYPE live_overlay_railway_volume_backup_age_seconds gauge")
-        lines.append("# TYPE live_overlay_railway_volume_backup_retention_seconds gauge")
-        for volume in volumes:
-            label = _escape_label_value(str(volume.get("name", "unknown")))
-            newest = volume.get("newest_created_at_unix")
-            # Unknown age is reported as a separate flag, never as age 0: a
-            # volume that was never backed up must not read younger than one
-            # backed up an hour ago.
-            age_known = 1.0 if isinstance(newest, (int, float)) and newest > 0 else 0.0
-            age_seconds = max(0.0, now_epoch - float(newest)) if age_known else 0.0
-            lines.append(
-                f'live_overlay_railway_volume_backup_schedule_count{{volume="{label}"}} '
-                f"{_prom_numeric_value(volume.get('schedule_count'))}"
-            )
-            lines.append(
-                f'live_overlay_railway_volume_backup_count{{volume="{label}"}} '
-                f"{_prom_numeric_value(volume.get('backup_count'))}"
-            )
-            lines.append(f'live_overlay_railway_volume_backup_age_known{{volume="{label}"}} {age_known}')
-            lines.append(
-                f'live_overlay_railway_volume_backup_age_seconds{{volume="{label}"}} {age_seconds:.1f}'
-            )
-            retention = volume.get("retention_seconds")
-            if retention is not None:
-                lines.append(
-                    f'live_overlay_railway_volume_backup_retention_seconds{{volume="{label}"}} '
-                    f"{_prom_numeric_value(retention)}"
-                )
-
     # ----- Evidence-freshness (ADR-0023 chain output age) ------------------
     # Serves the freshness of the evidence chain that stayed silently frozen
     # in 2026-06/07: magnitude ledger, data/phase-a-audit branch, paper-fills
@@ -2267,13 +2027,6 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
     # shadow (no score weight); these gauges make the evidence + producer
     # liveness visible instead of buried in a committed JSONL ledger.
     lines.extend(_render_sweep_trap_shadow_metrics())
-
-    # Reaction-zone shadow study: per-direction best follow-through lift + the
-    # promotion-candidate verdict, from reaction_zone_shadow_bridge. Published
-    # beside the sweep-trap snapshot on the same daily workflow; observe-only (no
-    # score weight), so these gauges make the evidence + producer liveness visible
-    # instead of buried in a committed JSON snapshot with zero consumers.
-    lines.extend(_render_reaction_zone_shadow_metrics())
 
     # Provider API data-VOLUME (bytes) consumed this month, per REST provider,
     # from the ingest-side usage snapshot. Makes the FMP bandwidth quota (the
@@ -2306,9 +2059,7 @@ def _render_provider_usage_metrics() -> list[str]:
         f"live_overlay_provider_usage_snapshot_age_seconds {float(age) if age_known else 0.0:.1f}"
     )
 
-    raw_providers = snap.get("providers")
-    providers = dict(raw_providers) if isinstance(raw_providers, dict) else {}
-    providers.setdefault("fmp", {})
+    providers = snap.get("providers") or {}
     lines.append("# TYPE live_overlay_provider_usage_bytes gauge")
     lines.append("# TYPE live_overlay_provider_usage_calls gauge")
     lines.append("# TYPE live_overlay_provider_usage_records gauge")
@@ -2358,9 +2109,8 @@ def _render_pine_library_version_metrics() -> list[str]:
 
     # Age of the snapshot itself (producer heartbeat). Known only once loaded.
     generated_at = _prom_numeric_value(snap.get("generated_at_unix", 0.0))
-    snap_age_value = _past_age_seconds(generated_at)
-    snap_age_known = 1.0 if snap_age_value is not None else 0.0
-    snap_age = snap_age_value if snap_age_value is not None else 0.0
+    snap_age_known = 1.0 if generated_at > 0 else 0.0
+    snap_age = max(0.0, time.time() - generated_at) if generated_at > 0 else 0.0
     lines.append("# TYPE live_overlay_pine_library_snapshot_age_known gauge")
     lines.append(f"live_overlay_pine_library_snapshot_age_known {snap_age_known}")
     lines.append("# TYPE live_overlay_pine_library_snapshot_age_seconds gauge")
@@ -2383,56 +2133,19 @@ def _render_pine_library_version_metrics() -> list[str]:
     # of library count so the panel never blanks before the first snapshot.
     lines.append("# TYPE live_overlay_pine_library_tv_version gauge")
     lines.append("# TYPE live_overlay_pine_library_tv_version_known gauge")
-    lines.append("# TYPE live_overlay_pine_library_data_age_seconds gauge")
-    lines.append("# TYPE live_overlay_pine_library_data_age_known gauge")
     lines.append("# TYPE live_overlay_pine_consumer_pin_version gauge")
     lines.append("# TYPE live_overlay_pine_consumer_drift gauge")
-    # ADR-0029: payload volume. Every other gauge here measures metadata about
-    # the library — version, ASOF_DATE — so an empty payload under a fresh date
-    # reads green. These measure the payload itself.
-    lines.append("# TYPE live_overlay_pine_library_payload_known gauge")
-    lines.append("# TYPE live_overlay_pine_library_payload_symbols gauge")
-    lines.append("# TYPE live_overlay_pine_library_payload_lists gauge")
-    lines.append("# TYPE live_overlay_pine_library_payload_universe_size gauge")
     libraries = snap.get("libraries") or []
     for lib in libraries:
         name = _escape_label_value(str(lib.get("name", "") or "unknown"))
         tv_known = _prom_numeric_value(lib.get("tv_version_known", 0.0))
         lines.append(f'live_overlay_pine_library_tv_version_known{{library="{name}"}} {tv_known}')
-        data_asof_unix = _prom_numeric_value(lib.get("data_asof_unix", 0.0))
-        data_age_value = (
-            _past_age_seconds(data_asof_unix)
-            if _prom_numeric_value(lib.get("data_asof_known", 0.0)) >= 1.0
-            else None
-        )
-        data_age_known = 1.0 if data_age_value is not None else 0.0
-        data_age = data_age_value if data_age_value is not None else 0.0
-        lines.append(f'live_overlay_pine_library_data_age_known{{library="{name}"}} {data_age_known}')
-        lines.append(f'live_overlay_pine_library_data_age_seconds{{library="{name}"}} {data_age:.1f}')
         # Only emit the version number when it is actually known — an unreachable
         # facade must not report version 0 as if it were the real TV version.
         if tv_known >= 1.0:
             lines.append(
                 f'live_overlay_pine_library_tv_version{{library="{name}"}} '
                 f"{_prom_numeric_value(lib.get('tv_version', 0.0))}"
-            )
-        # Payload counts are emitted ONLY when measured. A hand-authored library
-        # carries no payload exports, and an unreadable generated one must not
-        # report 0 symbols as though it had been measured and found empty.
-        payload_known = _prom_numeric_value(lib.get("payload_known", 0.0))
-        lines.append(f'live_overlay_pine_library_payload_known{{library="{name}"}} {payload_known}')
-        if payload_known >= 1.0:
-            lines.append(
-                f'live_overlay_pine_library_payload_symbols{{library="{name}"}} '
-                f"{_prom_numeric_value(lib.get('payload_universe_symbols', 0.0))}"
-            )
-            lines.append(
-                f'live_overlay_pine_library_payload_lists{{library="{name}"}} '
-                f"{_prom_numeric_value(lib.get('payload_list_symbols', 0.0))}"
-            )
-            lines.append(
-                f'live_overlay_pine_library_payload_universe_size{{library="{name}"}} '
-                f"{_prom_numeric_value(lib.get('payload_universe_size', 0.0))}"
             )
         for consumer in lib.get("consumers") or []:
             cfile = _escape_label_value(str(consumer.get("file", "") or "unknown"))
@@ -2451,9 +2164,8 @@ def _render_tradingview_binding_metrics() -> list[str]:
     """Prometheus gauges for measured TradingView input.source dropdown drift."""
     snap = tradingview_binding_bridge.snapshot()
     generated_at = _prom_numeric_value(snap.get("generated_at_unix", 0.0))
-    age_value = _past_age_seconds(generated_at)
-    age_known = 1.0 if age_value is not None else 0.0
-    age = age_value if age_value is not None else 0.0
+    age_known = 1.0 if generated_at > 0 else 0.0
+    age = max(0.0, time.time() - generated_at) if generated_at > 0 else 0.0
     lines = [
         "# TYPE live_overlay_tv_binding_snapshot_loaded gauge",
         f"live_overlay_tv_binding_snapshot_loaded {_prom_numeric_value(snap.get('loaded', 0.0))}",
@@ -2462,45 +2174,20 @@ def _render_tradingview_binding_metrics() -> list[str]:
         "# TYPE live_overlay_tv_binding_snapshot_age_seconds gauge",
         f"live_overlay_tv_binding_snapshot_age_seconds {age:.1f}",
         "# TYPE live_overlay_tv_binding_drift gauge",
-        f"live_overlay_tv_binding_drift {_prom_numeric_value(snap.get('binding_drift', 0.0))}",
-        "# TYPE live_overlay_tv_binding_check_known gauge",
-        f"live_overlay_tv_binding_check_known {_prom_numeric_value(snap.get('binding_check_known', 0.0))}",
-        "# TYPE live_overlay_tv_binding_consumers_expected gauge",
-        f"live_overlay_tv_binding_consumers_expected {_prom_numeric_value(snap.get('binding_expected_consumers', 0.0))}",
-        "# TYPE live_overlay_tv_binding_consumers_checked gauge",
-        f"live_overlay_tv_binding_consumers_checked {_prom_numeric_value(snap.get('binding_checked_consumers', 0.0))}",
+        f"live_overlay_tv_binding_drift {1.0 if _prom_numeric_value(snap.get('mismatches', 0.0)) > 0 or _prom_numeric_value(snap.get('failed_consumers', 0.0)) > 0 else 0.0}",
         "# TYPE live_overlay_tv_binding_mismatches gauge",
         f"live_overlay_tv_binding_mismatches {_prom_numeric_value(snap.get('mismatches', 0.0))}",
         "# TYPE live_overlay_tv_binding_failed_consumers gauge",
         f"live_overlay_tv_binding_failed_consumers {_prom_numeric_value(snap.get('failed_consumers', 0.0))}",
         "# TYPE live_overlay_tv_bindings_checked gauge",
         f"live_overlay_tv_bindings_checked {_prom_numeric_value(snap.get('checked_bindings', 0.0))}",
-        "# TYPE live_overlay_tv_consumer_source_check_known gauge",
-        f"live_overlay_tv_consumer_source_check_known {_prom_numeric_value(snap.get('source_check_known', 0.0))}",
-        "# TYPE live_overlay_tv_consumer_source_drift gauge",
-        f"live_overlay_tv_consumer_source_drift {_prom_numeric_value(snap.get('source_drift', 0.0))}",
-        "# TYPE live_overlay_tv_consumer_sources_expected gauge",
-        f"live_overlay_tv_consumer_sources_expected {_prom_numeric_value(snap.get('source_expected', 0.0))}",
-        "# TYPE live_overlay_tv_consumer_sources_checked gauge",
-        f"live_overlay_tv_consumer_sources_checked {_prom_numeric_value(snap.get('source_checked', 0.0))}",
-        "# TYPE live_overlay_tv_consumer_sources_drifted gauge",
-        f"live_overlay_tv_consumer_sources_drifted {_prom_numeric_value(snap.get('source_drifted', 0.0))}",
-        "# TYPE live_overlay_tv_consumer_source_failures gauge",
-        f"live_overlay_tv_consumer_source_failures {_prom_numeric_value(snap.get('source_failed_consumers', 0.0))}",
         "# TYPE live_overlay_tv_consumer_binding_mismatches gauge",
-        "# TYPE live_overlay_tv_consumer_source_matches gauge",
     ]
     for consumer in snap.get("consumers") or []:
         name = _escape_label_value(str(consumer.get("script_name", "unknown")))
         lines.append(
             f'live_overlay_tv_consumer_binding_mismatches{{consumer="{name}"}} '
             f'{_prom_numeric_value(consumer.get("mismatches", 0.0))}'
-        )
-    for consumer in snap.get("source_consumers") or []:
-        name = _escape_label_value(str(consumer.get("script_name", "unknown")))
-        lines.append(
-            f'live_overlay_tv_consumer_source_matches{{consumer="{name}"}} '
-            f'{_prom_numeric_value(consumer.get("matches", 0.0))}'
         )
     return lines
 
@@ -2516,9 +2203,8 @@ def _render_evidence_freshness_metrics() -> list[str]:
 
     # Age of the snapshot itself (producer heartbeat). Known only once loaded.
     generated_at = _prom_numeric_value(snap.get("generated_at_unix", 0.0))
-    snap_age_value = _past_age_seconds(generated_at)
-    snap_age_known = 1.0 if snap_age_value is not None else 0.0
-    snap_age = snap_age_value if snap_age_value is not None else 0.0
+    snap_age_known = 1.0 if generated_at > 0 else 0.0
+    snap_age = max(0.0, time.time() - generated_at) if generated_at > 0 else 0.0
     lines.append("# TYPE live_overlay_evidence_freshness_snapshot_age_known gauge")
     lines.append(f"live_overlay_evidence_freshness_snapshot_age_known {snap_age_known}")
     lines.append("# TYPE live_overlay_evidence_freshness_snapshot_age_seconds gauge")
@@ -2624,101 +2310,6 @@ def _render_evidence_freshness_metrics() -> list[str]:
         f"{_prom_numeric_value(submitter.get('known', 0))}"
     )
 
-    portfolio = snap.get("portfolio_shadow") or {}
-    portfolio_metrics = {
-        "live_overlay_portfolio_shadow_evidence_known": portfolio.get("known", 0),
-        "live_overlay_portfolio_shadow_ready_for_human_review": (
-            1 if portfolio.get("status") == "ready_for_human_review" else 0
-        ),
-        "live_overlay_portfolio_shadow_min_sessions": portfolio.get(
-            "min_shadow_sessions_for_review", 0
-        ),
-        "live_overlay_portfolio_shadow_risk_relevant_sessions": portfolio.get(
-            "risk_relevant_sessions_observed", 0
-        ),
-        "live_overlay_portfolio_shadow_risk_relevant_decisions_total": portfolio.get(
-            "risk_relevant_decision_count", 0
-        ),
-        "live_overlay_portfolio_shadow_submission_attempts_total": portfolio.get(
-            "submission_attempt_count", 0
-        ),
-        "live_overlay_portfolio_shadow_submission_attempts_without_prior_evaluation_total": (
-            portfolio.get("submission_attempts_without_prior_evaluation", 0)
-        ),
-        "live_overlay_portfolio_shadow_incomplete_decisions_total": portfolio.get(
-            "incomplete_decisions", 0
-        ),
-        "live_overlay_portfolio_shadow_reconciliation_sessions": portfolio.get(
-            "reconciliation_sessions", 0
-        ),
-        "live_overlay_portfolio_shadow_dispositioned_sessions": portfolio.get(
-            "risk_relevant_sessions_dispositioned"
-        ),
-        "live_overlay_portfolio_shadow_missing_reconciliation_sessions": portfolio.get(
-            "risk_relevant_sessions_missing_reconciliation", 0
-        ),
-        "live_overlay_portfolio_shadow_reconciliation_failures_total": portfolio.get(
-            "reconciliation_failures", 0
-        ),
-    }
-    for metric_name, raw_value in portfolio_metrics.items():
-        lines.append(f"# TYPE {metric_name} gauge")
-        lines.append(f"{metric_name} {_prom_numeric_value(raw_value)}")
-
-    snapshot_age_known = _prom_numeric_value(
-        portfolio.get("latest_snapshot_age_known", 0)
-    )
-    snapshot_max_age_known = _prom_numeric_value(
-        portfolio.get("latest_snapshot_max_age_known", 0)
-    )
-    lines.append("# TYPE live_overlay_portfolio_snapshot_age_known gauge")
-    lines.append(f"live_overlay_portfolio_snapshot_age_known {snapshot_age_known}")
-    lines.append("# TYPE live_overlay_portfolio_snapshot_age_seconds gauge")
-    lines.append(
-        "live_overlay_portfolio_snapshot_age_seconds "
-        f"{_prom_numeric_value(portfolio.get('latest_snapshot_age_seconds'))}"
-    )
-    lines.append("# TYPE live_overlay_portfolio_snapshot_max_age_known gauge")
-    lines.append(
-        f"live_overlay_portfolio_snapshot_max_age_known {snapshot_max_age_known}"
-    )
-    lines.append("# TYPE live_overlay_portfolio_snapshot_max_age_seconds gauge")
-    lines.append(
-        "live_overlay_portfolio_snapshot_max_age_seconds "
-        f"{_prom_numeric_value(portfolio.get('latest_snapshot_max_age_seconds'))}"
-    )
-
-    verdict_counts = portfolio.get("verdict_counts") or {}
-    lines.append("# TYPE live_overlay_portfolio_risk_decisions_total counter")
-    for verdict in ("allow", "resize", "reject"):
-        lines.append(
-            "live_overlay_portfolio_risk_decisions_total{"
-            f'verdict="{verdict}"'
-            f"}} {_prom_numeric_value(verdict_counts.get(verdict, 0))}"
-        )
-
-    lines.append("# TYPE live_overlay_portfolio_reconciliation_known gauge")
-    lines.append(
-        "live_overlay_portfolio_reconciliation_known "
-        f"{_prom_numeric_value(portfolio.get('latest_reconciliation_known', 0))}"
-    )
-    lines.append(
-        "# TYPE live_overlay_portfolio_reconciliation_max_abs_quantity_delta gauge"
-    )
-    lines.append(
-        "live_overlay_portfolio_reconciliation_max_abs_quantity_delta "
-        f"{_prom_numeric_value(portfolio.get('latest_reconciliation_max_abs_quantity_delta'))}"
-    )
-    lines.append("# TYPE live_overlay_portfolio_reconciliation_reconciled gauge")
-    lines.append(
-        "live_overlay_portfolio_reconciliation_reconciled "
-        f"{_prom_numeric_value(portfolio.get('latest_reconciliation_reconciled', 0))}"
-    )
-    _emit_age(
-        "live_overlay_portfolio_shadow_newest_risk_relevant_session_age",
-        str(portfolio.get("newest_risk_relevant_session", "")),
-    )
-
     wsh = snap.get("wsh") or {}
     _emit_age("live_overlay_evidence_wsh_age", str(wsh.get("newest_date", "")))
     return lines
@@ -2737,9 +2328,8 @@ def _render_sweep_trap_shadow_metrics() -> list[str]:
     # `_stale` is a precomputed 0/1 gauge so the alert threshold isn't the
     # gt-0-inert trap (a bare comparison whose true-value is 0).
     generated_at = _prom_numeric_value(snap.get("generated_at_unix", 0.0))
-    age_value = _past_age_seconds(generated_at)
-    age_known = 1.0 if age_value is not None else 0.0
-    age = age_value if age_value is not None else 0.0
+    age_known = 1.0 if generated_at > 0 else 0.0
+    age = max(0.0, time.time() - generated_at) if generated_at > 0 else 0.0
     stale = 1.0 if (age_known and age > config.sweep_trap_shadow_max_age_secs()) else 0.0
     lines.append("# TYPE live_overlay_sweep_trap_shadow_snapshot_age_known gauge")
     lines.append(f"live_overlay_sweep_trap_shadow_snapshot_age_known {age_known}")
@@ -2844,119 +2434,5 @@ def _render_sweep_trap_shadow_metrics() -> list[str]:
             f'assessment="{_escape_label_value(assessment)}"'
         )
         lines.append(f"live_overlay_sweep_trap_shadow_evidence_info{{{labels}}} 1")
-
-    return lines
-
-
-def _render_reaction_zone_shadow_metrics() -> list[str]:
-    """Prometheus gauges for the reaction-zone shadow follow-through study.
-
-    Mirrors ``_render_sweep_trap_shadow_metrics``: a loaded flag, the producer
-    heartbeat (age/known/stale on the same OVERLAY_REACTION_ZONE_SHADOW_MAX_AGE_SECS
-    budget), sample accrual, per-direction best follow-through lift, the overall
-    promotion verdict, and a presentation-only evidence table. Observe-only — these
-    gauges never feed a score/trade path.
-    """
-    snap = reaction_zone_shadow_bridge.snapshot()
-    lines: list[str] = []
-
-    loaded = _prom_numeric_value(snap.get("loaded", 0.0))
-    lines.append("# TYPE live_overlay_reaction_zone_shadow_loaded gauge")
-    lines.append(f"live_overlay_reaction_zone_shadow_loaded {loaded}")
-
-    # Producer heartbeat: age of the snapshot itself, known only once loaded (the
-    # ISO updated_at parsed to a real epoch). `_stale` is a precomputed 0/1 gauge so
-    # the alert threshold isn't the gt-0-inert trap.
-    generated_at = _prom_numeric_value(snap.get("generated_at_unix", 0.0))
-    age_value = _past_age_seconds(generated_at)
-    age_known = 1.0 if age_value is not None else 0.0
-    age = age_value if age_value is not None else 0.0
-    stale = 1.0 if (age_known and age > config.reaction_zone_shadow_max_age_secs()) else 0.0
-    lines.append("# TYPE live_overlay_reaction_zone_shadow_snapshot_age_known gauge")
-    lines.append(f"live_overlay_reaction_zone_shadow_snapshot_age_known {age_known}")
-    lines.append("# TYPE live_overlay_reaction_zone_shadow_snapshot_age_seconds gauge")
-    lines.append(f"live_overlay_reaction_zone_shadow_snapshot_age_seconds {age:.1f}")
-    lines.append("# TYPE live_overlay_reaction_zone_shadow_snapshot_stale gauge")
-    lines.append(f"live_overlay_reaction_zone_shadow_snapshot_stale {stale}")
-
-    # Evidence: sample accrual, per-direction best follow-through lift, and the
-    # overall promotion verdict (strongest cell across both directions).
-    lines.append("# TYPE live_overlay_reaction_zone_shadow_sample_count gauge")
-    lines.append(
-        f"live_overlay_reaction_zone_shadow_sample_count "
-        f"{_prom_numeric_value(snap.get('n_samples', 0.0))}"
-    )
-    lines.append("# TYPE live_overlay_reaction_zone_shadow_best_lift gauge")
-    for direction in ("bull", "bear"):
-        lift = _prom_numeric_value(snap.get(f"{direction}_best_lift", 0.0))
-        lines.append(
-            f'live_overlay_reaction_zone_shadow_best_lift{{direction="{direction}"}} {lift}'
-        )
-    verdict = _escape_label_value(str(snap.get("verdict", "") or "unknown"))
-    lines.append("# TYPE live_overlay_reaction_zone_shadow_verdict_code gauge")
-    lines.append(
-        f'live_overlay_reaction_zone_shadow_verdict_code{{verdict="{verdict}"}} '
-        f"{_prom_numeric_value(snap.get('verdict_code', 0.0))}"
-    )
-
-    # Presentation-only info metric powering the latest-evidence table (same
-    # low-value/label-payload shape as the sweep-trap table). Numeric gauges above
-    # stay the source for any future alerting.
-    date = _escape_label_value(str(snap.get("date", "") or "unknown"))
-    n_samples = _prom_numeric_value(snap.get("n_samples", 0.0))
-    min_samples = float(snap.get("min_samples", 0.0) or 0.0)
-    verdict_name = str(snap.get("verdict", "") or "INCONCLUSIVE")
-
-    na = "—"
-    have_snapshot = loaded == 1.0
-    samples_known = math.isfinite(n_samples)
-    samples_assessment = (
-        (
-            "Sample floor met"
-            if min_samples > 0 and n_samples >= min_samples
-            else "Sample floor not met"
-        )
-        if have_snapshot and samples_known
-        else na
-    )
-    verdict_assessment = (
-        {
-            "PROMOTABLE": "promotion candidate",
-            "SHADOW": "not promotable",
-            "INCONCLUSIVE": "no decision possible",
-        }.get(verdict_name, "no decision possible")
-        if have_snapshot
-        else na
-    )
-
-    def _lift_cells(direction: str) -> tuple[str, str]:
-        variant = str(snap.get(f"{direction}_best_variant", "") or "")
-        if not (have_snapshot and variant):
-            return na, na
-        lift_value = float(snap.get(f"{direction}_best_lift", 0.0) or 0.0)
-        return f"{variant} ({lift_value:+.3f})", ("positive" if lift_value > 0 else "not positive")
-
-    bull_value, bull_assessment = _lift_cells("bull")
-    bear_value, bear_assessment = _lift_cells("bear")
-
-    rows = (
-        (
-            0,
-            "Valid samples",
-            _format_int_grouped(int(n_samples)) if have_snapshot and samples_known else na,
-            samples_assessment,
-        ),
-        (1, "Bull best variant", bull_value, bull_assessment),
-        (2, "Bear best variant", bear_value, bear_assessment),
-        (3, "Verdict", verdict_name if have_snapshot else na, verdict_assessment),
-    )
-    lines.append("# TYPE live_overlay_reaction_zone_shadow_evidence_info gauge")
-    for idx, metric_name, value, assessment in rows:
-        labels = (
-            f'date="{date}",idx="{idx:02d}",metric="{_escape_label_value(metric_name)}",'
-            f'metric_value="{_escape_label_value(value)}",'
-            f'assessment="{_escape_label_value(assessment)}"'
-        )
-        lines.append(f"live_overlay_reaction_zone_shadow_evidence_info{{{labels}}} 1")
 
     return lines

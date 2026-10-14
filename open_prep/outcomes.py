@@ -3,11 +3,7 @@ computation for gap+RVOL setups, and feature importance analysis.
 
 Stores daily outcomes in JSON files under ``artifacts/open_prep/outcomes/``.
 Computes bucketed statistics: given a (gap_bucket, rvol_bucket) combination,
-what fraction of historical entries were profitable after 30 minutes — or,
-since A1 (2026-07-23), after 60 m / 120 m / to the close; see
-``OUTCOME_HORIZONS`` and the ``horizon`` argument of ``compute_hit_rates``.
-Every horizon is a **cost-free mark-to-market** measurement: no exit signal,
-no fees, no spread, no slippage (see the ``OUTCOME_HORIZONS`` note).
+what fraction of historical entries were profitable after 30 minutes?
 
 Feature Importance (#3):
   - ``FeatureImportanceCollector`` accumulates per-run scoring component
@@ -289,98 +285,13 @@ def _load_outcomes_range(lookback_days: int = 20) -> list[dict[str, Any]]:
 
 
 # ---------------------------------------------------------------------------
-# Outcome horizons (A1, 2026-07-23)
-# ---------------------------------------------------------------------------
-#
-# Until 2026-07-23 the outcome pipeline measured exactly one window: the
-# 30 minutes after the 09:30 ET open. Long-horizon signal panels need
-# 60 m / 120 m / EOD as well, and an intraday real-time signal must be
-# measured from ITS OWN fire time — an 11:00 signal has nothing to do with
-# the 09:30-10:00 span.
-#
-# IMPORTANT — what the P&L is and is NOT: every horizon is a **cost-free
-# mark-to-market** move (entry = open of the entry bar, exit = close of the
-# last bar in the window). There is no exit signal, and no fees, spread or
-# slippage are modelled. On longer horizons that omission weighs more —
-# and it weighs most on thin micro-caps, where the quoted spread alone can
-# exceed the measured edge. Read these numbers as an upper bound.
-
-
-@dataclass(frozen=True, slots=True)
-class OutcomeHorizon:
-    """One measurement window.
-
-    ``minutes`` is the window length in minutes, or ``None`` for the
-    end-of-day horizon, which runs from the anchor to the RTH close.
-    ``min_window_min`` is the completeness floor: the exit bar must be at
-    least this many minutes past the anchor, else the horizon stays
-    unresolved instead of carrying a truncated window mislabelled as the
-    full horizon (the per-horizon form of the legacy ``_MIN_WINDOW_MIN``).
-    """
-
-    key: str
-    minutes: int | None
-    min_window_min: int
-
-
-# The 30m floor keeps its legacy value (25) — changing it would silently
-# re-label historical records. The longer floors keep the same ~83 % ratio.
-OUTCOME_HORIZONS: tuple[OutcomeHorizon, ...] = (
-    OutcomeHorizon("30m", 30, 25),
-    OutcomeHorizon("60m", 60, 50),
-    OutcomeHorizon("120m", 120, 100),
-    OutcomeHorizon("eod", None, 25),
-)
-HORIZON_KEYS: tuple[str, ...] = tuple(h.key for h in OUTCOME_HORIZONS)
-# The primary horizon. ``profitable_30m`` doubles as the pipeline's
-# "is this record resolved?" marker, so it is never optional.
-DEFAULT_HORIZON = "30m"
-_HORIZONS_BY_KEY: dict[str, OutcomeHorizon] = {h.key: h for h in OUTCOME_HORIZONS}
-
-
-def get_horizon(key: str) -> OutcomeHorizon:
-    """Look up a horizon spec by key; raises ``ValueError`` on an unknown key."""
-    try:
-        return _HORIZONS_BY_KEY[key]
-    except KeyError:
-        raise ValueError(
-            f"unknown outcome horizon {key!r} (known: {', '.join(HORIZON_KEYS)})",
-        ) from None
-
-
-def horizon_fields(key: str) -> dict[str, str]:
-    """Record field names for *key*.
-
-    The 30m mapping reproduces the legacy names EXACTLY
-    (``pnl_30m_pct`` / ``profitable_30m`` / ``pnl_30m_pct_signed`` /
-    ``profitable_30m_directional``) so old readers and old files keep
-    working unchanged.
-    """
-    get_horizon(key)  # validate
-    return {
-        "pnl": f"pnl_{key}_pct",
-        "pnl_signed": f"pnl_{key}_pct_signed",
-        "profitable": f"profitable_{key}",
-        "profitable_directional": f"profitable_{key}_directional",
-    }
-
-
-# ---------------------------------------------------------------------------
 # Hit-rate computation
 # ---------------------------------------------------------------------------
 
 def compute_hit_rates(
     lookback_days: int = 20,
-    horizon: str = DEFAULT_HORIZON,
 ) -> dict[str, dict[str, Any]]:
     """Compute hit rates bucketed by (gap_bucket, rvol_bucket).
-
-    *horizon* selects which measurement window to read (``"30m"`` —
-    the default and the legacy behaviour — ``"60m"``, ``"120m"`` or
-    ``"eod"``). Records that carry no label for the selected horizon
-    (every record written before A1, and any row whose window was
-    truncated) count as ``unresolved`` and stay OUT of the denominator —
-    the same survivorship discipline the 30m path already applies.
 
     Returns a dict keyed by ``"gap_bucket:rvol_bucket"`` with::
 
@@ -391,7 +302,6 @@ def compute_hit_rates(
             "avg_pnl_pct": float,
         }
     """
-    fields = horizon_fields(horizon)  # raises on an unknown horizon
     records = _load_outcomes_range(lookback_days)
     if not records:
         return {}
@@ -399,24 +309,17 @@ def compute_hit_rates(
     buckets: dict[str, dict[str, Any]] = {}
     for rec in records:
         gap_pct = _safe_float(rec.get("gap_pct"))
-        # gap_pct/rvol are None when unavailable at scoring time. Skip the
-        # record — _safe_float's 0.0 default would silently pool missing data
-        # into a real low bucket, mixing it with genuinely low signals and
-        # distorting the bucket statistics. Legacy records carry both values.
-        # A measured numeric 0.0 remains a valid low-bucket observation.
-        if rec.get("gap_pct") is None or rec.get("rvol") is None:
-            continue
         rvol = _safe_float(rec.get("rvol"))
         # Direction-signed label when present, falling back to the legacy
         # long-only label for old records (eval-findings C3a). Label and PnL
         # fall back AS A PAIR (like compute_gap_playbook_report) so a
         # directional hit-rate is never averaged with long-only PnL when a
         # field-level null desyncs the two.
-        profitable = rec.get(fields["profitable_directional"])
-        pnl_raw = rec.get(fields["pnl_signed"])
+        profitable = rec.get("profitable_30m_directional")
+        pnl_raw = rec.get("pnl_30m_pct_signed")
         if profitable is None or pnl_raw is None:
-            profitable = rec.get(fields["profitable"])
-            pnl_raw = rec.get(fields["pnl"])
+            profitable = rec.get("profitable_30m")
+            pnl_raw = rec.get("pnl_30m_pct")
         pnl = _safe_float(pnl_raw, default=0.0)
 
         gb = _gap_bucket_label(gap_pct)
@@ -463,17 +366,8 @@ def get_symbol_hit_rate(
     gb = _gap_bucket_label(gap_pct)
     rb = _rvol_bucket_label(rvol)
     key = f"{gb}:{rb}"
-    stats = hit_rates.get(key) if rvol > 0.0 else None  # F1: rvol<=0 == missing baseline (scorer 0.0) → no bucket, mirror store rvol=None discipline
-    # total == 0 is NO DATA, not a zero hit-rate. The bucket still exists in
-    # the map (compute_hit_rates creates it as soon as one record lands in it)
-    # while every record is unresolved for the selected horizon, leaving
-    # hit_rate=0.0 and avg_pnl_pct=0.0. Returning those verbatim publishes a
-    # confident "0 % historical hit rate / 0 % avg PnL" for a bucket that was
-    # never measured. Measured 2026-07-23 on the real store: at the 60m horizon
-    # the four tiny:* buckets carry total=0 while the same buckets read 1.000
-    # (n=3) and 0.714 (n=7) at 30m. Fall through to the no-data shape, which
-    # every consumer already renders as "no value" rather than as a zero.
-    if stats and stats.get("total", 0) > 0:
+    stats = hit_rates.get(key)
+    if stats:
         return {
             "historical_hit_rate": stats["hit_rate"],
             "historical_sample_size": stats["total"],
@@ -485,11 +379,7 @@ def get_symbol_hit_rate(
     return {
         "historical_hit_rate": None,
         "historical_sample_size": 0,
-        # Keep the unresolved count when the bucket exists but nothing in it
-        # resolved for this horizon — it is the difference between "we have
-        # never seen this bucket" and "we saw it N times and could not measure
-        # any of them", which is what tells an operator to run the backfill.
-        "historical_unresolved": int((stats or {}).get("unresolved", 0) or 0),
+        "historical_unresolved": 0,
         "historical_avg_pnl_pct": None,
         "gap_bucket": gb,
         "rvol_bucket": rb,
@@ -591,32 +481,21 @@ def prepare_outcome_snapshot(
     records: list[dict[str, Any]] = []
     for row in ranked:
         gap_pct = _safe_float(row.get("gap_pct"))
-        # RVOL fix (2026-07-23): read the scorer's ``volume_ratio`` (emitted on
-        # every ranked row; the get_symbol_hit_rate lookup side already keys on
-        # it) instead of re-deriving volume/avg_volume here. When the ratio is
-        # missing or non-positive (the scorer emits 0.0 when the provider has
-        # no volume/avg_volume data), record None — the old fabricated 0.0
-        # pooled every missing-data record into the "low" rvol bucket of
-        # compute_hit_rates(), contaminating "low" and leaving the higher
-        # buckets a positively-selected remnant. The volume/avg_volume
-        # fallback keeps rows from callers that don't carry volume_ratio;
-        # missing avg_volume must still not masquerade as rvol=raw_volume
-        # (WP-D7), so it degrades to 0.0 → None, never to a huge ratio.
-        rvol_ratio = _safe_float(row.get("volume_ratio"), default=0.0)
-        if rvol_ratio <= 0.0:
-            avg_vol = _safe_float(row.get("avg_volume"), default=0.0)
-            rvol_ratio = (_safe_float(row.get("volume")) / avg_vol) if avg_vol > 0 else 0.0
-        has_rvol = rvol_ratio > 0.0
+        rvol = _safe_float(row.get("volume"))
+        # Missing avg_volume must not masquerade as rvol=raw_volume: default 0.0
+        # so the guard below yields an honest 0.0 instead of a huge ratio (WP-D7).
+        avg_vol = _safe_float(row.get("avg_volume"), default=0.0)
+        rvol_ratio = (rvol / avg_vol) if avg_vol > 0 else 0.0
 
         records.append({
             "date": run_date.isoformat(),
             "symbol": row.get("symbol"),
             "gap_pct": gap_pct,
-            "rvol": round(rvol_ratio, 4) if has_rvol else None,
+            "rvol": round(rvol_ratio, 4),
             "score": row.get("score", 0.0),
             "confidence_tier": row.get("confidence_tier", "STANDARD"),
             "gap_bucket_label": _gap_bucket_label(gap_pct),
-            "rvol_bucket_label": _rvol_bucket_label(rvol_ratio) if has_rvol else None,
+            "rvol_bucket_label": _rvol_bucket_label(rvol_ratio),
             "regime": row.get("regime"),
             # Sprint C1: explicit alias consumed by the C5 regime
             # stratification + C9 drift watchdog. We emit BOTH keys so
@@ -629,9 +508,6 @@ def prepare_outcome_snapshot(
             "trend_alignment": row.get("trend_alignment"),
             "dist_to_ema20_pct": row.get("dist_to_ema20_pct"),
             "ema50_slope_pct": row.get("ema50_slope_pct"),
-            # Energy-weighted MA remains observe-only until a new labeled
-            # calibration cohort supports a versioned weight contract.
-            "ewma_score_shadow": row.get("ewma_score_shadow"),
             # Gap position vs prior-day H/L range (observe-only; eval C4).
             "gap_range_pos": row.get("gap_range_pos"),
             # Earnings-surprise magnitude for PEAD (observe-only; eval C2b — the
@@ -643,9 +519,6 @@ def prepare_outcome_snapshot(
             # FI ledger confirmed 0 across all samples).
             "recent_eps_surprise_pct": row.get("recent_eps_surprise_pct"),
             "days_since_last_earnings": row.get("days_since_last_earnings"),
-            # Companions from the same premarket fetch (2026-07-27): observe-only.
-            "days_to_next_earnings": row.get("days_to_next_earnings"),
-            "revenue_surprise_pct": row.get("revenue_surprise_pct"),
             # Signed news score: mention intensity × avg sentiment
             # (observe-only; audit 2026-07-07 — the weighted `news`
             # component is direction-blind by contract until c10b ends;
@@ -682,15 +555,6 @@ def prepare_outcome_snapshot(
             "profitable_30m_directional": None,
             "label_tb": None,
             "profitable_tb": None,
-            # Longer measurement windows (A1, 2026-07-23) — also back-filled
-            # post-open. Declared here so the schema is explicit rather than
-            # "key appears once the backfill happens to run".
-            **{
-                name: None
-                for key in HORIZON_KEYS
-                if key != DEFAULT_HORIZON
-                for name in horizon_fields(key).values()
-            },
             # Weighted score components (c10b producer-bug fix): persisted
             # flat so backfill_feature_importance() reads real values
             # instead of defaulting every component to 0.0.
@@ -723,12 +587,9 @@ FEATURE_KEYS: list[str] = [
     "trend_alignment",
     "dist_to_ema20_pct",
     "ema50_slope_pct",
-    "ewma_score_shadow",
     "gap_range_pos",
     "recent_eps_surprise_pct",
     "days_since_last_earnings",
-    "days_to_next_earnings",
-    "revenue_surprise_pct",
     "vix9d_vix_ratio",
     "market_efficiency_ratio",
     "intraday_efficiency_ratio",
@@ -746,12 +607,9 @@ PASS_THROUGH_FEATURE_KEYS: frozenset[str] = frozenset({
     "trend_alignment",
     "dist_to_ema20_pct",
     "ema50_slope_pct",
-    "ewma_score_shadow",
     "gap_range_pos",
     "recent_eps_surprise_pct",
     "days_since_last_earnings",
-    "days_to_next_earnings",
-    "revenue_surprise_pct",
     "vix9d_vix_ratio",
     "market_efficiency_ratio",
     "intraday_efficiency_ratio",
@@ -1114,7 +972,6 @@ def _compute_feature_statistics(
             p_value = 1.0
 
         stats[key] = {
-            "measured_samples": int(vals.size),
             "pearson_r": round(float(pearson), 4),
             "mean_separation": round(float(separation), 4),
             "mean_win": round(float(mean_win), 4),
@@ -1327,22 +1184,12 @@ def compute_feature_importance(
             len(labeled),
         )
     labeled = directional_era
-    labeled_sample_dates: set[str] = set()
-    for sample in labeled:
-        raw_d = sample.get("date")
-        if not raw_d:
-            continue
-        try:
-            labeled_sample_dates.add(date.fromisoformat(str(raw_d)[:10]).isoformat())
-        except ValueError:
-            continue
 
     if len(labeled) < 10:
         return {
             "error": "insufficient labeled samples",
             "total_samples": len(samples),
             "labeled_samples": len(labeled),
-            "labeled_sample_dates": sorted(labeled_sample_dates),
             "duplicate_samples_dropped": duplicate_samples_dropped,
             "era_gated_samples_dropped": era_gated_samples_dropped,
             "formula_era_samples_dropped": formula_era_samples_dropped,
@@ -1356,7 +1203,6 @@ def compute_feature_importance(
     report: dict[str, Any] = {
         "total_samples": len(samples),
         "labeled_samples": len(labeled),
-        "labeled_sample_dates": sorted(labeled_sample_dates),
         "duplicate_samples_dropped": duplicate_samples_dropped,
         "era_gated_samples_dropped": era_gated_samples_dropped,
         "formula_era_samples_dropped": formula_era_samples_dropped,

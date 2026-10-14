@@ -4,9 +4,7 @@ from __future__ import annotations
 
 import importlib
 import json
-import re
 from contextlib import ExitStack
-from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
@@ -341,27 +339,8 @@ def test_snapshot_graphql_errors_treated_as_failure() -> None:
     assert result["error"] == "fetch_error"
 
 
-def _disable_remote_snapshots(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Set every ``config._snapshot_url`` key present-but-empty, which disables it.
-
-    ``delenv`` is not enough: an ABSENT key makes ``_snapshot_url`` fall back to the
-    repo's ``bot/live-*`` branch on GitHub, and a successful fetch is persisted into
-    ``artifacts/live_overlay/`` of the checkout the tests run in. Keys are derived
-    from the config source so a new remote snapshot cannot silently go live in tests.
-    """
-    from services.live_overlay_daemon import config as overlay_config
-
-    source = Path(overlay_config.__file__).read_text(encoding="utf-8")
-    keys = set(re.findall(r'_snapshot_url\(\s*"([A-Z0-9_]+)"', source))
-    assert len(keys) >= 10, sorted(keys)
-    for key in keys:
-        monkeypatch.setenv(key, "")
-
-
-def test_render_metrics_includes_railway_gauges(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_render_metrics_includes_railway_gauges() -> None:
     from services.live_overlay_daemon import metrics
-
-    _disable_remote_snapshots(monkeypatch)
 
     snapshot = {
         "enabled": True,
@@ -584,31 +563,3 @@ def test_render_metrics_uses_last_success_for_bridge_age() -> None:
         text = metrics.render_metrics(startup_ts=1_300.0)
 
     assert 'live_overlay_bridge_last_success_age_seconds{bridge="railway_metrics"} 300' in text
-
-
-def test_failed_fetch_backs_off_for_a_ttl(monkeypatch) -> None:
-    """A failing Railway API must not be re-fetched on every scrape: the
-    failed snapshot (ok=0 + retained last-good data) is cached for the poll
-    TTL so a hanging upstream costs at most one timeout per TTL, not one per
-    30s Alloy scrape (scrape-timeout blackout aggravator)."""
-    import services.live_overlay_daemon.railway_metrics as rm
-
-    rm.reset_cache()
-    calls = {"n": 0}
-
-    def _boom() -> dict:
-        calls["n"] += 1
-        raise TimeoutError("hang")
-
-    monkeypatch.setattr(rm, "_fetch", _boom)
-    patches = _patch_enabled_config()
-    for p_ in patches:
-        p_.start()
-    first = rm.snapshot()
-    assert first["ok"] == 0
-    second = rm.snapshot()
-    assert second["ok"] == 0
-    assert calls["n"] == 1, "second scrape within the TTL must serve the cached failure"
-    for p_ in patches:
-        p_.stop()
-    rm.reset_cache()

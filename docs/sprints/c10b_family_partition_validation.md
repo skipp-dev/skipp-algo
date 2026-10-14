@@ -114,7 +114,7 @@ Drei Ja/Nein-Antworten ergeben einen Empfehlungs-Vektor. Konsens → klare Empfe
 
 ## Voraussetzung: Cron-Brücke
 
-Die hier genutzten Analysen brauchen einen aktuellen Event-Ledger. *(Historische Beschreibung, korrigiert 2026-08-18 im Verdrahtungs-Sweep: `smc-databento-production-export.yml` ist seit dem F-V8-Cutover 2026-05-18 dispatch-only — der tägliche Cron lebt seither in `smc-databento-production-export-sharded.yml`. Die damals referenzierten Beweisdateien lagen unter `/tmp/` und sind nicht mehr rekonstruierbar; der ursprüngliche Text folgt.)* Der tägliche Cron `smc-databento-production-export.yml` ist seit 2026-05-11 in 5 aufeinanderfolgenden Runs an einem Workbook-Write-OOM gescheitert (Profil in `/tmp/prod_export_audit/PROFILE_DATA.md`, 4 offene Fragen beantwortet in `/tmp/prod_export_audit/OPEN_QUESTIONS_ANSWERS.md`). Solange dieser Cron rot ist, kommt kein frisches Daten-Material. **Cron-Brücke wird vor Schritt 1 erledigt** als separater 1-Tages-Eingriff (Lösungsraum dokumentiert in `/tmp/prod_export_audit/SOLUTION_SPACE.md`).
+Die hier genutzten Analysen brauchen einen aktuellen Event-Ledger. Der tägliche Cron `smc-databento-production-export.yml` ist seit 2026-05-11 in 5 aufeinanderfolgenden Runs an einem Workbook-Write-OOM gescheitert (Profil in `/tmp/prod_export_audit/PROFILE_DATA.md`, 4 offene Fragen beantwortet in `/tmp/prod_export_audit/OPEN_QUESTIONS_ANSWERS.md`). Solange dieser Cron rot ist, kommt kein frisches Daten-Material. **Cron-Brücke wird vor Schritt 1 erledigt** als separater 1-Tages-Eingriff (Lösungsraum dokumentiert in `/tmp/prod_export_audit/SOLUTION_SPACE.md`).
 
 ---
 
@@ -177,7 +177,7 @@ _Dieser Block wird bei jedem Folge-Run ergänzt, nicht überschrieben. Datum als
 
 - **Producer (im Prozess):** `smc_integration/measurement_evidence.py::build_measurement_evidence()` baut `events_by_family: dict[EventFamily, list[dict]]` mit `EventFamily ∈ {"BOS","OB","FVG","SWEEP"}`. Familien-Tag steht **direkt im Record** (`events_by_family["BOS"].append(evaluated)` Z. 1279, OB Z. 1327, FVG Z. 1381, SWEEP Z. 1466).
 - **Producer (auf Disk):** `smc_core/event_ledger.py::write_event_ledger()` schreibt JSONL mit Schema `EventLedgerRecord(schema_version, event_id, symbol, timeframe, family, timestamp, predicted_prob, outcome, context, raw_score, raw_score_name, features, outcome_extras)`.
-- **Pfad:** `ledger_path_for_pair(pair_dir, symbol, timeframe) → pair_dir / f"events_{symbol}_{timeframe}.jsonl"`. Glob `events_*_*.jsonl` (der frühere Beispiel-Leser emit_fvg_context_pine wurde 2026-07-28 mit der gestrandeten FVG-Context-Kette entfernt).
+- **Pfad:** `ledger_path_for_pair(pair_dir, symbol, timeframe) → pair_dir / f"events_{symbol}_{timeframe}.jsonl"`. Glob `events_*_*.jsonl` (siehe `scripts/emit_fvg_context_pine.py:83`).
 - **Aufrufer:** `scripts/run_smc_measurement_benchmark.py:381` (Wochen-Cron `smc-measurement-benchmark.yml`, Sa 08:00 UTC).
 - **Konsumenten dieses Ledgers:** `scripts/fvg_quality_quartile_gate.py`, `scripts/fvg_quality_d4_audit.py`, `scripts/fvg_quality_recalibration.py`, `scripts/fvg_session_artifact_diagnosis.py`, `scripts/fvg_label_audit.py` lesen alle `record["family"] == "FVG"`.
 

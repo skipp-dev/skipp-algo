@@ -17,10 +17,6 @@ def test_streamlit_tab_uses_shared_loader_and_default_path() -> None:
     assert "render_decision_first_panel" in source
     assert "promotion_decisions" in source
     assert "promotion_walkforward_histories" in source
-    # EV-09 (2026-08-18, Verdrahtungs-Sweep E2): der Verdict-Aufsatz hatte
-    # null Produktions-Importer, während dieser Test den ALTEN Pfad allein
-    # festpinnte — jetzt pinnen beide Panels gemeinsam.
-    assert "render_panel_from_archive" in source
 
 
 def test_streamlit_tab_advertises_runner_output_contract() -> None:

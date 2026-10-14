@@ -22,7 +22,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from tests._guard_corpus import iter_production_py_files, parse_module
+from tests._guard_corpus import parse_module
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -44,7 +44,13 @@ _DIR_EXCLUDE = {
 
 
 def _iter_py_files() -> list[Path]:
-    return iter_production_py_files(_DIR_EXCLUDE)
+    out: list[Path] = []
+    for path in ROOT.rglob("*.py"):
+        rel = path.relative_to(ROOT)
+        if any(part in _DIR_EXCLUDE or part.startswith(".") for part in rel.parts):
+            continue
+        out.append(path)
+    return out
 
 
 def _dynamic_builtin_sites(builtin: str) -> set[tuple[str, int]]:
@@ -85,11 +91,7 @@ DYNAMIC_SETATTR_ALLOWED: set[tuple[str, int]] = {
     ("terminal_live_story_state.py", 48),  # 2026-07-11: shifted 49->48 by #3416 cooldown-branch removal
     # 2026-07-11 (#3302): bounded write of trade_context() output keys onto the
     # signal object; keys come from a controlled ctx.items() dict, fail-soft.
-    # 2026-07-28 (ATR quality import/guard): 83->85; 2026-08-05
-    # (all-or-nothing bracket guard): 85->98; 2026-08-09 (finite boundary
-    # validation): 98->102. Setter remains limited to the four explicit
-    # trade-context keys returned by trade_context().
-    ("open_prep/trade_context.py", 102),
+    ("open_prep/trade_context.py", 83),
 }
 
 
@@ -124,7 +126,7 @@ def test_dynamic_setattr_zero_surface_pin() -> None:
 # overrides. The name comes from a small, trusted override-mapping
 # defined in the same module.
 DYNAMIC_HASATTR_ALLOWED: set[tuple[str, int]] = {
-    ("streamlit_terminal.py", 608),  # 2026-07-23 (A1 horizons: outcomes import block above): 602->608
+    ("streamlit_terminal.py", 581),  # 2026-07-20: remove retired TradingView UI availability shim
 }
 
 

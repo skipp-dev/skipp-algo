@@ -64,7 +64,6 @@ fi
 #       (e.g. IBKR entitlement missing / watchlist rows lack conIds); the
 #       summary is still written so the degradation is auditable
 #   1 — hard failure (no usable summary written)
-SOURCE="ibkr"
 set +e
 "${PY}" -m scripts.wsh_earnings_calendar \
     --watchlist "${WATCHLIST}" \
@@ -74,50 +73,24 @@ set +e
 RC=$?
 set -e
 
-# FMP fallback (2026-08-19). The IBKR path returned ZERO events on 41 of 41
-# days since 2026-06-11, and the cause is structural rather than transient:
-# ${WATCHLIST} has no con_id column, so every symbol hits the -1 sentinel and
-# reqWshEventData skips it. A WSH entitlement would not change that. FMP needs
-# no conIds, is already a paid production dependency, and writes the SAME
-# record shape into the SAME ${OUTPUT}, so every consumer downstream is
-# untouched. Only reached when IBKR yields nothing — IBKR stays preferred.
-if [[ ${RC} -ne 0 ]]; then
-    echo "WSH cron: IBKR path returned rc=${RC}; trying the FMP calendar." >&2
-    set +e
-    "${PY}" -m scripts.fmp_earnings_calendar \
-        --watchlist "${WATCHLIST}" \
-        --window-days "${WINDOW_DAYS}" \
-        --output    "${OUTPUT}"
-    FMP_RC=$?
-    set -e
-    if [[ ${FMP_RC} -eq 0 ]]; then
-        echo "WSH cron: FMP supplied the earnings calendar (IBKR rc=${RC})." >&2
-        RC=0
-        SOURCE="fmp"
-    else
-        echo "WSH cron: FMP fallback also produced nothing (rc=${FMP_RC})." >&2
-    fi
-fi
-
 if [[ ${RC} -eq 1 ]]; then
     echo "WSH cron: DEGRADED — calendar pull failed hard (rc=1); nothing to publish." >&2
     _write_marker "${FEED_MARKER}" "degraded:feed-error:${TS}"
     exit 1
 elif [[ ${RC} -eq 2 ]]; then
-    # Both sources yielded zero events. The filter now treats an empty file as
-    # MISSING data and blocks under its fail-closed default, so this no longer
-    # reads downstream as "checked, no earnings today" (2026-08-19).
-    echo "WSH cron: DEGRADED — no earnings events from IBKR or FMP (rc=2)." >&2
-    echo "  Likely causes: (1) watchlist rows are missing IBKR conIds," >&2
-    echo "                 (2) IBKR account lacks the WSH entitlement (Error 10276)," >&2
-    echo "                 (3) FMP_API_KEY unset/empty in this environment." >&2
+    # Feed returned zero events: the earnings FILTER will gate against an
+    # empty set, i.e. earnings protection is effectively OFF. Record it loudly
+    # but STILL publish the summary so the gap is visible downstream.
+    echo "WSH cron: DEGRADED — feed returned ZERO earnings events (rc=2)." >&2
+    echo "  Likely causes: (1) IBKR account lacks the WSH news entitlement (Error 10276)," >&2
+    echo "                 (2) watchlist rows are missing IBKR conIds." >&2
     _write_marker "${FEED_MARKER}" "degraded:no-events:${TS}"
 else
-    _write_marker "${FEED_MARKER}" "ok:events-${SOURCE}:${TS}"
+    _write_marker "${FEED_MARKER}" "ok:events:${TS}"
 fi
 
-# Publish to the dedicated data branch via the hook-free publishing clone so
-# the push never lands on (or diverges) the primary tree's checked-out branch.
+# Publish to the dedicated data branch via an isolated worktree so the push
+# never lands on (or diverges) the primary tree's checked-out branch.
 # shellcheck source=automation/launchd/lib_c13_data_push.sh
 source "$(dirname "$0")/lib_c13_data_push.sh"
 push_to_data_branch \

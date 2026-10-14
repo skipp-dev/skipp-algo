@@ -1,11 +1,5 @@
 # SMC Bus Roadmap
 
-> **Current implementation and rollout baseline (2026-07-26):**
-> [SMC Extended Pine Architecture and Rollout Plan](SMC_EXTENDED_PINE_ARCHITECTURE_AND_ROLLOUT_2026-07-26.md).
-> This roadmap preserves the bus-v2 decision history. The newer accepted
-> architecture document governs Context BUS v3 implementation, companion
-> migration, rollout, and archival.
-
 This document records the architecture decision after the current bus-v2 audit in [smc-bus-v2-audit.md](smc-bus-v2-audit.md).
 
 Current repo state is already partway through that transition:
@@ -36,7 +30,7 @@ Bus v2 remains what it currently is:
 
 - a producer-exported transport layer for the current dashboard shape
 - row-code and support-code oriented
-- optimized for reconstructing the current display in [SMC_Decision_Board.pine](../SMC_Decision_Board.pine#L719-L768)
+- optimized for reconstructing the current display in [SMC_Long_Dip_Dashboard.pine](../SMC_Long_Dip_Dashboard.pine#L719-L768)
 
 ### Option A Advantages
 
@@ -51,9 +45,7 @@ Bus v2 remains what it currently is:
 2. Future dashboard wording or layout changes will continue to force producer changes.
 3. Other consumers cannot reuse most packed channels without duplicating dashboard semantics.
 4. The explicit support-code surface still blurs domain logic, UI wording, and display grouping.
-5. The support codes preserve category results but not the richer numeric
-   detail that existed in the historical, no-longer-present `SMC++.pine`
-   monolith.
+5. The support codes preserve category results but not the richer numeric detail that existed in [SMC++.pine](../SMC++.pine#L5968-L6264).
 
 ### Channels That Fit Option A Well
 
@@ -200,7 +192,7 @@ frozen up front.
 | Live context library | `SMC++/smc_context_engine_private.pine` (imports `smc_engine_private`) |
 | Schema version | `8001` (distinct from engine `7001`) |
 | Channel label prefix | `CTX ` (e.g. `CTX StructureState`) — must never appear on the v2 engine bus |
-| Channel budget | ≤ 62 direct channels, ≥ 2 reserve slots (of the 64 cap) |
+| Channel budget | ≤ 60 direct channels, ≥ 4 reserve slots (of the 64 cap) |
 
 The v2 engine + strategy surface is byte-frozen by
 [test_smc_bus_v2_freeze.py](../tests/test_smc_bus_v2_freeze.py) for the entire

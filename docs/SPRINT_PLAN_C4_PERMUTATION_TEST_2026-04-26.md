@@ -180,10 +180,10 @@ Permutations-Tests für Strategien haben drei klassische Schemata:
 
 ## Definition of Done — Sprint C4
 
-- ❌ `scripts/strategy_permutation.py` existiert (2026-07-13 entfernt: null Produktions-Aufrufer — siehe `docs/IMPROVEMENTS_C2_C12_ROADMAP_2026-04-26.md`)
-- ❌ Pro Setup-Typ liefert Permutations-p-Value (Sharpe + Profit-Factor) plus BH-adjustiertes p in `docs/calibration/calibration_report_public.json` (2026-07-28: kein Permutations-/p-Value-Key im Report; Skript entfernt)
+- ✅ `scripts/strategy_permutation.py` existiert
+- ✅ Pro Setup-Typ liefert Permutations-p-Value (Sharpe + Profit-Factor) plus BH-adjustiertes p in `docs/calibration/calibration_report_public.json`
 - 🧪 Power-Test ≥ 80%, Type-I-Error ≤ 6% in Monte-Carlo-Replikationen
-- ❌ Wöchentlicher Cron `permutation-validation.yml` läuft 1× erfolgreich (2026-07-28: dieser Workflow existiert nicht)
+- ⚙️ Wöchentlicher Cron `permutation-validation.yml` läuft 1× erfolgreich
 - ⚙️ PR ist gemerged
 - ⚠ T3 (Reality-Check) ist Stretch — DoD passt auch ohne
 

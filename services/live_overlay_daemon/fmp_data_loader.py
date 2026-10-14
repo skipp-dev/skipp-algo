@@ -16,54 +16,12 @@ import json
 import logging
 import math
 import os
-import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import ClassVar
 from urllib.parse import urlencode
 
 import httpx
-
-
-def _record_fmp_response(resp: httpx.Response, *, endpoint: str) -> None:
-    """Byte + 429 accounting on the daemon's own FMP surface.
-
-    The daemon polled FMP 24/7 with neither byte accounting nor 429
-    telemetry — the H3 blindness the producer path closed on 2026-07-08,
-    still open here: the monthly quota gate compared an incomplete
-    numerator, and lo-provider-rate-limited could not see daemon throttling
-    (Grenzgänger-Sweep D3/D4, 2026-08-18). Lazy import + broad guard: usage
-    accounting must never break the data path.
-    """
-    try:
-        from newsstack_fmp import provider_usage
-
-        provider_usage.record(
-            "fmp",
-            response_bytes=len(resp.content),
-            endpoint=endpoint,
-            consumer="live_overlay_daemon.fmp_data_loader",
-        )
-        if resp.status_code == 429:
-            provider_usage.record_rate_limit_hit(
-                "fmp",
-                endpoint=endpoint,
-                consumer="live_overlay_daemon.fmp_data_loader",
-            )
-    except Exception:  # telemetry must not break the fetch
-        logging.getLogger(__name__).debug("FMP usage accounting skipped", exc_info=True)
-
-
-def _retry_backoff_seconds(exc: Exception) -> float:
-    """Backoff before the loader's single retry; honours a capped Retry-After."""
-    response = getattr(exc, "response", None)
-    if response is not None and getattr(response, "status_code", None) == 429:
-        raw = response.headers.get("Retry-After", "") if hasattr(response, "headers") else ""
-        try:
-            return min(30.0, max(2.0, float(raw)))
-        except (TypeError, ValueError):
-            return 5.0
-    return 1.0
 
 logger = logging.getLogger(__name__)
 
@@ -135,7 +93,6 @@ class FMPDataLoader:
         for attempt in range(2):
             try:
                 resp = self.session.get(url, timeout=30)
-                _record_fmp_response(resp, endpoint=path)
                 resp.raise_for_status()
                 data = resp.json()
                 if isinstance(data, dict) and "error" in data:
@@ -145,10 +102,6 @@ class FMPDataLoader:
                 last_exc = e
                 if attempt == 0:
                     logger.warning("[FMP] Retry %s %s..%s: %s", symbol, from_date, to_date, e)
-                    # Never retry a throttled endpoint instantly: the old
-                    # 0s-backoff loop doubled the load exactly while FMP was
-                    # already throttling (Grenzgänger-Sweep D3, 2026-08-18).
-                    time.sleep(_retry_backoff_seconds(e))
         raise last_exc  # type: ignore[misc]
 
     def get_historical_price(
@@ -222,14 +175,12 @@ class FMPDataLoader:
             candles = []
             for candle in ordered:
                 try:
-                    # Indexed, not .get(default): a missing key coerced to 0.0
-                    # is finite, so it would pass the check below as a real bar.
-                    o = float(candle["open"])
-                    h = float(candle["high"])
-                    lo = float(candle["low"])
-                    c = float(candle["close"])
+                    o = float(candle.get("open", 0))
+                    h = float(candle.get("high", 0))
+                    lo = float(candle.get("low", 0))
+                    c = float(candle.get("close", 0))
                     vol = int(candle.get("volume", 0) or 0)
-                except (KeyError, TypeError, ValueError):
+                except (TypeError, ValueError):
                     continue
                 if not all(math.isfinite(v) for v in (o, h, lo, c)):
                     continue
@@ -463,7 +414,6 @@ class FMPDataLoader:
         url = self._build_url("/stable/quote", {"symbol": symbol})
         try:
             resp = self.session.get(url, timeout=15)
-            _record_fmp_response(resp, endpoint="/stable/quote")
             resp.raise_for_status()
             data = resp.json()
             row = data[0] if isinstance(data, list) and data else data

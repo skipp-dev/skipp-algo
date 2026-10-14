@@ -41,32 +41,18 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 ALLOWED_DIRECT_CALLERS: frozenset[str] = frozenset({
     "databento_client.py",                # canonical helper definition
     "databento_volatility_screener.py",   # parallel helper (consolidation follow-up)
-    # 2026-08-18: surfaced by the widened glob — itself a wrapper DEFINITION
-    # (422-classifying safe fetch with a documented skip/return contract),
-    # not an unguarded caller.
-    "databento_safe_fetch.py",
 })
 
 
 def _iter_top_level_python_files() -> list[Path]:
-    """Production *.py files across every tree that talks to Databento.
+    """Top-level production *.py files only.
 
-    2026-08-18 (Grenzgänger-Sweep D2): the original top-level-only glob left
-    ``open_prep/``, ``scripts/`` and ``services/`` invisible to this guard —
-    ``open_prep/quote_reference.py`` streamed ~900 symbols × ≥30 days through
-    a raw ``get_range`` with no retry for weeks, and nothing flagged it. The
-    guard now walks the production packages; ``tests/`` and top-level
-    ``test_*.py`` stay excluded as before."""
-    roots = [REPO_ROOT.glob("*.py")]
-    for package in ("scripts", "open_prep", "services", "newsstack_fmp", "governance"):
-        roots.append((REPO_ROOT / package).rglob("*.py"))
+    Top-level test_*.py modules (e.g. ``test_compile.py``, ``test_usi_lint.py``)
+    are excluded — they belong to the test tree even though they sit at the
+    repo root for legacy reasons. The dedicated ``tests/`` directory is
+    excluded by the glob (non-recursive)."""
     return sorted(
-        p
-        for it in roots
-        for p in it
-        if not p.name.startswith("test_")
-        and "node_modules" not in p.parts
-        and ".venv" not in p.parts
+        p for p in REPO_ROOT.glob("*.py") if not p.name.startswith("test_")
     )
 
 

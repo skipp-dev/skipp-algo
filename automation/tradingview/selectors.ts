@@ -40,26 +40,8 @@ function publishedVersionContextPattern(scriptName: string): RegExp {
 }
 
 function publishSurface(page: Page): Locator {
-  const publishFingerprint = /publish script|publish private library|publish new script|update existing script|update\s+['\u2018\u2019\u201C\u201D"][^'\u2018\u2019\u201C\u201D"]+['\u2018\u2019\u201C\u201D"]\s+(?:library|script)|final touches|privacy settings|tags & signature|script is not on the chart|nothing to update/i;
-
-  // The publish dialog contains many nested `[data-id]` nodes. Treating those
-  // as peer surfaces and taking `.last()` scoped the controls to an inner
-  // editor node in run 31299194493, even though "Update existing script" was
-  // visibly rendered in the enclosing dialog. Resolve only dialog-shaped,
-  // visible containers and take the first DOM match so the outermost active
-  // publish surface owns every wizard step.
-  return page
-    .locator([
-      '#overlap-manager-root [role="dialog"]:visible',
-      '#overlap-manager-root [aria-modal="true"]:visible',
-      '#overlap-manager-root [data-name*="dialog" i]:visible',
-      '#overlap-manager-root [class*="dialog" i]:visible',
-      '#overlap-manager-root [class*="modal" i]:visible',
-    ].join(", "))
-    .filter({ hasText: publishFingerprint })
-    .first();
+  return page.locator('#overlap-manager-root [role="dialog"], #overlap-manager-root [data-id], #overlap-manager-root [data-name*="dialog" i], #overlap-manager-root [class*="dialog" i], #overlap-manager-root [class*="modal" i]').last();
 }
-
 
 export type ScriptRowLocatorSpec = {
   scope: "dialog" | "menu_inner";
@@ -254,22 +236,6 @@ export const tvSelectors = {
     ];
   },
 
-  openScriptExactTitle(page: Page, scriptName: string): Locator[] {
-    const [exact] = scriptNamePatterns(scriptName);
-    const indicatorsDialog = page.locator('[data-name="indicators-dialog"]');
-    const menuInner = page.locator('[data-name="menu-inner"]');
-    const dialog = page.locator('[role="dialog"]');
-
-    // Deliberately target the exact title text rather than an ancestor row.
-    // TradingView can accept a click on a broad matching container, repaint
-    // the editor title, and still leave the previous Monaco buffer visible.
-    return [
-      indicatorsDialog.getByText(exact),
-      menuInner.getByText(exact),
-      dialog.getByText(exact),
-    ];
-  },
-
   publishedVersionContext(page: Page, scriptName: string): Locator[] {
     const exactVersionContext = publishedVersionContextPattern(scriptName);
 
@@ -359,31 +325,6 @@ export const tvSelectors = {
     const pineDialog = page.locator('[data-name="pine-dialog"], #pine-editor-dialog, [id*="pine-editor" i]').last();
 
     return [
-      // TradingView relabelled this control: the Pine editor header button that
-      // starts the publish flow is now titled "Share your script with
-      // community" and contains the word "publish" NOWHERE. Every pattern
-      // below keys on "publish", so all of them missed and openPublishSurface
-      // reported "Could not open publish flow" — which is why
-      // smc-library-refresh has been unable to publish since 2026-07-30 while
-      // generating the library fine and passing its auth probe.
-      //
-      // Measured 2026-07-31 in the editor header: "Add to chart", an unnamed
-      // button, [title="Share your script with community"], "More". Clicking it
-      // opens the publish flow, which immediately shows the known
-      // "Script is not on the chart" gate that hasPublishAddToChartGate already
-      // handles.
-      pineDialog.locator('[title="Share your script with community"]'),
-      pineDialog.locator('[title*="share your script" i]'),
-      // The title selectors above are SINGLE-USE: the control carries
-      // apply-common-tooltip, which strips the title attribute on click and
-      // does not restore it while the pointer rests on the button. Measured
-      // 2026-07-31 publishing smc_context_engine_private v5: the first open
-      // matched by title, the "Script is not on the chart" gate was cleared,
-      // and the REOPEN missed all 11 candidates — same mechanism as the
-      // Replay Forward button. TradingView's own class name for the control
-      // (className publishButton-ddmSLPrc apply-common-tooltip ...) survives
-      // the strip; the hashed suffix does not, so match the stable prefix.
-      pineDialog.locator('button[class*="publishButton"]'),
       pineDialog.getByRole("button", { name: /publish script/i }),
       pineDialog.getByRole("button", { name: /publish library/i }),
       pineDialog.getByRole("button", { name: /^publish$/i }),
@@ -432,115 +373,6 @@ export const tvSelectors = {
       surface.getByRole("textbox", { name: /description/i }),
       surface.getByPlaceholder(/description/i),
       surface.locator("textarea"),
-      surface.locator('[contenteditable="true"][aria-label*="description" i]'),
-      surface.locator('[contenteditable="true"][data-placeholder*="description" i]'),
-      surface.locator('[class*="description" i] [contenteditable="true"]'),
-      surface.locator('[contenteditable="true"][role="textbox"]').last(),
-      surface.locator('[contenteditable="true"]').last(),
-    ];
-  },
-
-  publishUpdateExistingMode(page: Page): Locator[] {
-    const surface = publishSurface(page);
-    const exact = /^update existing script$/i;
-
-    return [
-      surface.getByRole("tab", { name: exact }),
-      surface.getByRole("button", { name: exact }),
-      surface.getByRole("radio", { name: exact }),
-      surface.locator('[role="tab"], [role="button"], button, label').filter({ hasText: exact }),
-      surface.getByText(exact, { exact: true }),
-    ];
-  },
-
-  /**
-   * The same scope every publish control is looked up in, exposed so a failing
-   * lookup can report how many nodes that scope actually resolved to.
-   *
-   * Only for counting. A diagnostic scoped to `publishSurface` would inherit
-   * its blindness: if the surface itself is what mis-resolved, an inventory
-   * taken inside it comes back empty and reads as proof that TradingView
-   * removed the control.
-   */
-  publishSurfaceProbe(page: Page): Locator {
-    return publishSurface(page);
-  },
-
-  publishExistingScriptChooser(page: Page): Locator[] {
-    const surface = publishSurface(page);
-
-    return [
-      surface.getByRole("combobox", { name: /choose script/i }),
-      surface.getByRole("button", { name: /choose script/i }),
-      surface.locator("select"),
-      surface.locator('select[aria-label*="script" i]'),
-      surface.locator('[role="combobox"]'),
-      // 2026-08-18, Lauf 32141943180 (#4772): das Chooser-Inventar las die
-      // tatsächliche Form aus — ein nacktes Text-Input, dessen EINZIGE
-      // Kennung der Placeholder ist (tag=input, role="", aria-label="",
-      // placeholder="Choose script"). Keiner der Locators oben sieht einen
-      // Placeholder; getByText matcht Textinhalt, nicht Platzhalter.
-      surface.getByPlaceholder(/^choose script$/i),
-      surface.getByText(/^choose script$/i, { exact: true }),
-    ];
-  },
-
-  /**
-   * The "Publish new script" half of the same segmented control that
-   * `publishUpdateExistingMode` selects. Mirrors its locator ladder.
-   *
-   * Measured form (run 32313143879 inventory, i=10):
-   * `button[role="radio"][aria-label="Publish new script"]`.
-   */
-  publishNewScriptMode(page: Page): Locator[] {
-    const surface = publishSurface(page);
-    const exact = /^publish new script$/i;
-
-    return [
-      surface.getByRole("tab", { name: exact }),
-      surface.getByRole("button", { name: exact }),
-      surface.getByRole("radio", { name: exact }),
-      surface.locator('[role="tab"], [role="button"], button, label').filter({ hasText: exact }),
-      surface.getByText(exact, { exact: true }),
-    ];
-  },
-
-  /**
-   * ANY option in the chooser dropdown, regardless of its text.
-   *
-   * The difference to `publishExistingScriptOption` is the whole point: that
-   * one asks "is MY script listed", this one asks "did the list resolve at
-   * all". Without the second question an empty result is ambiguous -- the
-   * script may be absent, or the dropdown may never have opened -- and the
-   * new-publish fallback must not fire on the second case.
-   */
-  publishAnyScriptOption(page: Page): Locator[] {
-    return [
-      page.getByRole("option"),
-      page.getByRole("menuitem"),
-      page.locator('[role="listbox"] [role="option"], [role="menu"] [role="menuitem"]'),
-    ];
-  },
-
-  publishExistingScriptOption(page: Page, scriptName: string): Locator[] {
-    const exact = new RegExp(`^${escapeRegex(scriptName)}$`, "i");
-
-    return [
-      page.getByRole("option", { name: exact }),
-      page.getByRole("menuitem", { name: exact }),
-      page.locator('[role="listbox"], [role="menu"]').getByText(exact, { exact: true }),
-      page.locator("#overlap-manager-root").getByText(exact, { exact: true }),
-    ];
-  },
-
-  publishValidationError(page: Page): Locator[] {
-    const surface = publishSurface(page);
-    const knownValidation = /script description is required|script title is required|description is required|title is required/i;
-
-    return [
-      surface.getByRole("alert").filter({ hasText: knownValidation }),
-      surface.getByText(knownValidation),
-      surface.locator('[class*="error" i], [data-name*="error" i]').filter({ hasText: knownValidation }),
     ];
   },
 
@@ -578,6 +410,17 @@ export const tvSelectors = {
       page.locator('#overlap-manager-root').getByRole("button", { name: /^publish$/i }).last(),
       page.locator('#overlap-manager-root button').filter({ hasText: /publish new version|update .*library|publish script|publish private|publish privately|private script|publish library|^publish$/i }).last(),
       page.locator('#overlap-manager-root [role="button"]').filter({ hasText: /publish new version|update .*library|publish script|publish private|publish privately|private script|publish library|^publish$/i }).last(),
+      surface.getByText(/publish new version/i).last(),
+      surface.getByText(/update .*library/i).last(),
+      surface.getByText(/publish script/i).last(),
+      surface.getByText(/publish privately/i).last(),
+      surface.getByText(/private script/i).last(),
+      page.locator('#overlap-manager-root').getByText(/publish new version/i).last(),
+      page.locator('#overlap-manager-root').getByText(/update .*library/i).last(),
+      page.locator('#overlap-manager-root').getByText(/publish script/i).last(),
+      page.locator('#overlap-manager-root').getByText(/publish privately/i).last(),
+      page.locator('#overlap-manager-root').getByText(/private script/i).last(),
+      page.locator('#overlap-manager-root').getByText(/publish library/i).last(),
     ];
   },
 

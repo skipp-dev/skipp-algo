@@ -1,7 +1,7 @@
-"""Realtime signal engine — source-pluggable breakout detector with A0/A1/A2 alerting.
+"""Realtime signal engine — FMP-polling breakout detector with A0/A1/A2 alerting.
 
-Monitors top-N ranked candidates from the latest open_prep run and detects
-breakout signals every 20 s. Databento is the default; FMP is fallback/rollback.
+Monitors top-N ranked candidates from the latest open_prep run, polls FMP
+at a configurable interval (default 20 s), and detects breakout signals.
 
 Signal Levels
 -------------
@@ -60,7 +60,6 @@ from pathlib import Path
 from newsstack_fmp._market_cal import is_us_equity_trading_day, regular_session_close_minutes
 
 from .macro import FMPClient
-from .quote_source import DatabentoQuoteSource, FMPQuoteSource, QuoteSource
 from .signal_decay import adaptive_freshness_decay
 from .utils import to_float as _safe_float
 
@@ -646,17 +645,8 @@ class NearA0Repoller:
       poll's detector (the news-catalyst A1→A0 upgrade stays full-poll-only). Reads
       ``_watchlist``/``_volume_regime``/active signals — but NOT read-only: detecting
       an A0 records a (shared, lock-guarded) DynamicCooldown transition.
-    * **Shared quote source** — fetches through the engine's shared
-      ``QuoteSource`` (``engine._quote_source``), the SAME seam
-      ``RealtimeEngine._fetch_realtime_quotes`` uses for the main poll loop
-      (self-healed the same way if not yet built). This guarantees the fast
-      lane and the main loop always read off the SAME data source — both
-      realtime Databento or both 15-min-delayed FMP, never split across the
-      two. (Pre-Finding-2-fix this lane held its own ``FMPClient``, bypassing
-      the seam entirely — the exact defect this fixes.) ``QuoteSource.fetch``
-      does independent, side-effect-free HTTP/cache reads for
-      ``session="regular"``, so concurrent calls from this thread and the
-      main poll thread are safe.
+    * **Own FMP client** — the main poll thread's client (with its circuit
+      breaker / usage counters) is never shared across threads.
     * **rt_notify dedup** — fresh A0s are pushed through the same per-(symbol,
       direction) dedup as the full poll, so the next full cycle never
       double-sends.
@@ -666,10 +656,12 @@ class NearA0Repoller:
     poll — nothing short of polling everything faster can change that.
     """
 
-    def __init__(self, engine: Any, interval: float) -> None:
+    def __init__(self, engine: Any, interval: float, *, client_factory: Any = None) -> None:
         import threading
         self._engine = engine
         self._interval = max(float(interval), 2.0)
+        self._client_factory = client_factory  # injectable for tests
+        self._client: Any = None
         self._thread: threading.Thread | None = None
         self._stop = threading.Event()
         self._lock = threading.Lock()
@@ -705,26 +697,14 @@ class NearA0Repoller:
                 "last_error_msg": self.last_error_msg,
             }
 
-    def _quote_source_or_init(self) -> Any:
-        """Resolve the engine's shared ``QuoteSource``, self-healing a
-        rebuild if it hasn't been constructed yet.
-
-        Mirrors ``RealtimeEngine._fetch_realtime_quotes``'s own self-heal
-        (``getattr`` + ``_default_quote_source()`` + ``start_quote_source()``)
-        exactly, so both lanes always converge on the identical
-        ``QuoteSource`` instance rather than each independently deciding
-        FMP-vs-Databento. In production this branch is essentially never
-        taken: ``main()`` builds the engine (which sets ``_quote_source`` in
-        ``__init__``) and calls ``engine.start_quote_source()`` before
-        ``start_near_a0_repoller()`` ever spins up this thread.
-        """
-        eng = self._engine
-        quote_source = getattr(eng, "_quote_source", None)
-        if quote_source is None:
-            quote_source = eng._default_quote_source()
-            eng._quote_source = quote_source
-            eng.start_quote_source()
-        return quote_source
+    def _client_or_init(self) -> Any:
+        if self._client is None:
+            if self._client_factory is not None:
+                self._client = self._client_factory()
+            else:
+                from open_prep.macro import FMPClient
+                self._client = FMPClient.from_env()
+        return self._client
 
     def _warm_set(self) -> list[str]:
         """Current A1/A2 symbols — the tiers below A0 that can still escalate to it."""
@@ -739,38 +719,11 @@ class NearA0Repoller:
                     out.append(sym)
         return out
 
-    def _fetch(self, symbols: list[str]) -> dict[str, dict[str, Any]]:
-        """Fetch quotes for ``symbols`` through the engine's shared
-        ``QuoteSource`` (Finding 2 fix — see the class docstring's "Shared
-        quote source" bullet). Converts the ``QuoteSource.fetch`` list
-        contract into the ``{symbol: row}`` dict ``_detect_fresh_a0`` wants,
-        identically to ``RealtimeEngine._fetch_realtime_quotes`` (same
-        upper-case keying, same last-wins dedup on duplicate symbols).
-
-        Deliberate failure-semantics change, accepted (Finding-2 followup):
-        pre-fix, a FMP fetch exception propagated out of this method to
-        ``_loop()``'s outer ``except``, bumping ``poll_errors``. Post-fix,
-        the SAME seam the main loop uses (``FMPQuoteSource._fetch_regular``)
-        swallows per-chunk fetch errors internally (``logger.warning``, no
-        re-raise) and returns ``[]`` — so a FMP outage now surfaces as an
-        empty ``quotes`` dict, and ``_tick()``'s ``if not quotes: return``
-        exits silently instead of recording a ``poll_errors`` count. This is
-        "same seam = same failure semantics" by design, not a regression:
-        the main loop already swallows FMP chunk errors the identical way,
-        and a uniform failure path across both lanes is the point of routing
-        through one shared source. Provider-level failures stay visible at
-        the seam (FMPQuoteSource warnings, provider_usage tracking, the
-        connected gauge) and via the main loop's own ``data_stale``
-        gauge/visibility — this thread is only an acceleration of the main
-        loop's signals, not an independent data-health source of truth, so
-        it does not need its own redundant error counter for the same
-        outage. (The Databento path's empty-fetch case is the analogous
-        *normal* outcome — fail-closed omission of quote-less symbols — so
-        treating an empty fetch here as an error would be false-positive
-        prone on that path.)
-        """
+    def _fetch(self, client: Any, symbols: list[str]) -> dict[str, dict[str, Any]]:
         quotes: dict[str, dict[str, Any]] = {}
-        for q in self._quote_source_or_init().fetch(symbols, "regular"):
+        fetch_quotes = getattr(client, "get_stable_batch_quotes", None)
+        raw = (fetch_quotes or client.get_batch_quotes)(symbols)
+        for q in raw or []:
             sym = str(q.get("symbol", "")).strip().upper()
             if sym:
                 quotes[sym] = q
@@ -818,13 +771,13 @@ class NearA0Repoller:
 
     def _tick(self) -> None:
         if not _is_within_market_hours():
-            return  # no orders resting off-hours; skip the quote fetch entirely
+            return  # no orders resting off-hours; skip the FMP call entirely
         warm = self._warm_set()
         with self._lock:
             self.last_warm_set_size = len(warm)
         if not warm:
             return
-        quotes = self._fetch(warm)
+        quotes = self._fetch(self._client_or_init(), warm)
         if not quotes:
             return
         fresh = self._detect_fresh_a0(quotes)
@@ -1035,21 +988,6 @@ class ScoreTelemetry:
 
 _PROCESS_START_TIME = time.time()
 
-# FMP endpoints an alert rule watches by label. A per-endpoint series exists
-# only once that endpoint has been called, so increase(...{endpoint="X"}[15m])
-# takes the FIRST burst as its own baseline and swallows it — precisely the
-# event sp-fmp-profile-bulk-used (for: 0s, threshold > 0, noDataState: OK) was
-# written to catch, and the one that previously burned ~113 MB per six minutes.
-# Seeding at zero mirrors the closed verdict set the daemon exporter already
-# seeds for live_overlay_portfolio_risk_decisions_total. The seed sits inside
-# the usage block on purpose: before the first poll there is no client and
-# nothing can have called profile-bulk either, so the series exists from the
-# first moment the watched event is possible. The population is re-derived from
-# alert-rules.yaml by tests/test_realtime_signals_metrics_endpoint.py::
-# test_every_alert_watched_fmp_endpoint_is_seeded, so a rule that starts
-# watching another endpoint cannot leave it unseeded.
-SEEDED_FMP_ENDPOINTS: tuple[str, ...] = ("/stable/profile-bulk",)
-
 
 def _collect_process_metrics(engine: Any | None = None) -> str:
     """Return Prometheus exposition format metrics for this process.
@@ -1168,18 +1106,6 @@ def _collect_process_metrics(engine: Any | None = None) -> str:
         lines.append(f"{_prefix}_last_data_age_seconds {_last_data_age:.1f}")
         lines.append(f"# TYPE {_prefix}_data_stale gauge")
         lines.append(f"{_prefix}_data_stale {_data_stale}")
-        # Client-disabled visibility: FMPClient.from_env() failed at boot (e.g.
-        # missing FMP_API_KEY) and every cycle publishes empty signals while
-        # loop-liveness stays green — without this gauge that state is
-        # indistinguishable from a healthy zero-signal market. Rendered
-        # unconditionally so absence == scrape-down (sp-scrape-down covers it).
-        _disabled_reason = getattr(engine, "_client_disabled_reason", None)
-        lines.append(f"# TYPE {_prefix}_client_disabled gauge")
-        lines.append(f"{_prefix}_client_disabled {1 if _disabled_reason else 0}")
-        if _disabled_reason:
-            _reason_label = str(_disabled_reason).replace("\\", "\\\\").replace('"', '\\"')
-            lines.append(f"# TYPE {_prefix}_client_disabled_info gauge")
-            lines.append(f'{_prefix}_client_disabled_info{{reason="{_reason_label}"}} 1')
         _session_name = str(getattr(engine, "_market_session_name", "closed"))
         lines.append(f"# TYPE {_prefix}_market_session gauge")
         for _session in ("closed", "premarket", "regular", "postmarket"):
@@ -1286,7 +1212,7 @@ def _collect_process_metrics(engine: Any | None = None) -> str:
             lines.append(f"# TYPE {_prefix}_fmp_endpoint_errors_total counter")
             lines.append(f"# TYPE {_prefix}_fmp_endpoint_empty_responses_total counter")
             lines.append(f"# TYPE {_prefix}_fmp_endpoint_response_bytes_total counter")
-            for _path, _stats in sorted(({e: {} for e in SEEDED_FMP_ENDPOINTS} | _usage).items()):
+            for _path, _stats in sorted(_usage.items()):
                 _endpoint = str(_path).replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
                 _labels = f'{{endpoint="{_endpoint}"}}'
                 lines.append(f"{_prefix}_fmp_endpoint_requests_total{_labels} {int(_stats.get('calls', 0))}")
@@ -1303,29 +1229,9 @@ def _collect_process_metrics(engine: Any | None = None) -> str:
         lines.append(f"{_prefix}_avg_volume_missing_symbols {_missing_avg}")
         lines.append(f"# TYPE {_prefix}_avg_volume_negative_cache_symbols gauge")
         lines.append(f"{_prefix}_avg_volume_negative_cache_symbols {_negative_avg}")
-        lines.extend(_collect_a0_latency_metrics(engine, now, _prefix) + _collect_databento_feed_metrics(engine))
-        _prober = getattr(engine, "_cisco_prober", None)
-        if _prober is not None:
-            lines.extend(_prober.metrics_lines(_prefix))
+        lines.extend(_collect_a0_latency_metrics(engine, now, _prefix))
 
     return "\n".join(lines) + "\n"
-
-
-def _require_internal_token_on_railway() -> None:
-    """Refuse to serve tokenless on Railway — a missing secret arrives as "".
-
-    The tokenless mode is a deliberate LOCAL convenience (documented and
-    tested); on Railway it is indistinguishable from a deleted/renamed secret
-    and would expose ``/signals.json`` + ``/metrics`` unauthenticated on the
-    public domain while the sibling endpoints keep failing closed. Crash at
-    startup instead — loud and immediate (2026-08-18, Doppelgaenger-Sweep).
-    """
-    if os.getenv("RAILWAY_ENVIRONMENT") and not os.getenv("SIGNALS_INTERNAL_TOKEN", "").strip():
-        raise SystemExit(
-            "SIGNALS_INTERNAL_TOKEN is required on Railway: a missing secret is "
-            "served as an empty string and would publish /signals.json and "
-            "/metrics unauthenticated. Set the variable on this service."
-        )
 
 
 def _start_telemetry_server(
@@ -1354,14 +1260,7 @@ def _start_telemetry_server(
     (audit PR #2913 F2; ``/metrics`` token-gate added by audit F6).  The
     private ``/news-feed`` endpoint always fails closed unless that token is
     configured and supplied.
-
-    On Railway the empty-token mode is refused at startup (see
-    ``_require_internal_token_on_railway``): Railway serves a MISSING secret
-    as an empty string, so the tokenless local-dev convenience would silently
-    publish ``/signals.json`` and ``/metrics`` on the public domain
-    (2026-08-18, Doppelgaenger-Sweep D-K1).
     """
-    _require_internal_token_on_railway()
     import threading
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -1377,13 +1276,8 @@ def _start_telemetry_server(
             elif self.path == "/readyz":
                 ready = False
                 reason = "engine not initialised"
-                source_reason = _quote_source_readiness_reason(engine)
                 if engine is None:
                     pass
-                elif source_reason:
-                    reason = source_reason
-                elif _client_disabled_for_selected_quote_source(engine):
-                    reason = f"client disabled ({engine._client_disabled_reason})"
                 elif len(getattr(engine, "_watchlist", [])) == 0:
                     reason = "watchlist not loaded"
                 elif getattr(engine, "open_prep_snapshot_loaded", 0.0) != 1.0:
@@ -1414,7 +1308,7 @@ def _start_telemetry_server(
                     _hdr = self.headers.get("Authorization", "")
                     _parts = _hdr.split(" ", 1)
                     _supplied = _parts[1].strip() if len(_parts) == 2 and _parts[0].lower() == "bearer" else ""
-                    if not hmac.compare_digest(_supplied.encode(), _auth_token.encode()):  # bytes: a non-ASCII header would make the str form raise
+                    if not hmac.compare_digest(_supplied, _auth_token):
                         self.send_response(401)
                         self.end_headers()
                         return
@@ -1448,7 +1342,7 @@ def _start_telemetry_server(
                     _hdr = self.headers.get("Authorization", "")
                     _parts = _hdr.split(" ", 1)
                     _supplied = _parts[1].strip() if len(_parts) == 2 and _parts[0].lower() == "bearer" else ""
-                    if not hmac.compare_digest(_supplied.encode(), _auth_token.encode()):  # bytes: a non-ASCII header would make the str form raise
+                    if not hmac.compare_digest(_supplied, _auth_token):
                         self.send_response(401)
                         self.end_headers()
                         return
@@ -1563,33 +1457,6 @@ def _fetch_json_url(url: str, timeout: float = 15.0) -> dict[str, Any] | None:
         logger.warning("Snapshot URL returned non-object JSON — ignoring")
         return None
     return payload
-
-
-def _refresh_quote_reference_from_url() -> bool:
-    """Fetch the daily quote-reference snapshot (previous_close/ADV for the
-    producer universe) from ``QUOTE_REFERENCE_SNAPSHOT_URL`` and write it to the
-    local path ``QuoteReference.load()`` reads — mirroring the watchlist's
-    ``OPEN_PREP_SNAPSHOT_URL`` fetch. It rides the SAME bot branch, so the same
-    ``OPEN_PREP_SNAPSHOT_URL_TOKEN`` authorizes it (``_fetch_json_url`` reuse,
-    no new HTTP site). Fail-soft: on a missing URL or fetch/write error the
-    last-good local file is kept (never blanked). Returns True only when a
-    fresh reference was written."""
-    url = _quote_reference_snapshot_url()
-    if not url:
-        return False
-    payload = _fetch_json_url(url)
-    if not payload:
-        logger.warning("QUOTE_REFERENCE_SNAPSHOT_URL fetch failed — keeping last-good local quote_reference")
-        return False
-    dest = _ARTIFACTS_LATEST / "quote_reference.json"
-    try:
-        from scripts.smc_atomic_write import atomic_write_text
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        atomic_write_text(json.dumps(payload, ensure_ascii=True), dest)
-        return True
-    except (OSError, TypeError):
-        logger.warning("Failed to write fetched quote_reference locally", exc_info=True)
-        return False
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1896,10 +1763,10 @@ class VolumeRegimeDetector:
         vol_frac = max(_expected_cumulative_volume_fraction(), 0.02)
         for _sym, q in quotes.items():
             vol = _safe_float(q.get("volume"), 0.0)
-            # Only non-Databento rows may use the consolidated watchlist fallback.
+            # FMP batch-quote omits avgVolume — try watchlist_avg_volumes
+            # fallback dict (populated from bulk profile enrichment).
             avg_vol = _safe_float(q.get("avgVolume"), 0.0)
-            is_databento = str(q.get("source") or "").strip().lower().startswith("databento")
-            if avg_vol <= 0 and not is_databento:
+            if avg_vol <= 0 and hasattr(self, "_wl_avg_volumes"):
                 avg_vol = self._wl_avg_volumes.get(_sym, 0.0)
             if avg_vol <= 0:
                 continue   # unknown volume — exclude from both counts
@@ -2257,7 +2124,7 @@ class RealtimeSignal:
 
 
 class RealtimeEngine:
-    """Source-pluggable realtime breakout detection engine."""
+    """FMP-polling breakout detection engine."""
 
     def __init__(
         self,
@@ -2283,18 +2150,6 @@ class RealtimeEngine:
         self.ultra_mode = ultra_mode
         self._client = fmp_client
         self._client_disabled_reason: str | None = None
-        # Quote-source seam (Databento signal-migration Task 1.1 introduced
-        # the seam; Task 2.1 wires RT_QUOTE_SOURCE=databento through
-        # _default_quote_source() -- the single factory also used by the
-        # _fetch_realtime_quotes self-heal below, so the two always agree and
-        # the env flag is actually honored. _databento_feed is the engine's
-        # own handle on the constructed DatabentoQuoteFeed (kept separate
-        # from DatabentoQuoteSource's internals, untouched by this task) so
-        # start_quote_source()/stop_quote_source() know what to start/stop.
-        # Both are built AFTER _load_watchlist() further down, once the
-        # watchlist has a symbol list for a Databento feed to subscribe to.
-        self._databento_feed: Any = None
-        self._quote_source: QuoteSource | None = None
         self._active_signals: list[RealtimeSignal] = []
         self._lock = threading.Lock()  # guards _active_signals
         self._watchlist: list[dict[str, Any]] = []  # all scored symbols from pipeline
@@ -2325,8 +2180,6 @@ class RealtimeEngine:
         self._async_newsstack: AsyncNewsstackPoller | None = None
         # Opt-in near-A0 fast-lane re-poller (started via start_near_a0_repoller)
         self._near_a0_repoller: NearA0Repoller | None = None
-        # Cisco AI Defense key self-probe (started via start_cisco_probe)
-        self._cisco_prober: Any = None
 
         # VisiData snapshot: latest per-symbol row data
         self._vd_rows: dict[str, dict[str, Any]] = {}
@@ -2390,16 +2243,6 @@ class RealtimeEngine:
         self.last_poll_duration_seconds: float = 0.0
 
         self._load_watchlist()
-        try:
-            self._quote_source = self._default_quote_source()
-        except Exception as exc:
-            logger.warning(
-                "Failed to build quote source (RT_QUOTE_SOURCE=%s): %s -- "
-                "will retry via the _fetch_realtime_quotes self-heal once "
-                "the watchlist is non-empty.",
-                os.environ.get("RT_QUOTE_SOURCE", "databento"), exc, exc_info=True,
-            )
-            self._quote_source = None
         self._restore_signals_from_disk()
 
     # ------------------------------------------------------------------
@@ -2419,7 +2262,6 @@ class RealtimeEngine:
                 }
                 self._postmarket_baseline_date = baseline_date
                 self._postmarket_close_volume = restored_baseline
-            from .atr_quality import actionable_atr_pct
             now_epoch = time.time()
             for raw in data.get("signals", []):
                 fired_epoch = _safe_float(raw.get("fired_epoch", 0), 0.0)
@@ -2436,7 +2278,7 @@ class RealtimeEngine:
                     volume_ratio=_safe_float(raw.get("volume_ratio", 0), 0.0),
                     score=_safe_float(raw.get("score", 0), 0.0),
                     confidence_tier=str(raw.get("confidence_tier", "STANDARD")),
-                    atr_pct=actionable_atr_pct(raw.get("atr_pct")) or 0.0,
+                    atr_pct=_safe_float(raw.get("atr_pct", 0), 0.0),
                     freshness=_safe_float(raw.get("freshness", 0), 0.0),
                     fired_at=str(raw.get("fired_at", "")),
                     fired_epoch=fired_epoch,
@@ -2508,7 +2350,7 @@ class RealtimeEngine:
                 return
         try:
             # -- Build full universe: ranked + overflow -------------------
-            ranked_v2 = _active_snapshot_rows(data, "ranked_v2")
+            ranked_v2 = data.get("ranked_v2") or []
             seen: set[str] = set()
             full: list[dict[str, Any]] = []
             for r in ranked_v2:
@@ -2518,7 +2360,7 @@ class RealtimeEngine:
                     full.append(r)
 
             # Recover scored-but-below-cutoff entries from filtered_out_v2
-            for r in _active_snapshot_rows(data, "filtered_out_v2"):
+            for r in (data.get("filtered_out_v2") or []):
                 reasons = r.get("filter_reasons") or []
                 if "below_top_n_cutoff" not in reasons:
                     continue  # truly filtered out — skip
@@ -2528,7 +2370,7 @@ class RealtimeEngine:
                     full.append(r)
 
             # Also include any symbols from enriched_quotes not yet covered
-            for q in _active_snapshot_rows(data, "enriched_quotes"):
+            for q in (data.get("enriched_quotes") or []):
                 sym = str(q.get("symbol", "")).strip().upper()
                 if sym and sym not in seen:
                     seen.add(sym)
@@ -2555,9 +2397,9 @@ class RealtimeEngine:
             self.open_prep_snapshot_loaded = 1.0 if data else 0.0
             self.open_prep_snapshot_age_seconds = max(0.0, now - _extract_snapshot_epoch(data))
 
-            # 🆕 aus dem Diff — first_run trägt keine Vergleichsinfo (Sweep F3)
+            # Load new-entrant symbols from diff (for 🆕 column)
             diff = data.get("diff") or {}
-            self._new_entrant_set = set() if diff.get("first_run") else {
+            self._new_entrant_set = {
                 s.upper() for s in (diff.get("new_entrants") or [])
             }
             logger.info(
@@ -2709,38 +2551,6 @@ class RealtimeEngine:
         # Clear technical indicator cache for removed symbols
         self._technical_scorer.clear()
 
-        # A rotation that drops a symbol must retract its signal too — expiry
-        # alone keeps it published for up to MAX_SIGNAL_AGE_SECONDS. Skipped on
-        # an empty reload so a degraded snapshot cannot clear the active set.
-        if wl_syms:
-            with self._lock:
-                self._active_signals = [
-                    s for s in self._active_signals
-                    if str(getattr(s, "symbol", "")).strip().upper() in wl_syms
-                ]
-
-        # Databento feed lifecycle on watchlist rotation (no-op for the FMP
-        # default). Both calls are duck-typed and internally fail-soft, so they
-        # never touch the FMP path and never break the reload cycle:
-        #  (1) resubscribe the live feed to the new symbol set — otherwise the
-        #      feed keeps yesterday's subscription and never emits bars for
-        #      symbols added by the rotation (they'd fail-closed omit forever);
-        #  (2) reload the daily quote-reference so a new session's
-        #      previous_close/ADV replaces yesterday's (else changesPercentage
-        #      skews for the life of the process).
-        feed = getattr(self, "_databento_feed", None)
-        if feed is not None:
-            feed.update_symbols(sorted(wl_syms))
-            _refresh_quote_reference_from_url()  # pull today's prev_close/ADV before reload_reference
-        reload_reference = getattr(getattr(self, "_quote_source", None), "reload_reference", None)
-        if callable(reload_reference):
-            reload_reference()
-        elif isinstance(self._quote_source, FMPQuoteSource) and _selected_quote_source() == "databento":
-            recovered_source = self._default_quote_source()
-            if isinstance(recovered_source, DatabentoQuoteSource):
-                self._quote_source = recovered_source
-                self.start_quote_source()
-
     def start_async_newsstack(self, poll_interval: float = 15.0) -> None:
         """Start the background newsstack poller (call once at startup)."""
         self._async_newsstack = AsyncNewsstackPoller(poll_interval=poll_interval)
@@ -2751,23 +2561,17 @@ class RealtimeEngine:
         self._near_a0_repoller = NearA0Repoller(self, interval)
         self._near_a0_repoller.start()
 
-    def start_cisco_probe(self, interval_s: float) -> None:
-        """Start the Cisco AI Defense key self-probe (call once at startup)."""
-        from open_prep.cisco_probe import CiscoKeyProber
-        self._cisco_prober = CiscoKeyProber(interval_s=interval_s)
-        self._cisco_prober.start()
-
     # ------------------------------------------------------------------
     # Fetch current quotes for watched symbols
     # ------------------------------------------------------------------
     def _fetch_realtime_quotes(self) -> dict[str, dict[str, Any]]:
-        """Fetch current quotes for all watched symbols via the active source.
+        """Fetch current quotes for all watched symbols via FMP stable batch quote.
 
-        Databento is primary. Its source reads the live cache; explicit or
-        fallback FMP mode retains URL-safe batch chunking internally.
-        The returned quote-row contract remains provider-neutral.
+        For large watchlists, symbols are processed in URL-safe chunks of
+        ``_BATCH_QUOTE_CHUNK_SIZE``.  The production 200-symbol watchlist uses
+        one provider request per poll.
         """
-        if _client_disabled_for_selected_quote_source(self):
+        if self._client_disabled_reason:
             return {}
         if not self._watchlist:
             return {}
@@ -2775,132 +2579,24 @@ class RealtimeEngine:
         if not symbols:
             return {}
 
-        # Quote-source seam (Databento signal-migration Task 1.1 introduced
-        # this self-heal for engines built via RealtimeEngine.__new__(),
-        # bypassing __init__, e.g. in some tests. Task 2.1: reuse
-        # _default_quote_source() -- the SAME factory __init__ uses -- so a
-        # None _quote_source under RT_QUOTE_SOURCE=databento rebuilds a
-        # DatabentoQuoteSource here too, instead of always silently falling
-        # back to FMP regardless of the flag (the Task 1.1 carry-forward
-        # this task fixes).
-        quote_source = getattr(self, "_quote_source", None)
-        if quote_source is None:
-            quote_source = self._default_quote_source()
-            self._quote_source = quote_source
-            # A self-healed DatabentoQuoteFeed is freshly constructed, not
-            # started -- main() only calls start_quote_source() once, before
-            # the poll loop begins, so a rebuild here would otherwise leave
-            # the feed's threads dead forever (cache stays empty -> every
-            # symbol is fail-closed omitted). start() is idempotent (guards
-            # on an already-alive thread), so this is always safe, including
-            # when quote_source is FMP (no-op: _databento_feed stays None).
-            self.start_quote_source()
-
         quotes: dict[str, dict[str, Any]] = {}
-        for q in quote_source.fetch(symbols, "regular"):
-            sym = str(q.get("symbol", "")).strip().upper()
-            if sym:
-                quotes[sym] = q
-        return quotes
-
-    # ------------------------------------------------------------------
-    # Quote-source factory + Databento feed lifecycle (Task 2.1)
-    # ------------------------------------------------------------------
-    def _default_quote_source(self) -> QuoteSource:
-        """Build the engine's quote source per ``RT_QUOTE_SOURCE``.
-
-        Databento is the default; FMP is only an explicit rollback or an
-        observable fallback when Databento cannot be constructed. This single
-        factory is shared by ``__init__`` and the ``_fetch_realtime_quotes``
-        self-heal so both paths make the same source decision.
-        """
-        if _selected_quote_source() == "databento":
+        # Chunk into batches for large watchlists
+        chunk_size = _BATCH_QUOTE_CHUNK_SIZE
+        for chunk_start in range(0, len(symbols), chunk_size):
+            chunk = symbols[chunk_start:chunk_start + chunk_size]
             try:
-                source = self._build_databento_quote_source()
+                fetch_quotes = getattr(self.client, "get_stable_batch_quotes", None)
+                raw = (fetch_quotes or self.client.get_batch_quotes)(chunk)
+                for q in raw:
+                    sym = str(q.get("symbol", "")).strip().upper()
+                    if sym:
+                        quotes[sym] = q
             except Exception as exc:
                 logger.warning(
-                    "Databento quote source unavailable; falling back to FMP (%s)",
-                    type(exc).__name__,
-                    exc_info=True,
+                    "Failed to fetch realtime quotes for chunk %d–%d: %s",
+                    chunk_start, chunk_start + len(chunk), exc,
                 )
-                self._databento_feed = None
-                self._quote_source_fallback_reason = type(exc).__name__
-                return FMPQuoteSource(lambda: self.client)
-            self._quote_source_fallback_reason = ""
-            return source
-        self._quote_source_fallback_reason = "explicit_fmp"
-        return FMPQuoteSource(lambda: self.client)
-
-    def _build_databento_quote_source(self) -> DatabentoQuoteSource:
-        """Construct a Databento-backed ``QuoteSource`` over the current
-        watchlist's symbols: a ``DatabentoQuoteFeed`` (Task 1.2, NOT started
-        here -- see ``start_quote_source()``) plus the daily
-        ``QuoteReference`` (Task 0.2) for ``previousClose``/``avgVolume``.
-
-        Local imports (``databento``, ``DatabentoQuoteFeed``,
-        ``QuoteReference``) keep explicit FMP rollback and Databento-startup
-        fallback paths independent from the live-feed implementation.
-        """
-        import databento as db
-
-        from .databento_quote_feed import DatabentoQuoteFeed, resolve_current_symbol_support
-        from .quote_reference import QuoteReference
-
-        symbols = [
-            str(r.get("symbol", "")).strip().upper()
-            for r in self._watchlist if r.get("symbol")
-        ]
-        api_key = os.environ.get("DATABENTO_API_KEY", "")
-        if not api_key.strip():
-            raise RuntimeError("DATABENTO_API_KEY is required when RT_QUOTE_SOURCE=databento")
-
-        # Today's 09:30 ET open in UTC, bounded to now; fresh boots replay the
-        # session so far without ever requesting a future start.
-        from zoneinfo import ZoneInfo
-
-        now = datetime.now(UTC)
-        now_et = now.astimezone(ZoneInfo("America/New_York"))
-        session_open_et = now_et.replace(hour=9, minute=30, second=0, microsecond=0)
-        replay_start = min(now, session_open_et.astimezone(UTC))
-
-        feed = DatabentoQuoteFeed(
-            symbols,
-            lambda: db.Live(key=api_key),
-            replay_start=replay_start,
-            symbol_support_resolver=lambda provider_symbols: resolve_current_symbol_support(
-                api_key,
-                provider_symbols,
-                session_date=now_et.date(),
-            ),
-        )
-        _refresh_quote_reference_from_url()  # fetch today's reference (no-op if URL unset / on error -> last-good)
-        reference = QuoteReference.load()
-        if len(reference) == 0:
-            raise RuntimeError("Databento quote reference is empty")
-        self._databento_feed = feed
-        return DatabentoQuoteSource(feed, reference)
-
-    def start_quote_source(self) -> None:
-        """Start the Databento feed's background threads (call once, at
-        run-loop start -- see ``main()`` -- and again from the
-        ``_fetch_realtime_quotes`` self-heal after a rebuild, since that
-        rebuild produces a freshly-constructed, unstarted feed). No-op for
-        explicit FMP mode: no feed is constructed, so there is nothing to
-        start. ``getattr`` (not ``self._databento_feed`` directly) so this
-        stays safe on engines built via ``RealtimeEngine.__new__()``
-        (bypassing ``__init__``, e.g. in some tests) that never set the
-        attribute at all."""
-        feed = getattr(self, "_databento_feed", None)
-        if feed is not None:
-            feed.start()
-
-    def stop_quote_source(self) -> None:
-        """Stop the Databento feed's background threads (call on shutdown
-        -- see ``main()``). No-op for explicit FMP mode. Same ``getattr``
-        safety as ``start_quote_source()``."""
-        feed = getattr(self, "_databento_feed", None)
-        if feed is not None:
-            feed.stop()
+        return quotes
 
     def _capture_regular_close_baseline(self, quotes: dict[str, dict[str, Any]]) -> None:
         """Retain the latest regular-session cumulative volume for postmarket."""
@@ -3014,7 +2710,7 @@ class RealtimeEngine:
         raw_volume_value = quote.get("volume")
         volume = _safe_float(raw_volume_value, 0.0)
         avg_volume = _safe_float(
-            quote.get("avgVolume") or _watchlist_average_volume(watchlist_entry), 0.0
+            quote.get("avgVolume") or watchlist_entry.get("avg_volume"), 0.0
         )
         if raw_volume_value is not None:
             try:
@@ -3058,10 +2754,7 @@ class RealtimeEngine:
             else quote.get("expected_volume_fraction"),
         )
 
-        from .atr_quality import actionable_atr_pct
-        atr_pct = actionable_atr_pct(
-            watchlist_entry.get("atr_pct_computed") or watchlist_entry.get("atr_pct")
-        ) or 0.0
+        atr_pct = _safe_float(watchlist_entry.get("atr_pct_computed") or watchlist_entry.get("atr_pct"), 0.0)
         confidence_tier = str(watchlist_entry.get("confidence_tier", "STANDARD"))
         v2_score = _safe_float(watchlist_entry.get("score"), 0.0)
         symbol_regime = str(watchlist_entry.get("symbol_regime", "NEUTRAL"))
@@ -3261,9 +2954,9 @@ class RealtimeEngine:
             )
 
         # Boost: strong tech alignment can raise A1→A0 for high-conviction
-        if (level == "A1"
-                and ((direction == "LONG" and tech_score >= 0.75 and tech_signal in ("STRONG_BUY", "BUY"))
-                     or (direction == "SHORT" and tech_score <= 0.25 and tech_signal in ("STRONG_SELL", "SELL")))
+        if (level == "A1" and tech_score >= 0.75
+                and ((direction == "LONG" and tech_signal in ("STRONG_BUY", "BUY"))
+                     or (direction == "SHORT" and tech_signal in ("STRONG_SELL", "SELL")))
                 and volume_ratio >= A1_VOLUME_RATIO_MIN * 1.5):
             level = "A0"
             reason_codes.append(A0ReasonCode.TECHNICAL_ALIGNMENT_UPGRADE)
@@ -3448,7 +3141,7 @@ class RealtimeEngine:
             # available on the first in-session poll cycle.
             self.reload_watchlist()
 
-        if _client_disabled_for_selected_quote_source(self):
+        if self._client_disabled_reason:
             # Persist empty signals with disabled reason so UIs stay green
             with self._lock:
                 self._active_signals.clear()
@@ -3638,7 +3331,7 @@ class RealtimeEngine:
             prev_close = _safe_float(quote.get("previousClose"), 0.0)
             chg_pct = ((price / prev_close) - 1) * 100 if prev_close > 0 else 0.0
             _avg_vol = _safe_float(
-                quote.get("avgVolume") or _watchlist_average_volume(wl_entry), 0.0
+                quote.get("avgVolume") or wl_entry.get("avg_volume"), 0.0
             )
             vol_ratio, expected_vol_frac, normalized_volume_pace = _volume_semantics(
                 q_volume,
@@ -3774,23 +3467,14 @@ class RealtimeEngine:
             self._active_signals.extend(new_signals)
 
         # ── #6  Signal re-qualification ──────────────────────────
-        # Re-validate active signals CARRIED OVER from prior polls against the
-        # current quotes.  If a carried-over signal no longer meets even A1
-        # criteria → expire it early.  Signals detected THIS poll are exempt:
-        # _detect_signal already validated them against this same quote (incl.
-        # the news/PDH/RSI/technical A1→A0 upgrades, whose raw vol/change sit in
-        # the A1 band by construction) — re-qualifying them here would strip
-        # every upgrade back to A1 before it reaches /smc_live.  2026-07-25.
+        # Re-validate ALL active signals against current quotes.  If a
+        # signal no longer meets even A1 criteria → expire it early.
         requalified: list[RealtimeSignal] = []
-        _fresh_ids = {id(s) for s in new_signals}
         from open_prep.a0_contract import A0ReasonCode, amend_decision_details
         with self._lock:
             signals_snapshot = list(self._active_signals)
         for sig in signals_snapshot:
             if sig.is_expired():
-                continue
-            if id(sig) in _fresh_ids:
-                requalified.append(sig)  # detected this poll — already current
                 continue
             q = quotes.get(sig.symbol)
             if q is None:
@@ -3806,7 +3490,7 @@ class RealtimeEngine:
             wl_avg = 0.0
             wl_entry = wl_map.get(str(sig.symbol).strip().upper())
             if wl_entry is not None:
-                wl_avg = _watchlist_average_volume(wl_entry)
+                wl_avg = _safe_float(wl_entry.get("avg_volume"), 0.0)
             cur_avg_vol = _safe_float(q.get("avgVolume") or wl_avg, 0.0)
             if cur_avg_vol < 1000:
                 requalified.append(sig)  # can't verify — keep
@@ -4135,20 +3819,9 @@ class RealtimeEngine:
 # CLI entry point
 # ---------------------------------------------------------------------------
 
-def _raise_keyboard_interrupt_on_sigterm(_signum: int, _frame: Any) -> None:
-    """SIGTERM handler: translate the orchestrator stop signal (Railway/Docker
-    ``stop`` send SIGTERM, then SIGKILL after a grace period) into the same
-    ``KeyboardInterrupt`` the SIGINT path already handles, so ``main()``'s
-    graceful-shutdown block runs — stopping the Databento feed's ``db.Live``
-    socket + threads, the telemetry server and the pollers cleanly — instead
-    of the process being killed mid-connection."""
-    raise KeyboardInterrupt
-
-
 def main() -> None:
     """Run the realtime signal engine as a standalone polling loop."""
     import argparse
-    import signal
 
     # Auto-load .env so FMP_API_KEY is available without manual shell sourcing
     env_path = Path(__file__).resolve().parents[1] / ".env"
@@ -4200,26 +3873,12 @@ def main() -> None:
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
 
-    # Route SIGTERM (container/orchestrator stop) through the existing
-    # KeyboardInterrupt graceful-shutdown path. signal.signal only works on the
-    # main thread; the narrow ValueError guard keeps main() importable/callable
-    # off the main thread (e.g. under a test runner) without a handler.
-    try:
-        signal.signal(signal.SIGTERM, _raise_keyboard_interrupt_on_sigterm)
-    except ValueError:
-        logger.debug("SIGTERM handler not installed (main() not on main thread)")
-
     engine = RealtimeEngine(
         poll_interval=args.interval,
         top_n=args.top_n,
         fast_mode=args.fast or args.ultra,
         ultra_mode=args.ultra,
     )
-
-    # Start the Databento feed's background threads now that the run loop is
-    # actually beginning (Task 2.1). No-op for explicit/fallback FMP -- no feed was
-    # constructed, so there is nothing to start.
-    engine.start_quote_source()
 
     # Start telemetry HTTP server (daemon thread — auto-stops on exit).
     # Pass the engine so /signals can fall back to live state during the
@@ -4237,15 +3896,6 @@ def main() -> None:
     )
     engine.start_async_newsstack(poll_interval=ns_interval)
     logger.info("Async newsstack started (interval=%ds)", ns_interval)
-
-    # Cisco AI Defense key self-probe: content-free synthetic inspection so a
-    # revoked/rotated Inspection key alerts via Grafana (sp-cisco-probe-*)
-    # instead of surfacing only as fail-closed AI Insights errors. Interval
-    # floor 300s; deliberately no off switch — the paired absent()-rule pages
-    # when the series disappears.
-    cisco_probe_secs = _env_int("RT_CISCO_PROBE_SECS", 3600, minimum=300, maximum=None)
-    engine.start_cisco_probe(float(cisco_probe_secs))
-    logger.info("Cisco key self-probe started (interval=%ds)", cisco_probe_secs)
 
     # Opt-in near-A0 fast lane: re-poll A1/A2 symbols every N seconds so an
     # escalation to A0 pushes to Slack in seconds, not a full ~30s cycle late.
@@ -4272,10 +3922,9 @@ def main() -> None:
     a0_parity_dir = os.environ.get("RT_A0_PARITY_LOG_DIR", "").strip()
     if a0_parity_dir:
         try:
-            from open_prep.a0_parity_store import A0ParityJournal, parity_source_from_env
-            parity_source = "fmp" if isinstance(engine._quote_source, FMPQuoteSource) else parity_source_from_env()
-            a0_parity_journal = A0ParityJournal(a0_parity_dir, source=parity_source)
-            logger.info("A0 parity journal enabled (RT_A0_PARITY_LOG_DIR, source=%s)", parity_source)
+            from open_prep.a0_parity_store import A0ParityJournal
+            a0_parity_journal = A0ParityJournal(a0_parity_dir, source="fmp")
+            logger.info("FMP A0 parity journal enabled (RT_A0_PARITY_LOG_DIR)")
         except Exception:
             logger.warning("FMP A0 parity journal init failed", exc_info=True)
 
@@ -4284,25 +3933,11 @@ def main() -> None:
     # on THIS service's Railway volume and a separate cron cannot share it; fires
     # once per UTC day on a throwaway thread so the poll loop never blocks.
     cal_hhmm = os.environ.get("RT_CALIBRATION_UTC_HHMM", "").strip()
-    from open_prep.calibration_scheduler import parse_calibration_hhmm
-
-    cal_at = parse_calibration_hhmm(cal_hhmm)
     cal_ev_dir = os.environ.get("RT_SIGNAL_EVENT_LOG_DIR", "")
     cal_out = str(Path(cal_ev_dir).parent / "calibration_latest.json") if cal_ev_dir else ""
     cal_last_day: str | None = None
-    if cal_hhmm and cal_at is None:
-        # Never log a schedule we cannot honour: this used to accept any string
-        # and then silently never fire.
-        logger.warning(
-            "RT_CALIBRATION_UTC_HHMM=%r is not a valid HH:MM UTC time — "
-            "nightly calibration stays OFF", cal_hhmm,
-        )
-    elif cal_at is not None and event_logger is not None:
-        # Log the PARSED time, so "9:30" reads back as 09:30.
-        logger.info(
-            "Nightly calibration scheduled (%s UTC -> %s)",
-            cal_at.strftime("%H:%M"), cal_out,
-        )
+    if cal_hhmm and event_logger is not None:
+        logger.info("Nightly calibration scheduled (%s UTC -> %s)", cal_hhmm, cal_out)
 
     mode_label = "ULTRA" if args.ultra else ("FAST/VisiData" if args.fast else "standard")
     top_label = str(args.top_n) if args.top_n > 0 else "ALL"
@@ -4359,10 +3994,10 @@ def main() -> None:
 
             # Nightly follow-through calibration — once per UTC day, off-thread
             # (the poll loop must never block on the calibrator's FMP fetches).
-            if cal_at is not None and event_logger is not None:
+            if cal_hhmm and event_logger is not None:
                 _now = datetime.now(UTC)
                 _today = _now.strftime("%Y-%m-%d")
-                if cal_last_day != _today and _now.time() >= cal_at:
+                if cal_last_day != _today and _now.strftime("%H:%M") >= cal_hhmm:
                     cal_last_day = _today
                     from open_prep.calibration_scheduler import run_calibration_once
                     threading.Thread(
@@ -4390,9 +4025,6 @@ def main() -> None:
             # Stop the near-A0 fast-lane re-poller gracefully
             if engine._near_a0_repoller is not None:
                 engine._near_a0_repoller.stop()
-            # Stop the Databento feed's background threads gracefully
-            # (no-op for explicit/fallback FMP)
-            engine.stop_quote_source()
             # Shutdown telemetry HTTP server
             if telemetry_server is not None:
                 telemetry_server.shutdown()
@@ -4499,18 +4131,6 @@ def _collect_a0_latency_metrics(engine: Any, now: float, prefix: str) -> list[st
             f"{prefix}_a0_near_repoll_a0_pushed_total {int(near.get('a0_pushed', 0))}",
         ])
     return lines
-
-
-def _watchlist_average_volume(entry: dict[str, Any]) -> float:
-    """Prefer the explicit 15-session FMP ADV once the snapshot carries it.
-
-    Presence is authoritative: an explicit null means insufficient same-basis
-    history and must fail closed rather than fall back to profile averageVolume.
-    Older snapshots retain the legacy fallback during the rollout window.
-    """
-    if "avg_volume_15_session" in entry:
-        return _safe_float(entry.get("avg_volume_15_session"), 0.0)
-    return _safe_float(entry.get("avg_volume"), 0.0)
 
 
 def _volume_semantics(
@@ -4620,7 +4240,7 @@ def _authorize_private_request(
         else ""
     )
     constant_time_equals = hmac.compare_digest
-    if not constant_time_equals(supplied.encode(), auth_token.encode()):  # bytes: a non-ASCII header would make the str form raise
+    if not constant_time_equals(supplied, auth_token):
         handler.send_response(401)
         handler.end_headers()
         return False
@@ -4732,115 +4352,6 @@ def _serve_ai_insights(handler: Any) -> None:
     handler.send_header("Cache-Control", "no-store")
     handler.end_headers()
     handler.wfile.write(body)
-
-
-def _quote_reference_snapshot_url() -> str:
-    """Return the explicit URL or the canonical rolling quote reference."""
-    return os.getenv(
-        "QUOTE_REFERENCE_SNAPSHOT_URL",
-        "https://api.github.com/repos/skipp-dev/skipp-algo/contents/"
-        "artifacts/open_prep/latest/quote_reference.json"
-        "?ref=bot/live-open-prep-snapshot",
-    ).strip()
-
-
-def _client_disabled_for_selected_quote_source(engine: Any) -> bool:
-    """Only the FMP quote source is disabled by an unavailable FMP client."""
-    source = getattr(engine, "_quote_source", None)
-    fmp_active = isinstance(source, FMPQuoteSource) or (
-        source is None and _selected_quote_source() == "fmp"
-    )
-    return bool(getattr(engine, "_client_disabled_reason", None)) and fmp_active
-
-
-def _quote_source_readiness_reason(engine: Any) -> str:
-    """Return why the selected Databento source is not runtime-ready."""
-    if engine is None:
-        return ""
-    source = getattr(engine, "_quote_source", None)
-    if isinstance(source, FMPQuoteSource) or _selected_quote_source() == "fmp":
-        return ""
-    if not isinstance(source, DatabentoQuoteSource):
-        return "databento quote source not initialised"
-    reference = getattr(source, "_reference", None)
-    if reference is None or len(reference) == 0:
-        return "databento quote reference empty"
-    feed = getattr(engine, "_databento_feed", None)
-    try:
-        feed_state = feed.telemetry.snapshot()
-    except (AttributeError, TypeError):
-        return "databento feed telemetry unavailable"
-    if not feed_state.get("connected"):
-        return "databento feed not connected"
-    if _market_session() == "regular" and int(feed_state.get("records_received") or 0) < 1:
-        return "databento feed has no regular-session records"
-    return ""
-
-
-def _selected_quote_source() -> str:
-    """Resolve the desired source: Databento by default, FMP by opt-in."""
-    configured = os.getenv("RT_QUOTE_SOURCE", "databento").strip().lower()
-    if configured == "fmp":
-        return "fmp"
-    if configured not in {"", "databento"}:
-        logger.warning(
-            "Unsupported RT_QUOTE_SOURCE=%r; using the Databento default",
-            configured,
-        )
-    return "databento"
-
-
-def _active_snapshot_rows(
-    data: dict[str, Any],
-    key: str,
-    *,
-    max_stale_age_seconds: float = 7 * 24 * 60 * 60,
-) -> list[dict[str, Any]]:
-    """Keep inactive/stale quote evidence out of the realtime watchlist.
-
-    The producer now removes these rows before publishing, but the consumer
-    repeats the guard so a rollout cannot revive ``DAY`` from an older
-    already-published snapshot.
-    """
-    snapshot_epoch = _extract_snapshot_epoch(data) or time.time()
-    excluded: set[str] = set()
-    for quote in data.get("enriched_quotes") or []:
-        symbol = str(quote.get("symbol") or "").strip().upper()
-        quote_epoch = _safe_float(quote.get("timestamp"), 0.0)
-        if quote_epoch >= 1_000_000_000_000:
-            quote_epoch /= 1000.0
-        explicitly_inactive = quote.get("isActivelyTrading") is False
-        severely_stale = (
-            str(quote.get("gap_reason") or "") == "stale_prior_session_quote"
-            and quote_epoch > 0
-            and snapshot_epoch - quote_epoch >= max_stale_age_seconds
-        )
-        if symbol and (explicitly_inactive or severely_stale):
-            excluded.add(symbol)
-    if excluded and key == "ranked_v2":
-        logger.warning("Excluded inactive realtime-watchlist symbols: %s", sorted(excluded))
-    return [
-        row
-        for row in (data.get(key) or [])
-        if str(row.get("symbol") or "").strip().upper() not in excluded
-    ]
-
-
-def _collect_databento_feed_metrics(engine: Any) -> list[str]:
-    """Render optional feed telemetry without risking the central endpoint."""
-    feed_telemetry = getattr(
-        getattr(engine, "_databento_feed", None),
-        "telemetry",
-        None,
-    )
-    render_feed_metrics = getattr(feed_telemetry, "render_prometheus", None)
-    if not callable(render_feed_metrics):
-        return []
-    try:
-        return render_feed_metrics().splitlines()
-    except Exception:  # pragma: no cover - metrics must remain available
-        logger.exception("Failed to render Databento feed metrics")
-        return []
 
 
 if __name__ == "__main__":

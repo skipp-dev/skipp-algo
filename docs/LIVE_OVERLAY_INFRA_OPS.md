@@ -78,11 +78,8 @@
 3. Grafana Alloy (Railway-Service `metrics-collector`) scraped `/metrics` beider Services
    alle 30 s und schreibt die Zeitreihen nach Grafana Cloud.
 4. Grafana Cloud dient ausschließlich dem Monitoring — nicht der Datenweiterleitung.
-5. Pine kann den REST-Endpunkt nicht direkt aufrufen. Der gehostete
-   `skipp-live-lab`-Worker konsumiert `/smc_live?tf=1m` jedoch über seinen
-   Technical-Poller und stellt den daraus abgeleiteten Kontext an seiner
-   lizenzpflichtigen Read-API bereit. Der Endpunkt ist damit ein
-   Produktions-Input für den Sidecar-Pfad, nicht nur eine Monitoring-Quelle.
+5. Für `/smc_live` ist derzeit kein externer Produktionskonsument ausgerollt;
+   Pine kann den REST-Endpunkt nicht direkt aufrufen.
 
 ---
 
@@ -92,41 +89,26 @@
 
 | Datei | Zweck |
 |-------|-------|
-| `services/live_overlay_daemon/railway.toml` | Build- und Deploy-Config — **derzeit nicht wirksam**, siehe unten |
-| `services/live_overlay_daemon/Dockerfile` | Container-Image — **nicht** das Produktions-Image, gebaut wird das Root-`Dockerfile` |
+| `services/live_overlay_daemon/railway.toml` | Build- und Deploy-Config |
+| `services/live_overlay_daemon/Dockerfile` | Container-Image |
 | `services/live_overlay_daemon/infra/alloy/config.alloy` | Alloy-Config des `metrics-collector` |
 
-**`railway.toml` (`live_overlay_daemon`)** — die Datei wird aktuell nicht gelesen,
-weil für diesen Service kein Config-Pfad gesetzt ist (gemessen 2026-08-06:
-`propertyFileMapping = {}`). Die Geschwister-Services `opra-live-shadow`,
-`smc-signals-producer` und `metrics-collector` lesen ihre jeweilige
-`services/<name>/railway.toml` sehr wohl. Der Inhalt unten ist deshalb
-deskriptiv und spiegelt die effektiven Service-Settings:
+**`railway.toml` (`live_overlay_daemon`):**
 ```toml
 [build]
 builder = "DOCKERFILE"
-dockerfilePath = "/Dockerfile"
+dockerfilePath = "services/live_overlay_daemon/Dockerfile"
 
 [deploy]
-startCommand = "sh -c \"uvicorn services.live_overlay_daemon.main:app \
-  --host 0.0.0.0 --port ${PORT:-8000} --workers 1 --http h11\""
+startCommand = "uvicorn services.live_overlay_daemon.main:app \
+  --host 0.0.0.0 --port $PORT --workers 1 --http h11 --loop asyncio"
 healthcheckPath = "/health"
-healthcheckTimeout = 30
+healthcheckTimeout = 60
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3
 ```
 
-Effektive Werte jederzeit nachmessen mit
-`railway deployment list -s live_overlay_daemon --json`.
-
-Deploys laufen NICHT über Railways nativen GitHub-Trigger (der wurde 2026-07-24
-gelöscht; `live-overlay-deploy-trigger-guard.yml` wird täglich rot, falls er
-wiederauftaucht), sondern über `.github/workflows/deploy-live-overlay-daemon.yml`:
-jeder main-Push, der `services/live_overlay_daemon/**` oder
-`scripts/deploy_live_overlay.sh` berührt, deployt via `railway up`. Deshalb tragen
-diese Deployments in `railway deployment list` KEIN `meta.commitHash` — den
-laufenden Stand am Container messen (`live_overlay_build_info` bzw. Datei-Zeuge),
-nie aus der Deployment-Meta herleiten (gemessen 2026-08-18, Doppelgänger-Sweep).
+Railway deployed automatisch, sobald ein Commit auf dem verknüpften Branch landet.
 
 ### Manuell deployen / testen
 
@@ -157,9 +139,9 @@ curl https://liveoverlaydaemon-production.up.railway.app/ready
 | `PORT` | live_overlay_daemon | ✅ | Production-Pin auf `8080` (nicht auf `${{...PORT}}` referenzieren) |
 | `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC` | live_overlay_daemon | optional | `1` nur für einen verifizierten externen `/smc_live`-Konsumenten; solange keiner existiert bleibt Production auf `0` |
 | `UPTIMEROBOT_API_KEY` | live_overlay_daemon | optional | API-Key für UptimeRobot-Bridge |
-| `UPTIMEROBOT_MONITOR_IDS` | live_overlay_daemon | optional | Kommagetrennte Monitor-IDs; Production-Allowlist: `803309701,803341452,803343155,803343156,803362511,803555263,803555264` |
+| `UPTIMEROBOT_MONITOR_IDS` | live_overlay_daemon | optional | Kommagetrennte Monitor-IDs; Production-Allowlist: `803309701,803341452,803343155,803343156,803362511` |
 | `GITHUB_WORKFLOW_MONITOR_TOKEN` | live_overlay_daemon | optional | GitHub PAT für Workflow-Bridge |
-| `GITHUB_WORKFLOW_MONITOR_REPO` | live_overlay_daemon | optional | `owner/repo`, default `skipp-dev/skipp-algo` |
+| `GITHUB_WORKFLOW_MONITOR_REPO` | live_overlay_daemon | optional | `owner/repo`, default `skippALGO/skipp-algo` |
 | `NEWS_SNAPSHOT_PATH` | live_overlay_daemon | optional | Pfad zum News-Snapshot-JSON |
 | `OVERLAY_SERVICE_URL` | metrics-collector | ✅ | Scrape target ohne Scheme, production: `${{live_overlay_daemon.RAILWAY_PRIVATE_DOMAIN}}:8080` |
 | `SIGNALS_SERVICE_URL` | live_overlay_daemon, metrics-collector | ✅ | `${{smc-signals-producer.RAILWAY_PRIVATE_DOMAIN}}:8080` — internal host:port of the signals producer; Alloy scrapes `/metrics`, live_overlay_daemon fetches `/signals` |
@@ -391,7 +373,7 @@ Prometheus-Scrape (/metrics)
 
 - API-Key in Railway-Variable `UPTIMEROBOT_API_KEY` (Read-Only-Key ausreichend).
 - Production setzt `UPTIMEROBOT_MONITOR_IDS` auf
-  `803309701,803341452,803343155,803343156,803362511,803555263,803555264`, damit neue
+  `803309701,803341452,803343155,803343156,803362511`, damit neue
   UptimeRobot-Monitore nicht automatisch die Bridge-Aggregate verändern.
 - Kein Outbound-Request wenn `UPTIMEROBOT_API_KEY` fehlt → Bridge-Metriken zeigen
   `enabled=0`, kein Fehler.
@@ -417,7 +399,6 @@ live_overlay_uptimerobot_bridge_enabled       # 1 = API-Key gesetzt, 0 = deaktiv
 live_overlay_uptimerobot_bridge_ok            # 1 = letzter Fetch erfolgreich
 live_overlay_uptimerobot_bridge_fetched_at    # Unix-Timestamp letzter Fetch
 live_overlay_uptimerobot_monitors_total
-live_overlay_uptimerobot_monitors_expected    # Anzahl aus UPTIMEROBOT_MONITOR_IDS
 live_overlay_uptimerobot_monitors_up
 live_overlay_uptimerobot_monitors_down
 live_overlay_uptimerobot_monitors_paused
@@ -434,32 +415,24 @@ Monitore erstellt, Pausen gesetzt und Alertkontakte konfiguriert.
 Das Repository hat **keinen** schreibenden Einfluss auf UptimeRobot-Monitore —
 der Datenfluss ist immer: UptimeRobot → Bridge → Grafana (nur lesend).
 
-Production erwartet diese sieben Monitor-IDs in `UPTIMEROBOT_MONITOR_IDS`:
+Production erwartet exakt diese fünf Monitor-IDs in `UPTIMEROBOT_MONITOR_IDS`:
 
 ```env
-UPTIMEROBOT_MONITOR_IDS=803309701,803341452,803343155,803343156,803362511,803555263,803555264
+UPTIMEROBOT_MONITOR_IDS=803309701,803341452,803343155,803343156,803362511
 ```
 
-`803555263` prüft `skipp-terminal-ai/health`; `803555264` prüft
-`mlflow-tracking/health`. Beide verwenden HEAD im Fünf-Minuten-Intervall mit
-30 Sekunden Timeout und dem bestehenden Production-Alarmkontakt.
-
-Grafana schützt die Konfiguration mit zwei Alerts. Die erwartete Anzahl wird
-direkt aus `UPTIMEROBOT_MONITOR_IDS` exportiert und ist nicht zusätzlich in der
-Alert-Regel fest verdrahtet:
+Grafana schützt die Konfiguration mit zwei Alerts:
 
 ```promql
-(live_overlay_uptimerobot_monitors_total{job="live_overlay"}
- != bool on(job)
- live_overlay_uptimerobot_monitors_expected{job="live_overlay"})
-and on(job)
-(live_overlay_bridge_enabled{job="live_overlay",bridge="uptimerobot"} == 1)
+(live_overlay_uptimerobot_bridge_enabled{job="live_overlay"} == 1)
+* on(job)
+(live_overlay_uptimerobot_monitors_total{job="live_overlay"} != bool 5)
 ```
 
 ```promql
+(live_overlay_uptimerobot_bridge_enabled{job="live_overlay"} == 1)
+* on(job)
 (live_overlay_uptimerobot_monitors_down_total{job="live_overlay"} > bool 0)
-and on(job)
-(live_overlay_bridge_enabled{job="live_overlay",bridge="uptimerobot"} == 1)
 ```
 
 ---
@@ -474,7 +447,7 @@ CI-Workflows und exportiert ihn als Prometheus-Gauges.
 | Variable | Default | Beschreibung |
 |----------|---------|--------------|
 | `GITHUB_WORKFLOW_MONITOR_TOKEN` | — | GitHub PAT mit `actions:read` |
-| `GITHUB_WORKFLOW_MONITOR_REPO` | `skipp-dev/skipp-algo` | `owner/repo`. Leave unset in production: the code default is already the canonical slug. `skippALGO` is the org's pre-rename name and resolves only through GitHub's rename redirect, so pinning it here would send `GITHUB_WORKFLOW_MONITOR_TOKEN` to a redirect target. |
+| `GITHUB_WORKFLOW_MONITOR_REPO` | `skippALGO/skipp-algo` | `owner/repo` |
 | `GITHUB_WORKFLOW_MONITOR_IDS` | — | Kommagetrennte Workflow-IDs |
 | `GITHUB_WORKFLOW_MONITOR_TIMEOUT_SECS` | 5 | HTTP-Timeout |
 | `GITHUB_WORKFLOW_MONITOR_POLL_TTL_SECS` | 30 | Cache-TTL in Sekunden |

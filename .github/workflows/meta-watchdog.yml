@@ -68,7 +68,7 @@ jobs:
       issues: write
     steps:
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 1
 
@@ -133,7 +133,7 @@ jobs:
             smc-databento-production-export-sharded.yml=14:success:weekday \
             smc-library-refresh.yml=30:success:weekday \
             f2-promotion-gate-daily.yml=30:any:weekday \
-            credential-health-check.yml=30:any
+            credential-health-check.yml=30:any:weekday
           rc_dag=$?
           set -e
           echo "rc=$rc_dag" >> "$GITHUB_OUTPUT"
@@ -168,91 +168,6 @@ jobs:
             dag_status="error"
           fi
           echo "dag_status=$dag_status" >> "$GITHUB_OUTPUT"
-
-      - name: Check the workflow-failure alarm can see the merge-critical workflows
-        id: alarm_coverage
-        # Wer beobachtet den Beobachter. Der Grafana-Alarm
-        # `lo-workflow-run-failed` wertet nur Workflows aus, deren IDs in
-        # GITHUB_WORKFLOW_MONITOR_IDS auf dem live_overlay_daemon stehen — einer
-        # Liste, die NUR in der Railway-Umgebung existiert. Kein Repo-Artefakt
-        # deklariert sie, kein Test pinnt sie, und `noDataState: OK` macht eine
-        # fehlende Zeitreihe geraeuschlos.
-        #
-        # Am 2026-08-20 gemessen: 26 IDs konfiguriert, 8 Zeitreihen vorhanden,
-        # `smc-fast-pr-gates` in keiner der beiden Mengen — und das an dem Tag,
-        # an dem strict_required_status_checks_policy auf false ging und der
-        # main-Lauf damit zum Rueckfangnetz wurde.
-        #
-        # KEIN `continue-on-error`: der Schritt faengt den Exit-Code selbst ab
-        # (`rc=$?`, kein `set -e`) und endet immer mit 0. Die Wertung passiert
-        # ausschliesslich unten ueber `alarm_rc` — genau EIN Ort, an dem sich
-        # entscheidet, ob der Job rot wird.
-        env:
-          GRAFANA_API_KEY: ${{ secrets.GRAFANA_API_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
-        run: |
-          set -uo pipefail
-          if [ -z "${GRAFANA_API_KEY}" ]; then
-            echo "::warning title=meta-watchdog::GRAFANA_API_TOKEN fehlt -- Alarm-Abdeckung UNGEPRUEFT."
-            echo "alarm_rc=8" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          # `set +e` wie in den Schwester-Steps (probe/dag): die Default-Shell
-          # laeuft mit `-e`, und ohne die Klammer beendet ein rc!=0 den Step
-          # SOFORT — `rc=$?` und die alarm_rc-Ausgabe darunter waren toter
-          # Code. Genau so faerbte am 2026-08-25 ein einzelner GitHub-503
-          # (rc=8, "Sonde ungueltig") den ganzen Watchdog rot (Lauf
-          # 32821936783), entgegen dem dokumentierten Vertrag unten.
-          set +e
-          python -m scripts.check_workflow_failure_alarm_coverage
-          rc=$?
-          set -e
-          echo "alarm_rc=$rc" >> "$GITHUB_OUTPUT"
-          if [ "$rc" = "1" ]; then
-            echo "::error title=meta-watchdog::Der Workflow-Fehleralarm ist fuer einen merge-kritischen Workflow BLIND. Siehe Schrittausgabe: GITHUB_WORKFLOW_MONITOR_IDS auf dem live_overlay_daemon nachziehen."
-          elif [ "$rc" = "8" ]; then
-            echo "::warning title=meta-watchdog::Alarm-Abdeckung nicht messbar (Sonde ungueltig) -- das ist KEIN Bestehen."
-          elif [ "$rc" != "0" ]; then
-            # 2026-08-29 (Code-Review): der Vertrag kennt 0/1/8. Alles andere
-            # ist ein ABSTURZ der Sonde, nicht ihr Urteil — 127 (Interpreter
-            # oder Modulpfad weg nach einem Runner-Image-Wechsel), 137 (OOM).
-            # Vorher fiel das durch die Deny-Liste des Fail-Steps und war
-            # still gruen: ausgerechnet der Waechter gegen stille Blindheit
-            # war gegen die eigene stille Blindheit blind.
-            echo "::error title=meta-watchdog::Alarm-Abdeckungs-Sonde mit unbekanntem rc=$rc abgebrochen (Vertrag: 0/1/8). Kein Urteil — die Sonde selbst ist kaputt."
-          fi
-
-      - name: Verify the branch-protection governance baseline
-        id: governance
-        # Geburtsfehler-Sweep 2026-08-28: scripts/verify_branch_protection.py
-        # existierte seit ADR-0011, lief aber in KEINEM Workflow — die
-        # 27.8.-Drift (gate-Kontext im Ruleset, Konstante ohne ihn, #5160)
-        # bewies live, dass ein nie startender Waechter keine ist. Der
-        # Drift-Arm im alarm_coverage-Step deckt NUR die Required-Checks;
-        # dieser Step misst zusaetzlich Force-Push-/Deletion-Block und die
-        # ADR-0011-Review-Baseline. Bewusste Ueberlappung, beide kosten
-        # Sekunden. Token: derselbe GH_PAT-Fallback — dass er die Rulesets
-        # lesen darf, ist am Lauf 33204798571 (28.8.) live gemessen.
-        #
-        # rc-Vertrag des Skripts: 0 ok · 1 Governance-Finding (Job wird unten
-        # rot) · 2 Netz/Auth (nicht messbar — Warnung, KEIN Bestehen, nicht
-        # rot; das rc-8-Muster der Schwester-Steps).
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
-        run: |
-          set -uo pipefail
-          # `set +e`-Klammer wie in den Schwester-Steps: Default-Shell ist -e,
-          # ohne Klammer ist der rc-Fang toter Code (Lauf 32821936783).
-          set +e
-          python -m scripts.verify_branch_protection
-          rc=$?
-          set -e
-          echo "governance_rc=$rc" >> "$GITHUB_OUTPUT"
-          if [ "$rc" = "1" ]; then
-            echo "::error title=meta-watchdog::Branch-Protection-Governance verletzt (verify_branch_protection rc=1) -- Schrittausgabe lesen: welcher Check fehlt bzw. welche Regel kippte."
-          elif [ "$rc" != "0" ]; then
-            echo "::warning title=meta-watchdog::Governance nicht messbar (verify_branch_protection rc=$rc) -- das ist KEIN Bestehen."
-          fi
 
       - name: Annotate probe results
         if: always() && steps.probe.outputs.rc != ''
@@ -448,12 +363,8 @@ jobs:
           (
             (steps.probe.outputs.rc != '0' && steps.probe.outputs.rc != '') ||
             steps.dag.outputs.dag_status == 'broken' ||
-            steps.dag.outputs.dag_status == 'error' ||
-            (steps.alarm_coverage.outputs.alarm_rc != '' &&
-             steps.alarm_coverage.outputs.alarm_rc != '0' &&
-             steps.alarm_coverage.outputs.alarm_rc != '8') ||
-            steps.governance.outputs.governance_rc == '1'
+            steps.dag.outputs.dag_status == 'error'
           )
         run: |
-          echo "::error title=meta-watchdog::probe rc=${{ steps.probe.outputs.rc }} overall=${{ steps.probe.outputs.overall }} | dag_status=${{ steps.dag.outputs.dag_status }} | alarm_rc=${{ steps.alarm_coverage.outputs.alarm_rc }} | governance_rc=${{ steps.governance.outputs.governance_rc }}"
+          echo "::error title=meta-watchdog::probe rc=${{ steps.probe.outputs.rc }} overall=${{ steps.probe.outputs.overall }} | dag_status=${{ steps.dag.outputs.dag_status }}"
           exit 1

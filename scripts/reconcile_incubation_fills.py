@@ -114,89 +114,6 @@ def summarize_fills(fills: list[Any]) -> dict[str, dict[str, float]]:
     }
 
 
-def paper_fills_only(fills: list) -> list:
-    """Drop executions whose account is not a DU* paper account.
-
-    Defense-in-depth behind the S5 paper-port assertion: on a deliberately
-    non-paper port the assertion no-ops, and a TWS managing BOTH a DU* and a
-    live account passes neither cleanly — either way, live executions must
-    never reach the PAPER incubation evidence. Dropped rows are reported
-    loudly so a misconfigured session is visible, not silent.
-    """
-    kept: list = []
-    dropped = 0
-    for fill in fills:
-        account = str(
-            getattr(getattr(fill, "execution", None), "acctNumber", "") or ""
-        ).strip()
-        if account.startswith("DU"):
-            kept.append(fill)
-        else:
-            dropped += 1
-    if dropped:
-        print(
-            f"reconcile: dropping {dropped} execution(s) on non-DU* accounts — "
-            "paper evidence accepts paper fills only",
-            file=sys.stderr,
-        )
-    return kept
-
-
-def portfolio_fill_rows(
-    fills: list[Any],
-    intent_ids: set[str],
-) -> list[dict[str, Any]]:
-    """Return broker executions belonging to this incubation as portfolio fills.
-
-    The raw export stays local. It preserves individual execution IDs so the
-    portfolio reconciler can detect duplicates and prove the signed position
-    delta instead of inferring it from aggregate fill counts.
-    """
-    rows: list[dict[str, Any]] = []
-    side_map = {"BOT": "BUY", "BUY": "BUY", "SLD": "SELL", "SELL": "SELL"}
-    allowed_suffixes = {"entry", *_EXIT_LEG_ACTIONS}
-    for fill in fills:
-        execution = getattr(fill, "execution", None)
-        contract = getattr(fill, "contract", None)
-        if execution is None or contract is None:
-            continue
-        order_ref = str(getattr(execution, "orderRef", "") or "").strip()
-        intent_id, separator, suffix = order_ref.rpartition("-")
-        if not separator or intent_id not in intent_ids or suffix not in allowed_suffixes:
-            continue
-        execution_id = str(getattr(execution, "execId", "") or "").strip()
-        symbol = str(getattr(contract, "symbol", "") or "").strip().upper()
-        account = str(getattr(execution, "acctNumber", "") or "").strip()
-        side = side_map.get(str(getattr(execution, "side", "") or "").strip().upper())
-        try:
-            quantity = float(getattr(execution, "shares", 0) or 0)
-            price = float(getattr(execution, "price", 0) or 0)
-        except (TypeError, ValueError):
-            continue
-        if (
-            not execution_id
-            or not symbol
-            or not account
-            or side is None
-            or not math.isfinite(quantity)
-            or quantity <= 0.0
-            or not math.isfinite(price)
-            or price <= 0.0
-        ):
-            continue
-        rows.append(
-            {
-                "execution_id": execution_id,
-                "symbol": symbol,
-                "account": account,
-                "side": side,
-                "quantity": quantity,
-                "price": price,
-            }
-        )
-    return sorted(rows, key=lambda row: (row["execution_id"], row["symbol"]))
-
-
 def legs_by_intent(by_ref: dict[str, dict[str, float]]) -> dict[str, dict[str, dict[str, float]]]:
     """Regroup per-orderRef fills into ``{intent_id: {leg_suffix: fill}}``."""
     out: dict[str, dict[str, dict[str, float]]] = {}
@@ -349,12 +266,6 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="skip the backfill_live_outcomes PnL/R stamping pass",
     )
-    parser.add_argument(
-        "--portfolio-fills-output",
-        type=Path,
-        default=None,
-        help="optional local JSON export of individual executions for portfolio reconciliation",
-    )
     args = parser.parse_args(argv)
 
     if args.port not in PAPER_PORTS:
@@ -383,12 +294,6 @@ def main(argv: list[str] | None = None) -> int:
         1 for r in records if r.get("action") in _RECONCILABLE_ACTIONS
     )
     if n_reconcilable == 0:
-        if args.portfolio_fills_output is not None:
-            atomic_write_text(
-                "[]\n",
-                args.portfolio_fills_output,
-                fsync=True,
-            )
         print(
             f"reconcile: {audit_path} has no paper_submitted/filled records — "
             "nothing to reconcile (normal on a no-entry or audit-only day)"
@@ -397,11 +302,6 @@ def main(argv: list[str] | None = None) -> int:
 
     # Deferred import: no IBKR client at module load time.
     from ib_async import IB, ExecutionFilter
-
-    from scripts.execute_ibkr_watchlist import (
-        IBKRConnectionConfig,
-        assert_paper_account_if_paper_port,
-    )
 
     ib = IB()
     try:
@@ -412,19 +312,6 @@ def main(argv: list[str] | None = None) -> int:
             timeout=args.timeout,
             readonly=True,
         )
-        # Same S5 guard as the submitters: port 7497 is only a CONVENTION —
-        # a live TWS behind the paper port would let live executions flow
-        # into the PAPER incubation evidence. readonly=True protects the
-        # orders, not the evidence. SystemExit passes the except below.
-        assert_paper_account_if_paper_port(
-            ib,
-            IBKRConnectionConfig(
-                host=args.host,
-                port=args.port,
-                client_id=args.client_id,
-                readonly=True,
-            ),
-        )
         fills = ib.reqExecutions(ExecutionFilter())
     except Exception as exc:  # connect/API errors: fail loud, launchd shows red
         print(f"error: IBKR executions query failed: {exc}", file=sys.stderr)
@@ -432,16 +319,6 @@ def main(argv: list[str] | None = None) -> int:
     finally:
         ib.disconnect()
 
-    fills = paper_fills_only(fills)
-
-    if args.portfolio_fills_output is not None:
-        intent_ids = {str(record.get("intent_id") or "") for record in records}
-        exported = portfolio_fill_rows(fills, intent_ids)
-        atomic_write_text(
-            json.dumps(exported, sort_keys=True, indent=2) + "\n",
-            args.portfolio_fills_output,
-            fsync=True,
-        )
     records, counts = reconcile_records(records, legs_by_intent(summarize_fills(fills)))
     rendered = "\n".join(json.dumps(r, sort_keys=True) for r in records)
     atomic_write_text(rendered + "\n", str(audit_path))

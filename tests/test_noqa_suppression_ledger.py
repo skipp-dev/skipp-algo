@@ -20,8 +20,6 @@ from pathlib import Path
 
 import pytest
 
-from tests._guard_corpus import iter_production_py_files
-
 _ROOT = Path(__file__).resolve().parents[1]
 
 _DIR_EXCLUDE = {
@@ -147,33 +145,6 @@ _FROZEN_SITES: dict[str, int] = {
     # call; the path is intentionally partial (PATH-resolved).
     "scripts/check_branch_safety.py": 1,
     "scripts/check_commit_authors.py": 1,
-    # 2026-08-04: constant `git` argv list, no shell=True, no user input —
-    # same shape as check_commit_authors.py above (S603 + S607).
-    "scripts/hold_r1_attested_sources.py": 2,
-    # 2026-08-01: the R1-attested-source gate shells out to `git diff
-    # --name-only <range>` to learn which files the PR is responsible for.
-    # S603 (subprocess call) and S607 (`git` resolved from PATH) mirror the
-    # commit-author guard directly above; the argument list is a literal, no
-    # shell, and the range comes from the workflow's own base/head SHAs.
-    "scripts/check_r1_attested_sources.py": 2,
-    # 2026-08-23 (proof-ledger Task 6, gap found and closed 2026-08-24 while
-    # adding the sibling entry below): two `git` subprocess calls
-    # (`_changed_files`, `_ledger_ids_at`), each with the same fixed-argv,
-    # no-shell shape as check_r1_attested_sources.py above -- 2x (S603 +
-    # S607) = 4. Task 6 added the file without registering it here; this
-    # ledger's own `tests` exclusion made the gap invisible to
-    # `test_no_new_noqa_files` until Task 7 staged a second file in the same
-    # module and the check ran over tracked files again.
-    # Bumped 4 -> 6 on 2026-08-25 (c4-merge-base-not-merge-commit fix): a
-    # third `git` subprocess call, `_merge_base_commit()` (`git merge-base
-    # <links> <rechts>`), same fixed-argv, no-shell shape -- 3x (S603 +
-    # S607) = 6.
-    "scripts/check_proof_ledger.py": 6,
-    # 2026-08-24 (proof-ledger Task 7): one `gh` subprocess call (`_gh`),
-    # same fixed-argv, no-shell shape as check_r1_attested_sources.py /
-    # check_proof_ledger.py above (S603 + S607) -- the network-bound half of
-    # the same ledger, `gh` instead of `git`.
-    "scripts/judge_proof_ledger.py": 2,
     "scripts/execute_ibkr_watchlist.py": 1,
     "scripts/export_open_prep_lists.py": 2,
     "scripts/export_open_prep_reports.py": 2,
@@ -203,8 +174,7 @@ _FROZEN_SITES: dict[str, int] = {
     # (``sys = _bootstrap_sys_mod`` rebinding + the immediately
     # following ``from scripts._logging_init import init_cli_logging``).
     "scripts/check_pine_legacy_drift.py": 2,
-    # 2026-07-28: scripts/emit_fvg_context_pine.py entry dropped — file removed
-    # with the stranded FVG-context chain (see smc_core/benchmark.py tombstone).
+    "scripts/emit_fvg_context_pine.py": 2,
     "scripts/fvg_quality_quartile_gate.py": 2,
     "scripts/g23_ab_watchdog.py": 2,
     # A9b.3 reduce-step: 1× `noqa: E402` for the
@@ -223,19 +193,16 @@ _FROZEN_SITES: dict[str, int] = {
     "scripts/grafana_alert_rules_upsert.py": 2,
 
     # 2026-06-22: keychain hardening in publish script adds one
-    # deliberate ``noqa: S603`` on subprocess.run with fixed argv.
+    # deliberate ``# noqa: S603`` on subprocess.run with fixed argv.
     "scripts/publish_overlay_dashboard.py": 1,
     # 2026-06-23: host-run helper that force-updates the rolling
     # ``bot/live-signals-snapshot`` branch so the hosted overlay daemon can
     # fetch the realtime-signals snapshot via SIGNALS_SNAPSHOT_URL. All git
     # calls go through one ``_git`` wrapper (git resolved via shutil.which,
-    # fixed argv, no shell), which carries a single ``noqa: S603``.
+    # fixed argv, no shell), which carries a single ``# noqa: S603``.
     "scripts/publish_signals_snapshot.py": 1,
-    # 2026-07-20: generic rolling bot-snapshot publisher uses the same
-    # explicitly-resolved git argv pattern (no shell).
-    "scripts/publish_bot_snapshot.py": 1,
     # 2026-07-11 (truth-audit #5): universe-snapshot publisher's single ``_git``
-    # wrapper (git resolved via shutil.which, fixed argv, no shell) carries one ``noqa: S603``.
+    # wrapper (git resolved via shutil.which, fixed argv, no shell) carries one ``# noqa: S603``.
     "scripts/publish_universe_snapshots.py": 1,
     # 2026-05-12 PR #2157: Databento entitlement probe wraps each
     # provider request in a generic ``except Exception`` so it can
@@ -292,11 +259,14 @@ _FROZEN_TOTAL = sum(_FROZEN_SITES.values())
 
 
 def _iter_python_files() -> list[Path]:
-    return [
-        path
-        for path in iter_production_py_files(_DIR_EXCLUDE)
-        if not path.name.startswith("mutation_")
-    ]
+    out: list[Path] = []
+    for path in _ROOT.rglob("*.py"):
+        if any(part in _DIR_EXCLUDE for part in path.relative_to(_ROOT).parts):
+            continue
+        if path.name.startswith("mutation_"):
+            continue
+        out.append(path)
+    return out
 
 
 def _observed_counts() -> dict[str, int]:

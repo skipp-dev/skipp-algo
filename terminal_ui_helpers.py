@@ -6,7 +6,6 @@ and can be tested in regular pytest without launching a Streamlit app.
 
 from __future__ import annotations
 
-import re
 import time
 from collections import defaultdict
 from typing import Any
@@ -720,47 +719,3 @@ def enrich_rank_rows(rank_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         r["materiality"] = enrich_materiality(r.get("materiality", ""))
         r["recency"] = enrich_recency(r.get("recency", ""))
     return rank_rows
-
-
-# ── TradingView chart links ─────────────────────────────────────
-
-# Plain single-ticker cells only: letters first, then letters/digits/.-
-# (BRK.B, RDS-A). Anything else (empty, "?", "N/A", multi-symbol text)
-# is not linkable.
-_TV_SYMBOL_RE = re.compile(r"^[A-Za-z][A-Za-z0-9.\-]{0,14}$")
-TV_CHART_URL_PREFIX = "https://www.tradingview.com/chart/?symbol="
-
-
-def tv_chart_url(symbol: Any) -> str | None:
-    """TradingView chart URL for *symbol*, or ``None`` when the cell is
-    not a plain single ticker."""
-    sym = str(symbol or "").strip().upper()
-    # "MARKET" is the sentinel the poller assigns to ticker-less items
-    # (terminal_poller.py) — it matches the ticker pattern but has no chart.
-    if sym in {"", "N/A", "MARKET"} or not _TV_SYMBOL_RE.match(sym):
-        return None
-    return TV_CHART_URL_PREFIX + sym
-
-
-def tv_linkify_rows(rows: list[dict[str, Any]], key: str = "Symbol") -> list[dict[str, Any]]:
-    """Replace plain ticker cells under *key* with TradingView chart URLs
-    (in place; returns *rows* for chaining). Non-linkable cells keep their
-    original value so placeholder markers like ``?`` stay visible."""
-    for row in rows:
-        if key in row:
-            row[key] = tv_chart_url(row[key]) or row[key]
-    return rows
-
-
-def tv_symbol_md(symbol: Any) -> str:
-    """Markdown for a ticker that links to its TradingView chart.
-
-    The counterpart to ``tv_symbol_column`` for the surfaces that render
-    tickers as text rather than in a dataframe. Returns the bare symbol
-    unlinked when it is not a plain single ticker (``?``, ``MARKET``, ``''``),
-    so placeholder markers stay visible instead of turning into dead links.
-    Callers add their own emphasis.
-    """
-    sym = str(symbol or "").strip().upper()
-    url = tv_chart_url(sym)
-    return f"[{sym}]({url})" if url else sym

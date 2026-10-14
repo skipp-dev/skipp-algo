@@ -1,21 +1,21 @@
 {
   "schema_version": 1,
   "tools": {
-    "SLACK_TEST_AUTH": {"toolkit": "slack", "version": "20260826_00", "access": "read", "required": []},
-    "SLACK_FETCH_CONVERSATION_HISTORY": {"toolkit": "slack", "version": "20260826_00", "access": "read", "required": ["channel"]},
-    "SLACK_OPEN_DM": {"toolkit": "slack", "version": "20260826_00", "access": "write", "required": []},
-    "SLACK_SEND_MESSAGE": {"toolkit": "slack", "version": "20260826_00", "access": "write", "required": ["channel"]},
-    "GITHUB_GET_THE_AUTHENTICATED_USER": {"toolkit": "github", "version": "20260815_00", "access": "read", "required": []},
-    "GITHUB_LIST_REPOSITORY_ISSUES": {"toolkit": "github", "version": "20260815_00", "access": "read", "required": ["owner", "repo"]},
-    "GITHUB_CREATE_AN_ISSUE": {"toolkit": "github", "version": "20260815_00", "access": "write", "required": ["owner", "repo", "title"]},
-    "GITHUB_CREATE_AN_ISSUE_COMMENT": {"toolkit": "github", "version": "20260815_00", "access": "write", "required": ["owner", "repo", "issue_number", "body"]},
-    "GITHUB_CLOSE_ISSUE": {"toolkit": "github", "version": "20260815_00", "access": "write", "required": ["owner", "repo", "issue_number"]},
-    "OUTLOOK_GET_PROFILE": {"toolkit": "outlook", "version": "20260828_00", "access": "read", "required": []},
-    "OUTLOOK_SEND_EMAIL": {"toolkit": "outlook", "version": "20260828_00", "access": "write", "required": ["to", "subject", "body"]},
-    "OUTLOOK_CALENDAR_CREATE_EVENT": {"toolkit": "outlook", "version": "20260828_00", "access": "write", "required": ["subject", "start_datetime", "end_datetime", "time_zone"]},
-    "NOTION_GET_ABOUT_USER": {"toolkit": "notion", "version": "20260819_00", "access": "read", "required": ["user_id"]},
-    "NOTION_SEARCH_NOTION_PAGE": {"toolkit": "notion", "version": "20260819_00", "access": "read", "required": []},
-    "NOTION_CREATE_NOTION_PAGE": {"toolkit": "notion", "version": "20260819_00", "access": "write", "required": ["parent_id", "title"]},
-    "NOTION_APPEND_TEXT_BLOCKS": {"toolkit": "notion", "version": "20260819_00", "access": "write", "required": ["block_id", "children"]}
+    "SLACK_TEST_AUTH": {"toolkit": "slack", "version": "20260717_00", "access": "read", "required": []},
+    "SLACK_FETCH_CONVERSATION_HISTORY": {"toolkit": "slack", "version": "20260717_00", "access": "read", "required": ["channel"]},
+    "SLACK_OPEN_DM": {"toolkit": "slack", "version": "20260717_00", "access": "write", "required": []},
+    "SLACK_SEND_MESSAGE": {"toolkit": "slack", "version": "20260717_00", "access": "write", "required": ["channel"]},
+    "GITHUB_GET_THE_AUTHENTICATED_USER": {"toolkit": "github", "version": "20260713_00", "access": "read", "required": []},
+    "GITHUB_LIST_REPOSITORY_ISSUES": {"toolkit": "github", "version": "20260713_00", "access": "read", "required": ["owner", "repo"]},
+    "GITHUB_CREATE_AN_ISSUE": {"toolkit": "github", "version": "20260713_00", "access": "write", "required": ["owner", "repo", "title"]},
+    "GITHUB_CREATE_AN_ISSUE_COMMENT": {"toolkit": "github", "version": "20260713_00", "access": "write", "required": ["owner", "repo", "issue_number", "body"]},
+    "GITHUB_CLOSE_ISSUE": {"toolkit": "github", "version": "20260713_00", "access": "write", "required": ["owner", "repo", "issue_number"]},
+    "OUTLOOK_GET_PROFILE": {"toolkit": "outlook", "version": "20260714_00", "access": "read", "required": []},
+    "OUTLOOK_SEND_EMAIL": {"toolkit": "outlook", "version": "20260714_00", "access": "write", "required": ["to", "subject", "body"]},
+    "OUTLOOK_CALENDAR_CREATE_EVENT": {"toolkit": "outlook", "version": "20260714_00", "access": "write", "required": ["subject", "start_datetime", "end_datetime", "time_zone"]},
+    "NOTION_GET_ABOUT_USER": {"toolkit": "notion", "version": "20260707_00", "access": "read", "required": ["user_id"]},
+    "NOTION_SEARCH_NOTION_PAGE": {"toolkit": "notion", "version": "20260707_00", "access": "read", "required": []},
+    "NOTION_CREATE_NOTION_PAGE": {"toolkit": "notion", "version": "20260707_00", "access": "write", "required": ["parent_id", "title"]},
+    "NOTION_APPEND_TEXT_BLOCKS": {"toolkit": "notion", "version": "20260707_00", "access": "write", "required": ["block_id", "children"]}
   }
 }

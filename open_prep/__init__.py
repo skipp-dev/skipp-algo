@@ -7,6 +7,7 @@ and optional trade-card generation.
 """
 
 __all__: list[str] = [
+    "ai",
     "alerts",
     "bea",
     "config_validation",

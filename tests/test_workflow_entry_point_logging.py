@@ -31,7 +31,7 @@ _PRIORITY_ENTRY_POINTS = [
     "scripts/build_families_telemetry.py",
     "scripts/backfill_live_outcomes.py",
     "scripts/check_phase_b_drift_readiness.py",
-    # 2026-07-28: emit_fvg_context_pine.py dropped (stranded chain removed).
+    "scripts/emit_fvg_context_pine.py",
     "scripts/fvg_quality_quartile_gate.py",
     "scripts/generate_smc_micro_base_from_databento.py",
     "scripts/fvg_quality_recalibration.py",

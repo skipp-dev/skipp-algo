@@ -60,10 +60,16 @@ _REQUIREMENTS: tuple[_RationaleRequirement, ...] = (
         ),
         rationale_url_or_id="W1.b advisory rc-policy (gate step body)",
     ),
-    # A#6 (c13-daily-cron.yml, "backfill=0 warning instead of error") was
-    # dropped on 2026-08-07: the F-V3-15 guard was flipped to ::error:: + exit 1
-    # and now publishes `rc` into the issue-opening gate, so there is no
-    # remaining fail-soft to justify. See tests/test_c13_daily_cron_advisory_chain.py.
+    _RationaleRequirement(
+        workflow="c13-daily-cron.yml",
+        finding="A#6 — backfill=0 warning instead of error",
+        must_contain=(
+            "Phase 1 (here): warning only",
+            "Phase 2",
+            "before this becomes hard-fail in phase 2",
+        ),
+        rationale_url_or_id="F-V3-15 Phase 1 (above-step + ::warning:: body)",
+    ),
     _RationaleRequirement(
         workflow="f2-promotion-gate-daily.yml",
         finding="A#3 — dual-arm artefacts missing",

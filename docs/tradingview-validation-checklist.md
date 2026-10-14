@@ -29,9 +29,9 @@ Current manual validation counts:
 
 ### Dashboard Needs These Bindings
 
-The dashboard expects all `64` bindings declared in [SMC_Decision_Board.pine](../SMC_Decision_Board.pine) and governed by [../scripts/smc_bus_manifest.py](../scripts/smc_bus_manifest.py).
+The dashboard expects all `64` bindings declared in [SMC_Long_Dip_Dashboard.pine](../SMC_Long_Dip_Dashboard.pine) and governed by [../scripts/smc_bus_manifest.py](../scripts/smc_bus_manifest.py).
 
-Decision State:
+Lifecycle:
 
 - `BUS SchemaVersion`
 - `BUS ZoneActive`
@@ -48,19 +48,7 @@ Decision State:
 - `BUS TrendPack`
 - `BUS MetaPack`
 
-Context Signals:
-
-- `BUS LtfDeltaState`
-- `BUS SafeTrendState`
-- `BUS MicroProfileCode`
-
-Trade Plan:
-
-- `BUS StopLevel`
-- `BUS Target1`
-- `BUS Target2`
-
-Context Rows:
+Diagnostic Rows:
 
 - `BUS SessionGateRow`
 - `BUS MarketGateRow`
@@ -83,17 +71,26 @@ Context Rows:
 - `BUS VolRegimeRow`
 - `BUS VolSqueezeRow`
 
-Blocker Codes:
+Diagnostic Support:
 
+- `BUS LtfDeltaState`
+- `BUS SafeTrendState`
+- `BUS MicroProfileCode`
 - `BUS ReadyBlockerCode`
 - `BUS StrictBlockerCode`
 - `BUS VolExpansionState`
 - `BUS DdviContextState`
 
-The three `Context Signals` support codes and the four `Blocker Codes`
-replace the final packed transport layer. The dashboard reconstructs
-`LTF Delta`, `Swing`, `Micro Profile`, `Ready Gate`, `Strict Gate`,
-`Vol Expand`, and `DDVI` locally from this explicit support-code surface.
+These seven support channels replace the final packed transport layer. The
+dashboard reconstructs `LTF Delta`, `Swing`, `Micro Profile`, `Ready Gate`,
+`Strict Gate`, `Vol Expand`, and `DDVI` locally from the explicit support-code
+surface.
+
+Trade Plan:
+
+- `BUS StopLevel`
+- `BUS Target1`
+- `BUS Target2`
 
 Detail Surface:
 
@@ -116,17 +113,9 @@ Lean Surface:
 - `BUS LeanPackA`
 - `BUS LeanPackB`
 
-Preset Contract:
-
-- `BUS PresetClassCode`
-- `BUS PresetRvolMin`
-- `BUS PresetHtfBiasMin`
-- `BUS PresetFvgQualGate`
-- `BUS PresetVolRegimeDef`
-
 ### Local Dashboard-Only Debug Mirrors
 
-These controls live under `10. Advanced - Debug Mirrors`. They are
+These controls live under `8. Operator Only - Local Debug Mirrors`. They are
 not `source` bindings and are configured manually only when you want to
 validate the `Debug Flags` or `Long Debug` rows against the core's effective
 debug setup:
@@ -153,8 +142,8 @@ The strategy expects only the 8 bindings declared in [SMC_Long_Dip_Strategy.pine
 Before validating any scenarios, confirm the visible product copy is aligned:
 
 1. Core uses `Trading Style`, `Focus View`, and `Show Decision Brief`, starts with `Core Setup`, `Output`, `Trade Plan`, `Session Gate`, and `Runtime Budget` before any advanced groups, and in `Focus View` shows one hero card with no default swing-level or standalone warning-label duplicates before `Ready` trade lines appear.
-2. Dashboard uses `View`, `Decision Brief`, `Audit View`, `Show Brief Panel`, `Show Trade Plan`, and `Highlight Live Setup`, with `Product Surface` appearing before the eight `Chart Link` binding groups.
-3. Strategy uses `Execution Stage`, `Minimum Quality Score`, `Take Profit (R)`, and `Use Take Profit`, with `Execution Setup` and `Trade Plan` appearing before the two `Chart Link` groups.
+2. Dashboard uses `View`, `Decision Brief`, `Audit View`, `Show Brief Panel`, `Show Trade Plan`, and `Highlight Live Setup`, with `Product Surface` appearing before the operator-only binding groups.
+3. Strategy uses `Execution Stage`, `Minimum Quality Score`, `Take Profit (R)`, and `Use Take Profit`, with `Execution Setup` and `Trade Plan` appearing before the two `Expert Mapping` groups.
 4. Strategy chart outputs read `Execution Trigger`, `Execution Invalidation`, and `Execution Take Profit`.
 
 ## Manual Validation Scenarios
@@ -201,7 +190,7 @@ Expected dashboard cues:
 
 If this fails:
 
-- `StateCode` to `setup_text()` mapping in [SMC_Decision_Board.pine](../SMC_Decision_Board.pine#L182-L197) is wrong
+- `StateCode` to `setup_text()` mapping in [SMC_Long_Dip_Dashboard.pine](../SMC_Long_Dip_Dashboard.pine#L182-L197) is wrong
 - `MetaPack.freshness_code` mapping is wrong
 
 ### 3. Confirmed
@@ -261,7 +250,7 @@ Expected dashboard cues:
 If this fails:
 
 - `StateCode` binding is wrong
-- lifecycle decoder mapping in [SMC_Decision_Board.pine](../SMC_Decision_Board.pine#L162-L197) is wrong
+- lifecycle decoder mapping in [SMC_Long_Dip_Dashboard.pine](../SMC_Long_Dip_Dashboard.pine#L162-L197) is wrong
 
 ## Signs That Decoder Or Source Mapping Is Wrong
 
@@ -278,7 +267,7 @@ If this fails:
 ## Manual Cross-Check Order
 
 1. Add `SMC_Long_Dip_Suite.pine` to the chart and capture a rendered first-run Core screenshot.
-2. Add `SMC_Decision_Board.pine`, set `View = Decision Brief`, and bind all 64 sources to the core plots. Capture the rendered brief surface.
+2. Add `SMC_Long_Dip_Dashboard.pine`, set `View = Decision Brief`, and bind all 64 sources to the core plots. Capture the rendered brief surface.
 3. Switch the Dashboard to `Audit View` and capture the rendered expert surface.
 4. Add `SMC_Long_Dip_Strategy.pine`, bind its 8 sources to the core plots, and capture a rendered execution screenshot when a plan is active.
 5. Validate the five scenarios above on the same symbol and timeframe.

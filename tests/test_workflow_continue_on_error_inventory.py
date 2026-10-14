@@ -37,17 +37,6 @@ from tests._workflow_yaml import (
 # ``name:<step-name>``. Adding/removing entries here MUST be paired with a
 # CHANGELOG entry justifying the silent-fail tolerance.
 _ALLOWED: dict[str, dict[str, set[str]]] = {
-    # composio-canary.yml (2026-08-30): die vier Pruef-Steps laufen fail-soft,
-    # damit KEINE die anderen mehr ueberspringt. Vorher waren es gewoehnliche
-    # Steps — gemessen an Lauf 32813924394 (25.8.) toetete der Versionsdrift in
-    # Step 1 den Audit UND die Verbindungsprobe, sodass die toten Slack-/
-    # Notion-Verbindungen zehn Tage lang NIE GEMESSEN wurden.
-    # Kein Silent-Fail: jeder Step publiziert sein rc, und der Step
-    # "Fail when any check reported a problem" bewertet alle vier — beidseitig
-    # gepinnt in tests/test_composio_canary_per_connection.py.
-    "composio-canary.yml": {
-        "probe": {"id:contract", "id:audit", "id:probe", "id:poll", "id:bericht"},
-    },
     # smc-live-news-refresh.yml entry removed (Workflow-Audit MITTEL-11,
     # 2026-06): the bot-branch publish step is internally fail-loud
     # (F-V5-F1) and the step-level continue-on-error neutralised that —
@@ -59,6 +48,9 @@ _ALLOWED: dict[str, dict[str, set[str]]] = {
         "refresh": {
             "id:gates",
             "id:pre_release_refresh",
+            "id:tv_post_release_raw",
+            "id:tv_post_release",
+            "id:alerts",
             "id:notify_breaking",
             "id:notify_end",
             # 2026-06-17 (W3, R4b audit): cumulative best-effort failure
@@ -67,15 +59,6 @@ _ALLOWED: dict[str, dict[str, set[str]]] = {
             "id:dl_best_effort_history",
             "id:best_effort_summary",
             "id:ul_best_effort_history",
-        },
-    },
-    # 2026-08-13: die mit der Veroeffentlichung ausgezogenen best-effort-
-    # Schritte. Summe ueber beide Dateien unveraendert.
-    "smc-library-publish.yml": {
-        "publish": {
-            "id:tv_post_release_raw",
-            "id:tv_post_release",
-            "id:alerts",
         },
     },
     # Deeper integration gates: 2 advisory probes (measurement export + E2E smoke).
@@ -103,13 +86,10 @@ _ALLOWED: dict[str, dict[str, set[str]]] = {
     "adr0023-magnitude-shadow-daily.yml": {
         "magnitude-shadow": {"id:ledger_metrics"},
     },
-    # C13 daily-cron: 10 best-effort steps so partial failures still upload
+    # C13 daily-cron: 9 best-effort steps so partial failures still upload
     # artefacts and the issue-opener can report which step failed.
-    # 2026-08-19 (#4848 R#4): + status_markers — der Marker-Konsument ist
-    # advisory wie die Steps 1-5b, Alarm läuft über rc + Issue-Opener.
     "c13-daily-cron.yml": {
         "daily-pipeline": {
-            "id:status_markers",
             "id:backfill",
             "id:backfill_progress",
             "id:drift_input",

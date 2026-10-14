@@ -28,13 +28,6 @@ from pathlib import Path
 import pytest
 import yaml
 
-# Imported, not re-spelled: #4297 moved smc-library-refresh into the shared
-# TradingView session group, and this module still demanded the per-ref name.
-# Two pins describing one workflow's concurrency, each with its own copy of the
-# expected string, is how they end up contradicting each other -- which they
-# did, on main, because only one of the two runs in the PR gate.
-from tests.test_tradingview_session_concurrency import SHARED_GROUP
-
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _WORKFLOWS = _REPO_ROOT / ".github" / "workflows"
 
@@ -52,22 +45,8 @@ _HANDOFF_WORKFLOWS = {
     "smc-databento-production-export": {
         "expected_group": "smc-databento-production-export-${{ github.ref }}",
     },
-    # 2026-08-01 (#4297): this one drives TradingView, so it joined the shared
-    # session group. That is STRICTER than the per-ref guard this module was
-    # written for -- a single global group cannot let two runs of the same
-    # workflow overlap on any ref, let alone the same one -- so the property
-    # F-V8-C3.1-D pins is preserved, not relaxed. cancel-in-progress: false is
-    # asserted below either way, and that is the half that must never move.
     "smc-library-refresh": {
-        # 2026-08-13: zurueck auf die eigene per-ref-Gruppe. #4297 zog den
-        # Workflow in die geteilte TradingView-Sitzung; seit der Herausloesung
-        # der Veroeffentlichung fasst er TradingView nicht mehr an und braucht
-        # nur noch den Schutz, den DIESES Modul beschreibt: nicht zwei
-        # Refreshes gleichzeitig. Die Sitzungssperre haelt smc-library-publish.
         "expected_group": "smc-library-refresh-${{ github.ref }}",
-    },
-    "smc-library-publish": {
-        "expected_group": SHARED_GROUP,
     },
 }
 

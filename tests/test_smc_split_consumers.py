@@ -10,7 +10,7 @@ from tests.smc_manifest_test_utils import (
 )
 
 CORE_PATH = ROOT / 'SMC_Long_Dip_Suite.pine'
-DASHBOARD_PATH = ROOT / 'SMC_Decision_Board.pine'
+DASHBOARD_PATH = ROOT / 'SMC_Long_Dip_Dashboard.pine'
 STRATEGY_PATH = ROOT / 'SMC_Long_Dip_Strategy.pine'
 
 
@@ -26,7 +26,7 @@ def _read(path: pathlib.Path) -> str:
 def test_dashboard_is_a_bus_only_consumer() -> None:
     source = _read(DASHBOARD_PATH)
 
-    assert 'indicator("SMC Decision Board", overlay = true' in source
+    assert 'indicator("SMC Long-Dip Dashboard", overlay = true' in source
     assert source.count('input.source(') == len(EXPECTED_DASHBOARD_BUS_LABELS)
     for label in EXPECTED_DASHBOARD_BUS_LABELS:
         assert label in source

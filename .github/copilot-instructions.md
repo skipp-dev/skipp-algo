@@ -5,7 +5,7 @@
 | Signal | Sofort-Aktion |
 |---|---|
 | `mergeStateStatus == "DIRTY"` | `git fetch origin main && git rebase origin/main` → Konflikte lösen → `git push --force-with-lease` |
-| `mergeStateStatus == "BEHIND"` | **Auto-Merge armiert** (Squash-PR) → `gh api repos/skipp-dev/skipp-algo/pulls/<N>/update-branch -X PUT`, `--auto` armiert lassen, weitermachen (kein Rebase/Force-Push — der kämpft gegen Auto-Merge; **niemals `--admin`** — Branch-Protection-Gate nicht umgehen). **Sonst (lokaler Branch ohne Auto-Merge)** → `git fetch origin main && git rebase origin/main && git push --force-with-lease` |
+| `mergeStateStatus == "BEHIND"` | **Auto-Merge armiert** (Squash-PR) → `gh api repos/skippALGO/skipp-algo/pulls/<N>/update-branch -X PUT`, `--auto` armiert lassen, weitermachen (kein Rebase/Force-Push — der kämpft gegen Auto-Merge; **niemals `--admin`** — Branch-Protection-Gate nicht umgehen). **Sonst (lokaler Branch ohne Auto-Merge)** → `git fetch origin main && git rebase origin/main && git push --force-with-lease` |
 | `git push` → `[remote rejected]` | `git fetch origin <branch> && git rebase origin/<branch> && git push --force-with-lease` |
 | Pre-commit Hook: falscher Branch | Checkout korrigieren → cherry-pick → neu committen |
 
@@ -60,7 +60,7 @@ CI läuft ~5–20min. In dieser Zeit **immer** eine dieser Aktionen:
 
 1. Copilot-Inline-Threads für den PR lesen und fixen:
 ```bash
-gh api repos/skipp-dev/skipp-algo/pulls/<N>/comments --paginate \
+gh api repos/skippALGO/skipp-algo/pulls/<N>/comments --paginate \
   | python3 -c "import sys,json; [print(f\"{c['path']}:{c.get('line')} {c['body'][:120]}\") for c in json.load(sys.stdin,strict=False) if 'opilot' in c['user']['login'].lower()]"
 ```
 2. Andere offene PRs auf `mergeStateStatus` prüfen (s. PR-Housekeeping)
@@ -70,7 +70,7 @@ gh api repos/skipp-dev/skipp-algo/pulls/<N>/comments --paginate \
 
 CI-Ergebnis auswerten:
 - Grün + keine offenen Threads → merge (s. PR-Housekeeping)
-- Rot → `gh api repos/skipp-dev/skipp-algo/actions/jobs/<job-id>/logs | grep -E "FAILED|Found [0-9]+ error" | head -10` → direkt fixen
+- Rot → `gh api repos/skippALGO/skipp-algo/actions/jobs/<job-id>/logs | grep -E "FAILED|Found [0-9]+ error" | head -10` → direkt fixen
 
 ---
 
@@ -93,7 +93,7 @@ gh pr view <N> --json mergeStateStatus,autoMergeRequest,reviewDecision
 
 **Alle PRs scannen:**
 ```bash
-gh pr list --repo skipp-dev/skipp-algo --state open \
+gh pr list --repo skippALGO/skipp-algo --state open \
   --json number,title,mergeable,mergeStateStatus,isDraft,headRefName \
   | python3 -c "import sys,json; [print(f\"#{p['number']} {p['title'][:50]} | {p['mergeStateStatus']} | draft={p['isDraft']}\") for p in json.load(sys.stdin)]"
 ```

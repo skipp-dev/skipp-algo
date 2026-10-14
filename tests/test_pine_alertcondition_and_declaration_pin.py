@@ -165,7 +165,7 @@ _DECL_RE = re.compile(r"^(indicator|strategy|library)\s*\(", re.MULTILINE)
 _FROZEN_DECL_KIND: dict[str, str] = {
     "SMC_Breakout_Overlay.pine": "indicator",
     "SMC_Long_Dip_Suite.pine": "indicator",
-    "SMC_Decision_Board.pine": "indicator",
+    "SMC_Long_Dip_Dashboard.pine": "indicator",
     "SMC_Event_Overlay.pine": "indicator",
     "SMC_Exit_Signal.pine": "indicator",
     "SMC_HTF_Confluence.pine": "indicator",
@@ -184,8 +184,6 @@ _FROZEN_DECL_KIND: dict[str, str] = {
     "SMC_Volume_Profile_Overlay.pine": "indicator",
     "SMC_Confluence_Hub.pine": "indicator",
     "SMC_Long_Dip_Alerts.pine": "indicator",
-    "SMC_Context_Bus.pine": "indicator",
-    "SMC_Context_Overlay.pine": "indicator",
     "test_div.pine": "indicator",
 }
 

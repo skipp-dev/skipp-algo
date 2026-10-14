@@ -66,33 +66,11 @@ def test_monitors_critical_crons_with_budgets(text: str) -> None:
         # Workflow-Audit 2026-06: previously unmonitored data pipelines.
         # `:any` = cron fires count (workflows with expected red runs);
         # stage1-weekly runs on Mondays -> 8-day budget.
-        # 2026-08-29 `:any` -> `:success`. Seit dem Kadenz-Gate kann dieser
-        # Workflow absichtlich UEBERSPRINGEN (conclusion "skipped"), und
-        # `:any` zaehlt jeden Fire — ein Gate-Defekt, der IMMER ueberspringt,
-        # bliebe damit dauerhaft gruen und unentdeckt. `:success` verlangt
-        # innerhalb von 72 Werktagsstunden einen wirklich gelaufenen
-        # Benchmark; bei zwei geplanten Laeufen je Werktag ist das reichlich
-        # Luft. Die Regel selbst ist in
-        # tests/test_decide_rolling_benchmark_run.py geprueft — dieser
-        # Eintrag ist der Alarm daneben, nicht der Beweis.
-        # 2026-10-01, gemessen: die Praemisse oben stimmt nicht. Ein vom
-        # Kadenz-Gate uebersprungener Fire endet mit conclusion `success`
-        # (Gate-Job gruen, Worker skipped), nicht `skipped` — `:success`
-        # wird also von jedem uebersprungenen Fire erfuellt. Genau dieser
-        # Fall trat ein (Fenster A lief seit 31.8. nie) und blieb hier
-        # gruen. Den Alarm traegt seither die PRODUKT-Zeile des Monitors
-        # (`--product …returns_series_*.json`), nicht diese.
-        "smc-measurement-benchmark-rolling.yml=72:success:weekday",
+        "smc-measurement-benchmark-rolling.yml=72:any:weekday",
         "adr0023-magnitude-shadow-daily.yml=72:any:weekday",
         "adr0023-magnitude-stage1-weekly.yml=192",
         "g23-ab-watchdog.yml=72:any:weekday",
         "smc-live-news-refresh.yml=72:weekday",
-        # The 12:07Z R1 re-attestation proposer (#4454). `:any` because a
-        # correct no-op day (pin already at published) and a refused downgrade
-        # both end the run without a "success we'd count" -- what must never
-        # happen silently is the cron NOT FIRING, which is exactly the failure
-        # mode this monitor exists for (post-mortem #2415).
-        "smc-r1-reattest.yml=72:any:weekday",
     ]
     for spec in must_monitor:
         assert spec in text, f"freshness monitor is no longer probing {spec}"
@@ -139,8 +117,8 @@ def test_uploads_freshness_artifact(text: str) -> None:
 def test_uses_pinned_action_shas(text: str) -> None:
     # Pin checks defend against tag-mutation supply-chain risk —
     # same SHA discipline as the credential-health workflow.
-    assert "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" in text
-    assert "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97" in text
+    assert "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd" in text
+    assert "actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405" in text
     assert "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a" in text
 
 

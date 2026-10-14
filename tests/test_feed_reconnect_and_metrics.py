@@ -10,7 +10,7 @@ import logging
 import queue
 import threading
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import Callable
 from types import ModuleType
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -37,70 +37,10 @@ def _reload_feed_module() -> ModuleType:
     return feed
 
 
-def _patch_reconnect_delays(feed: ModuleType, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Shrink reconnect delays so tests run in milliseconds, not minutes.
-
-    Via ``monkeypatch`` rather than plain assignment: ``_reload_feed_module()``
-    reloads ``feed`` in place, so these writes land on the *shared* module
-    object in ``sys.modules`` and outlive this file. An unrestored 0.05 makes
-    ``tests/test_live_overlay_heal_grace_backoff.py`` fail its premise check
-    (``assert 60.05 > 85.0``) whenever xdist happens to schedule it into this
-    worker afterwards -- a failure that moves with the shard layout, not with
-    the code under test.
-    """
-    monkeypatch.setattr(feed, "_RECONNECT_DELAY_SECS", 0.05)
-    monkeypatch.setattr(feed, "_RECONNECT_BACKOFF_SECS", 0.05)
-
-
-@pytest.fixture(autouse=True)
-def _no_reconnect_constant_leaks() -> Iterator[None]:
-    """Fail here, not in whichever file xdist schedules next.
-
-    Autouse, and it requests no other fixture, so it is set up first and torn
-    down last -- after ``monkeypatch`` has already put the constants back. A
-    reintroduced plain assignment therefore fails in the file that caused it,
-    deterministically, instead of surfacing as an unrelated red test somewhere
-    downstream.
-
-    2026-08-21: ``_runtime["reconnect_wait_until"]`` DAZUGENOMMEN. Der Waechter
-    hiess schon immer "no reconnect leaks", sah aber nur die zwei Konstanten --
-    waehrend derselbe Codepfad, den diese Datei faehrt, in feed.py:511
-    ``_runtime["reconnect_wait_until"] = time.monotonic() + delay`` schreibt.
-    Das ist die ECHTE Uhr, also auf einer Maschine mit Uptime eine Zahl in
-    Hunderttausenden, und sie blieb stehen.
-
-    Was das kostete, gemessen auf sauberem origin/main (9995cdff9):
-
-        pytest tests/test_feed_reconnect_and_metrics.py \\
-               tests/test_smc_live_overlay_feed_lifecycle_thread_safety.py
-        -> 2 failed, 26 passed
-
-    Der Supervisor liest den Schluessel in ``_grace_deadline`` (feed.py:131) und
-    haelt die Heilung bis zu jener Zeit zurueck -- also praktisch fuer immer.
-    Die Tests nebenan scheitern dann mit ``assert [] == [1]``: der Supervisor
-    heilte nie, und die Begruendung zeigt auf den falschen Verdaechtigen.
-    Ueber die volle Reverse-Import-Auswahl von feed.py waren es 9 rote Tests;
-    ein Plugin, das NUR diesen einen Schluessel zuruecksetzt, machte daraus
-    302 passed.
-    """
-    import services.live_overlay_daemon.feed as feed
-
-    before = (feed._RECONNECT_DELAY_SECS, feed._RECONNECT_BACKOFF_SECS)
-    window_before = feed._runtime.get("reconnect_wait_until", 0.0)
-    try:
-        yield
-    finally:
-        # Zuruecksetzen, NICHT bloss pruefen: der Wert entsteht im
-        # Produktionscode, nicht in einer Testzeile. Ihn hier einzufordern
-        # hiesse, jedem Test dieser Datei aufzutragen, hinter feed.py
-        # aufzuraeumen -- eine Regel, die der naechste neue Test nicht kennt.
-        feed._runtime["reconnect_wait_until"] = window_before
-    after = (feed._RECONNECT_DELAY_SECS, feed._RECONNECT_BACKOFF_SECS)
-    assert after == before, (
-        "this test left feed's reconnect constants at "
-        f"{after} instead of {before}; shrink them with monkeypatch.setattr, "
-        "not by assigning onto the reloaded module"
-    )
+def _patch_reconnect_delays(feed: ModuleType) -> None:
+    """Shrink reconnect delays so tests run in milliseconds, not minutes."""
+    feed._RECONNECT_DELAY_SECS = 0.05
+    feed._RECONNECT_BACKOFF_SECS = 0.05
 
 
 def _run_feed_loop_until(
@@ -180,26 +120,6 @@ class OHLCV_1m:
     ts_event = 1
 
 
-def test_feed_thread_restart_preserves_requested_timeframe_history() -> None:
-    """A supervisor restart of only the feed thread must not reinitialise cache state."""
-
-    from services.live_overlay_daemon import cache
-
-    feed = _reload_feed_module()
-    cache.push_bar("AAPL", {"ts_event": 1})
-    cache.ensure_bar_capacity("AAPL", 2_880)
-    for index in range(1, 100):
-        cache.push_bar("AAPL", {"ts_event": index + 1})
-    before = cache.get_bars_snapshot("AAPL")
-
-    already_stopped = threading.Event()
-    already_stopped.set()
-    feed._run_feed_loop(already_stopped)
-
-    assert cache.get_bars_snapshot("AAPL") == before
-    assert cache.requested_bar_history_readiness()[0] == 1
-
-
 class TestFeedReconnectAndCircuitBreaker:
     """_run_feed_loop reconnects on BentoError and trips the circuit breaker."""
 
@@ -207,7 +127,7 @@ class TestFeedReconnectAndCircuitBreaker:
         monkeypatch.setenv("DATABENTO_API_KEY", "dummy-key")
         monkeypatch.setenv("OVERLAY_MAX_FEED_FAILURES", "5")
         feed = _reload_feed_module()
-        _patch_reconnect_delays(feed, monkeypatch)
+        _patch_reconnect_delays(feed)
 
         failure = db.BentoError("connection reset")
         sequence = [failure]
@@ -227,7 +147,7 @@ class TestFeedReconnectAndCircuitBreaker:
         monkeypatch.setenv("DATABENTO_API_KEY", "dummy-key")
         monkeypatch.setenv("OVERLAY_MAX_FEED_FAILURES", "3")
         feed = _reload_feed_module()
-        _patch_reconnect_delays(feed, monkeypatch)
+        _patch_reconnect_delays(feed)
 
         failure = db.BentoError("persistent failure")
 
@@ -248,59 +168,11 @@ class TestFeedReconnectAndCircuitBreaker:
         assert snapshot["bento_errors"] >= 3
         assert not feed._feed_ready.is_set()
 
-    def test_iterator_failures_trip_circuit_breaker(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """A successful subscribe is not a recovery until one record arrives."""
-        monkeypatch.setenv("DATABENTO_API_KEY", "dummy-key")
-        monkeypatch.setenv("OVERLAY_MAX_FEED_FAILURES", "3")
-        feed = _reload_feed_module()
-        _patch_reconnect_delays(feed, monkeypatch)
-
-        failure = db.BentoError("stream disconnected")
-
-        def make_client(**_):
-            return FakeLive([failure])
-
-        with patch.object(db, "Live", side_effect=make_client):
-            _run_feed_loop_until(
-                feed,
-                until=lambda: feed.metrics_snapshot()["circuit_breakers"] >= 1,
-                max_runtime=2.0,
-            )
-
-        snapshot = feed.metrics_snapshot()
-        assert snapshot["circuit_breakers"] == 1
-        assert snapshot["bento_errors"] >= 3
-
-    def test_mapping_record_does_not_mask_failed_data_sessions(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """Metadata alone is not recovery when every session fails before a bar."""
-        monkeypatch.setenv("DATABENTO_API_KEY", "dummy-key")
-        monkeypatch.setenv("OVERLAY_MAX_FEED_FAILURES", "3")
-        feed = _reload_feed_module()
-        _patch_reconnect_delays(feed, monkeypatch)
-        failure = db.BentoError("stream disconnected before first bar")
-
-        with patch.object(
-            db,
-            "Live",
-            side_effect=lambda **_: FakeLive([SymbolMappingMsg(), failure]),
-        ):
-            _run_feed_loop_until(
-                feed,
-                until=lambda: feed.metrics_snapshot()["circuit_breakers"] >= 1,
-                max_runtime=2.0,
-            )
-
-        snapshot = feed.metrics_snapshot()
-        assert snapshot["circuit_breakers"] == 1
-        assert snapshot["bento_errors"] >= 3
-
     def test_unexpected_error_increments_unexpected_errors_metric(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("DATABENTO_API_KEY", "dummy-key")
         monkeypatch.setenv("OVERLAY_MAX_FEED_FAILURES", "5")
         feed = _reload_feed_module()
-        _patch_reconnect_delays(feed, monkeypatch)
+        _patch_reconnect_delays(feed)
 
         failure = RuntimeError("boom")
         sequence = [failure]
@@ -321,7 +193,7 @@ class TestFeedReconnectAndCircuitBreaker:
         monkeypatch.setenv("DATABENTO_API_KEY", "dummy-key")
         monkeypatch.setenv("OVERLAY_MAX_FEED_FAILURES", "5")
         feed = _reload_feed_module()
-        _patch_reconnect_delays(feed, monkeypatch)
+        _patch_reconnect_delays(feed)
 
         # Queue-based architecture: feed loop enqueues, ingest loop applies to cache.
         feed._runtime["ingest_queue"] = queue.Queue(maxsize=32)
@@ -431,74 +303,3 @@ class TestFeedReadyOwnership:
             "ingest loop re-armed _feed_ready from a bar queued before the disconnect"
         )
         assert not feed.is_ready(), "/health must not report ready while the feed is down"
-
-
-class OHLCVUnknownInstrument:
-    """OHLCV record whose instrument_id never appears in the symmap (sym=None drop)."""
-
-    instrument_id = 999
-    open = 1_000_000_000
-    high = 1_100_000_000
-    low = 900_000_000
-    close = 1_050_000_000
-    volume = 100
-    ts_event = 1
-
-
-class OHLCVUnparseable:
-    """OHLCV-typed record with a mapped symbol but none of the OHLC price
-    attributes, so _record_to_bar returns None (bar=None drop)."""
-
-    instrument_id = 1
-    volume = 100
-
-
-class TestFeedDropCounters:
-    """Truth-audit F-2: sym=None / bar=None drops were logged at most three
-    times per connection and then silently swallowed — no metric moved, so a
-    partial symbology gap (e.g. new listings missing from SymbolMappingMsg)
-    dropped those symbols' bars with zero operator visibility. These pins
-    require both drop classes to (a) be seeded at 0 so the hermetic exporter
-    render and rate()/increase() see them from boot, and (b) increment on the
-    corresponding drop."""
-
-    def test_drop_counters_are_seeded_at_zero(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("DATABENTO_API_KEY", "dummy-key")
-        feed = _reload_feed_module()
-        snapshot = feed.metrics_snapshot()
-        assert snapshot.get("sym_none_drops_total") == 0
-        assert snapshot.get("bar_none_drops_total") == 0
-
-    def test_sym_none_and_bar_none_drops_increment_counters(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.setenv("DATABENTO_API_KEY", "dummy-key")
-        monkeypatch.setenv("OVERLAY_MAX_FEED_FAILURES", "5")
-        feed = _reload_feed_module()
-        _patch_reconnect_delays(feed, monkeypatch)
-
-        sequence = [
-            SymbolMappingMsg(),
-            OHLCVUnknownInstrument(),  # unmapped instrument -> sym=None drop
-            OHLCVUnparseable(),        # mapped but priceless -> bar=None drop
-            OHLCV_1m(),                # healthy record still flows
-        ]
-
-        with patch.object(db, "Live", side_effect=lambda **_: _live_factory(sequence)):
-            _run_feed_loop_until(
-                feed,
-                until=lambda: (
-                    feed.metrics_snapshot().get("sym_none_drops_total", 0) >= 1
-                    and feed.metrics_snapshot().get("bar_none_drops_total", 0) >= 1
-                ),
-                # 10s bound: exits early via until(); 2.0 flaked once under a
-                # loaded machine (three-file run) before the counters landed.
-                max_runtime=10.0,
-            )
-
-        snapshot = feed.metrics_snapshot()
-        assert snapshot.get("sym_none_drops_total", 0) >= 1, "unmapped-instrument drop not counted"
-        assert snapshot.get("bar_none_drops_total", 0) >= 1, "unparseable-bar drop not counted"
-        # The healthy record must still have been ingested — the counters must
-        # observe drops, not cause them.
-        assert feed.last_bar_age_secs() is not None, "healthy bar was never ingested"

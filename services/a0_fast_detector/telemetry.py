@@ -14,18 +14,6 @@ from open_prep.pre_a0_telemetry import PreA0Telemetry
 
 DEFAULT_METRICS_HOST = "127.0.0.1"
 
-# Seeded so a0_fast_records_rejected_total EXISTS at zero before the first
-# rejection. Without a seed the family has no series at all until something is
-# rejected, and `increase(...[5m])` then treats that very first burst as its
-# baseline -- swallowing the one event the a0-fast-record-rejections rule was
-# written for. Measured 2026-08-19: the counter had 0 series in
-# grafanacloud-prom while every neighbouring a0_fast_* gauge had 1.
-# The reasons are the closed set passed to record_rejected(); the population is
-# re-derived from the call sites by
-# tests/test_a0_fast_telemetry.py::test_every_rejection_reason_is_seeded, so a
-# new reason cannot quietly go unseeded.
-SEEDED_REJECTION_REASONS: tuple[str, ...] = ("invalid_record", "unmapped_symbol")
-
 
 class A0FastTelemetry:
     def __init__(
@@ -40,9 +28,6 @@ class A0FastTelemetry:
         self._connected = False
         self._records_received = 0
         self._records_processed = 0
-        self._record_rejections: Counter[str] = Counter(
-            dict.fromkeys(SEEDED_REJECTION_REASONS, 0)
-        )
         self._wire_bytes = 0
         self._disconnects = 0
         self._decisions = 0
@@ -71,10 +56,6 @@ class A0FastTelemetry:
     def record_processed(self) -> None:
         with self._lock:
             self._records_processed += 1
-
-    def record_rejected(self, reason: str) -> None:
-        with self._lock:
-            self._record_rejections[_metric_reason(reason)] += 1
 
     def record_queue_drop(self, count: int = 1) -> None:
         with self._lock:
@@ -124,7 +105,6 @@ class A0FastTelemetry:
                 "connected": self._connected,
                 "records_received": self._records_received,
                 "records_processed": self._records_processed,
-                "record_rejections": dict(self._record_rejections),
                 "wire_bytes": self._wire_bytes,
                 "disconnects": self._disconnects,
                 "decisions": self._decisions,
@@ -152,42 +132,10 @@ class A0FastTelemetry:
             return HTTPStatus.SERVICE_UNAVAILABLE, "disconnected"
         if snapshot["resync_required"]:
             return HTTPStatus.SERVICE_UNAVAILABLE, "resync_required"
-        if snapshot["records_received"] >= 10 and snapshot["records_processed"] == 0:
-            return HTTPStatus.SERVICE_UNAVAILABLE, "no_records_processed"
         return HTTPStatus.OK, "ok"
-
-    def evidence_status(self) -> tuple[HTTPStatus, str]:
-        """Report whether this process is producing persisted PRE-A0 evidence."""
-        snapshot = self.snapshot()
-        checks = (
-            (not snapshot["connected"], "disconnected"),
-            (snapshot["records_received"] == 0, "no_records_received"),
-            (snapshot["records_processed"] == 0, "no_records_processed"),
-            (snapshot["resync_required"] > 0, "resync_required"),
-        )
-        for failed, reason in checks:
-            if failed:
-                return HTTPStatus.SERVICE_UNAVAILABLE, reason
-        if self._pre_a0 is None:
-            return HTTPStatus.SERVICE_UNAVAILABLE, "pre_a0_telemetry_missing"
-        pre_a0 = self._pre_a0.snapshot()
-        pre_checks = (
-            (not pre_a0["enabled"], "pre_a0_disabled"),
-            (pre_a0["model_status"] != "ready", "model_not_ready"),
-            (pre_a0["calibration_version"] == "none", "calibration_invalid"),
-            (pre_a0["inference_count"] == 0, "no_inference"),
-            (pre_a0["snapshots_recorded"] == 0, "no_snapshots_recorded"),
-            (pre_a0["snapshot_rows_flushed"] == 0, "no_rows_flushed"),
-            (pre_a0["persistence_errors"] > 0, "persistence_errors"),
-        )
-        for failed, reason in pre_checks:
-            if failed:
-                return HTTPStatus.SERVICE_UNAVAILABLE, reason
-        return HTTPStatus.OK, "evidence_flowing"
 
     def render_prometheus(self) -> str:
         snapshot = self.snapshot()
-        evidence_status, evidence_reason = self.evidence_status()
         metrics = [
             _gauge("a0_fast_stream_connected", int(snapshot["connected"])),
             _counter("a0_fast_records_received_total", snapshot["records_received"]),
@@ -212,20 +160,7 @@ class A0FastTelemetry:
             _counter("a0_fast_process_cpu_seconds_total", snapshot["process_cpu_seconds"]),
             _gauge("a0_fast_process_peak_rss_bytes", snapshot["process_peak_rss_bytes"]),
             _gauge("a0_fast_uptime_seconds", snapshot["uptime_seconds"]),
-            _gauge(
-                "a0_fast_evidence_ready",
-                int(evidence_status is HTTPStatus.OK),
-            ),
         ]
-        metrics.append("# TYPE a0_fast_evidence_status_info gauge\n")
-        metrics.append(
-            f'a0_fast_evidence_status_info{{reason="{evidence_reason}"}} 1\n'
-        )
-        metrics.append("# TYPE a0_fast_records_rejected_total counter\n")
-        for reason, count in sorted(snapshot["record_rejections"].items()):
-            metrics.append(
-                f'a0_fast_records_rejected_total{{reason="{reason}"}} {count}\n'
-            )
         metrics.append("# TYPE a0_fast_recoveries_total counter\n")
         for status, count in sorted(snapshot["recovery_counts"].items()):
             metrics.append(
@@ -258,10 +193,6 @@ def start_metrics_server(
                 return
             if self.path == "/healthz":
                 status, body = telemetry.health_status()
-                self._write(status, body + "\n")
-                return
-            if self.path == "/evidencez":
-                status, body = telemetry.evidence_status()
                 self._write(status, body + "\n")
                 return
             self._write(HTTPStatus.NOT_FOUND, "not found\n")

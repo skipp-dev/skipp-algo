@@ -25,13 +25,6 @@ COPY terminal_tradingview_news.py /app/terminal_tradingview_news.py
 COPY terminal_fmp_insights.py /app/terminal_fmp_insights.py
 COPY cisco_ai_defense.py /app/cisco_ai_defense.py
 COPY open_prep_boundary.py /app/open_prep_boundary.py
-# terminal_technicals + terminal_fmp_technicals — the RealtimeEngine's
-# TechnicalScorer chain (tradingview_ta primary, FMP fallback). Without these
-# the deferred import in realtime_signals._get_fetch_fn silently degraded to
-# _noop_fetch: every prod signal scored technical_score=0.5 NEUTRAL and the
-# RSI A1->A0 upgrades / STRONG_SELL A0 blocks were inert (audit finding).
-COPY terminal_technicals.py /app/terminal_technicals.py
-COPY terminal_fmp_technicals.py /app/terminal_fmp_technicals.py
 RUN mkdir -p /app/smc_core && touch /app/smc_core/__init__.py
 COPY smc_core/resilient.py /app/smc_core/resilient.py
 COPY databento_utils.py /app/databento_utils.py
@@ -40,19 +33,6 @@ COPY databento_utils.py /app/databento_utils.py
 #   module is needed; copying the whole scripts/ dir keeps the image lean and
 #   avoids pulling in Streamlit/heavy dashboard deps from other scripts.
 COPY scripts/smc_newsapi_ai.py /app/scripts/smc_newsapi_ai.py
-# atomic_write_text — used by open_prep.quote_reference (the RT_QUOTE_SOURCE=
-# databento path); self-contained (stdlib only). Missing until the shadow
-# deploy surfaced ModuleNotFoundError: No module named 'scripts.smc_atomic_write'.
-COPY scripts/smc_atomic_write.py /app/scripts/smc_atomic_write.py
-# calibrate_signal_followthrough — the nightly in-process calibration
-# (open_prep.calibration_scheduler, RT_CALIBRATION_UTC_HHMM) imports this
-# module to write calibration_latest.json onto the volume. Missing from
-# 2026-07-09 to 2026-08-04: the fail-soft scheduler swallowed the nightly
-# ModuleNotFoundError at debug level, so no table was ever produced and
-# rt_notify's calibrated ⭐P..% path could never arm (same class as the
-# smc_atomic_write miss above). Stdlib-only apart from a lazy
-# open_prep.macro.FMPClient import, which this image already carries.
-COPY scripts/calibrate_signal_followthrough.py /app/scripts/calibrate_signal_followthrough.py
 RUN touch /app/scripts/__init__.py
 
 # Run as a non-root user for security (D1).

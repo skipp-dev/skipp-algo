@@ -30,7 +30,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from tests._guard_corpus import iter_production_py_files, parse_module
+from tests._guard_corpus import parse_module
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -52,7 +52,13 @@ _DIR_EXCLUDE = {
 
 
 def _iter_py_files() -> list[Path]:
-    return iter_production_py_files(_DIR_EXCLUDE)
+    out: list[Path] = []
+    for path in ROOT.rglob("*.py"):
+        rel = path.relative_to(ROOT)
+        if any(part in _DIR_EXCLUDE or part.startswith(".") for part in rel.parts):
+            continue
+        out.append(path)
+    return out
 
 
 def _asyncio_attr_call_sites(attr: str) -> set[tuple[str, int]]:
@@ -109,19 +115,12 @@ NEW_EVENT_LOOP_ALLOWED: dict[str, int] = {
     # daemon thread (required to host the Databento asyncio websocket session
     # alongside FastAPI's uvicorn loop without conflicts).
     "services/live_overlay_daemon/feed.py": 1,
-    # 2026-07-25 (databento-signal-migration): the db.Live consumer thread in
-    # DatabentoQuoteFeed needs its own loop, ported verbatim from feed.py's
-    # db.Live consumer (same non-main-thread pattern above).
-    "open_prep/databento_quote_feed.py": 1,
 }
 
 SET_EVENT_LOOP_ALLOWED: dict[str, int] = {
     "newsstack_fmp/ingest_benzinga.py": 1,
     # Same daemon thread pattern as above.
     "services/live_overlay_daemon/feed.py": 1,
-    # 2026-07-25 (databento-signal-migration): paired with the
-    # new_event_loop() entry above, same db.Live consumer thread.
-    "open_prep/databento_quote_feed.py": 1,
 }
 
 

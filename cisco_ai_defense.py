@@ -28,15 +28,8 @@ logger = logging.getLogger(__name__)
 _API_KEY_ENV = "CISCO_AI_DEFENSE_API_KEY"
 _REGION_ENV = "CISCO_AI_DEFENSE_REGION"
 _MODE_ENV = "CISCO_AI_DEFENSE_MODE"
-_RESPONSE_MODE_ENV = "CISCO_AI_DEFENSE_RESPONSE_MODE"
 _TIMEOUT_ENV = "CISCO_AI_DEFENSE_TIMEOUT_SECONDS"
 
-# Measured against the SDK on 2026-08-29, because Cisco's published region
-# table and the SDK disagree and only one of them runs: the docs name
-# `ap-ne-1` (host `ap.`), which the SDK REJECTS, and omit `me-central-1`,
-# which the SDK resolves to a `uae.` host. The endpoint each of these four
-# resolves to is pinned in tests/test_cisco_ai_defense.py; re-measure there
-# before editing this set.
 _SUPPORTED_REGIONS = frozenset({"us-west-2", "eu-central-1", "ap-northeast-1", "me-central-1"})
 _SUPPORTED_ROLES = {
     "system": Role.SYSTEM,
@@ -78,25 +71,6 @@ def _mode() -> str:
     if mode not in {"enforce", "monitor"}:
         raise AIDefenseConfigurationError(f"{_MODE_ENV} must be 'enforce' or 'monitor'")
     return mode
-
-
-def _phase_mode(phase: str) -> str:
-    """Resolve the enforcement mode for one phase.
-
-    ``CISCO_AI_DEFENSE_RESPONSE_MODE`` optionally relaxes only the
-    response phase (e.g. ``monitor`` so model answers with markdown/code
-    are recorded, not censored) while requests stay on the global mode.
-    Inspection itself always runs; there is no off switch.
-    """
-    if phase == "response":
-        override = os.getenv(_RESPONSE_MODE_ENV, "").strip().lower()
-        if override:
-            if override not in {"enforce", "monitor"}:
-                raise AIDefenseConfigurationError(
-                    f"{_RESPONSE_MODE_ENV} must be 'enforce' or 'monitor'"
-                )
-            return override
-    return _mode()
 
 
 def _timeout_seconds() -> int:
@@ -183,42 +157,26 @@ def _rule_names(result: Any) -> tuple[str, ...]:
     return tuple(sorted(names))
 
 
-def new_transaction_id() -> str:
-    """Mint one correlation id for a whole request/response exchange.
-
-    Callers that inspect both directions of the same user interaction pass the
-    same id to both :func:`inspect_messages` calls, so the two Cisco events and
-    the two log lines can be joined. Without it each call minted its own id and
-    "transaction" named a single inspection, not the transaction (2026-08-29).
-    """
-    return str(uuid.uuid4())
-
-
 def inspect_messages(
     messages: Sequence[Mapping[str, Any]],
     *,
     phase: str,
     source: str,
     model: str,
-    transaction_id: str | None = None,
 ) -> AIDefenseDecision:
     """Inspect a provider request or response and enforce the Cisco decision.
 
     ``monitor`` permits policy violations after recording them in Cisco, but
     configuration errors, transport failures, and malformed decisions remain
     fail-closed.  There is deliberately no runtime ``off`` mode.
-
-    Pass ``transaction_id`` from :func:`new_transaction_id` to correlate the
-    request and response inspection of one exchange; omitted, each call gets
-    its own id.
     """
     if phase not in {"request", "response"}:
         raise AIDefenseConfigurationError("AI Defense phase must be 'request' or 'response'")
 
-    mode = _phase_mode(phase)
+    mode = _mode()
     api_key, region, timeout = _runtime_config()
     normalized = _normalize_messages(messages)
-    transaction_id = transaction_id or new_transaction_id()
+    transaction_id = str(uuid.uuid4())
     metadata = Metadata(
         src_app=f"skipp-algo:{source}"[:128],
         dst_app=f"openai:{model}"[:128],
@@ -245,15 +203,8 @@ def inspect_messages(
 
     action = getattr(result, "action", None)
     is_safe = getattr(result, "is_safe", None)
-    # SDK 2.1.2 defaults a missing is_safe field to True while parsing
-    # (`inspection_client.py:264`, `response_data.get("is_safe", True)`).  An
+    # SDK 2.1.2 defaults a missing is_safe field to True while parsing.  An
     # explicit action is therefore required as a second fail-closed contract.
-    # That second signal is genuinely independent — the SDK reads action from
-    # the response (`inspection_client.py:257`) rather than deriving it from
-    # is_safe — but note it is NOT in Cisco's published response schema
-    # (checked 2026-08-29), and the SDK swallows an unrecognised value into
-    # None via `except ValueError: pass`.  Requiring it is deliberately
-    # stricter than the documented contract.
     decision_valid = isinstance(is_safe, bool) and action in {Action.ALLOW, Action.BLOCK}
     if not decision_valid:
         raise AIDefenseUnavailableError("Cisco AI Defense returned an incomplete decision; provider call blocked")
@@ -272,7 +223,7 @@ def inspect_messages(
     )
 
     if allowed:
-        logger.info("Cisco AI Defense allowed phase=%s source=%s event_id=%s transaction_id=%s", phase, source, event_id or "none", transaction_id)  # 2026-08-29: event_id also on ALLOW so a clean transaction correlates to the Cisco event log, not only a violation
+        logger.info("Cisco AI Defense allowed phase=%s source=%s transaction_id=%s", phase, source, transaction_id)
         return decision
 
     logger.warning(

@@ -120,7 +120,7 @@ Nach einem gesunden Lauf sollten folgende Dateien aktuell sein:
 ### Newsstack
 
 - `ENABLE_FMP` (default `1`)
-- `ENABLE_FMP_ARTICLES` (default `0` since 2026-07-25 — `/stable/fmp-articles` was ~76% of FMP news volume with no proven edge; set `1` to re-enable)
+- `ENABLE_FMP_ARTICLES` (default `1`)
 - `ENABLE_FMP_GENERAL` (default `1`) — `/stable/news/general-latest`
 - `ENABLE_BENZINGA_REST` (default `0`)
 - `ENABLE_BENZINGA_WS` (default `0`)
@@ -393,4 +393,4 @@ Wenn’s brennt:
 | Unusual Whales (UOA flow) | `newsstack_fmp/ingest_unusual_whales.py` (see removal comment ~line 35: `# UW_FLOW_ALERTS_PATH removed 2026-05-12`) | **DECOMMISSIONED** — replaced by self-hosted Databento OPRA UOA in `newsstack_fmp/opra_uoa.py` (PRs #2155 / #2157 / #2163) | n/a |
 | Unusual Whales (other adapters: darkpool, spot-GEX, market-tide, insider-transactions, news-headlines) | `newsstack_fmp/ingest_unusual_whales.py` `UnusualWhalesAdapter` | **DORMANT** — silently returns `[]` after subscription cancel (DISABLED-on-401 pattern). No production consumer left. | **2026-Q3 (by 2026-08-31, owner: ops)** — drop entire module + `UNUSUAL_WHALES_API_KEY` if no consumer reactivated. See `# .. todo:: 2026-Q3-uw-review` block at top of `newsstack_fmp/ingest_unusual_whales.py`. |
 | NewsAPI.ai | `terminal_newsapi.py` (stub, ~60 LOC) **vs.** `scripts/smc_newsapi_ai.py` (active, ~810 LOC) | **DUAL-STATE** — terminal_newsapi.py is decommissioned no-op; live ingestion in scripts/smc_newsapi_ai.py via `scripts/smc_live_news_bus.py`, gated by `ENABLE_NEWSAPI_AI` (default `1`). | n/a — pinned by `tests/test_terminal_newsapi_stub_marker.py`. |
-| OPRA UOA detector | `newsstack_fmp/opra_uoa.py` (ACTIVE) + ingestion wrapper `newsstack_fmp/ingest_opra_options_flow.py` (**no production caller**) | **SPLIT (corrected 2026-08-04)** — the detector is live: `services/opra_live_daemon` calls `detect_unusual_options_activity` and the streamlit shadow options tab renders its snapshot. The wrapper's `fetch_opra_options_flow` is exercised only by `tests/test_ingest_opra_options_flow.py` — wire-or-remove candidate. Gated by `ENABLE_OPRA_UOA` (default `1` since 2026-05-12 PR #2155 commit 6d6196cf). Consumes Databento OPRA.PILLAR. | wrapper: decide wire-or-remove |
+| OPRA UOA detector | `newsstack_fmp/opra_uoa.py` + ingestion wrapper `newsstack_fmp/ingest_opra_options_flow.py` | **ACTIVE** — gated by `ENABLE_OPRA_UOA` (default `1` since 2026-05-12 PR #2155 commit 6d6196cf). Consumes Databento OPRA.PILLAR. | n/a |

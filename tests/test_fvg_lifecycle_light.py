@@ -20,8 +20,6 @@ def _imbalance(
     bear_mit_pct: float = 0.0,
     bull_full_mit: bool = False,
     bear_full_mit: bool = False,
-    bull_count: int = 0,
-    bear_count: int = 0,
 ) -> dict:
     return {
         "BULL_FVG_ACTIVE": bull_active,
@@ -34,8 +32,6 @@ def _imbalance(
         "BEAR_FVG_MITIGATION_PCT": bear_mit_pct,
         "BULL_FVG_FULL_MITIGATION": bull_full_mit,
         "BEAR_FVG_FULL_MITIGATION": bear_full_mit,
-        "BULL_FVG_COUNT": bull_count,
-        "BEAR_FVG_COUNT": bear_count,
     }
 
 
@@ -117,41 +113,6 @@ class TestFullMitigation:
         result = build_fvg_lifecycle_light(imbalance=il, current_price=107)
         assert result["FVG_INVALIDATED"] is True
         assert result["PRIMARY_FVG_SIDE"] == "BEAR"
-
-
-class TestNetImbalance:
-    def test_active_count_difference_is_produced(self):
-        bull = build_fvg_lifecycle_light(
-            imbalance=_imbalance(
-                bull_active=True,
-                bull_top=105,
-                bull_bottom=100,
-                bull_count=5,
-                bear_count=2,
-            ),
-            current_price=103,
-        )
-        bear = build_fvg_lifecycle_light(
-            imbalance=_imbalance(
-                bear_active=True,
-                bear_top=110,
-                bear_bottom=105,
-                bull_count=1,
-                bear_count=4,
-            ),
-            current_price=107,
-        )
-
-        assert bull["FVG_NET_IMBALANCE"] == 3
-        assert bear["FVG_NET_IMBALANCE"] == -3
-
-    def test_balanced_or_missing_counts_are_neutral(self):
-        balanced = build_fvg_lifecycle_light(
-            imbalance=_imbalance(bull_count=2, bear_count=2),
-        )
-
-        assert balanced["FVG_NET_IMBALANCE"] == 0
-        assert build_fvg_lifecycle_light(imbalance={})["FVG_NET_IMBALANCE"] == 0
 
 
 class TestTieBreakNearest:

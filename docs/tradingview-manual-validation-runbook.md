@@ -15,10 +15,8 @@ Dieses Runbook dient der externen manuellen TradingView-Laufzeitvalidierung des 
 Geprüft werden:
 
 1. Producer: [../SMC_Long_Dip_Suite.pine](../SMC_Long_Dip_Suite.pine)
-2. Dashboard-Consumer: [../SMC_Decision_Board.pine](../SMC_Decision_Board.pine)
+2. Dashboard-Consumer: [../SMC_Long_Dip_Dashboard.pine](../SMC_Long_Dip_Dashboard.pine)
 3. Strategy-Consumer: [../SMC_Long_Dip_Strategy.pine](../SMC_Long_Dip_Strategy.pine)
-4. Event-Overlay: [../SMC_Event_Overlay.pine](../SMC_Event_Overlay.pine)
-5. Exit-Signal: [../SMC_Exit_Signal.pine](../SMC_Exit_Signal.pine)
 
 Ziel ist ein klarer Pass/Fail-Entscheid für den aktuellen Vertragsstand in TradingView, ohne Änderungen an Produktionslogik.
 
@@ -29,7 +27,7 @@ Repo-Regressionen abgesichert.
 ## Benötigte Dateien
 
 1. [../SMC_Long_Dip_Suite.pine](../SMC_Long_Dip_Suite.pine)
-2. [../SMC_Decision_Board.pine](../SMC_Decision_Board.pine)
+2. [../SMC_Long_Dip_Dashboard.pine](../SMC_Long_Dip_Dashboard.pine)
 3. [../SMC_Long_Dip_Strategy.pine](../SMC_Long_Dip_Strategy.pine)
 4. [tradingview-validation-checklist.md](tradingview-validation-checklist.md)
 5. [tradingview-manual-validation-report-template.md](tradingview-manual-validation-report-template.md)
@@ -68,12 +66,12 @@ Workspace-Refresh: 2026-04-07
 
 ### Binding-Konvention
 
-1. Dashboard startet mit `1. Product Surface` und bindet danach in acht `Chart Link`-Gruppen: `2. Chart Link - Decision State`, `3. Chart Link - Context Signals`, `4. Chart Link - Trade Plan`, `5. Chart Link - Context Rows`, `6. Chart Link - Blocker Codes`, `7. Chart Link - Detail Surface`, `8. Chart Link - Lean Surface`, `9. Chart Link - Preset Contract`.
-2. Strategy startet mit `1. Execution Setup` und `2. Trade Plan`; die `source`-Bindings bleiben in `3. Chart Link - Entry States` und `4. Chart Link - Trade Plan`.
+1. Dashboard startet mit `1. Product Surface` und bindet danach in sieben operator-only BUS-Gruppen: `2. Operator Only - Lifecycle BUS`, `3. Operator Only - Diagnostic Rows`, `4. Operator Only - Diagnostic Support`, `5. Operator Only - Trade Plan`, `6. Operator Only - Detail Surface`, `7. Operator Only - Lean Surface`, `8. Operator Only - Preset Contract`.
+2. Strategy startet mit `1. Execution Setup` und `2. Trade Plan`; die `source`-Bindings bleiben in `3. Expert Mapping - Entry States` und `4. Expert Mapping - Trade Plan`.
 3. Die Core-Settings priorisieren jetzt `1. Core Setup`, `2. Output`, `3. Trade Plan`, `4. Session Gate` und `5. Runtime Budget` vor den Advanced-Gruppen.
 4. Beide Consumer werden in TradingView immer top-to-bottom an die gleichnamigen BUS-Serien des Cores gebunden.
 5. Die kanonische Quelle fuer Namen, Reihenfolge und Gruppen ist [../scripts/smc_bus_manifest.py](../scripts/smc_bus_manifest.py).
-6. Zusaetzlich gibt es im Dashboard die lokale Gruppe `10. Advanced - Debug Mirrors` ohne `source`-Bindings. Diese drei Bool-Inputs werden nur manuell gespiegelt, wenn `Debug Flags` oder `Long Debug` gegen die effektive Core-Debug-Konfiguration geprueft werden sollen.
+6. Zusaetzlich gibt es im Dashboard die lokale Gruppe `8. Operator Only - Local Debug Mirrors` ohne `source`-Bindings. Diese drei Bool-Inputs werden nur manuell gespiegelt, wenn `Debug Flags` oder `Long Debug` gegen die effektive Core-Debug-Konfiguration geprueft werden sollen.
 
 ### Kanonische BUS-Reihenfolge
 
@@ -187,7 +185,7 @@ Fail:
 
 ### Dashboard Schrittfolge
 
-1. [../SMC_Decision_Board.pine](../SMC_Decision_Board.pine) auf denselben Chart legen.
+1. [../SMC_Long_Dip_Dashboard.pine](../SMC_Long_Dip_Dashboard.pine) auf denselben Chart legen.
 2. Alle 64 `input.source()`-Felder exakt mit den Core-Serien belegen.
 3. Sicherstellen, dass `View = Decision Brief` aktiv ist und die
    Toggles `Show Brief Panel` sowie `Show Trade Plan` den erwarteten
@@ -195,10 +193,10 @@ Fail:
 4. Falls `Debug Flags` oder `Long Debug` validiert werden sollen, die drei lokalen Debug-Mirror-Toggles im Dashboard passend zur effektiven Core-Konfiguration setzen.
 5. Sichtbarkeit und Reaktion der kanonischen Dashboard-BUS-Gruppen prüfen:
 
-- Decision State
-- Context Signals
+- Lifecycle BUS
+- Diagnostic Support
 - Trade Plan
-- Context Rows
+- Diagnostic Rows
 - Blocker Codes
 - Detail Surface
 - Lean Surface

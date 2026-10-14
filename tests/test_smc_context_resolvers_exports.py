@@ -114,7 +114,7 @@ EXPECTED_EXPORT_SIGNATURES = [
 ]
 
 EXPECTED_IMPORTS = [
-    'import preuss_steffen/smc_utils/4 as u',
+    'import preuss_steffen/smc_utils/3 as u',
     'import preuss_steffen/smc_bus_private/3 as bp',
 ]
 
@@ -223,7 +223,7 @@ def test_context_resolvers_export_family_distribution_is_stable() -> None:
 
 def test_core_engine_imports_context_resolvers_as_cr() -> None:
     source = _read_core_source()
-    assert 'import preuss_steffen/smc_context_resolvers/3 as cr' in source
+    assert 'import preuss_steffen/smc_context_resolvers/2 as cr' in source
 
 
 def test_core_engine_uses_cr_alias_calls() -> None:

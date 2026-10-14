@@ -13,7 +13,7 @@ without registering them in the governance surfaces:
    ``tests/test_smc_library_refresh_workflow_sed_coverage.py`` so the
    library-refresh workflow's loop-based pin step actually targets it.
 3. Every such consumer must also appear in the ``git add`` block of
-   ``.github/workflows/smc-library-publish.yml`` — otherwise the
+   ``.github/workflows/smc-library-refresh.yml`` — otherwise the
    workflow's auto-pin sed modifies the file but the modification is
    never staged, which trips the "Unexpected tracked changes remain
    unstaged before refresh commit" guard at the same step and aborts
@@ -26,7 +26,7 @@ The four newly-added files (commit 68e1aac0) are:
   micro-profiles library is a per-symbol snapshot, not the per-bar structure
   series the renderer needs, so the old ``mp.BOS_BULL`` / ``mp.ACTIVE_RESISTANCE``
   fields never existed and never compiled.
-- SMC_Hold_Manager.pine      — 2026-07-28: no longer the old ``skippALGO`` namespace; it imports ``preuss_steffen/smc_micro_profiles_generated`` and IS auto-pinned + in EXPECTED_CONSUMERS.
+- SMC_Hold_Manager.pine      — imports ``skippALGO/smc_micro_profiles_generated/1`` (different namespace, not auto-pinned).
 - SMC_Exit_Signal.pine       — pure BUS consumer, no library import.
 - SMC_Volume_Profile_Overlay.pine      — visual-only, no library import.
 
@@ -81,13 +81,13 @@ def _consumers_of_preuss_library() -> set[str]:
 def test_every_library_consumer_listed_in_workflow_git_add() -> None:
     """Every top-level pine that pins the preuss_steffen library must be
     on the ``git add`` line of the smc-library-refresh workflow."""
-    workflow_path = REPO_ROOT / ".github" / "workflows" / "smc-library-publish.yml"
+    workflow_path = REPO_ROOT / ".github" / "workflows" / "smc-library-refresh.yml"
     workflow_text = workflow_path.read_text(encoding="utf-8")
     consumers = _consumers_of_preuss_library()
     missing = [name for name in sorted(consumers) if name not in workflow_text]
     assert not missing, (
         "Pine consumer(s) of preuss_steffen library are missing from "
-        ".github/workflows/smc-library-publish.yml `git add` block. "
+        ".github/workflows/smc-library-refresh.yml `git add` block. "
         "The workflow's loop-based sed step will modify these files "
         "but the unstaged-changes guard will abort the refresh: "
         f"{missing}"

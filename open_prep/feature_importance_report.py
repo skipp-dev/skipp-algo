@@ -53,7 +53,6 @@ _ET = _ZoneInfo("America/New_York")
 FI_REPORT_DIR = Path("artifacts/open_prep/feature_importance")
 # Align the report default with the governance tuning gate (eval-findings B3).
 DEFAULT_MIN_SAMPLES = _MIN_TUNING_SAMPLES
-EWMA_SHADOW_FEATURE = "ewma_score_shadow"
 
 # Drift gate: how far a feature's ranking position may shift between
 # consecutive `ok` runs before we surface a ``ranking_drift`` warning.
@@ -197,49 +196,6 @@ def _load_previous_latest(report_dir: Path) -> dict[str, Any] | None:
         return None
 
 
-# ── EWMA-specific recalibration evidence ──────────────────────────────
-
-
-def _ewma_recalibration_status(
-    raw_report: dict[str, Any],
-    *,
-    min_samples: int,
-) -> dict[str, Any]:
-    """Build a dedicated, non-activating EWMA recalibration decision.
-
-    Only rows where ``ewma_score_shadow`` was actually measured count. The
-    overall FI label count includes older rows that predate this producer.
-    """
-    features = raw_report.get("features")
-    feature = (
-        features.get(EWMA_SHADOW_FEATURE)
-        if isinstance(features, dict)
-        and isinstance(features.get(EWMA_SHADOW_FEATURE), dict)
-        else {}
-    )
-    measured = int(feature.get("measured_samples") or 0)
-    if measured < min_samples:
-        status = "collecting"
-    elif feature.get("fdr_significant") is not True:
-        status = "not_fdr_significant"
-    else:
-        status = "evidence_ready_for_versioned_review"
-    return {
-        "status": status,
-        "feature": EWMA_SHADOW_FEATURE,
-        "measured_labeled_samples": measured,
-        "min_samples_threshold": int(min_samples),
-        "shortfall": max(0, int(min_samples) - measured),
-        "pearson_r": feature.get("pearson_r"),
-        "mean_separation": feature.get("mean_separation"),
-        "p_value": feature.get("p_value"),
-        "fdr_significant": feature.get("fdr_significant"),
-        "recommended_weight": None,
-        "activation_allowed": False,
-        "live_weight_unchanged": True,
-    }
-
-
 # ── Report generation ────────────────────────────────────────────────
 
 
@@ -273,9 +229,6 @@ def generate_report(
             max(0, int(min_samples) - int(raw.get("labeled_samples") or 0))
             if status == "insufficient_labels"
             else 0
-        ),
-        "ewma_recalibration": _ewma_recalibration_status(
-            raw, min_samples=min_samples,
         ),
     }
     # ``report`` is None for every non-ok status, which discarded the very

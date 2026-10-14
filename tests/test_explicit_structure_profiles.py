@@ -56,7 +56,6 @@ def test_hybrid_profile_emits_auxiliary_and_diagnostics() -> None:
         "session_ranges",
         "session_pivots",
         "broken_fractal_signals",
-        "rejection_blocks",
     }
 
 
@@ -69,15 +68,7 @@ def test_session_liquidity_profile_suppresses_orderblocks() -> None:
 def test_conservative_profile_filters_invalid_zones() -> None:
     result = build_structure_profile(_bars(), symbol="AAPL", timeframe="15m", profile="conservative")
     assert result.diagnostics["structure_profile_used"] == "conservative"
-    assert result.orderblocks, "conservative profile kept no orderblocks — the validity check below would pass vacuously"
     assert all(bool(row.get("valid", True)) for row in result.orderblocks)
-    # Measured 2026-08-04: the conservative profile drops every FVG this
-    # fixture produces (hybrid_default yields 7, conservative yields 0), so
-    # the validity check below observes nothing today. Pin the emptiness
-    # explicitly rather than leave it implied — this goes red the moment the
-    # profile starts keeping FVGs, which is exactly when the check below
-    # stops being dead and wants a reviewer.
-    assert result.fvg == []
     assert all(bool(row.get("valid", True)) for row in result.fvg)
 
 

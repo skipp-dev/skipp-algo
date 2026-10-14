@@ -102,12 +102,3 @@ def field_preference_chain_file_keys() -> dict[str, list[tuple[str, ...]]]:
             "file_keys"
         ].items()
     }
-
-
-def vacuous_claim_exemptions() -> dict[str, str]:
-    """Return waived vacuum-prone claims: ``"file::test::iterable" -> reason``.
-
-    The reason is a dated justification (``YYYY-MM-DD: …``) and normally
-    names the test that proves the emptiness is intended.
-    """
-    return dict(_load()["vacuous_claim_guard"]["exemptions"])

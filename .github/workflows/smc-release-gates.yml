@@ -21,28 +21,8 @@ permissions: {}
 # SC-06 (supply-chain audit 2026-06-14): serialise release runs so concurrent
 # dispatch/release triggers cannot interleave gate results.
 concurrency:
-  # 2026-08-01: one AUTOMATED browser session at a time — CI against CI only.
-  # This group does NOT serialise the account: the operator's own browser is
-  # a second, unserialised writer on the same layouts, and TradingView
-  # autosaves from it (operator-confirmed 2026-08-01: autosave active, and a
-  # chart tab on this account was open all day while runs mutated layouts —
-  # nothing here knew). No mechanism detects or excludes that session;
-  # mutating runs coordinate with the operator by convention, not by code.
-  # Every workflow below drives the SAME external account, and until now each
-  # one only serialised against itself — two of these blocks already said
-  # "TradingView is a single shared external target" while keeping a private
-  # group, so the guarantee was stated but never implemented. Measured trigger:
-  # a manual tv-save-consumer-source dispatch ran while an R4 readback was
-  # being prepared; nothing in CI would have stopped them overlapping.
-  # cancel-in-progress stays false everywhere: these runs save layouts and
-  # publish scripts, so a queued run must wait, never pre-empt.
-  group: tradingview-session
+  group: smc-release-gates-${{ github.ref }}
   cancel-in-progress: false
-  # 2026-08-06: cancel-in-progress governs only the RUNNING run, so `false`
-  # never protected the waiter. Under the default `queue: single` a group holds
-  # exactly one pending run and the next entrant CANCELS it -- that is what
-  # dropped dispatches here. `queue: max` queues up to 100 runs FIFO instead.
-  queue: max
 
 jobs:
   select-runner:
@@ -57,7 +37,7 @@ jobs:
       matched_runner_name: ${{ steps.resolve.outputs.matched_runner_name }}
     steps:
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Set up pinned Python
         uses: ./.github/actions/setup-python-pinned
@@ -92,7 +72,7 @@ jobs:
           echo "matched_runner_name=${{ needs.select-runner.outputs.matched_runner_name }}"
 
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Set up pinned Python (GitHub-hosted)
         if: needs.select-runner.outputs.runner_environment == 'github-hosted'
@@ -126,7 +106,7 @@ jobs:
           exit 1
 
       - name: Set up Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: "20"
 
@@ -172,7 +152,6 @@ jobs:
         run: |
           "$SMC_PYTHON_BIN" scripts/run_smc_release_gates.py \
             --ci-mode \
-            --measurement-baseline-summary reports/smc_measurement_baseline_summary.json \
             --output artifacts/ci/smc_release_gates_report.json
 
       - name: Classify release gate results (F-09)
@@ -371,6 +350,6 @@ jobs:
 
       - name: Attest release gate report (WP-R20)
         if: always() && hashFiles('artifacts/ci/smc_release_gates_report.json') != ''
-        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
         with:
           subject-path: artifacts/ci/smc_release_gates_report.json

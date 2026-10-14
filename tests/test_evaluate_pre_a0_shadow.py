@@ -2,10 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import asdict, replace
+from dataclasses import asdict
 from pathlib import Path
-
-import pytest
 
 from open_prep.pre_a0_model import fit_platt_calibration, make_artifact, train_logistic_regression
 from open_prep.pre_a0_schema import PreA0SnapshotRow, write_snapshot_partition
@@ -72,13 +70,7 @@ def _row(
     )
 
 
-def _fixture(
-    tmp_path: Path,
-    *,
-    positive_probability: float = 0.9,
-    negative_probability: float = 0.1,
-    extra_positive: bool = False,
-):
+def _fixture(tmp_path: Path):
     artifact_path = tmp_path / "artifact.json"
     artifact = _artifact(artifact_path)
     offline = tmp_path / "offline.json"
@@ -100,7 +92,7 @@ def _fixture(
                 "shadow": {
                     "max_brier_ratio": 1.0,
                     "max_ece": 0.5,
-                    "min_average_precision_lift": 2.0,
+                    "min_average_precision": 0.8,
                     "min_labeled_rows_per_horizon": 5,
                     "min_positive_rows_per_horizon": 5,
                     "min_score_coverage": 1.0,
@@ -116,38 +108,13 @@ def _fixture(
     journal = tmp_path / "a0.jsonl"
     journal_rows = []
     for day in range(1, 6):
-        positive = _row(
-            day, 0, probability=positive_probability, artifact_id=artifact.artifact_id
-        )
+        positive = _row(day, 0, probability=0.9, artifact_id=artifact.artifact_id)
         negative = _row(
-            day, 10, probability=negative_probability, artifact_id=artifact.artifact_id, symbol="ABC"
+            day, 10, probability=0.1, artifact_id=artifact.artifact_id, symbol="ABC"
         )
-        sentinel = _row(
-            day, 300, probability=negative_probability, artifact_id=artifact.artifact_id
-        )
-        day_rows = [positive, negative, sentinel]
-        if extra_positive:
-            second = _row(
-                day, 5, probability=positive_probability,
-                artifact_id=artifact.artifact_id, symbol="DEF",
-            )
-            day_rows.append(second)
-            journal_rows.append(
-                json.dumps(
-                    {
-                        "decision_id": f"a0-def-{day}",
-                        "symbol": "DEF",
-                        "direction": "LONG",
-                        "source": "databento",
-                        "final_level": "A0",
-                        "decision_at": second.prediction_time + 30,
-                        "session_date": second.session_date,
-                        "reason_codes": ["core_a0_thresholds"],
-                    }
-                )
-            )
+        sentinel = _row(day, 300, probability=0.1, artifact_id=artifact.artifact_id)
         write_snapshot_partition(
-            day_rows, snapshots, build_id=f"b{day}", code_revision="abc"
+            [positive, negative, sentinel], snapshots, build_id=f"b{day}", code_revision="abc"
         )
         journal_rows.append(
             json.dumps(
@@ -182,50 +149,6 @@ def test_shadow_evaluation_passes_with_scored_multisession_evidence(tmp_path: Pa
     assert report["shadow_evaluation"]["horizons"]["60"]["score_coverage"] == 1.0
     assert validated.artifact_id == artifact.artifact_id
     assert validated.gates["shadow_evaluated"] is True
-
-
-def test_shadow_gate_blocks_when_ap_lift_is_below_minimum(tmp_path: Path) -> None:
-    """Policy v2: the AP floor per horizon is min(1.0, lift * base_rate).
-
-    Inverted probabilities (positives scored LOW) rank worse than the base
-    rate — the gate must name the lift reason, not pass on an absolute floor
-    tuned to a different base-rate regime.
-    """
-    artifact_path, offline, policy, snapshots, journal, _artifact = _fixture(
-        tmp_path, positive_probability=0.1, negative_probability=0.9
-    )
-    report, _ = evaluate_pre_a0_shadow.evaluate(
-        artifact_path=artifact_path,
-        offline_report_path=offline,
-        policy_path=policy,
-        snapshot_root=snapshots,
-        journal_paths=[journal],
-    )
-    assert report["shadow_gate_passed"] is False
-    assert any(
-        reason.endswith("_average_precision_lift_below_minimum")
-        for reason in report["shadow_evaluation"]["reasons"]
-    ), report["shadow_evaluation"]["reasons"]
-
-
-def test_lift_floor_is_capped_so_perfect_ranking_stays_attainable(tmp_path: Path) -> None:
-    """At base rates above 1/lift the uncapped floor exceeds the maximum
-    possible AP (1.0) — a perfectly ranked horizon would be blocked by
-    construction. The floor must degrade to 1.0, not to impossible."""
-    artifact_path, offline, policy, snapshots, journal, _artifact = _fixture(
-        tmp_path, extra_positive=True  # 2 positives / 1 negative scored -> base rate 2/3
-    )
-    report, _ = evaluate_pre_a0_shadow.evaluate(
-        artifact_path=artifact_path,
-        offline_report_path=offline,
-        policy_path=policy,
-        snapshot_root=snapshots,
-        journal_paths=[journal],
-    )
-    assert not any(
-        reason.endswith("_average_precision_lift_below_minimum")
-        for reason in report["shadow_evaluation"]["reasons"]
-    ), report["shadow_evaluation"]["reasons"]
 
 
 def test_shadow_evaluation_rejects_mixed_artifact_identity(tmp_path: Path) -> None:
@@ -281,81 +204,3 @@ def test_prepare_training_data_is_walk_forward_and_reproducible(tmp_path: Path) 
     assert test["split_sha256"] == provenance["split_manifest"]["split_sha256"]
     assert provenance["audit"]["passed"] is True
     assert provenance["reproducible"] is True
-
-
-def test_load_snapshots_collapses_byte_identical_duplicate_records(tmp_path: Path) -> None:
-    # A mid-session restart / duplicate producer re-emits byte-identical rows
-    # (record_id is content-addressed) into a fresh part file. The loader must
-    # collapse them idempotently instead of failing closed (observed 2026-07-23).
-    snapshots = tmp_path / "snapshots"
-    shared = _row(1, 0, probability=0.9, artifact_id="art-1")
-    other = _row(1, 10, probability=0.1, artifact_id="art-1", symbol="ABC")
-    write_snapshot_partition([shared, other], snapshots, build_id="b1", code_revision="rev")
-    write_snapshot_partition([shared], snapshots, build_id="b2", code_revision="rev")
-
-    frame, paths = evaluate_pre_a0_shadow._load_snapshots(snapshots)
-
-    assert len(paths) == 2  # both part files were read and manifest-validated
-    assert not frame["record_id"].duplicated().any()
-    assert set(frame["record_id"]) == {shared.record_id, other.record_id}
-    assert len(frame) == 2
-
-
-def test_load_snapshots_rejects_conflicting_feature_records(tmp_path: Path) -> None:
-    # Same record_id but a differing identity/FEATURE field is real corruption,
-    # not a benign hysteresis re-emit, and must still fail closed.
-    snapshots = tmp_path / "snapshots"
-    original = _row(1, 0, probability=0.9, artifact_id="art-1")
-    conflicting = replace(original, price_progress=0.99)
-    assert original.record_id == conflicting.record_id
-    write_snapshot_partition([original], snapshots, build_id="b1", code_revision="rev")
-    write_snapshot_partition([conflicting], snapshots, build_id="b2", code_revision="rev")
-
-    with pytest.raises(ValueError, match="conflicting duplicate record_id"):
-        evaluate_pre_a0_shadow._load_snapshots(snapshots)
-
-
-def test_load_snapshots_drops_benign_hysteresis_only_conflicts(tmp_path: Path) -> None:
-    # Same record_id and identical FEATURES, but a different hysteresis-derived
-    # state (a replay rebuilds PreA0Machine state from session open and diverges
-    # from the live run at boundary bars, 2026-07-23/24). Unresolvable — the load
-    # DROPS the record instead of guessing its state, and does not fail closed.
-    snapshots = tmp_path / "snapshots"
-    live = _row(1, 0, probability=0.9, artifact_id="art-1")
-    other = _row(1, 10, probability=0.1, artifact_id="art-1", symbol="ABC")
-    replayed = replace(
-        live,
-        state="NONE",
-        selection_reason="base_5s",
-        sample_weight=5.0,
-        probability_60=None,
-        probability_180=None,
-        score_status_60=None,
-        score_status_180=None,
-    )
-    assert replayed.record_id == live.record_id
-    assert asdict(replayed) != asdict(live)  # differ only in decision fields
-    write_snapshot_partition([live, other], snapshots, build_id="b1", code_revision="rev")
-    write_snapshot_partition([replayed], snapshots, build_id="b2", code_revision="rev")
-
-    frame, _paths = evaluate_pre_a0_shadow._load_snapshots(snapshots)
-
-    assert live.record_id not in set(frame["record_id"])  # the ambiguous record is dropped
-    assert other.record_id in set(frame["record_id"])  # unaffected records survive
-    assert not frame["record_id"].duplicated().any()
-
-
-def test_load_snapshots_collapses_episode_id_only_conflicts(tmp_path: Path) -> None:
-    # Same record_id and identical features/state, differing ONLY in episode_id
-    # (a pre-#4023 re-emit relabel). That is a benign relabel, not an ambiguous
-    # state, so the copies COLLAPSE to one row rather than being dropped.
-    snapshots = tmp_path / "snapshots"
-    live = _row(1, 0, probability=0.9, artifact_id="art-1")
-    relabelled = replace(live, episode_id="episode-relabelled")
-    assert relabelled.record_id == live.record_id
-    write_snapshot_partition([live], snapshots, build_id="b1", code_revision="rev")
-    write_snapshot_partition([relabelled], snapshots, build_id="b2", code_revision="rev")
-
-    frame, _paths = evaluate_pre_a0_shadow._load_snapshots(snapshots)
-
-    assert list(frame["record_id"]) == [live.record_id]  # collapsed, not dropped

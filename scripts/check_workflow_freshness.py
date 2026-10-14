@@ -11,11 +11,6 @@ classifies its age against a per-workflow staleness budget:
 
 * ``fresh``    — last success within the budget
 * ``stale``    — last success older than the budget
-* ``expected_stale`` — stale, but inside a declared, dated expectation
-  window (``:expected-stale-until=YYYY-MM-DD``): a KNOWN incident whose
-  own alarms are already burning, acknowledged here so the monitor's
-  daily red does not drown the next, unrelated stale row. The gate is a
-  tripwire, not a mute: past the date the row hard-fails again.
 * ``missing``  — no successful run in the API response window
 * ``api_error`` — request to the GitHub API failed
 
@@ -38,14 +33,14 @@ import urllib.error
 import urllib.request
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 
 @dataclass
 class WorkflowFreshness:
     workflow: str
-    status: str  # fresh | expected_stale | stale | missing | api_error
+    status: str  # fresh | stale | missing | api_error
     last_success_at: str | None = None
     age_hours: float | None = None
     budget_hours: float | None = None
@@ -53,7 +48,6 @@ class WorkflowFreshness:
     run_url: str | None = None
     detail: str | None = None
     timestamp_source: str | None = None  # updated_at | run_started_at | created_at
-    expected_stale_until: str | None = None  # ISO date of the declared expectation, if any
 
 
 @dataclass
@@ -61,9 +55,8 @@ class FreshnessReport:
     schema_version: str = "1"
     generated_at: str = ""
     repo: str = ""
-    overall: str = "fresh"  # fresh | expected_stale | stale | error
+    overall: str = "fresh"  # fresh | stale | error
     stale_count: int = 0
-    expected_stale_count: int = 0
     missing_count: int = 0
     api_error_count: int = 0
     workflows: list[dict[str, Any]] = field(default_factory=list)
@@ -130,7 +123,6 @@ def check_workflow(
     fetcher: Fetcher | None = None,
     any_conclusion: bool = False,
     weekday_only: bool = False,
-    expected_stale_until: date | None = None,
 ) -> WorkflowFreshness:
     """Look up the most recent successful (or any completed) run of one workflow.
 
@@ -194,23 +186,6 @@ def check_workflow(
         age = max(0.0, age - weekend_h)
 
     status = "fresh" if age <= budget_hours else "stale"
-    detail = None
-    if status == "stale" and expected_stale_until is not None:
-        # Declared, dated expectation (known incident with its own burning
-        # alarms). Inside the window the row is acknowledged instead of red so
-        # the NEXT stale row still stands out; past the date it hard-fails
-        # again — the declaration is a tripwire, never a mute.
-        if now.date() <= expected_stale_until:
-            status = "expected_stale"
-            detail = (
-                f"stale as declared (known incident); "
-                f"expectation expires {expected_stale_until.isoformat()}"
-            )
-        else:
-            detail = (
-                f"expected-stale declaration EXPIRED {expected_stale_until.isoformat()} "
-                f"— fix the workflow or renew the dated declaration"
-            )
     return WorkflowFreshness(
         workflow=workflow_file,
         status=status,
@@ -219,115 +194,19 @@ def check_workflow(
         budget_hours=budget_hours,
         run_id=run.get("id"),
         run_url=run.get("html_url"),
-        detail=detail,
         timestamp_source=_ts_field,
-        expected_stale_until=(
-            expected_stale_until.isoformat() if expected_stale_until is not None else None
-        ),
-    )
-
-
-def check_product(
-    *,
-    pattern: str,
-    budget_hours: float,
-    now: datetime | None = None,
-    root: str = ".",
-    weekday_only: bool = False,
-    expected_stale_until: date | None = None,
-) -> WorkflowFreshness:
-    """Classify the age of a committed, dated PRODUCT instead of a run.
-
-    A run-based row answers "did the workflow end green recently?". That is
-    not the question when green and idle look alike: ``promotion-gate-daily``
-    ended ``success`` on 17 of 18 runs between 2026-08-31 and 2026-09-30 while
-    skipping its whole body (no upstream artifact), and the rolling benchmark
-    reported ``success`` for every fire its own cadence gate skipped. Both
-    rows stayed fresh; the newest gate report on ``main`` was five weeks old.
-
-    This row looks at what the chain is FOR: the newest file matching
-    *pattern* under *root* whose name carries an ISO date
-    (``…_YYYY-MM-DD.json``). It covers every way the product can fail to
-    arrive — the producer skipped, an upstream died, the bot PR never merged —
-    because it does not care which one it was.
-
-    The age counts from 00:00 UTC of the newest date (the file names a day,
-    not an instant); budgets are chosen with that in mind.
-    """
-    import re
-    from pathlib import Path
-
-    now = now or datetime.now(tz=UTC)
-    name = f"product:{pattern}"
-    dated: list[date] = []
-    for path in Path(root).glob(pattern):
-        found = re.findall(r"\d{4}-\d{2}-\d{2}", path.name)
-        if not found:
-            continue
-        try:
-            dated.append(date.fromisoformat(found[-1]))
-        except ValueError:
-            continue
-    if not dated:
-        return WorkflowFreshness(
-            workflow=name,
-            status="missing",
-            budget_hours=budget_hours,
-            detail="no dated file matches the pattern in the checkout",
-            timestamp_source="filename_date",
-        )
-
-    newest = max(dated)
-    stamp = datetime(newest.year, newest.month, newest.day, tzinfo=UTC)
-    age = (now - stamp).total_seconds() / 3600.0
-    if weekday_only:
-        age = max(0.0, age - _weekend_hours_between(stamp, now))
-
-    status = "fresh" if age <= budget_hours else "stale"
-    detail = None
-    if status == "stale" and expected_stale_until is not None:
-        # Same tripwire-not-mute semantics as the run-based rows.
-        if now.date() <= expected_stale_until:
-            status = "expected_stale"
-            detail = (
-                f"stale as declared (known incident); "
-                f"expectation expires {expected_stale_until.isoformat()}"
-            )
-        else:
-            detail = (
-                f"expected-stale declaration EXPIRED {expected_stale_until.isoformat()} "
-                f"— fix the producer chain or renew the dated declaration"
-            )
-    return WorkflowFreshness(
-        workflow=name,
-        status=status,
-        last_success_at=stamp.isoformat(),
-        age_hours=round(age, 2),
-        budget_hours=budget_hours,
-        detail=detail,
-        timestamp_source="filename_date",
-        expected_stale_until=(
-            expected_stale_until.isoformat() if expected_stale_until is not None else None
-        ),
     )
 
 
 def check_all(
     *,
     repo: str,
-    workflows: list[tuple],
+    workflows: list[tuple[str, float, bool] | tuple[str, float, bool, bool]],
     token: str,
     now: datetime | None = None,
     fetcher: Fetcher | None = None,
-    products: list[tuple] | None = None,
-    root: str = ".",
 ) -> FreshnessReport:
-    """Check ``(workflow_file, budget_hours, any_conclusion, [weekday_only], [expected_stale_until])`` elements.
-
-    *products* are ``(pattern, budget_hours, weekday_only, expected_stale_until)``
-    rows for :func:`check_product`; they land in the same report and count
-    toward the same overall verdict.
-    """
+    """Check a list of ``(workflow_file, budget_hours, any_conclusion, [weekday_only])`` elements."""
     now = now or datetime.now(tz=UTC)
     results = []
     for item in workflows:
@@ -335,7 +214,6 @@ def check_all(
         budget = item[1]
         any_conc = item[2]
         wkday = item[3] if len(item) > 3 else False
-        until = item[4] if len(item) > 4 else None
         results.append(
             check_workflow(
                 repo=repo,
@@ -346,22 +224,9 @@ def check_all(
                 fetcher=fetcher,
                 any_conclusion=any_conc,
                 weekday_only=wkday,
-                expected_stale_until=until,
-            )
-        )
-    for pattern, budget, wkday, until in products or []:
-        results.append(
-            check_product(
-                pattern=pattern,
-                budget_hours=budget,
-                now=now,
-                root=root,
-                weekday_only=wkday,
-                expected_stale_until=until,
             )
         )
     stale = sum(1 for r in results if r.status == "stale")
-    expected = sum(1 for r in results if r.status == "expected_stale")
     missing = sum(1 for r in results if r.status == "missing")
     api_err = sum(1 for r in results if r.status == "api_error")
 
@@ -369,10 +234,6 @@ def check_all(
         overall = "error"
     elif stale or missing:
         overall = "stale"
-    elif expected:
-        # Acknowledged incident(s) only: exit 0 so the daily red does not
-        # drown the next unrelated stale row, but say so in the report.
-        overall = "expected_stale"
     else:
         overall = "fresh"
 
@@ -381,37 +242,23 @@ def check_all(
         repo=repo,
         overall=overall,
         stale_count=stale,
-        expected_stale_count=expected,
         missing_count=missing,
         api_error_count=api_err,
         workflows=[asdict(r) for r in results],
     )
 
 
-def _parse_workflow_spec(raw: str) -> tuple[str, float, bool, bool, date | None]:
-    """Parse ``file.yml=HOURS`` plus optional ``:``-separated suffixes.
+def _parse_workflow_spec(raw: str) -> tuple[str, float, bool, bool]:
+    """Parse ``file.yml=HOURS`` or suffixes such as ``:any`` or ``:weekday``.
 
     The optional ``:any`` suffix enables *any_conclusion* mode — the
     freshness check queries ``status=completed`` instead of
     ``status=success``.  This is intended for promotion-gate workflows
     whose non-zero exit code is an expected operational outcome.
 
-    The optional ``:success`` suffix is the explicit alias for the default
-    success-only mode (used by the meta-watchdog DAG probe); combining it
-    with ``:any`` is rejected as contradictory.
-
     The optional ``:weekday`` suffix excludes Saturday and Sunday UTC hours.
 
-    The optional ``:expected-stale-until=YYYY-MM-DD`` suffix declares a
-    dated expectation for a KNOWN incident: while the date holds, a stale
-    row reports ``expected_stale`` (acknowledged, exit 0) instead of
-    failing the probe; past the date it hard-fails again.
-
-    Unknown suffixes are rejected — a typo'd flag that parsed silently
-    would neuter exactly the guarantee it claims to configure.
-
-    Returns ``(workflow_file, budget_hours, any_conclusion, weekday_only,
-    expected_stale_until)``.
+    Returns ``(workflow_file, budget_hours, any_conclusion, weekday_only)``.
     """
     if "=" not in raw:
         raise argparse.ArgumentTypeError(
@@ -427,39 +274,10 @@ def _parse_workflow_spec(raw: str) -> tuple[str, float, bool, bool, date | None]
 
     parts = rest.split(":")
     budget_s = parts[0].strip()
+    tags = {p.strip().lower() for p in parts[1:]} if len(parts) > 1 else set()
 
-    any_conclusion = False
-    success_explicit = False
-    weekday_only = False
-    expected_stale_until: date | None = None
-    for part in parts[1:]:
-        tag = part.strip()
-        if tag.lower() == "any":
-            any_conclusion = True
-        elif tag.lower() == "success":
-            # Explicit alias for the (default) success-only mode — the
-            # meta-watchdog DAG probe declares `:success:weekday` and its
-            # contract test pins that token.
-            success_explicit = True
-        elif tag.lower() == "weekday":
-            weekday_only = True
-        elif tag.lower().startswith("expected-stale-until="):
-            date_s = tag.partition("=")[2].strip()
-            try:
-                expected_stale_until = date.fromisoformat(date_s)
-            except ValueError as exc:
-                raise argparse.ArgumentTypeError(
-                    f"expected-stale-until must be YYYY-MM-DD, got {date_s!r}"
-                ) from exc
-        else:
-            raise argparse.ArgumentTypeError(
-                f"unknown workflow-spec suffix {tag!r} in {raw!r} "
-                f"(known: any, success, weekday, expected-stale-until=YYYY-MM-DD)"
-            )
-    if any_conclusion and success_explicit:
-        raise argparse.ArgumentTypeError(
-            f"contradictory suffixes ':any' and ':success' in {raw!r}"
-        )
+    any_conclusion = "any" in tags
+    weekday_only = "weekday" in tags
 
     try:
         budget = float(budget_s)
@@ -469,57 +287,7 @@ def _parse_workflow_spec(raw: str) -> tuple[str, float, bool, bool, date | None]
         ) from exc
     if budget <= 0:
         raise argparse.ArgumentTypeError("budget hours must be positive")
-    return name, budget, any_conclusion, weekday_only, expected_stale_until
-
-
-def _parse_product_spec(raw: str) -> tuple[str, float, bool, date | None]:
-    """Parse ``GLOB=HOURS`` plus optional ``:weekday`` / ``:expected-stale-until=``.
-
-    The pattern ends at the FIRST ``=`` (a glob with ``=`` in it is not
-    supported). ``:any`` / ``:success`` have no meaning for a product (there
-    is no conclusion) and are rejected — like every unknown suffix, see
-    :func:`_parse_workflow_spec`.
-    """
-    pattern, sep, rest = raw.partition("=")
-    pattern = pattern.strip()
-    if not sep or not pattern:
-        raise argparse.ArgumentTypeError(
-            f"product spec must be 'GLOB=HOURS', got {raw!r}"
-        )
-    if "*" not in pattern:
-        raise argparse.ArgumentTypeError(
-            f"product pattern must be a glob over dated files, got {pattern!r}"
-        )
-
-    parts = rest.split(":")
-    weekday_only = False
-    expected_stale_until: date | None = None
-    for part in parts[1:]:
-        tag = part.strip()
-        if tag.lower() == "weekday":
-            weekday_only = True
-        elif tag.lower().startswith("expected-stale-until="):
-            date_s = tag.partition("=")[2].strip()
-            try:
-                expected_stale_until = date.fromisoformat(date_s)
-            except ValueError as exc:
-                raise argparse.ArgumentTypeError(
-                    f"expected-stale-until must be YYYY-MM-DD, got {date_s!r}"
-                ) from exc
-        else:
-            raise argparse.ArgumentTypeError(
-                f"unknown product-spec suffix {tag!r} in {raw!r} "
-                f"(known: weekday, expected-stale-until=YYYY-MM-DD)"
-            )
-    try:
-        budget = float(parts[0].strip())
-    except ValueError as exc:
-        raise argparse.ArgumentTypeError(
-            f"budget hours must be numeric, got {parts[0]!r}"
-        ) from exc
-    if budget <= 0:
-        raise argparse.ArgumentTypeError("budget hours must be positive")
-    return pattern, budget, weekday_only, expected_stale_until
+    return name, budget, any_conclusion, weekday_only
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -541,15 +309,6 @@ def main(argv: list[str] | None = None) -> int:
         help="Env var holding the GitHub token (default GITHUB_TOKEN; falls back to GH_PAT)",
     )
     parser.add_argument("--output", type=str, default=None, help="Also write the JSON report to this file")
-    parser.add_argument(
-        "--product",
-        action="append",
-        default=[],
-        type=_parse_product_spec,
-        metavar="GLOB=HOURS",
-        help="Also check the newest dated file matching GLOB in the checkout "
-        "(repeatable; suffixes :weekday, :expected-stale-until=YYYY-MM-DD)",
-    )
     args = parser.parse_args(argv)
 
     if not args.repo or "/" not in args.repo:
@@ -567,9 +326,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 1
 
-    report = check_all(
-        repo=args.repo, workflows=args.workflows, token=token, products=args.product
-    )
+    report = check_all(repo=args.repo, workflows=args.workflows, token=token)
     rendered = json.dumps(asdict(report), indent=2)
     print(rendered)
     if args.output:

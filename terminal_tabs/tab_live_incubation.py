@@ -130,23 +130,15 @@ def render(payload: Mapping[str, Any] | None) -> None:  # pragma: no cover
     import streamlit as st
 
     view = build_live_view(payload)
-    st.subheader("Live Incubation")
+    st.subheader("🛰️ Live Incubation")
     if view["status"] == "awaiting_c8":
         st.info(view["notice"])
         return
     st.caption(f"Computed at: {view['computed_at']} (window {view['live_window_days']}d)")
     cols = st.columns(len(VERDICT_BADGE))
-    for i, verdict in enumerate(VERDICT_BADGE):
-        cols[i].metric(verdict, view["totals"].get(verdict, 0))
-    import pandas as pd
-
-    from terminal_tabs.style import style_semantic
-
-    _live_df = pd.DataFrame(view["rows"])
-    st.dataframe(
-        style_semantic(_live_df, ["verdict", "slippage_ks_reference_type"]),
-        use_container_width=True,
-    )
+    for i, (verdict, badge) in enumerate(VERDICT_BADGE.items()):
+        cols[i].metric(f"{badge} {verdict}", view["totals"].get(verdict, 0))
+    st.dataframe(view["rows"], use_container_width=True)
 
 
 # ---------------------------------------------------------------------------
@@ -274,7 +266,7 @@ def render_drift_history(  # pragma: no cover
         artifacts = _load_recent_drift_artifacts_from_disk(cache_dir, n=n)
 
     view = build_drift_history_view(artifacts, n=n)
-    st.subheader("Drift-Historie (letzte 7 Tage)")
+    st.subheader("📜 Drift-Historie (letzte 7 Tage)")
     if view["status"] == "awaiting_c8":
         st.info(view["notice"])
         return

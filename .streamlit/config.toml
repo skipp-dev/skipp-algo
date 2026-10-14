@@ -9,16 +9,6 @@ fileWatcherType = "auto"
 
 [theme]
 base = "dark"
-# Skipp brand palette — aligned with the terminal auth gate (#0b1020 bg, azure
-# accent). primaryColor must NOT be Streamlit's default red (#FF4B4B): red is
-# reserved for bearish/down semantics in a trading terminal.
-primaryColor = "#5b9bf0"
-backgroundColor = "#0b1020"
-secondaryBackgroundColor = "#151c32"
-# Softened for long dark-terminal sessions: #eef2ff -> #c3cde3 -> #a7b1c6.
-# ~8.7:1 on #0b1020 still clears WCAG AAA (7:1) but reads calm, not glaring.
-textColor = "#a7b1c6"
-font = "sans-serif"
 
 [browser]
 gatherUsageStats = false

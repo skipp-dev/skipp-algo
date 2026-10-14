@@ -10,7 +10,7 @@ Dieses Dokument bereitet die erste konkrete UI-Umsetzung fuer die drei
 SMC-TradingView-Surfaces vor:
 
 - `SMC_Long_Dip_Suite.pine`
-- `SMC_Decision_Board.pine`
+- `SMC_Long_Dip_Dashboard.pine`
 - `SMC_Long_Dip_Strategy.pine`
 
 Es ist keine Release-Note und kein abstrakter Wunschzettel. Es beschreibt den
@@ -64,8 +64,8 @@ Validierungsregeln.
 | --- | --- | --- |
 | `SMC_Long_Dip_Suite.pine` | `long_user_preset`, `compact_mode`, `show_dashboard`, `enable_dynamic_alerts` | sichtbare Lite- und Alert-Einstiegslogik |
 | `SMC_Long_Dip_Suite.pine` | Hero-Card- und Alert-Helper | hier sitzt die neue Lite-Leselogik |
-| `SMC_Decision_Board.pine` | BUS-Inputs am Dateikopf | operator-only Companion-Bindings |
-| `SMC_Decision_Board.pine` | Compact-vs-Pro-Renderpfade | eigentlicher Dashboard-Split |
+| `SMC_Long_Dip_Dashboard.pine` | BUS-Inputs am Dateikopf | operator-only Companion-Bindings |
+| `SMC_Long_Dip_Dashboard.pine` | Compact-vs-Pro-Renderpfade | eigentlicher Dashboard-Split |
 | `SMC_Long_Dip_Strategy.pine` | acht `input.source(...)`-Bindings | deterministische Wrapper-Bindung an den Core |
 | `SMC_Long_Dip_Strategy.pine` | `entry_mode`, `min_quality_score`, `take_profit_r`, `use_take_profit` | sichtbare Strategy-Setup-Flaeche |
 | `SMC_Long_Dip_Strategy.pine` | Trigger-/Invalidation-/Take-Profit-Plots | planbare Wrapper-Ausgabe auf dem Chart |
@@ -110,7 +110,7 @@ Hauptbotschaft zeigt.
 2. `WAIT` zeigt keine vollen Risk-Linien.
 3. `READY` und `ENTER` zeigen Trigger und Invalidation klar.
 
-## Surface 2 - `SMC_Decision_Board.pine`
+## Surface 2 - `SMC_Long_Dip_Dashboard.pine`
 
 ### Dashboard First-Cut Zielbild
 

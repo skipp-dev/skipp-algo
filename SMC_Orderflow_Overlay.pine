@@ -20,7 +20,7 @@
 
 indicator("SMC Orderflow Overlay", overlay = false, max_labels_count = 50)
 
-import preuss_steffen/smc_micro_profiles_generated/569 as mp
+import preuss_steffen/smc_micro_profiles_generated/158 as mp
 
 // ── Inputs ──────────────────────────────────────────────────────
 
@@ -32,12 +32,6 @@ var bool show_flow_direction = input.bool(true,  "Show flow direction markers", 
 var color col_bullish        = input.color(color.new(color.green, 30), "Bullish color",  group = g_fl)
 var color col_bearish        = input.color(color.new(color.red, 30),   "Bearish color",  group = g_fl)
 var color col_neutral        = input.color(color.new(color.gray, 50),  "Neutral color",  group = g_fl)
-
-var g_fp = "Real Footprint (opt-in)"
-var bool use_real_footprint = input.bool(false, "Use real footprint delta", group = g_fp, tooltip = "Jan-2026 request.footprint(): real buy/sell volume and delta from TradingView's footprint engine. OPT-IN because footprint data depends on your TradingView plan and symbol; without it the value stays na and this overlay behaves exactly as before. The delta proxy plot stays on — run both side by side to judge the proxy before trusting either.")
-var int fp_ticks_per_row  = input.int(25,  "Ticks per row", minval = 1, group = g_fp, active = use_real_footprint)
-var int fp_value_area_pct = input.int(70,  "Value area %",  minval = 1, maxval = 100, group = g_fp, active = use_real_footprint)
-var int fp_imbalance_pct  = input.int(300, "Imbalance %",   minval = 1, group = g_fp, active = use_real_footprint)
 
 // ── Library fields ──────────────────────────────────────────────
 
@@ -77,17 +71,6 @@ hline(1.0, "RelVol Baseline", color.new(color.gray, 70), hline.style_dotted)
 color dp_color = fl_delta_proxy_pct > 0 ? col_bullish : fl_delta_proxy_pct < 0 ? col_bearish : col_neutral
 plot(show_delta_proxy ? fl_delta_proxy_pct : na, "Delta Proxy %", dp_color, 1, plot.style_histogram, display = display.pane)
 
-// ── Real footprint delta (opt-in, Jan-2026 request.footprint) ───
-// Same unit as the proxy: PERCENT of bar volume (DELTA_PROXY_PCT is percent —
-// the status line prints it with '%'), hence the explicit ×100 on the raw
-// delta/total fraction. na-guarded end to end: charts or plans without
-// footprint data leave the line empty and the proxy untouched.
-footprint fl_fp = use_real_footprint ? request.footprint(fp_ticks_per_row, fp_value_area_pct, fp_imbalance_pct) : na
-float fl_fp_total     = na(fl_fp) ? na : footprint.total_volume(fl_fp)
-float fl_fp_delta_pct = na(fl_fp) or not (fl_fp_total > 0) ? na : 100 * footprint.delta(fl_fp) / fl_fp_total
-color dr_color = fl_fp_delta_pct > 0 ? col_bullish : fl_fp_delta_pct < 0 ? col_bearish : col_neutral
-plot(use_real_footprint ? fl_fp_delta_pct : na, "Delta Real %", dr_color, 2, plot.style_line, display = display.pane)
-
 // ── ATS state background ────────────────────────────────────────
 
 color ats_bg = show_ats_state ?
@@ -110,7 +93,7 @@ plotchar(show_flow_direction and fl_flow_short_ok ? 0 : na, "Flow Short OK", "�
 
 // ── Status line ─────────────────────────────────────────────────
 
-string flow_summary = "RV:" + str.tostring(fl_rel_vol, "#.##") + " Δ:" + str.tostring(fl_delta_proxy_pct, "#.#") + "% ATS:" + fl_ats_state + (use_real_footprint and not na(fl_fp_delta_pct) ? " Δreal:" + str.tostring(fl_fp_delta_pct, "#.#") + "%" : "")
+string flow_summary = "RV:" + str.tostring(fl_rel_vol, "#.##") + " Δ:" + str.tostring(fl_delta_proxy_pct, "#.#") + "% ATS:" + fl_ats_state
 
 // Flow summary via label (plotchar char= only supports single characters)
 var label flow_label = na

@@ -257,12 +257,8 @@ def min_trl(
 
     MinTRL = 1 + (1 - γ₃·SR_hat + (γ₄ - 1)/4 · SR_hat²) · (Z_α / (SR_hat - SR*))²
 
-    All Sharpe values must be at the SAME frequency, and it must be the
-    per-period frequency the caller measured returns at — NOT annualised.
-    Annualising ``sr_hat``/``sr_star`` scales ``(sr_hat - sr_star)`` by
-    √periods_per_year while the formula consumes it unchanged, so an annualised
-    SR yields a wrong (far smaller) MinTRL. ``Z_α`` is frequency-independent
-    and does not offset this; pass per-period Sharpe only.
+    All Sharpe values must be at the same frequency (typically per-period,
+    not annualised — annualised SR can be passed but Z_α stays unchanged).
 
     Args:
         sr_hat: observed Sharpe.

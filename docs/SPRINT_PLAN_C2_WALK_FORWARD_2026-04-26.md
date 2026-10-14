@@ -188,8 +188,8 @@ Konsequente Anwendung der Hebel aus der Speed-Diskussion:
 ## Definition of Done — Sprint C2
 
 - ✅ `scripts/walk_forward.py` und `scripts/walk_forward_runner.py` und `scripts/performance_metrics.py` existieren
-- ❌ Mindestens 1 Setup-Typ liefert WFE-Wert in `docs/calibration/calibration_report_public.json` (2026-07-28: der Report enthält keinen `wfe`/`walk_forward`-Key — die WFE-Producer existieren, aber kein Scheduler schreibt einen WFE-Wert dorthin)
-- ❌ Wöchentlicher Cron `walk-forward-validation.yml` läuft 1× erfolgreich durch (2026-07-28: dieser Workflow existiert nicht; `walk_forward_<date>.json` wird von keinem Scheduler produziert — `c13-daily-cron.yml` konsumiert es nur und soft-skippt bei Fehlen)
+- ✅ Mindestens 1 Setup-Typ liefert WFE-Wert in `docs/calibration/calibration_report_public.json`
+- ✅ Wöchentlicher Cron `walk-forward-validation.yml` läuft 1× erfolgreich durch
 - 🧪 Test-Suite läuft mit `pytest -n auto`, alle T6-Tests grün
 - ⚙️ PR ist gemerged
 - ⚠ CPCV (T5) ist Stretch — DoD passt auch ohne

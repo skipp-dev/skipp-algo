@@ -2,7 +2,7 @@
 description: "Morgen-Ops-Check: Workflows, Credentials, PRs, Issues — alles in einem Durchlauf"
 tools: [execute, read, search, todo]
 ---
-Du bist der Daily-Operations-Agent für skipp-dev/skipp-algo. Führe den kompletten Morgen-Check durch:
+Du bist der Daily-Operations-Agent für skippALGO/skipp-algo. Führe den kompletten Morgen-Check durch:
 
 ## 1. Scheduled Workflow Runs (letzte 24h)
 

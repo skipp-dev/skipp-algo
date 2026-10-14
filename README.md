@@ -2,17 +2,10 @@
 
 Pine Script v6 Signal Engine · Real-Time News Intelligence Dashboard · Pre-Open Briefing Pipeline
 
-The repository contains a modular trading-intelligence system. ADR-0033 sets a
-new goal: develop the SMC surfaces into a commercial decision-support product
-with external users, while keeping the hosted Operator Terminal internal.
-
-The three existing system groups are:
+SkippALGO is a modular trading intelligence platform combining three core systems:
 
 1. **SkippALGO Pine Script** — non-repainting signal engine with a decision-first HUD plus Lite Outlook and Forecast panels for TradingView.
-2. **Real-Time News Intelligence Dashboard** — the internal AI-supported
-   **Operator Terminal** for news intelligence, alerting and operational market
-   monitoring. Its single-operator boundary remains governed by
-   [ADR-0030](docs/adr/0030-terminal-purpose-and-audience.md).
+2. **Real-Time News Intelligence Dashboard** — an AI-supported **Research & Monitoring Terminal** with 11 tabs for **News Intelligence + Alerting** and operational market monitoring.
 3. **Open-Prep Pipeline** — automated pre-open briefing system with ranked candidates, macro context, and structured trade cards.
 
 > New to the codebase? See the [Glossary](docs/GLOSSARY.md) for the sprint
@@ -22,15 +15,9 @@ The three existing system groups are:
 
 ## Product Positioning & Compliance Notes
 
-- The commercial target is the **Skipp SMC** product family described in
-  [ADR-0033](docs/adr/0033-commercial-product-and-customer-plane.md) and the
-  [Phase-0 product brief](docs/commercial/PRODUCT_BRIEF.md).
-- The hosted Operator Terminal remains internal research and operations
-  infrastructure; it is not the customer product.
-- The primary use case remains **workflow and decision support**, not direct
-  personalized “Buy/Sell” instructions.
-- Commercial readiness and customer-facing claims remain gated by the
-  [commercial programme](docs/commercial/README.md).
+- SkippALGO is positioned as a **Research & Monitoring Terminal**.
+- Core value proposition: **News Intelligence + Alerting**.
+- Primary use case: **Workflow/Decision Support** — not direct “Buy/Sell” instructions.
 
 ### Important Disclaimer
 
@@ -174,7 +161,7 @@ npm run tv:publish-micro-library
 
 The canonical SMC TradingView gate is `npm run tv:preflight:smc-mainline`.
 It validates the active mainline path `SMC_Long_Dip_Suite.pine` +
-`SMC_Decision_Board.pine` + `SMC_Long_Dip_Strategy.pine` against the product-cut
+`SMC_Long_Dip_Dashboard.pine` + `SMC_Long_Dip_Strategy.pine` against the product-cut
 manifest.
 The latest fully green SMC mainline evidence is `automation/tradingview/reports/preflight-2026-04-08T12-37-12-028Z.json`.
 
@@ -458,9 +445,8 @@ The dashboard opens at `http://localhost:8501` with a dark theme.
 | `TERMINAL_NOTIFY_ENABLED` | No | `1` to enable push notifications |
 | `TERMINAL_NOTIFY_MIN_SCORE` | No | Minimum news score for notification (default: `0.85`) |
 | `TERMINAL_NOTIFY_THROTTLE_S` | No | Throttle window in seconds (default: `600`) |
-| `TERMINAL_NOTIFY_STATE_PATH` | No | Where the throttle is persisted so a restart keeps it (default: `artifacts/terminal/notify_throttle.json`) |
 | `TERMINAL_WEBHOOK_URL` | No | Webhook URL for alert dispatch |
-| `TERMINAL_POLL_INTERVAL_S` | No | Poll interval in seconds (default: `10`) |
+| `TERMINAL_POLL_INTERVAL` | No | Poll interval in seconds (default: `15`) |
 | `TERMINAL_TOPICS` | No | Comma-separated topic filter for Benzinga |
 
 When both private Producer settings and direct-provider keys are present, the
@@ -611,14 +597,7 @@ metrics and small HTTP probes:
 - `GET /healthz` — always returns `200 OK`
 - `GET /readyz` — returns `200 ready` only when the watchlist is loaded,
   the Open-Prep snapshot is present, and the last successful poll is younger
-  than 5 minutes. With `RT_QUOTE_SOURCE=databento`, it additionally requires
-  a non-empty quote reference, a connected Databento feed, and at least one
-  received bar during regular market hours; otherwise it returns `503`.
-
-Railway uses `/readyz` as the producer healthcheck. Both
-`smc-signals-producer` and `smc-signals-producer-databento-shadow` must point
-at `services/signals_producer/railway.toml`; otherwise the shadow silently
-loses the readiness check and the scoped auto-deploy watch patterns.
+  than 5 minutes; otherwise returns `503 not_ready`
 
 Key readiness gauges (all prefixed `signals_producer_`):
 

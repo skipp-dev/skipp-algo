@@ -27,8 +27,6 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from tests._guard_corpus import iter_production_py_files
-
 REPO_ROOT = Path(__file__).resolve().parent.parent
 TARGET_DIR = REPO_ROOT / "smc_core"
 
@@ -46,7 +44,7 @@ _FLOAT_EQ_RE = re.compile(
 
 
 def _python_files() -> list[Path]:
-    return iter_production_py_files(frozenset(), root=TARGET_DIR, minimum=15)
+    return sorted(p for p in TARGET_DIR.rglob("*.py") if p.is_file())
 
 
 def _strip_comments_and_strings(text: str) -> str:

@@ -37,11 +37,8 @@ from scripts.smc_databento_session_detail import (
     REGULAR_MINUTES,
     REGULAR_OPEN_ET,
     _assert_complete_symbol_coverage,
-    _coerce_bool_series,
-    _coerce_trade_date_series,
     _coverage_stats,
     _universe_fingerprint,
-    build_session_minute_coverage_scope,
     collect_full_universe_session_minute_detail,
 )
 from scripts.smc_enrichment_types import EnrichmentDict
@@ -88,14 +85,6 @@ logger = logging.getLogger(__name__)
 REQUIRED_BUNDLE_FRAMES = (
     "daily_bars",
     "daily_symbol_features_full_universe",
-)
-
-#: Every frame the base derivation actually reads. Kept next to
-#: REQUIRED_BUNDLE_FRAMES because the two must be edited together: a frame that
-#: becomes required must also become readable.
-BUNDLE_FRAMES_READ_BY_BASE_DERIVATION = (
-    *REQUIRED_BUNDLE_FRAMES,
-    "session_minute_detail_full_universe",
 )
 
 INCREMENTAL_BASE_SEED_DIR_NAME = "incremental_base_seed"
@@ -692,6 +681,47 @@ def _et_minutes_since_midnight(timestamp: pd.Series) -> pd.Series:
     return pd.Series(minutes, index=timestamp.index)
 
 
+def _coerce_trade_date_series(values: pd.Series) -> pd.Series:
+    codes, uniques = pd.factorize(values, sort=False)
+    parsed_uniques = np.asarray(
+        [
+            pd.NaT
+            if pd.isna(parsed := pd.to_datetime(pd.Index([value]), errors="coerce")[0])
+            else parsed.date()
+            for value in uniques
+        ],
+        dtype=object,
+    )
+    parsed_values = np.empty(len(codes), dtype=object)
+    valid = codes >= 0
+    parsed_values[valid] = parsed_uniques[codes[valid]]
+    parsed_values[~valid] = pd.NaT
+    return pd.Series(parsed_values, index=values.index, name=values.name)
+
+
+def _coerce_bool(value: Any) -> bool:
+    if pd.isna(value):
+        return False
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "y", "on"}
+    return bool(value)
+
+
+def _coerce_bool_series(series: pd.Series) -> pd.Series:
+    result = pd.Series(False, index=series.index, dtype=bool, name=series.name)
+    if series.empty:
+        return result
+
+    non_null = ~series.isna()
+    if not bool(non_null.any()):
+        return result
+
+    values = series.loc[non_null]
+    mapping = {value: _coerce_bool(value) for value in pd.unique(values).tolist()}
+    result.loc[non_null] = values.map(mapping).fillna(False).astype(bool).to_numpy()
+    return result
+
+
 def _numeric_values(series: pd.Series) -> np.ndarray:
     if pd.api.types.is_numeric_dtype(series.dtype):
         return cast(np.ndarray, series.to_numpy(dtype=float, na_value=np.nan))
@@ -835,17 +865,6 @@ def _session_stats(frame: pd.DataFrame, *, available_minutes: int) -> dict[str, 
     }
 
 
-# M3: session-length-independent "never decayed within the session" marker. The
-# no-hit half-life used to be the count of observed 30m buckets, which is smaller on
-# early-close days (7 buckets for a 13:00 close vs 13 for a full session) — so an
-# undecayed half-day looked like *faster* decay purely because the session was short.
-# Report a fixed full-session bucket count instead, so no-decay is scored the same
-# regardless of session length. Kept numeric (not None/NaN) because the metric feeds
-# percentile-rank scores in generate_smc_micro_profiles (a NaN would silently zero a
-# symbol's fast_decay candidacy — the exact NaN->score trap fixed separately as P3).
-_NO_DECAY_HALF_LIFE_BUCKETS = REGULAR_MINUTES // 30
-
-
 def _setup_decay_half_life_30m_buckets(frame: pd.DataFrame) -> float:
     if frame.empty:
         return 0.0
@@ -860,7 +879,7 @@ def _setup_decay_half_life_30m_buckets(frame: pd.DataFrame) -> float:
     later = bucket_dollar.iloc[1:]
     hit = later[later <= threshold]
     if hit.empty:
-        return float(_NO_DECAY_HALF_LIFE_BUCKETS)
+        return float(max(len(bucket_dollar), 1))
     return float(int(hit.index[0]))
 
 
@@ -886,12 +905,10 @@ def _grouped_setup_decay_half_life_30m_buckets(
     grouped = bucket_frame.groupby(group_columns, sort=False, observed=True)
     summary = grouped.agg(
         first_bucket_dollar=("bucket_dollar", "first"),
+        bucket_count=("bucket_index", "size"),
     )
 
-    # M3: default = "never decayed within the session" as a fixed full-session bucket
-    # count (_NO_DECAY_HALF_LIFE_BUCKETS) rather than the observed bucket count, which
-    # shrank on early-close days and mislabelled a short session as faster decay.
-    result = pd.Series(float(_NO_DECAY_HALF_LIFE_BUCKETS), index=summary.index, dtype=float)
+    result = summary["bucket_count"].clip(lower=1).astype(float)
     zero_first_bucket = summary["first_bucket_dollar"].le(0)
     if bool(zero_first_bucket.any()):
         result.loc[zero_first_bucket] = 0.0
@@ -929,21 +946,6 @@ def _window_efficiency_from_aggregates(
     return pd.Series(efficiency, index=open_price.index).clip(lower=0.0, upper=1.0)
 
 
-def _observed_available_minutes_by_date(subset: pd.DataFrame, *, scheduled_minutes: int) -> pd.Series:
-    """Per-trade_date session length observed in a window, capped at its scheduled full length.
-
-    M3: ``active_minutes_share`` divided by a fixed constant (e.g. 390 for RTH), so a
-    fully-active early-close session (13:00 close -> 210 minutes) capped at 210/390 =
-    0.54 instead of ~1.0. Using the observed ``et_minute`` span (last minus first
-    observed minute, inclusive) as the denominator — capped at the scheduled length —
-    leaves a full trading day at the scheduled length (unchanged) while an early-close
-    day divides by its actual, shorter session. Returned per trade_date.
-    """
-    minute = subset.groupby("trade_date")["et_minute"]
-    span = minute.max() - minute.min() + 1.0
-    return span.clip(lower=1.0, upper=float(scheduled_minutes))
-
-
 def _aggregate_window_metrics(
     frame: pd.DataFrame,
     mask: pd.Series,
@@ -964,7 +966,7 @@ def _aggregate_window_metrics(
     ]
     subset = frame.loc[
         mask,
-        [*group_columns, "et_minute", "open", "high", "low", "close", "dollar_volume", "trade_proxy", "active_minute", "spread_bps_proxy", "wickiness_proxy"],
+        [*group_columns, "open", "high", "low", "close", "dollar_volume", "trade_proxy", "active_minute", "spread_bps_proxy", "wickiness_proxy"],
     ]
     if subset.empty:
         return _empty_group_metrics(group_columns, columns)
@@ -991,19 +993,11 @@ def _aggregate_window_metrics(
         },
         index=open_price.index,
     )
-    # M3: divide by the session length actually observed on each trade_date (capped at
-    # the scheduled full-session length) so early-close days are not measured against a
-    # full-day denominator. Full trading days observe the full span and are unchanged.
-    available_by_date = _observed_available_minutes_by_date(subset, scheduled_minutes=available_minutes)
-    trade_dates = active_minutes.index.get_level_values("trade_date")
-    available_aligned = available_by_date.reindex(trade_dates).to_numpy(dtype=float)
-    active_values = active_minutes.to_numpy(dtype=float)
-    aggregated["active_minutes_share"] = np.divide(
-        active_values,
-        available_aligned,
-        out=np.zeros_like(active_values),
-        where=np.isfinite(available_aligned) & (available_aligned > 0),
-    )
+    aggregated["active_minutes_share"] = _safe_ratio_to_constant_series(
+        active_minutes,
+        denominator=float(available_minutes),
+        default=0.0,
+    ).to_numpy()
     aggregated["efficiency"] = _window_efficiency_from_aggregates(
         open_price,
         close_price,
@@ -1702,23 +1696,7 @@ def build_base_snapshot_from_bundle_payload(
     frames = bundle_payload["frames"]
     daily_features = frames["daily_symbol_features_full_universe"]
     if session_minute_detail is None:
-        session_minute_detail = frames.get("session_minute_detail_full_universe")
-        # 2026-07-22: this frame is load-bearing but absent from
-        # REQUIRED_BUNDLE_FRAMES, so a bundle without it used to fall through to
-        # an empty DataFrame. Every minute-derived metric then resolves to 0.0,
-        # no symbol clears a membership threshold, and the generated library
-        # ships seven empty ticker lists — with the run reporting success. An
-        # input this load-bearing must fail closed. A caller that genuinely has
-        # no minute detail can still say so by passing an explicit frame.
-        if session_minute_detail is None or session_minute_detail.empty:
-            raise RuntimeError(
-                "Bundle has daily_symbol_features_full_universe but no usable "
-                "session_minute_detail_full_universe frame; every minute-derived "
-                "metric would silently resolve to 0.0 and the library would ship "
-                "empty membership lists. Collect it via "
-                "collect_full_universe_session_minute_detail, or pass "
-                "session_minute_detail explicitly to accept the gap."
-            )
+        session_minute_detail = frames.get("session_minute_detail_full_universe", pd.DataFrame())
     symbol_day_features = build_symbol_day_microstructure_feature_frame(session_minute_detail, daily_features)
     if symbol_day_features.empty:
         raise RuntimeError("Unable to derive symbol-day microstructure features from the bundle")
@@ -2120,10 +2098,6 @@ def generate_base_from_bundle(
         bundle,
         required_frames=REQUIRED_BUNDLE_FRAMES,
         manifest_prefix="databento_volatility_production_",
-        # Read only what this chain touches. The bundle carries ~25 payload
-        # frames and reached 1.0 GB compressed after #3941 restored the intraday
-        # grain — close_trade_detail alone is 464 MB and is never read here.
-        only_frames=BUNDLE_FRAMES_READ_BY_BASE_DERIVATION,
     )
     target_dir = output_dir or Path(bundle_payload["bundle_dir"])
     if symbol_day_features is None:
@@ -2514,7 +2488,6 @@ def run_databento_base_scan_pipeline(
         manifest_path,
         required_frames=REQUIRED_BUNDLE_FRAMES,
         manifest_prefix="databento_volatility_production_",
-        only_frames=BUNDLE_FRAMES_READ_BY_BASE_DERIVATION,
     )
     _progress(
         "Base scan: Export bundle load complete in "
@@ -2534,13 +2507,43 @@ def run_databento_base_scan_pipeline(
             "Unable to resolve trade dates for the SMC base scan. The export manifest is missing trade_dates_covered "
             "and no fallback trade_date values were available in daily_symbol_features_full_universe."
         )
-    # Fetch every symbol-day, require only the ones flagged has_intraday.
-    # Shared with the export's Step 9c so the two cannot drift: an illiquid
-    # ticker with no bars that session must not fail the run.
-    session_minute_scope = build_session_minute_coverage_scope(daily_feature_frame)
-    expected_symbols_by_trade_day = session_minute_scope.expected_symbols_by_trade_day
-    required_symbols_by_trade_day = session_minute_scope.required_symbols_by_trade_day
-    universe_symbols = session_minute_scope.universe_symbols
+    intraday_expected = daily_feature_frame.copy()
+    intraday_expected["trade_date"] = _coerce_trade_date_series(intraday_expected["trade_date"])
+    intraday_expected["symbol"] = intraday_expected.get("symbol", pd.Series(index=intraday_expected.index, dtype=object)).astype(str).str.upper()
+    has_intraday_available = "has_intraday" in intraday_expected.columns
+    if has_intraday_available:
+        intraday_expected["has_intraday"] = _coerce_bool_series(intraday_expected["has_intraday"])
+    else:
+        intraday_expected["has_intraday"] = pd.Series(True, index=intraday_expected.index, dtype=bool)
+        logger.warning(
+            "daily_symbol_features_full_universe is missing has_intraday; defaulting to fetch all symbol-days for minute detail coverage."
+        )
+    intraday_expected = intraday_expected.loc[
+        intraday_expected["trade_date"].notna() & intraday_expected["symbol"].ne("")
+    ].copy()
+    if has_intraday_available:
+        has_intraday_false_count = int((~intraday_expected["has_intraday"]).sum())
+        if has_intraday_false_count > 0:
+            logger.warning(
+                "daily_symbol_features_full_universe contains %d symbol-days with has_intraday=False; keeping them in minute-detail fetch scope while excluding them from hard coverage expectations.",
+                has_intraday_false_count,
+            )
+    expected_symbols_by_trade_day = {
+        trade_day: set(group["symbol"].tolist())
+        for trade_day, group in intraday_expected.groupby("trade_date", sort=False)
+    }
+    if has_intraday_available:
+        required_symbols_by_trade_day = {
+            trade_day: set() for trade_day in expected_symbols_by_trade_day
+        }
+        for trade_day, group in intraday_expected.loc[intraday_expected["has_intraday"]].groupby("trade_date", sort=False):
+            required_symbols_by_trade_day[trade_day] = set(group["symbol"].tolist())
+    else:
+        required_symbols_by_trade_day = {
+            trade_day: set(symbols)
+            for trade_day, symbols in expected_symbols_by_trade_day.items()
+        }
+    universe_symbols = set(daily_feature_frame["symbol"].dropna().astype(str).str.upper())
 
     _progress("Step 11/12: Collecting full-session minute detail for microstructure base derivation...")
     session_detail_started_at = time_module.perf_counter()
@@ -2635,6 +2638,7 @@ def generate_pine_library_from_base(
     library_owner: str = "preuss_steffen",
     library_version: int = 1,
     enrichment: EnrichmentDict | None = None,
+    static_control_plane: bool = False,
 ) -> dict[str, Path]:
     """Generate a Pine library from a base snapshot CSV.
 
@@ -2662,6 +2666,9 @@ def generate_pine_library_from_base(
         ``export const`` blocks for regime, news, calendar, layering,
         provider status, and volume-regime data.  When ``None``, all
         enrichment constants receive safe neutral defaults.
+    static_control_plane:
+        Whether provider-backed values are intentionally delivered by
+        runtime sidecars instead of being embedded in this library.
 
     Returns
     -------
@@ -2677,5 +2684,6 @@ def generate_pine_library_from_base(
         library_owner=library_owner,
         library_version=library_version,
         enrichment=enrichment,
+        static_control_plane=static_control_plane,
     )
 

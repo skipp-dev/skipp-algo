@@ -2,24 +2,20 @@
 #
 # Deterministic CI deploy for the live_overlay_daemon Railway service.
 #
-# Why this exists: originally (2026-07-07) Railway's native GitHub auto-deploy
-# for this service was not firing (the connection referenced the pre-rename
-# `skippALGO` org slug; the last git-triggered deploy stuck at an old commit),
-# so merges to main did NOT reach production and required a manual `railway up`.
-# This workflow makes the deploy deterministic: every main push that touches the
-# daemon runs the SHA-stamping wrapper, so production tracks main AND
-# `live_overlay_build_info` shows the real deployed commit.
+# Why this exists: Railway's native GitHub auto-deploy for this service is not
+# firing (the connection references the pre-rename `skippALGO` org slug; the
+# last git-triggered deploy stuck at an old commit), so merges to main did NOT
+# reach production and required a manual `railway up`. This workflow makes the
+# deploy deterministic: every main push that touches the daemon runs the
+# SHA-stamping wrapper, so production tracks main AND `live_overlay_build_info`
+# shows the real deployed commit.
 #
 # Requires the `RAILWAY_TOKEN` secret (a project token for the skipp-algo
 # project). Without it the job no-ops with a notice, so this file is inert
 # until the secret is added.
 #
-# This is the ONLY intended deploy path. The native trigger was reconnected at
-# some point (current `skipp-dev/skipp-algo` slug) and, having no path filter,
-# redeployed the daemon on every main push — ~20×/day for unrelated commits,
-# wiping the bar cache each time. It was deleted 2026-07-24; keep it gone.
-# `live-overlay-deploy-trigger-guard.yml` fails if it reappears. See OPS.md
-# ("The Railway service must have NO native GitHub deploy trigger").
+# If Railway's native auto-deploy is ever repaired, disable one of the two to
+# avoid double deploys (prefer this workflow — it stamps the commit).
 name: "deploy-live-overlay-daemon"
 
 on:
@@ -55,7 +51,7 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       # The token is scoped to only the steps that use it (gate/deploy/verify),
       # not checkout/install. A step output gates the rest, because step-level
