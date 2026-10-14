@@ -10,7 +10,7 @@
 // This producer is observational and cannot gate Suite trades.
 indicator("SMC Context Bus", overlay = false)
 
-import preuss_steffen/smc_context_engine_private/5 as ctx
+import preuss_steffen/smc_context_engine_private/6 as ctx
 
 const int SCHEMA_VERSION = 8001
 

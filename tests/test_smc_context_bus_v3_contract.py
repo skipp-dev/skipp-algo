@@ -86,7 +86,7 @@ def test_schema_is_distinct_and_fail_closed() -> None:
 def test_producer_uses_the_confirmed_r3_aggregate_once() -> None:
     producer = _text(PRODUCER)
     # 2026-07-31: /4 -> /5 (session-MSS fields added to the session seam).
-    assert "preuss_steffen/smc_context_engine_private/5" in producer
+    assert "preuss_steffen/smc_context_engine_private/6" in producer
     assert producer.count("ctx.build_context_frame(") == 1
     assert "request.security" not in producer
     assert "lookahead_on" not in producer
