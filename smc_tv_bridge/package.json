@@ -7,9 +7,9 @@
     "start:mock": "SMC_USE_MOCK=1 node server.js"
   },
   "dependencies": {
-    "express": "^5.2.1",
-    "express-rate-limit": "^8.6.2",
-    "morgan": "^1.11.0",
+    "express": "^5.3.0",
+    "express-rate-limit": "^8.7.1",
+    "morgan": "^1.12.1",
     "node-fetch": "^3.3.2"
   }
 }
