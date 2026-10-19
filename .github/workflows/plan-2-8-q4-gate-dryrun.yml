@@ -78,7 +78,7 @@ jobs:
 
       - name: Upload verdict artifact
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: plan-2-8-q4-gate-verdict
           path: artifacts/q4_gate/plan_2_8_q4_gate_verdict.json
