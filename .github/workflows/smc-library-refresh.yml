@@ -406,14 +406,14 @@ jobs:
           exit 1
 
       - name: Set up Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: "20"
           cache: "npm"
           cache-dependency-path: package-lock.json
 
       - name: Install uv
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           # Mirrors ci.yml: GHA cache backend returns HTTP 400 on the
           # Windows self-hosted runner. Disable the GHA cache layer there;
@@ -1137,7 +1137,7 @@ jobs:
 
       - name: Upload refresh payload
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: refresh-payload
           path: |
@@ -1153,7 +1153,7 @@ jobs:
 
       - name: Upload gate evidence + library artifacts
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: smc-refresh-${{ env.REFRESH_DATE }}-${{ github.run_number }}
           path: |
@@ -1385,7 +1385,7 @@ jobs:
         # first run) and transient download failures are observability-only and
         # must not fail the refresh job.
         continue-on-error: true
-        uses: dawidd6/action-download-artifact@d63b86af1b34672e53c440b1b83979861906bad7 # v24
+        uses: dawidd6/action-download-artifact@eab87c9830c39eff17e5a6eadb20bfb4bc880477 # v27
         with:
           name: best-effort-failure-history
           path: artifacts/ci
@@ -1444,7 +1444,7 @@ jobs:
         # CONTINUE-ON-ERROR-INTENTIONAL: persisting the trend artifact is
         # observability-only; a transient upload failure must not fail the job.
         continue-on-error: true
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: best-effort-failure-history
           path: |

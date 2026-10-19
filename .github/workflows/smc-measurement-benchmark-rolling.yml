@@ -312,7 +312,7 @@ jobs:
       # On GitHub-hosted we enable the built-in wheel cache; on self-hosted we
       # rely on the local on-disk uv cache and skip the actions/cache layer.
       - name: Install uv
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           enable-cache: ${{ needs.select-runner.outputs.runner_environment == 'github-hosted' && 'true' || 'false' }}
           cache-dependency-glob: requirements*.txt
@@ -790,7 +790,7 @@ jobs:
 
       - name: Upload rolling benchmark artifacts
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           # If an early bootstrap step fails before `meta` runs, keep
           # upload-artifact syntactically valid so the real failure remains the
@@ -809,7 +809,7 @@ jobs:
       # benchmark bundle.
       - name: Upload scored family events (ADR-0023)
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: scored-family-events-${{ steps.meta.outputs.run_date || 'unknown' }}
           path: ${{ steps.meta.outputs.out_dir || 'artifacts/ci/measurement_benchmark_rolling' }}/scored_family_events.json
@@ -837,7 +837,7 @@ jobs:
       - name: Download previous accumulated family events (ADR-0023 Option B)
         id: dl_accumulated
         if: always()
-        uses: dawidd6/action-download-artifact@d63b86af1b34672e53c440b1b83979861906bad7 # v24
+        uses: dawidd6/action-download-artifact@eab87c9830c39eff17e5a6eadb20bfb4bc880477 # v27
         with:
           workflow: smc-measurement-benchmark-rolling.yml
           name: scored-family-events-accumulated
@@ -904,7 +904,7 @@ jobs:
 
       - name: Upload accumulated family events (ADR-0023 Option B)
         if: always() && steps.accumulate_events.outputs.publishable == 'true'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: scored-family-events-accumulated
           path: ${{ steps.accumulate_events.outputs.accumulated_path || format('{0}/accumulated_family_events.json', steps.meta.outputs.out_dir || 'artifacts/ci/measurement_benchmark_rolling') }}
@@ -955,7 +955,7 @@ jobs:
         # (`dawidd6/action-download-artifact` or `gh run download`,
         # depending on the consumer).
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: f2-dual-arm-${{ steps.meta.outputs.run_date }}
           path: artifacts/ci/f2/
