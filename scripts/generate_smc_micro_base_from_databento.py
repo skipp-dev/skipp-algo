@@ -1398,6 +1398,16 @@ def build_enrichment(
         )
         enrichment["range_profile_regime"]["_hierarchy"] = "enrichment_only"
 
+    # ── Per-symbol scope (2026-10-07) ───────────────────────────
+    # The builders above run with symbol="" on the universe snapshot (one row per
+    # symbol): their symbol-dependent fields stay at defaults. Say so explicitly.
+    from scripts.smc_symbol_scope import PER_SYMBOL_FAMILIES, per_symbol_scope_diagnostic
+
+    per_symbol_scope = per_symbol_scope_diagnostic(base_snapshot, [k for k in PER_SYMBOL_FAMILIES if k in enrichment])
+    if per_symbol_scope is not None:
+        logger.info("Per-symbol enrichment not computed for the global library: %s", per_symbol_scope["families"])
+        enrichment.setdefault("_diagnostics", {})["per_symbol_scope"] = per_symbol_scope
+
     # ── Regime Hierarchy Conflict Detection (F-06) ──────────────
     # Primary regimes: vol_regime (smc_core), regime_classifier (scripts)
     # Enrichment-only: compression_regime, range_regime, range_profile_regime
