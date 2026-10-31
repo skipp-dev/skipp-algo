@@ -11,7 +11,7 @@ python-dotenv==1.2.3
 httpx==0.28.1          # keep aligned with root requirements.txt to avoid runtime drift
 cisco-aidefense-sdk==2.1.3  # request/response inspection for private /ai-insights
 feedparser==6.0.14     # lenient RSS/Atom parser for BenzingaRssAdapter
-certifi==2026.7.22     # CA bundle used by terminal_tradingview_news SSL context
+certifi==2026.10.18     # CA bundle used by terminal_tradingview_news SSL context
 
 # terminal_technicals primary source (RSI et al. for the signal quality
 # gates); keep aligned with root requirements.txt to avoid runtime drift.
